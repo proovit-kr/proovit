@@ -1,0 +1,79 @@
+// PROOVIT — Prisma schema
+//
+// 원본 근거: Notion 04. API 명세서 / 06. ARCHITECTURE
+// 03. ERD 문서는 비어 있으므로, 당분간 이 파일이 스키마의 소스 오브 트루스다.
+// 모델은 주차별 구현 범위에 맞춰 점진적으로 추가한다.
+//   W1(현재) Season · Lead
+//   W2       User · Team · TeamMember · TeamInvitation · Entry
+//   W3       Stage · Submission · Judgment
+//   W4       MetricDaily · LeaderboardSnapshot · Award
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// 시즌 생애주기. 랜딩 CTA 분기(GET /api/seasons/current)의 기준이 된다.
+enum SeasonPhase {
+  DRAFT // 준비 중 — 공개되지 않음
+  PREREGISTRATION // 사전 신청 — 랜딩 CTA "사전 신청하기"
+  RECRUITING // 모집 중 — CTA "참가 신청하기" (/apply)
+  IN_PROGRESS // 시즌 진행 중 — CTA "리더보드 보기"
+  FINISHED // 종료 — 시즌 아카이브로 이동
+}
+
+model Season {
+  id     String      @id @default(uuid()) @db.Uuid
+  /// URL 조각. GET /api/seasons/:slug
+  slug   String      @unique
+  name   String
+  /// 테마 시즌(예: 로컬 상권, 크리에이터 툴). 미정이면 null.
+  theme  String?
+  phase  SeasonPhase @default(DRAFT)
+
+  /// 모집 기간
+  recruitStartAt DateTime? @db.Timestamptz(6)
+  recruitEndAt   DateTime? @db.Timestamptz(6)
+  /// 시즌 본편 기간 (2회차 회의에서 6주 → 4주로 축소)
+  startAt        DateTime? @db.Timestamptz(6)
+  endAt          DateTime? @db.Timestamptz(6)
+
+  leads Lead[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([phase])
+  @@map("seasons")
+}
+
+/// 사전 신청자. 시즌1 KPI 1번(실측 신청자 수·전환율)의 원천 데이터이고,
+/// '모두의 창업 2기' 지원서에 들어갈 수요 검증 근거다.
+model Lead {
+  id    String @id @default(uuid()) @db.Uuid
+  email String
+
+  /// 어느 시즌을 보고 신청했는지. 시즌 삭제 시에도 리드는 남긴다.
+  seasonId String? @db.Uuid
+  season   Season? @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+
+  /// 유입 채널 분석용. 랜딩의 쿼리스트링에서 수집한다.
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  referrer    String?
+
+  /// 모집 오픈 시 1순위 알림 대상. 발송 후 시각 기록.
+  notifiedAt DateTime? @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  /// 같은 시즌에 같은 이메일이 중복 신청되지 않도록 한다.
+  @@unique([seasonId, email])
+  @@index([createdAt])
+  @@map("leads")
+}

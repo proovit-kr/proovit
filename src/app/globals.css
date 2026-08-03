@@ -1,0 +1,55 @@
+@import "tailwindcss";
+/* Pretendard 가변 폰트 — 동적 서브셋이라 한글 페이지에서 전송량이 가장 적다 */
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+
+/*
+  PROOVIT 디자인 토큰
+  근거: Notion 허브 페이지 「스택」— 다크 · 딥네이비 #0B1220 + 라임 #C8FF3D · Pretendard + 모노스페이스
+
+  다크 단일 테마다. 라이트 모드는 시즌1 범위 밖이므로 prefers-color-scheme 분기를 두지 않는다.
+  값을 바꿀 일이 생기면 이 블록만 고치면 전 페이지에 반영된다.
+*/
+@theme {
+  /* 배경 — 딥네이비 계열. bg가 가장 어둡고 위로 올라갈수록 밝아진다 */
+  --color-bg: #0b1220;
+  --color-surface: #121b2d;
+  --color-elevated: #1a2439;
+  --color-border: #24304a;
+
+  /* 전경 */
+  --color-fg: #e8edf7;
+  --color-fg-muted: #97a3bb;
+  --color-fg-subtle: #64708a;
+
+  /* 강조 — 라임. CTA·순위 강조·진행 상태에만 쓰고 남발하지 않는다 */
+  --color-accent: #c8ff3d;
+  --color-accent-hover: #d6ff6b;
+  /* 라임 위에 얹는 글자색. 라임이 매우 밝아 반드시 어두운 글자를 쓴다 */
+  --color-accent-fg: #0b1220;
+
+  /* 상태 — 지표 검증·심사 결과 표시용 */
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+
+  /* 타이포 */
+  --font-sans: "Pretendard Variable", Pretendard, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  /* 한글 가독성 — 자간을 살짝 좁힌다 */
+  letter-spacing: -0.01em;
+}
+
+/* 숫자가 흔들리지 않게. 리더보드 순위·지표에서 특히 중요하다 */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
