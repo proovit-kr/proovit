@@ -173,7 +173,14 @@
 .sectionWide {
   padding-bottom: var(--s-22);
 }
-.sectionNarrow {
+
+/*
+  섹션 폭을 줄여서 읽기 폭을 맞추지 않는다.
+  그러면 그 섹션만 안쪽으로 들어가 좌측 기준선이 어긋난다.
+  좌측 정렬한 섹션 머리(번호+괘선)가 세로로 한 줄에 서 있어야 하므로,
+  폭 제한은 아래 .measure 처럼 안쪽 요소에만 건다.
+*/
+.measure {
   max-width: var(--w-narrow);
 }
 
@@ -394,15 +401,18 @@
 
 /* ---- 선언 ----
    중앙정렬 + 그라디언트 워시를 걷어낸다. 좌측 정렬과 괘선으로 무게를 준다. */
+/* 박스 규칙을 .section과 완전히 동일하게 둔다. 좌측 기준선이 틀어질 여지를 없앤다 */
 .declare {
   max-width: var(--w-page);
   margin: 0 auto;
+  width: 100%;
   padding: var(--s-22) var(--pad-x);
   border-top: 1px solid var(--c-line-3);
 }
 .declareTitle {
   margin: 0;
-  max-width: 18ch;
+  /* 18ch는 너무 좁아 문단이 안쪽으로 들어간 것처럼 보였다 */
+  max-width: 24ch;
   font-size: clamp(32px, 4.8vw, 54px);
   font-weight: 800;
   line-height: 1.14;
