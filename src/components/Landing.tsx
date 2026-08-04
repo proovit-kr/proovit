@@ -47,6 +47,34 @@ function Fade({ children, className }: { children: ReactNode; className?: string
   );
 }
 
+/*
+  섹션 머리. 번호 + 라벨을 괘선 위에 얹는 편집물 장치다.
+  제목만 반복해서 쌓는 것보다 페이지에 뼈대가 생긴다.
+*/
+function SectionHead({
+  no,
+  label,
+  title,
+  lead,
+}: {
+  no: string;
+  label: string;
+  title: ReactNode;
+  lead?: string;
+}) {
+  return (
+    <>
+      <div className={styles.eyebrow}>
+        <span className={styles.eyebrowNo}>{no}</span>
+        <span>{label}</span>
+        <span className={styles.eyebrowRule} />
+      </div>
+      <h2 className={styles.headTitle}>{title}</h2>
+      {lead ? <p className={styles.headLead}>{lead}</p> : <div className={styles.headGap} />}
+    </>
+  );
+}
+
 function CompareBlock() {
   const { ref, inView } = useInView<HTMLDivElement>(0.28);
   return (
@@ -313,30 +341,31 @@ export function Landing({
         <StatCounter items={stats} />
       </section>
 
-      <section className={styles.section}>
+      <section className={`${styles.section} ${styles.sectionTight}`}>
         <Fade>
-          <h2 className="sectionTitle" style={{ marginBottom: 36 }}>
-            하루짜리 해커톤이 아니에요
-          </h2>
+          <SectionHead no="01" label="POSITION" title="하루짜리 해커톤이 아니에요" />
           <CompareBlock />
         </Fade>
       </section>
 
-      <section id="how" className={styles.section} ref={howRef}>
-        <h2 className="sectionTitle">작동 방식</h2>
-        <p className="sectionLead">다섯 개의 체크포인트. 트랙은 하나예요.</p>
+      <section id="how" className={`${styles.section} ${styles.sectionWide}`} ref={howRef}>
+        <SectionHead
+          no="02"
+          label="HOW IT WORKS"
+          title="작동 방식"
+          lead="다섯 개의 체크포인트. 트랙은 하나예요."
+        />
         <StageTrack stages={SEASON_STAGES} fill={trackFill} />
       </section>
 
       <section className={`${styles.section} ${styles.sectionNarrow}`}>
         <Fade>
-          <h2 className="sectionTitle" style={{ marginBottom: 32 }}>
-            참가하면 이런 걸 받아요
-          </h2>
+          <SectionHead no="03" label="BENEFITS" title="참가하면 이런 걸 받아요" />
           <div className={styles.benefitList}>
-            {LANDING_BENEFITS.map((b) => (
+            {LANDING_BENEFITS.map((b, i) => (
               <div className={styles.benefit} key={b.title}>
-                <span className={styles.benefitMark}>✓</span>
+                {/* 원형 체크 대신 번호. 항목 수가 적을 때 체크 아이콘은 장식으로만 남는다 */}
+                <span className={styles.benefitMark}>{String(i + 1).padStart(2, "0")}</span>
                 <div>
                   <strong className={styles.benefitTitle}>{b.title}</strong>
                   <p className={styles.benefitDesc}>{b.desc}</p>
@@ -347,11 +376,17 @@ export function Landing({
         </Fade>
       </section>
 
-      <section className={styles.section}>
+      <section className={`${styles.section} ${styles.sectionWide}`}>
         <Fade>
-          <h2 className="sectionTitle" style={{ marginBottom: 44 }}>
-            왜 PROO<span style={{ color: "var(--c-lime)" }}>✓</span>IT인가
-          </h2>
+          <SectionHead
+            no="04"
+            label="WHY"
+            title={
+              <>
+                왜 PROO<span style={{ color: "var(--c-lime)" }}>✓</span>IT인가
+              </>
+            }
+          />
           <div className={styles.whyGrid}>
             {LANDING_WHY.map((w) => (
               <div className={styles.whyCard} key={w.no}>
@@ -364,13 +399,17 @@ export function Landing({
         </Fade>
       </section>
 
-      <section className={styles.section}>
+      <section className={`${styles.section} ${styles.sectionTight}`}>
         <Fade>
-          <h2 className="sectionTitle">심사 기준 공개</h2>
-          <p className="sectionLead">기준은 처음부터 전부 공개돼요. 숨겨진 점수는 없어요.</p>
+          <SectionHead
+            no="05"
+            label="CRITERIA"
+            title="심사 기준 공개"
+            lead="기준은 처음부터 전부 공개돼요. 숨겨진 점수는 없어요."
+          />
           <div className={styles.twoCol}>
             {LANDING_CRITERIA.map((c) => (
-              <div className={styles.whyCard} key={c.round}>
+              <div className={styles.criteriaCard} key={c.round}>
                 <div className={styles.criteriaHead}>
                   <span className={styles.criteriaRound}>{c.round}</span>
                   <h3 className={styles.criteriaTitle}>{c.title}</h3>
@@ -378,7 +417,7 @@ export function Landing({
                 <div className={styles.criteriaList}>
                   {c.items.map((item) => (
                     <div className={styles.criteriaItem} key={item}>
-                      <span style={{ color: "var(--c-lime)" }}>·</span>
+                      <span style={{ color: "var(--c-text-ghost)" }}>—</span>
                       {item}
                     </div>
                   ))}
@@ -404,9 +443,7 @@ export function Landing({
 
       <section id="faq" className={`${styles.section} ${styles.sectionNarrow}`}>
         <Fade>
-          <h2 className="sectionTitle" style={{ marginBottom: 32 }}>
-            자주 묻는 질문
-          </h2>
+          <SectionHead no="06" label="FAQ" title="자주 묻는 질문" />
           <Accordion items={LANDING_FAQ} />
         </Fade>
       </section>

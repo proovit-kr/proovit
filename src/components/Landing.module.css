@@ -1,9 +1,22 @@
+/*
+  랜딩 시각 처리.
+
+  프로토타입 대비 바꾼 원칙 — 2회차 회의 "AI 티 안 나게 디자인 다듬기".
+  ① 카드를 남발하지 않는다. 상자는 실제로 '떠 있어야' 할 때만 쓰고,
+     나머지는 괘선(rule)과 여백으로 구분한다.
+  ② 섹션마다 밀도를 다르게 준다. 전부 같은 간격이면 리듬이 없다.
+  ③ 라임은 한 화면에 한 번만 세게 쓴다. 나머지 강조는 흰색과 굵기로 한다.
+  ④ 그리드를 균등 분할하지 않는다. 비대칭이 의도를 만든다.
+*/
+
+/* ---- 히어로 ---- */
 .hero {
   max-width: var(--w-page);
   margin: 0 auto;
-  padding: var(--s-22) var(--pad-x) var(--s-14);
+  padding: var(--s-22) var(--pad-x) var(--s-18);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  /* 균등 분할이 아니다. 글 쪽이 넓고 보드가 좁다 */
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
   gap: var(--s-14);
   align-items: center;
 }
@@ -12,37 +25,36 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  background: var(--c-lime-10);
-  border: 1px solid var(--c-lime-35);
-  color: var(--c-lime);
-  border-radius: var(--r-pill);
-  padding: 6px 14px;
-  font-size: 13px;
-  font-weight: 700;
+  /* 알약형 배지 대신 좌측 괘선. 배경을 없애 라임 면적을 줄인다 */
+  padding: 0 0 0 12px;
+  border-left: 2px solid var(--c-lime);
+  color: var(--c-text-muted);
+  font-size: 12px;
+  font-weight: 600;
   font-family: var(--font-mono);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
 }
 .pillClock {
-  color: var(--c-lime-hover);
+  color: var(--c-text-faint);
   letter-spacing: 0.06em;
 }
 
 .title {
-  margin: 22px 0 0;
-  font-size: clamp(38px, 5vw, 56px);
-  line-height: 1.16;
+  margin: 20px 0 0;
+  font-size: clamp(40px, 5.4vw, 62px);
+  line-height: 1.08;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.035em;
   color: var(--c-text-strong);
-  text-wrap: pretty;
+  text-wrap: balance;
 }
 
 .lead {
-  margin: 18px 0 0;
-  font-size: 18px;
-  line-height: 1.6;
-  color: var(--c-text-muted);
-  max-width: 460px;
+  margin: 20px 0 0;
+  font-size: 17px;
+  line-height: 1.7;
+  color: var(--c-text-dim);
+  max-width: 420px;
   text-wrap: pretty;
 }
 
@@ -50,85 +62,87 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-3);
-  margin-top: var(--s-7);
+  margin-top: var(--s-8);
 }
 
 .emailForm {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-3);
-  margin-top: 26px;
-  max-width: 460px;
+  gap: var(--s-2);
+  margin-top: var(--s-6);
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--c-line);
+  max-width: 440px;
 }
 .emailInput {
   flex: 1 1 220px;
 }
 
-/* ---- 라이브 보드 ---- */
+/* ---- 라이브 보드 ----
+   페이지에서 유일하게 '떠 있는' 요소다. 그래서 여기만 그림자를 쓴다. */
 .board {
   background: var(--c-card);
   border: 1px solid var(--c-line-2);
-  border-radius: var(--r-3xl);
-  padding: 26px;
+  border-radius: var(--r-lg);
+  padding: 24px;
   box-shadow: var(--sh-card);
 }
 .boardHead {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--c-line-2);
 }
 .boardTitle {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--c-text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--c-text-faint);
   font-family: var(--font-mono);
 }
 .live {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--c-lime);
   font-family: var(--font-mono);
-  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 .liveDot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--c-lime);
   animation: blink 1.2s infinite;
 }
 
+/* 행마다 상자를 두지 않는다. 괘선으로만 나눈다 */
 .boardRow {
   display: grid;
-  grid-template-columns: 28px 1fr auto auto;
+  grid-template-columns: 22px 1fr auto auto;
   align-items: center;
   gap: 14px;
-  padding: 15px 14px;
-  border-radius: var(--r-xl);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  margin-bottom: 10px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--c-line);
 }
 .boardRank {
   font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 18px;
-  color: var(--c-text-dim);
+  font-size: 13px;
+  color: var(--c-text-ghost);
 }
 .boardName {
   font-weight: 700;
-  font-size: 16px;
+  font-size: 15px;
   color: var(--c-text-strong);
 }
 .boardScore {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 24px;
-  color: var(--c-lime);
+  font-size: 22px;
+  color: var(--c-text-strong);
+  font-variant-numeric: tabular-nums;
   min-width: 64px;
   text-align: right;
   transition: transform var(--t-base), opacity var(--t-base);
@@ -138,170 +152,231 @@
   opacity: 0.35;
 }
 .boardFoot {
-  margin-top: var(--s-2);
+  margin-top: 14px;
   font-size: 12px;
+  line-height: 1.6;
   color: var(--c-text-faint);
-  text-align: right;
-  font-family: var(--font-mono);
 }
 
-/* ---- 섹션 ---- */
+/* ---- 섹션 ----
+   밀도를 셋으로 나눈다: 촘촘(tight) / 기본 / 널찍(wide).
+   전부 같은 간격이면 페이지에 리듬이 없다. */
 .section {
   max-width: var(--w-page);
   margin: 0 auto;
   padding: 0 var(--pad-x) var(--s-18);
   width: 100%;
 }
+.sectionTight {
+  padding-bottom: var(--s-12);
+}
+.sectionWide {
+  padding-bottom: var(--s-22);
+}
 .sectionNarrow {
   max-width: var(--w-narrow);
+}
+
+/* 섹션 머리 — 번호를 붙인다. 편집물의 장치이고, 자동 생성물에는 잘 없다 */
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--c-line-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--c-text-faint);
+}
+.eyebrowNo {
+  color: var(--c-lime);
+}
+.eyebrowRule {
+  flex: 1;
+}
+
+/* 제목·리드는 전역 .sectionTitle 대신 여기서 직접 잡는다.
+   전역값은 간격이 고정돼 있어 리드 유무에 따라 어긋난다. */
+.headTitle {
+  margin: 0;
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  color: var(--c-text-strong);
+  text-wrap: balance;
+}
+.headLead {
+  margin: 14px 0 0;
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--c-text-dim);
+  max-width: 56ch;
+  padding-bottom: var(--s-10);
+}
+/* 리드가 없을 때 제목과 본문 사이 간격 */
+.headGap {
+  height: var(--s-8);
 }
 
 .twoCol {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: var(--s-5);
+  gap: var(--s-6);
 }
 
+/* ---- 비교 ----
+   두 칸을 같은 무게로 두지 않는다. 왼쪽은 흐리게 눕고 오른쪽만 선다. */
 .compareCard {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-2xl);
-  padding: 30px;
-  transition: opacity 0.9s ease, border-color 0.9s ease, box-shadow 0.9s ease;
+  padding: 28px 28px 28px 0;
+  transition: opacity 0.9s ease;
 }
 .compareCardOn {
-  opacity: 0.45;
+  opacity: 0.4;
 }
 .compareCardUs {
-  background: rgba(200, 255, 61, 0.05);
-  border-color: rgba(200, 255, 61, 0.18);
+  padding-left: 28px;
+  border-left: 2px solid var(--c-lime);
 }
 .compareCardUsOn {
-  border-color: rgba(200, 255, 61, 0.55);
-  box-shadow: 0 0 32px var(--c-lime-08);
+  opacity: 1;
 }
 .compareLabel {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--c-text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--c-text-ghost);
   font-family: var(--font-mono);
 }
 .compareLabelUs {
   color: var(--c-lime);
-  font-weight: 800;
 }
 .compareList {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   margin-top: var(--s-5);
 }
 .compareItem {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: baseline;
   font-size: 16px;
-  color: #79839a;
+  color: var(--c-text-faint);
 }
 .compareItemUs {
-  color: var(--c-text);
+  color: var(--c-text-strong);
+  font-size: 18px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .dash {
   color: var(--c-text-ghost);
 }
 .check {
   color: var(--c-lime);
-  font-weight: 900;
 }
 
+/* ---- 혜택 ----
+   상자를 걷어내고 괘선 목록으로. 원형 체크 대신 번호를 쓴다. */
 .benefitList {
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
 }
 .benefit {
-  display: flex;
+  display: grid;
+  grid-template-columns: 44px 1fr;
   gap: var(--s-4);
-  align-items: flex-start;
-  background: var(--c-surface);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--r-2xl);
-  padding: 22px 24px;
+  align-items: baseline;
+  padding: 26px 0;
+  border-top: 1px solid var(--c-line);
+}
+.benefit:last-child {
+  border-bottom: 1px solid var(--c-line);
 }
 .benefitMark {
-  flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(200, 255, 61, 0.14);
-  color: var(--c-lime);
-  font-weight: 900;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--c-text-ghost);
 }
 .benefitTitle {
+  display: block;
   color: var(--c-text-strong);
-  font-size: 16px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
 }
 .benefitDesc {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   font-size: 15px;
-  line-height: 1.6;
-  color: var(--c-text-muted);
+  line-height: 1.7;
+  color: var(--c-text-dim);
+  max-width: 52ch;
 }
 
+/* ---- 왜 PROOVIT인가 ----
+   카드가 아니라 상단 괘선 + 큰 인덱스 숫자. 숫자를 그래픽 요소로 쓴다. */
 .whyGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--s-5);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--s-8) var(--s-6);
 }
 .whyCard {
-  background: var(--c-surface);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--r-2xl);
-  padding: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--c-line-3);
 }
 .whyNo {
   font-family: var(--font-mono);
   font-weight: 700;
-  color: var(--c-lime);
-  font-size: 13px;
-  letter-spacing: 0.1em;
+  color: var(--c-text-ghost);
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: -0.02em;
 }
 .whyTitle {
-  margin: 14px 0 10px;
-  font-size: 20px;
-  font-weight: 800;
+  margin: 18px 0 10px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   color: var(--c-text-strong);
 }
 .whyDesc {
   margin: 0;
   font-size: 15px;
-  line-height: 1.65;
-  color: var(--c-text-muted);
+  line-height: 1.7;
+  color: var(--c-text-dim);
   text-wrap: pretty;
 }
 
+/* ---- 심사 기준 ----
+   여기는 상자를 유지한다. '기준표'라는 성격이 있어 테두리가 의미를 갖는다. */
+.criteriaCard {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-md);
+  padding: 28px;
+}
 .criteriaHead {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 12px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--c-line);
 }
 .criteriaRound {
   font-family: var(--font-mono);
-  font-weight: 700;
-  color: var(--c-lime);
-  font-size: 13px;
-  letter-spacing: 0.1em;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--c-text-ghost);
 }
 .criteriaTitle {
   margin: 0;
-  font-size: 20px;
-  font-weight: 800;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--c-text-strong);
 }
 .criteriaList {
@@ -310,31 +385,33 @@
   gap: var(--s-3);
   margin-top: var(--s-5);
   font-size: 15px;
-  color: var(--c-text-muted);
+  color: var(--c-text-dim);
 }
 .criteriaItem {
   display: flex;
-  gap: 10px;
+  gap: 12px;
 }
 
+/* ---- 선언 ----
+   중앙정렬 + 그라디언트 워시를 걷어낸다. 좌측 정렬과 괘선으로 무게를 준다. */
 .declare {
-  text-align: center;
-  padding: 96px var(--pad-x);
-  border-top: 1px solid var(--c-line);
-  background: linear-gradient(180deg, rgba(200, 255, 61, 0.03), transparent);
+  max-width: var(--w-page);
+  margin: 0 auto;
+  padding: var(--s-22) var(--pad-x);
+  border-top: 1px solid var(--c-line-3);
 }
 .declareTitle {
-  margin: 0 auto;
-  max-width: 760px;
-  font-size: clamp(30px, 4.4vw, 48px);
+  margin: 0;
+  max-width: 18ch;
+  font-size: clamp(32px, 4.8vw, 54px);
   font-weight: 800;
-  line-height: 1.3;
+  line-height: 1.14;
   color: var(--c-text-strong);
-  letter-spacing: -0.02em;
-  text-wrap: pretty;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
 }
 .declareCta {
-  margin-top: 36px;
+  margin-top: var(--s-10);
 }
 
 .fade {
@@ -354,17 +431,25 @@
   }
 }
 
-/* 모바일: 히어로·비교 섹션을 세로로 스택 */
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .hero {
     grid-template-columns: 1fr;
-    padding-top: var(--s-12);
+    padding-top: var(--s-14);
     gap: var(--s-10);
   }
   .twoCol {
     grid-template-columns: 1fr;
   }
+  .compareCard {
+    padding: 24px 0;
+  }
+  .compareCardUs {
+    padding-left: 20px;
+  }
   .board {
     padding: 20px;
+  }
+  .declareTitle {
+    max-width: none;
   }
 }
