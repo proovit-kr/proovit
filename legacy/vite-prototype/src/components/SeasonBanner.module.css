@@ -1,0 +1,48 @@
+.banner {
+  border-bottom: 1px solid var(--c-line);
+  background: rgba(200, 255, 61, 0.04);
+}
+
+.row {
+  max-width: var(--w-page);
+  margin: 0 auto;
+  padding: 12px var(--pad-x);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-lime);
+}
+
+.note {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--c-text-dim);
+}
+
+.countdown {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+.clock {
+  color: var(--c-lime);
+}
+
+.extra {
+  max-width: var(--w-page);
+  margin: 0 auto;
+  padding: 14px var(--pad-x) 18px;
+  overflow-x: auto;
+}

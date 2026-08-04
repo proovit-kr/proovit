@@ -1,0 +1,58 @@
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.tab {
+  border-radius: var(--r-pill);
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--c-text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all var(--t-fast);
+}
+
+.tab:hover {
+  color: var(--c-text-strong);
+}
+
+.active,
+.active:hover {
+  background: var(--c-lime);
+  color: var(--c-bg);
+  border-color: var(--c-lime);
+}
+
+/* 로그인/회원가입 세그먼트 */
+.segment {
+  display: flex;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--r-lg);
+  padding: 5px;
+}
+
+.segmentTab {
+  flex: 1;
+  border: none;
+  border-radius: 9px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  background: transparent;
+  color: var(--c-text-dim);
+  transition: all var(--t-fast);
+}
+
+.segmentActive {
+  background: var(--c-lime);
+  color: var(--c-bg);
+}

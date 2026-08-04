@@ -1,0 +1,153 @@
+.grid {
+  min-width: 880px;
+}
+
+.head,
+.row {
+  display: grid;
+  grid-template-columns: 1.6fr 0.7fr 1fr 0.8fr 1fr 1fr 1.4fr;
+  gap: var(--s-3);
+  align-items: center;
+  padding: 13px 20px;
+}
+
+.head {
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--c-text-faint);
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+}
+
+.row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.rowConfirmed {
+  background: rgba(200, 255, 61, 0.03);
+}
+
+.team {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--c-text-strong);
+}
+.service {
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--c-text-faint);
+}
+.week {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--c-text-dim);
+}
+.users {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--c-text-ops);
+}
+.delta {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--c-lime);
+}
+.deltaDown {
+  color: var(--c-danger);
+}
+
+.evidence {
+  width: 64px;
+  height: 38px;
+  font-size: 9px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+.request {
+  background: transparent;
+  color: var(--c-text-dim);
+  border: none;
+  padding: 6px 2px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.request:hover {
+  color: var(--c-lime);
+}
+
+.tipWrap {
+  position: relative;
+  display: inline-block;
+}
+.tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: #1a2333;
+  border: 1px solid var(--c-line-3);
+  color: var(--c-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 7px;
+  z-index: 10;
+}
+
+.reflected {
+  font-size: 11px;
+  color: var(--c-text-faint);
+}
+
+.zoomOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(5, 9, 18, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-8);
+  cursor: zoom-out;
+}
+.zoomBox {
+  width: min(720px, 90vw);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-lg);
+  background: linear-gradient(135deg, #1a2333, #131a28);
+  border: 1px solid var(--c-line-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  animation: modalIn 0.2s ease-out;
+}
+.zoomTitle {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--c-text-dim);
+}
+.zoomHint {
+  font-size: 12px;
+  color: var(--c-text-faint);
+}

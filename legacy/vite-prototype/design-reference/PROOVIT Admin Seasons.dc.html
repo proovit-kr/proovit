@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+body { margin: 0; background: #0D1119; font-family: 'Pretendard Variable', Pretendard, sans-serif; color: #E8ECF3; }
+a { color: #C8FF3D; text-decoration: none; }
+a:hover { color: #DCFF7A; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes modalIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0D1119;">
+
+  <nav style="position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 36px; padding: 12px 28px; background: #10151F; border-bottom: 1px solid rgba(255,255,255,0.08);">
+    <div style="font-weight: 800; font-size: 16px; letter-spacing: 0.06em; color: #FFFFFF;">PROO<span style="color: #C8FF3D;">✓</span>IT <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #626C7F; font-weight: 700;">OPS</span></div>
+    <div style="display: flex; gap: 26px; font-size: 13px; font-weight: 600;">
+      <a href="PROOVIT Admin Judging.dc.html" style="color: #8A93A6;" style-hover="color: #FFFFFF;">심사</a>
+      <a href="PROOVIT Admin Metrics.dc.html" style="color: #8A93A6;" style-hover="color: #FFFFFF;">지표 검증</a>
+      <span style="color: #FFFFFF; border-bottom: 2px solid #C8FF3D; padding-bottom: 3px; cursor: default;">시즌 관리</span>
+    </div>
+  </nav>
+
+  <main style="max-width: 960px; margin: 0 auto; padding: 24px 28px 64px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px;">
+      <h1 style="margin: 0; font-size: 20px; font-weight: 800; color: #FFFFFF;">시즌 관리</h1>
+      <button style="background: rgba(255,255,255,0.05); color: #B7BFCC; border: 1px solid rgba(255,255,255,0.14); border-radius: 9px; padding: 9px 18px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;" style-hover="border-color: #C8FF3D; color: #C8FF3D;">+ 시즌 생성</button>
+    </div>
+
+    <div data-screen-label="시즌 카드" style="background: #10151F; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 26px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <h2 style="margin: 0; font-size: 18px; font-weight: 800; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em;">SEASON 1 <span style="color: #626C7F; font-weight: 500;">—</span> <span style="font-family: 'Pretendard Variable', Pretendard, sans-serif;">자유 주제</span></h2>
+          <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #C8FF3D; background: rgba(200,255,61,0.09); border-radius: 999px; padding: 4px 11px;"><span style="width: 5px; height: 5px; border-radius: 50%; background: #C8FF3D; animation: blink 1.6s infinite;"></span>진행 중</span>
+        </div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #626C7F;">참가 27팀 · 생존 19팀</div>
+      </div>
+
+      <div style="margin-top: 22px; display: flex; flex-direction: column;">
+        <sc-for list="{{ stages }}" as="sg" hint-placeholder-count="5">
+          <div style="display: grid; grid-template-columns: 24px 1.4fr 1.2fr auto; gap: 14px; align-items: center; padding: 13px 6px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <sc-if value="{{ sg.done }}" hint-placeholder-val="{{ false }}">
+              <span style="width: 22px; height: 22px; border-radius: 50%; background: #C8FF3D; color: #0B1220; font-weight: 900; font-size: 12px; display: flex; align-items: center; justify-content: center;">✓</span>
+            </sc-if>
+            <sc-if value="{{ sg.active }}" hint-placeholder-val="{{ false }}">
+              <span style="width: 22px; height: 22px; border-radius: 50%; background: #131C2F; border: 2px solid #C8FF3D; display: flex; align-items: center; justify-content: center;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #C8FF3D; animation: blink 1.4s infinite;"></span></span>
+            </sc-if>
+            <sc-if value="{{ sg.future }}" hint-placeholder-val="{{ true }}">
+              <span style="width: 22px; height: 22px; border-radius: 50%; background: transparent; border: 1px solid rgba(255,255,255,0.18); color: #626C7F; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;">{{ sg.n }}</span>
+            </sc-if>
+            <div style="font-weight: 700; font-size: 14px; color: {{ sg.color }};">{{ sg.label }}</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A93A6;">{{ sg.range }}</div>
+            <div style="font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: {{ sg.stColor }};">{{ sg.status }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px;">
+        <button onClick="{{ openModal }}" style="background: #C8FF3D; color: #0B1220; border: none; border-radius: 9px; padding: 11px 22px; font-size: 13px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">다음 스테이지로 전환</button>
+        <button style="background: transparent; color: #B7BFCC; border: 1px solid rgba(255,255,255,0.2); border-radius: 9px; padding: 11px 22px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;" style-hover="border-color: #FF9F6B; color: #FF9F6B;">모집 마감</button>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{ modal }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeModal }}" style="position: fixed; inset: 0; z-index: 100; background: rgba(5,9,18,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 24px;">
+      <div onClick="{{ stopProp }}" style="background: #10151F; border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 28px; max-width: 400px; width: 100%; animation: modalIn 0.25s ease-out; box-shadow: 0 32px 80px rgba(0,0,0,0.6);">
+        <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #FFFFFF;">스테이지 전환 확인</h3>
+        <p style="margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: #8A93A6;">전환 시 전 참가팀의 배너·진행 바·제출 폼이 일괄 갱신됨 · 되돌리기 불가</p>
+        <div style="margin-top: 16px; padding: 12px 14px; border-radius: 9px; background: rgba(200,255,61,0.05); border: 1px solid rgba(200,255,61,0.2); font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #C8FF3D;">수요 검증 → 1차 심사</div>
+        <div style="display: flex; gap: 10px; margin-top: 22px;">
+          <button onClick="{{ confirmShift }}" style="flex: 1; background: #C8FF3D; color: #0B1220; border: none; border-radius: 9px; padding: 11px; font-size: 13px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">전환</button>
+          <button onClick="{{ closeModal }}" style="flex: 1; background: transparent; color: #B7BFCC; border: 1px solid rgba(255,255,255,0.2); border-radius: 9px; padding: 11px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;" style-hover="color: #FFFFFF;">취소</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280}}">
+class Component extends DCLogic {
+  state = { modal: false, activeIdx: 1 };
+  renderVals() {
+    const { activeIdx } = this.state;
+    const data = [
+      ['모집', '7/20 ~ 8/2'],
+      ['수요 검증', '8/3 ~ 8/9'],
+      ['1차 심사', '8/10'],
+      ['빌드·배포', '8/11 ~ 8/24'],
+      ['유저 확보 레이스', '8/25 ~ 9/7'],
+    ];
+    const stages = data.map(([label, range], i) => {
+      const done = i < activeIdx, active = i === activeIdx;
+      return {
+        n: i + 1, label, range, done, active, future: !done && !active,
+        color: active ? '#C8FF3D' : done ? '#E8ECF3' : '#626C7F',
+        status: done ? '완료 ✓' : active ? '진행 중' : '예정',
+        stColor: done ? '#8A93A6' : active ? '#C8FF3D' : '#4A5468',
+      };
+    });
+    return {
+      stages, modal: this.state.modal,
+      openModal: () => this.setState({ modal: true }),
+      closeModal: () => this.setState({ modal: false }),
+      confirmShift: () => this.setState(s => ({ modal: false, activeIdx: Math.min(s.activeIdx + 1, 4) })),
+      stopProp: (e) => e.stopPropagation(),
+    };
+  }
+}
+</script>
+</body>
+</html>

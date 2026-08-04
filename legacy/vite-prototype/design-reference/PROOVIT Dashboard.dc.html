@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+html { scroll-behavior: smooth; }
+body { margin: 0; background: #0B1220; font-family: 'Pretendard Variable', Pretendard, sans-serif; color: #F4F6FA; }
+a { color: #C8FF3D; text-decoration: none; }
+a:hover { color: #DCFF7A; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes modalIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (max-width: 720px) { #nav-menu { display: none !important; } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } html { scroll-behavior: auto; } }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: linear-gradient(180deg, #0B1220 0%, #0D1526 45%, #14181F 100%); overflow-x: hidden;">
+
+  <nav style="position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 32px; background: rgba(11,18,32,0.72); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.07);">
+    <a href="PROOVIT Landing v2.dc.html" style="font-weight: 800; font-size: 20px; letter-spacing: 0.06em; color: #FFFFFF;">PROO<span style="color: #C8FF3D; font-weight: 900;">✓</span>IT</a>
+    <div id="nav-menu" style="display: flex; gap: 32px; font-size: 14px; font-weight: 600;">
+      <a href="PROOVIT Landing v2.dc.html" style="color: #B7BFCC;" style-hover="color: #FFFFFF;">리그 소개</a>
+      <a href="PROOVIT Leaderboard.dc.html" style="color: #B7BFCC;" style-hover="color: #FFFFFF;">리더보드</a>
+      <span style="color: #B7BFCC; cursor: pointer;" style-hover="color: #FFFFFF;">시즌 아카이브</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 999px; padding: 5px 14px 5px 5px; cursor: pointer;" style-hover="border-color: rgba(200,255,61,0.4);">
+      <span style="width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #C8FF3D, #4A7A00); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #0B1220;">새</span>
+      <span style="font-size: 13px; font-weight: 700; color: #F4F6FA;">팀 새벽로켓</span>
+    </div>
+  </nav>
+
+  <div data-screen-label="시즌 배너" style="border-bottom: 1px solid rgba(255,255,255,0.07); background: rgba(200,255,61,0.04);">
+    <div style="max-width: 1160px; margin: 0 auto; padding: 12px 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 10px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: #C8FF3D;">
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #C8FF3D; animation: blink 1.6s infinite;"></span>
+        SEASON 1 · 스테이지 1 수요 검증
+      </div>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: #F4F6FA;">제출 마감 D-{{ cdDays }} <span style="color: #C8FF3D;">{{ cdClock }}</span></div>
+    </div>
+    <div style="max-width: 1160px; margin: 0 auto; padding: 14px 32px 18px; overflow-x: auto;">
+      <div style="position: relative; display: flex; min-width: 640px;">
+        <div style="position: absolute; top: 13px; left: 10%; right: 10%; height: 2px; background: rgba(255,255,255,0.12);"></div>
+        <sc-for list="{{ stages }}" as="sg" hint-placeholder-count="5">
+          <div style="position: relative; flex: 1; text-align: center;">
+            <div style="width: 28px; height: 28px; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 12px; background: {{ sg.bg }}; color: {{ sg.fg }}; border: 1px solid {{ sg.border }}; box-shadow: {{ sg.glow }};">{{ sg.n }}</div>
+            <div style="margin-top: 8px; font-size: 12px; font-weight: 600; color: {{ sg.labelColor }};">{{ sg.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <main style="max-width: 1160px; margin: 0 auto; padding: 36px 32px 72px;">
+    <div data-screen-label="탭" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 32px;">
+      <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="4">
+        <button onClick="{{ tb.go }}" style="border-radius: 999px; padding: 10px 20px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; background: {{ tb.bg }}; color: {{ tb.fg }}; border: 1px solid {{ tb.border }}; transition: all 0.15s ease;">{{ tb.label }}</button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ tabProgress }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="진행하기" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; align-items: start;">
+        <div style="grid-column: span 2; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+          <div style="background: linear-gradient(160deg, #10192C, #0C1322); border: 1px solid rgba(200,255,61,0.3); border-radius: 20px; padding: 28px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+              <div>
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #C8FF3D; letter-spacing: 0.1em;">CH.2</div>
+                <h2 style="margin: 6px 0 0; font-size: 22px; font-weight: 800; color: #FFFFFF;">수요검증 랜딩 만들기</h2>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 26px; color: #C8FF3D;">40%</div>
+                <div style="font-size: 11px; color: #626C7F;">진행률</div>
+              </div>
+            </div>
+            <div style="height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); margin: 18px 0 22px;">
+              <div style="height: 100%; width: 40%; border-radius: 3px; background: #C8FF3D;"></div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <sc-for list="{{ steps }}" as="st" hint-placeholder-count="5">
+                <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+                  <sc-if value="{{ st.done }}" hint-placeholder-val="{{ false }}">
+                    <span style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #C8FF3D; color: #0B1220; font-weight: 900; font-size: 13px; display: flex; align-items: center; justify-content: center;">✓</span>
+                  </sc-if>
+                  <sc-if value="{{ st.todo }}" hint-placeholder-val="{{ true }}">
+                    <span style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: transparent; border: 1px solid rgba(255,255,255,0.25); color: #8A93A6; font-weight: 700; font-size: 12px; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; justify-content: center;">{{ st.n }}</span>
+                  </sc-if>
+                  <span style="flex: 1; font-size: 15px; font-weight: 600; color: {{ st.color }}; text-decoration: {{ st.deco }};">{{ st.label }}</span>
+                  <sc-if value="{{ st.guide }}" hint-placeholder-val="{{ true }}">
+                    <a href="#" style="font-size: 13px; font-weight: 700;">가이드 열기 →</a>
+                  </sc-if>
+                  <sc-if value="{{ st.benefitLink }}" hint-placeholder-val="{{ false }}">
+                    <span onClick="{{ goBenefits }}" style="font-size: 13px; font-weight: 700; color: #C8FF3D; cursor: pointer;" style-hover="color: #DCFF7A;">혜택 탭 →</span>
+                  </sc-if>
+                  <sc-if value="{{ st.submitBtn }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ goSubmit }}" style="background: #C8FF3D; color: #0B1220; border: none; border-radius: 10px; padding: 8px 16px; font-size: 13px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">제출하기</button>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="border: 1px dashed rgba(255,255,255,0.15); border-radius: 20px; padding: 24px 28px; display: flex; align-items: center; gap: 16px; opacity: 0.65;">
+            <span style="font-size: 20px;">🔒</span>
+            <div>
+              <div style="font-weight: 800; font-size: 16px; color: #B7BFCC;">Ch.4 MVP 범위 자르기</div>
+              <div style="margin-top: 4px; font-size: 13px; color: #8A93A6;">1차 심사 통과 시 열려요.</div>
+            </div>
+          </div>
+        </div>
+        <div style="min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 18px; padding: 24px;">
+            <div style="font-size: 13px; font-weight: 700; color: #8A93A6; letter-spacing: 0.08em; font-family: 'JetBrains Mono', monospace;">제출 현황</div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px;">
+              <div style="font-weight: 700; font-size: 15px; color: #FFFFFF;">S1 수요 검증</div>
+              <span style="font-size: 11px; font-weight: 700; color: #FF9F6B; background: rgba(255,159,107,0.1); border-radius: 6px; padding: 3px 8px;">미제출</span>
+            </div>
+            <button onClick="{{ goSubmit }}" style="margin-top: 16px; width: 100%; background: #C8FF3D; color: #0B1220; border: none; border-radius: 10px; padding: 11px; font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">제출하기</button>
+          </div>
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 18px; padding: 24px;">
+            <div style="font-size: 13px; font-weight: 700; color: #8A93A6; letter-spacing: 0.08em; font-family: 'JetBrains Mono', monospace;">혜택</div>
+            <div style="margin-top: 16px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                <div style="font-weight: 700; font-size: 14px; color: #FFFFFF;">AI 빌더 1개월 Pro</div>
+                <span style="font-size: 11px; font-weight: 700; color: #C8FF3D;">발급 가능</span>
+              </div>
+              <button onClick="{{ goBenefits }}" style="margin-top: 10px; width: 100%; background: rgba(200,255,61,0.12); color: #C8FF3D; border: 1px solid rgba(200,255,61,0.35); border-radius: 10px; padding: 9px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;" style-hover="background: rgba(200,255,61,0.2);">발급받기</button>
+            </div>
+            <div style="margin-top: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; opacity: 0.6;">
+              <div style="font-weight: 700; font-size: 14px; color: #B7BFCC;">API 크레딧 $30</div>
+              <span style="font-size: 12px; color: #8A93A6;">🔒 S1 제출 후</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ tabSubmit }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="제출 현황" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,159,107,0.35); border-radius: 18px; padding: 26px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #C8FF3D; letter-spacing: 0.1em;">S1</div>
+            <span style="font-size: 11px; font-weight: 700; color: #FF9F6B; background: rgba(255,159,107,0.1); border-radius: 6px; padding: 3px 8px;">미제출</span>
+          </div>
+          <h3 style="margin: 12px 0 0; font-size: 18px; font-weight: 800; color: #FFFFFF;">수요 검증</h3>
+          <p style="margin: 8px 0 0; font-size: 13px; color: #8A93A6;">랜딩 URL·GA4 증빙 제출 의무</p>
+          <div style="margin-top: 14px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: #F4F6FA;">마감 7/25 (금) 23:59</div>
+          <button style="margin-top: 16px; width: 100%; background: #C8FF3D; color: #0B1220; border: none; border-radius: 10px; padding: 11px; font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">제출하기</button>
+        </div>
+        <div style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.14); border-radius: 18px; padding: 26px; opacity: 0.65;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #8A93A6; letter-spacing: 0.1em;">S2</div>
+            <span style="font-size: 12px; color: #8A93A6;">🔒 잠김</span>
+          </div>
+          <h3 style="margin: 12px 0 0; font-size: 18px; font-weight: 800; color: #B7BFCC;">MVP 빌드</h3>
+          <p style="margin: 8px 0 0; font-size: 13px; color: #8A93A6;">1차 심사 통과 시 열려요.</p>
+          <div style="margin-top: 14px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #626C7F;">마감 8/8 (토) 23:59</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.14); border-radius: 18px; padding: 26px; opacity: 0.65;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #8A93A6; letter-spacing: 0.1em;">S3</div>
+            <span style="font-size: 12px; color: #8A93A6;">🔒 잠김</span>
+          </div>
+          <h3 style="margin: 12px 0 0; font-size: 18px; font-weight: 800; color: #B7BFCC;">유저 확보 레이스</h3>
+          <p style="margin: 8px 0 0; font-size: 13px; color: #8A93A6;">S2 제출 후 열려요.</p>
+          <div style="margin-top: 14px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #626C7F;">마감 8/22 (토) 23:59</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ tabBenefits }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="혜택">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+          <div style="background: linear-gradient(160deg, #10192C, #0C1322); border: 1px solid rgba(200,255,61,0.4); border-radius: 18px; padding: 26px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #C8FF3D; letter-spacing: 0.1em;">CREDIT</div>
+              <span style="font-size: 11px; font-weight: 700; color: #C8FF3D; background: rgba(200,255,61,0.09); border-radius: 6px; padding: 3px 8px;">발급 가능</span>
+            </div>
+            <h3 style="margin: 12px 0 0; font-size: 18px; font-weight: 800; color: #FFFFFF;">AI 빌더 1개월 Pro</h3>
+            <p style="margin: 8px 0 0; font-size: 13px; line-height: 1.6; color: #8A93A6;">랜딩부터 MVP까지 만들 수 있는 Pro 플랜이에요.</p>
+            <button onClick="{{ openModal }}" style="margin-top: 18px; width: 100%; background: #C8FF3D; color: #0B1220; border: none; border-radius: 10px; padding: 11px; font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">발급받기</button>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.14); border-radius: 18px; padding: 26px; opacity: 0.7;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #8A93A6; letter-spacing: 0.1em;">CREDIT</div>
+              <span style="font-size: 12px; color: #8A93A6;">🔒 잠김</span>
+            </div>
+            <h3 style="margin: 12px 0 0; font-size: 18px; font-weight: 800; color: #B7BFCC;">API 크레딧 $30</h3>
+            <p style="margin: 8px 0 0; font-size: 13px; line-height: 1.6; color: #8A93A6;">S1 수요 검증 제출 시 잠금 해제</p>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 26px; opacity: 0.45;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #8A93A6; letter-spacing: 0.1em;">CREDIT</div>
+              <span style="font-size: 11px; font-weight: 700; color: #8A93A6; background: rgba(255,255,255,0.06); border-radius: 6px; padding: 3px 8px;">협의 중</span>
+            </div>
+            <h3 style="margin: 12px 0 0; font-size: 18px; font-weight: 800; color: #B7BFCC;">클라우드 호스팅 크레딧</h3>
+            <p style="margin: 8px 0 0; font-size: 13px; line-height: 1.6; color: #8A93A6;">스폰서와 협의 중이에요. 확정되면 알려드릴게요.</p>
+          </div>
+        </div>
+        <p style="margin: 24px 0 0; font-size: 14px; color: #8A93A6;">스테이지를 통과할수록 혜택이 열려요.</p>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ tabTesters }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="상호 테스터" style="max-width: 800px;">
+        <h2 style="margin: 0 0 6px; font-size: 20px; font-weight: 800; color: #FFFFFF;">이번 주 배정</h2>
+        <p style="margin: 0 0 20px; font-size: 13px; color: #8A93A6;">배정 서비스 테스트 및 피드백 작성 의무 · 매주 월요일 갱신</p>
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px 24px;">
+            <div>
+              <div style="font-weight: 700; font-size: 16px; color: #FFFFFF;">링크줍줍</div>
+              <div style="margin-top: 3px; font-size: 13px; color: #8A93A6;">팀 북마클릿</div>
+            </div>
+            <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #C8FF3D; background: rgba(200,255,61,0.09); border-radius: 8px; padding: 6px 12px;">✓ 완료</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(200,255,61,0.3); border-radius: 16px; padding: 20px 24px;">
+            <div>
+              <div style="font-weight: 700; font-size: 16px; color: #FFFFFF;">회의록요정</div>
+              <div style="margin-top: 3px; font-size: 13px; color: #8A93A6;">팀 미닛테이커</div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button style="background: transparent; color: #F4F6FA; border: 1px solid rgba(255,255,255,0.25); border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;" style-hover="border-color: #C8FF3D; color: #C8FF3D;">서비스 열기</button>
+              <button style="background: #C8FF3D; color: #0B1220; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">피드백 작성하기</button>
+            </div>
+          </div>
+        </div>
+        <h2 style="margin: 36px 0 16px; font-size: 20px; font-weight: 800; color: #FFFFFF;">내 서비스가 받은 피드백 <span style="font-family: 'JetBrains Mono', monospace; color: #C8FF3D;">2</span>건</h2>
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px 24px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+              <div style="font-weight: 700; font-size: 14px; color: #C8FF3D;">텃밭일지 · 팀 초록손</div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #626C7F;">7/21</div>
+            </div>
+            <p style="margin: 10px 0 0; font-size: 14px; line-height: 1.6; color: #B7BFCC;">가입 흐름이 깔끔해요. 다만 첫 화면에서 뭘 눌러야 할지 3초 정도 헤맸어요. 핵심 버튼을 더 키워보면 좋겠어요.</p>
+          </div>
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px 24px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+              <div style="font-weight: 700; font-size: 14px; color: #C8FF3D;">레시피환산기 · 팀 계량컵</div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #626C7F;">7/20</div>
+            </div>
+            <p style="margin: 10px 0 0; font-size: 14px; line-height: 1.6; color: #B7BFCC;">아이디어가 확실해요! 알림 기능이 생기면 매일 들어올 것 같아요. 모바일에서 표가 살짝 잘리는 건 확인해보세요.</p>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </main>
+
+  <sc-if value="{{ modal }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeModal }}" style="position: fixed; inset: 0; z-index: 100; background: rgba(5,9,18,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 24px;">
+      <div onClick="{{ stopProp }}" style="background: linear-gradient(160deg, #10192C, #0C1322); border: 1px solid rgba(200,255,61,0.4); border-radius: 20px; padding: 32px; max-width: 400px; width: 100%; animation: modalIn 0.25s ease-out; box-shadow: 0 32px 80px rgba(0,0,0,0.6);">
+        <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(200,255,61,0.12); display: flex; align-items: center; justify-content: center; color: #C8FF3D; font-weight: 900; font-size: 20px;">✓</div>
+        <h3 style="margin: 18px 0 0; font-size: 20px; font-weight: 800; color: #FFFFFF;">AI 빌더 Pro 코드가 발급됐어요</h3>
+        <p style="margin: 8px 0 0; font-size: 14px; line-height: 1.6; color: #8A93A6;">아래 코드를 AI 빌더 결제 페이지에 입력하면 1개월 Pro가 적용돼요.</p>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+          <div style="flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 13px 16px; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 16px; color: #C8FF3D; letter-spacing: 0.08em; text-align: center;">PROOVIT-S1-DAWN</div>
+          <button onClick="{{ copyCode }}" style="background: #C8FF3D; color: #0B1220; border: none; border-radius: 12px; padding: 0 18px; font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">{{ copyLabel }}</button>
+        </div>
+        <button onClick="{{ closeModal }}" style="margin-top: 16px; width: 100%; background: transparent; color: #8A93A6; border: none; padding: 8px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;" style-hover="color: #F4F6FA;">닫기</button>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280}}">
+class Component extends DCLogic {
+  state = { tab: 0, modal: false, copied: false, now: Date.now() };
+  target = new Date('2026-07-25T23:59:59+09:00').getTime();
+  componentDidMount() { this._clock = setInterval(() => this.setState({ now: Date.now() }), 1000); }
+  componentWillUnmount() { clearInterval(this._clock); clearTimeout(this._ct); }
+  renderVals() {
+    const { tab, modal, copied } = this.state;
+    const pad = (n) => String(n).padStart(2, '0');
+    const diff = Math.max(0, this.target - this.state.now);
+    const cdDays = Math.floor(diff / 864e5);
+    const cdClock = pad(Math.floor(diff / 36e5) % 24) + ':' + pad(Math.floor(diff / 6e4) % 60) + ':' + pad(Math.floor(diff / 1e3) % 60);
+    const stageNames = ['수요 검증', '1차 심사', 'AI 빌드', '유저 확보 레이스', '최종 심사'];
+    const stages = stageNames.map((label, i) => ({
+      n: i + 1, label,
+      bg: i === 0 ? '#C8FF3D' : '#131C2F',
+      fg: i === 0 ? '#0B1220' : '#626C7F',
+      border: i === 0 ? '#C8FF3D' : 'rgba(255,255,255,0.16)',
+      glow: i === 0 ? '0 0 0 5px rgba(200,255,61,0.12)' : 'none',
+      labelColor: i === 0 ? '#C8FF3D' : '#626C7F',
+    }));
+    const tabNames = ['진행하기', '제출 현황', '혜택', '상호 테스터'];
+    const tabs = tabNames.map((label, i) => ({
+      label,
+      go: () => this.setState({ tab: i }),
+      bg: tab === i ? '#C8FF3D' : 'rgba(255,255,255,0.04)',
+      fg: tab === i ? '#0B1220' : '#B7BFCC',
+      border: tab === i ? '#C8FF3D' : 'rgba(255,255,255,0.12)',
+    }));
+    const stepData = [
+      ['랜딩 카피 작성하기', true, 'guide'],
+      ['AI 빌더로 랜딩 만들기', true, 'guide'],
+      ['GA4 연결하기', false, 'guide'],
+      ['크레딧 발급받기', false, 'benefit'],
+      ['S1 제출하기', false, 'submit'],
+    ];
+    const steps = stepData.map(([label, done, kind], i) => ({
+      n: i + 1, label, done, todo: !done,
+      color: done ? '#626C7F' : '#F4F6FA',
+      deco: done ? 'line-through' : 'none',
+      guide: kind === 'guide',
+      benefitLink: kind === 'benefit',
+      submitBtn: kind === 'submit',
+    }));
+    return {
+      cdDays, cdClock, stages, tabs, steps,
+      tabProgress: tab === 0, tabSubmit: tab === 1, tabBenefits: tab === 2, tabTesters: tab === 3,
+      modal,
+      copyLabel: copied ? '복사됨 ✓' : '복사',
+      openModal: () => this.setState({ modal: true, copied: false }),
+      closeModal: () => this.setState({ modal: false }),
+      stopProp: (e) => e.stopPropagation(),
+      copyCode: () => {
+        if (navigator.clipboard) navigator.clipboard.writeText('PROOVIT-S1-DAWN');
+        this.setState({ copied: true });
+        clearTimeout(this._ct);
+        this._ct = setTimeout(() => this.setState({ copied: false }), 2000);
+      },
+      goSubmit: () => this.setState({ tab: 1 }),
+      goBenefits: () => this.setState({ tab: 2 }),
+    };
+  }
+}
+</script>
+</body>
+</html>

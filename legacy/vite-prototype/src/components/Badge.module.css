@@ -1,0 +1,48 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--r-xs);
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.pill {
+  border-radius: var(--r-pill);
+  padding: 5px 12px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.lime {
+  color: var(--c-lime);
+  background: rgba(200, 255, 61, 0.09);
+}
+.limeOutline {
+  color: var(--c-lime);
+  background: var(--c-lime-10);
+  border: 1px solid var(--c-lime-35);
+}
+.gold {
+  color: var(--c-gold);
+  background: var(--c-gold-10);
+}
+.warn {
+  color: var(--c-warn);
+  background: var(--c-warn-10);
+}
+.danger {
+  color: var(--c-danger);
+  background: rgba(255, 107, 107, 0.1);
+}
+.neutral {
+  color: var(--c-text-dim);
+  background: rgba(255, 255, 255, 0.06);
+}
+.outline {
+  color: var(--c-text-muted);
+  background: var(--c-surface-2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}

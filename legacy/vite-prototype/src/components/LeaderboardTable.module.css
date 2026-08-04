@@ -1,0 +1,195 @@
+.wrap {
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-2xl);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.scroller {
+  overflow-x: auto;
+}
+
+.grid {
+  min-width: 820px;
+}
+
+.head,
+.row {
+  display: grid;
+  grid-template-columns: 64px 1.8fr 1fr 0.8fr 0.8fr 1.2fr 90px;
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-4) 22px;
+}
+
+.head {
+  padding: 14px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-text-faint);
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+}
+
+.row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background var(--t-fast);
+  text-align: left;
+  width: 100%;
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  color: inherit;
+  font: inherit;
+}
+.row:hover {
+  background: rgba(200, 255, 61, 0.04);
+}
+
+.rank {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--c-text-dim);
+}
+.rankTop {
+  color: var(--c-lime);
+}
+
+.name {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--c-text-strong);
+}
+.team {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--c-text-dim);
+}
+
+.score {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--c-text);
+  transition: transform var(--t-base), opacity var(--t-base);
+}
+.rolling {
+  transform: translateY(-4px);
+  opacity: 0.35;
+}
+
+.delta {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--c-lime);
+}
+.deltaDown {
+  color: var(--c-danger);
+}
+
+.retention {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--c-text-muted);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tail {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+.arrow {
+  color: var(--c-text-ghost);
+  font-size: 14px;
+}
+
+/* ---- 상위 3팀 카드 ---- */
+.top3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--s-5);
+}
+
+.card {
+  background: var(--c-card);
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-3xl);
+  padding: 26px;
+  box-shadow: var(--sh-card);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  display: block;
+  width: 100%;
+}
+.card:hover {
+  transform: translateY(-3px);
+}
+.cardFirst {
+  border-color: var(--c-lime-45);
+  box-shadow: var(--sh-lime-glow);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.rankLabel {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  color: var(--c-text-dim);
+}
+.rankLabelFirst {
+  color: var(--c-lime);
+}
+.cardName {
+  margin-top: var(--s-4);
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--c-text-strong);
+}
+.cardTeam {
+  margin-top: var(--s-1);
+  font-size: 13px;
+  color: var(--c-text-dim);
+}
+.cardBottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+.cardScore {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 1;
+  color: var(--c-lime);
+  transition: transform var(--t-base), opacity var(--t-base);
+}
+.cardScoreLabel {
+  margin-top: var(--s-2);
+  font-size: 12px;
+  color: var(--c-text-faint);
+  font-family: var(--font-mono);
+}

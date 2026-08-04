@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+body { margin: 0; background: #0B1220; font-family: 'Pretendard Variable', Pretendard, sans-serif; color: #F4F6FA; }
+a { color: #C8FF3D; text-decoration: none; }
+a:hover { color: #DCFF7A; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (max-width: 720px) { #nav-menu { display: none !important; } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: linear-gradient(180deg, #0B1220 0%, #0D1526 45%, #14181F 100%); overflow-x: hidden;">
+
+  <nav style="position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 32px; background: rgba(11,18,32,0.72); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.07);">
+    <a href="PROOVIT Landing v2.dc.html" style="font-weight: 800; font-size: 20px; letter-spacing: 0.06em; color: #FFFFFF;">PROO<span style="color: #C8FF3D; font-weight: 900;">✓</span>IT</a>
+    <div id="nav-menu" style="display: flex; gap: 32px; font-size: 14px; font-weight: 600;">
+      <a href="PROOVIT Landing v2.dc.html" style="color: #B7BFCC;" style-hover="color: #FFFFFF;">리그 소개</a>
+      <a href="PROOVIT Leaderboard.dc.html" style="color: #B7BFCC;" style-hover="color: #FFFFFF;">리더보드</a>
+      <span style="color: #B7BFCC; cursor: pointer;" style-hover="color: #FFFFFF;">시즌 아카이브</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 999px; padding: 5px 14px 5px 5px; cursor: pointer;" style-hover="border-color: rgba(200,255,61,0.4);">
+      <span style="width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #C8FF3D, #4A7A00); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #0B1220;">새</span>
+      <span style="font-size: 13px; font-weight: 700; color: #F4F6FA;">팀 새벽로켓</span>
+    </div>
+  </nav>
+
+  <main data-screen-label="S1 제출" style="max-width: 640px; margin: 0 auto; padding: 40px 24px 88px;">
+    <a href="PROOVIT Dashboard.dc.html" style="display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #8A93A6; margin-bottom: 20px;" style-hover="color: #C8FF3D;">← 대시보드로 돌아가기</a>
+    <div style="background: linear-gradient(160deg, #10192C, #0C1322); border: 1px solid rgba(255,255,255,0.09); border-radius: 22px; padding: 36px; box-shadow: 0 24px 60px rgba(0,0,0,0.45);">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;">
+        <div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #C8FF3D; letter-spacing: 0.1em;">S1</div>
+          <h1 style="margin: 6px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; color: #FFFFFF;">스테이지 1 제출 — 수요 검증</h1>
+        </div>
+        <div style="flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; background: rgba(200,255,61,0.1); border: 1px solid rgba(200,255,61,0.35); color: #C8FF3D; border-radius: 999px; padding: 6px 13px; font-size: 12px; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #C8FF3D; animation: blink 1.6s infinite;"></span>
+          마감 D-{{ cdDays }} {{ cdClock }}
+        </div>
+      </div>
+
+      <form onSubmit="{{ submit }}" style="display: flex; flex-direction: column; gap: 22px; margin-top: 32px;">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label style="font-size: 13px; font-weight: 700; color: #B7BFCC;">랜딩페이지 URL</label>
+          <input type="url" required="{{ true }}" placeholder="https://" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 13px 16px; font-size: 15px; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; outline: none;" style-focus="border-color: #C8FF3D;">
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 13px; font-weight: 700; color: #B7BFCC;">방문자 수</label>
+            <input type="number" min="0" required="{{ true }}" value="{{ visitors }}" onChange="{{ onVisitors }}" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 13px 16px; font-size: 16px; font-weight: 700; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; outline: none; width: 100%; box-sizing: border-box;" style-focus="border-color: #C8FF3D;">
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 13px; font-weight: 700; color: #B7BFCC;">사전 신청자 수</label>
+            <input type="number" min="0" required="{{ true }}" value="{{ signups }}" onChange="{{ onSignups }}" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 13px 16px; font-size: 16px; font-weight: 700; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; outline: none; width: 100%; box-sizing: border-box;" style-focus="border-color: #C8FF3D;">
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; background: rgba(200,255,61,0.05); border: 1px solid rgba(200,255,61,0.25); border-radius: 12px; padding: 14px 18px;">
+          <span style="font-size: 13px; font-weight: 700; color: #8A93A6;">전환율 <span style="font-weight: 500; color: #626C7F;">(자동 계산)</span></span>
+          <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 22px; color: #C8FF3D;">{{ conversion }}</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label style="font-size: 13px; font-weight: 700; color: #B7BFCC;">고객 조사 요약</label>
+          <textarea required="{{ true }}" rows="4" placeholder="인터뷰·설문에서 확인한 핵심 니즈를 정리해 주세요" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 13px 16px; font-size: 15px; line-height: 1.6; color: #FFFFFF; font-family: inherit; outline: none; resize: vertical;" style-focus="border-color: #C8FF3D;"></textarea>
+        </div>
+        <div onClick="{{ pickFile }}" style="border: 1px dashed {{ uploadBorder }}; border-radius: 14px; padding: 28px 20px; text-align: center; cursor: pointer; background: rgba(255,255,255,0.02); transition: border-color 0.15s ease;" style-hover="border-color: rgba(200,255,61,0.5);">
+          <sc-if value="{{ noFile }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size: 15px; font-weight: 700; color: #B7BFCC;">증빙 스크린샷 업로드</div>
+            <div style="margin-top: 6px; font-size: 13px; color: #626C7F;">애널리틱스 원본 화면 · 클릭해서 파일 선택</div>
+          </sc-if>
+          <sc-if value="{{ hasFile }}" hint-placeholder-val="{{ false }}">
+            <div style="display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #C8FF3D;">✓ {{ fileName }}</div>
+            <div style="margin-top: 6px; font-size: 12px; color: #626C7F;">클릭하면 다른 파일로 교체돼요</div>
+          </sc-if>
+        </div>
+
+        <sc-if value="{{ notDone }}" hint-placeholder-val="{{ true }}">
+          <button type="submit" style="width: 100%; border: none; border-radius: 14px; padding: 16px; font-size: 16px; font-weight: 800; font-family: inherit; background: #C8FF3D; color: #0B1220; cursor: pointer;" style-hover="background: #DCFF7A;">제출하기</button>
+        </sc-if>
+        <sc-if value="{{ done }}" hint-placeholder-val="{{ false }}">
+          <div style="width: 100%; border-radius: 14px; padding: 16px; background: rgba(200,255,61,0.12); border: 1px solid rgba(200,255,61,0.45); display: flex; align-items: center; justify-content: center; gap: 10px;">
+            <svg width="22" height="22" viewBox="0 0 20 20"><path d="M4 10.5 L8.5 15 L16 6" fill="none" stroke="#C8FF3D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray: 24; stroke-dashoffset: 24; animation: drawLine 0.45s ease-out forwards;"></path></svg>
+            <span style="font-size: 16px; font-weight: 800; color: #C8FF3D;">제출이 완료됐어요</span>
+          </div>
+        </sc-if>
+        <p style="margin: 0; text-align: center; font-size: 13px; color: #626C7F;">마감 전까지 재제출 허용 · 제출 즉시 심사 대기열 등록</p>
+      </form>
+    </div>
+  </main>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%); background: #C8FF3D; color: #0B1220; font-weight: 800; font-size: 15px; padding: 14px 24px; border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.5); animation: toastIn 0.25s ease-out; z-index: 100;">✓ 제출 완료! 심사 결과는 대시보드에서 확인할 수 있어요</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280}}">
+class Component extends DCLogic {
+  state = { visitors: 492, signups: 61, fileName: '', done: false, toast: false, now: Date.now() };
+  target = new Date('2026-07-25T23:59:59+09:00').getTime();
+  componentDidMount() { this._clock = setInterval(() => this.setState({ now: Date.now() }), 1000); }
+  componentWillUnmount() { clearInterval(this._clock); clearTimeout(this._tt); }
+  renderVals() {
+    const { visitors, signups, fileName, done } = this.state;
+    const pad = (n) => String(n).padStart(2, '0');
+    const diff = Math.max(0, this.target - this.state.now);
+    const cdDays = Math.floor(diff / 864e5);
+    const cdClock = pad(Math.floor(diff / 36e5) % 24) + ':' + pad(Math.floor(diff / 6e4) % 60) + ':' + pad(Math.floor(diff / 1e3) % 60);
+    const v = Number(visitors) || 0, s = Number(signups) || 0;
+    const conversion = v > 0 ? ((s / v) * 100).toFixed(1) + '%' : '—';
+    return {
+      cdDays, cdClock, visitors, signups, conversion,
+      done, notDone: !done, toast: this.state.toast,
+      fileName, hasFile: !!fileName, noFile: !fileName,
+      uploadBorder: fileName ? 'rgba(200,255,61,0.5)' : 'rgba(255,255,255,0.2)',
+      onVisitors: (e) => this.setState({ visitors: e.target.value }),
+      onSignups: (e) => this.setState({ signups: e.target.value }),
+      pickFile: () => {
+        const inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = 'image/*';
+        inp.onchange = () => { if (inp.files && inp.files[0]) this.setState({ fileName: inp.files[0].name }); };
+        inp.click();
+      },
+      submit: (e) => {
+        e.preventDefault();
+        this.setState({ done: true, toast: true });
+        clearTimeout(this._tt);
+        this._tt = setTimeout(() => this.setState({ toast: false }), 3200);
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

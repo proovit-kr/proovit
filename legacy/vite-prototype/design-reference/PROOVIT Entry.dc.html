@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+body { margin: 0; background: #0B1220; font-family: 'Pretendard Variable', Pretendard, sans-serif; color: #F4F6FA; }
+a { color: #C8FF3D; text-decoration: none; }
+a:hover { color: #DCFF7A; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (max-width: 720px) { #nav-menu { display: none !important; } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: linear-gradient(180deg, #0B1220 0%, #0D1526 45%, #14181F 100%); overflow-x: hidden;">
+
+  <nav style="position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 32px; background: rgba(11,18,32,0.72); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.07);">
+    <a href="PROOVIT Landing v2.dc.html" style="font-weight: 800; font-size: 20px; letter-spacing: 0.06em; color: #FFFFFF;">PROO<span style="color: #C8FF3D; font-weight: 900;">✓</span>IT</a>
+    <div id="nav-menu" style="display: flex; gap: 32px; font-size: 14px; font-weight: 600;">
+      <a href="PROOVIT Landing v2.dc.html" style="color: #B7BFCC;" style-hover="color: #FFFFFF;">리그 소개</a>
+      <a href="PROOVIT Leaderboard.dc.html" style="color: #B7BFCC;" style-hover="color: #FFFFFF;">리더보드</a>
+      <span style="color: #B7BFCC; cursor: pointer;" style-hover="color: #FFFFFF;">시즌 아카이브</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="font-size: 14px; color: #B7BFCC; font-weight: 600; cursor: pointer;" style-hover="color: #FFFFFF;">로그인</span>
+      <a href="PROOVIT Landing v2.dc.html" style="background: #C8FF3D; color: #0B1220; border-radius: 10px; padding: 9px 18px; font-size: 14px; font-weight: 800;" style-hover="background: #DCFF7A; color: #0B1220;">시즌 1 참가</a>
+    </div>
+  </nav>
+
+  <main style="max-width: 1160px; margin: 0 auto; padding: 48px 32px 72px;">
+    <a href="PROOVIT Leaderboard.dc.html" style="display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #8A93A6; margin-bottom: 24px;" style-hover="color: #C8FF3D;">← 리더보드로 돌아가기</a>
+
+    <div data-screen-label="참가작 프로필" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; align-items: stretch;">
+      <div style="grid-column: span 2; min-width: 0; background: linear-gradient(160deg, #10192C, #0C1322); border: 1px solid rgba(200,255,61,0.3); border-radius: 22px; padding: 40px; box-shadow: 0 24px 60px rgba(0,0,0,0.45); display: flex; flex-direction: column; justify-content: center;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 20px;">
+          <div style="width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, #C8FF3D, #4A7A00); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 28px; color: #0B1220; flex-shrink: 0;">빵</div>
+          <div style="min-width: 0;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+              <h1 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.02em; color: #FFFFFF;">빵집레이더</h1>
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #C8FF3D; background: rgba(200,255,61,0.1); border: 1px solid rgba(200,255,61,0.35); border-radius: 999px; padding: 5px 12px; font-family: 'JetBrains Mono', monospace;">시즌 1 · 현재 1위</span>
+            </div>
+            <p style="margin: 10px 0 0; font-size: 17px; color: #B7BFCC;">우리 동네 빵 나오는 시간 알림 서비스</p>
+            <div style="margin-top: 8px; font-size: 14px; color: #8A93A6;">팀 <strong style="color: #F4F6FA;">새벽로켓</strong></div>
+          </div>
+        </div>
+        <div style="margin-top: 30px;">
+          <a href="#" style="display: inline-flex; align-items: center; gap: 8px; background: #C8FF3D; color: #0B1220; border-radius: 12px; padding: 14px 26px; font-size: 16px; font-weight: 800;" style-hover="background: #DCFF7A; color: #0B1220;">서비스 방문
+            <svg width="14" height="14" viewBox="0 0 14 14"><path d="M4 2 H12 V10 M12 2 L3 11" fill="none" stroke="#0B1220" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </a>
+        </div>
+      </div>
+
+      <div style="min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 18px; padding: 24px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.12em; color: #8A93A6; font-family: 'JetBrains Mono', monospace;">METRICS</div>
+            <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #C8FF3D; background: rgba(200,255,61,0.09); border-radius: 6px; padding: 3px 8px;">✓ 검증됨</span>
+          </div>
+          <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 16px;">
+            <div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 38px; line-height: 1; color: #C8FF3D;">{{ score }}</div>
+              <div style="margin-top: 8px; font-size: 12px; color: #626C7F; font-family: 'JetBrains Mono', monospace;">유효 가입자</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 18px; color: #C8FF3D;">+38%</div>
+              <div style="margin-top: 4px; font-size: 11px; color: #626C7F;">주간 증가</div>
+            </div>
+          </div>
+          <svg width="100%" height="44" viewBox="0 0 220 44" preserveAspectRatio="none" style="display: block; margin-top: 16px;">
+            <polyline points="0,38 28,34 55,35 83,27 110,29 138,20 165,15 192,10 220,4" fill="none" stroke="#C8FF3D" stroke-width="2" stroke-linecap="round" opacity="0.85" style="stroke-dasharray: 260; stroke-dashoffset: 260; animation: drawLine 1.4s ease-out forwards; animation-delay: 0.3s;"></polyline>
+          </svg>
+        </div>
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 18px; padding: 24px;">
+          <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.12em; color: #8A93A6; font-family: 'JetBrains Mono', monospace;">BADGE</div>
+          <div style="margin-top: 14px; display: inline-flex; align-items: center; gap: 8px; background: #0B1220; border: 1px solid rgba(200,255,61,0.4); border-radius: 10px; padding: 9px 14px;">
+            <span style="font-weight: 800; font-size: 13px; letter-spacing: 0.05em; color: #FFFFFF;">PROO<span style="color: #C8FF3D;">✓</span>IT</span>
+            <span style="font-size: 12px; font-weight: 700; color: #C8FF3D;">시즌 1 출품작</span>
+          </div>
+          <button onClick="{{ copyEmbed }}" style="margin-top: 14px; width: 100%; background: rgba(200,255,61,0.12); color: #C8FF3D; border: 1px solid rgba(200,255,61,0.35); border-radius: 10px; padding: 10px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;" style-hover="background: rgba(200,255,61,0.2);">{{ copyLabel }}</button>
+        </div>
+      </div>
+    </div>
+
+    <div data-screen-label="시즌 여정" style="margin-top: 44px;">
+      <h2 style="margin: 0 0 32px; font-size: 24px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;">시즌 여정</h2>
+      <div style="overflow-x: auto; padding-bottom: 8px;">
+        <div style="position: relative; display: flex; min-width: 720px;">
+          <div style="position: absolute; top: 17px; left: 10%; right: 10%; height: 2px; background: linear-gradient(90deg, #C8FF3D 0%, #C8FF3D 72%, rgba(255,255,255,0.14) 72%, rgba(255,255,255,0.14) 100%); border-radius: 2px;"></div>
+          <sc-for list="{{ journey }}" as="j" hint-placeholder-count="4">
+            <div style="position: relative; flex: 1; text-align: center; padding: 0 8px;">
+              <sc-if value="{{ j.done }}" hint-placeholder-val="{{ true }}">
+                <div style="width: 36px; height: 36px; border-radius: 50%; background: #C8FF3D; color: #0B1220; font-weight: 900; font-size: 18px; display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 0 0 5px rgba(200,255,61,0.12);">✓</div>
+              </sc-if>
+              <sc-if value="{{ j.current }}" hint-placeholder-val="{{ false }}">
+                <div style="width: 36px; height: 36px; border-radius: 50%; background: #131C2F; border: 2px solid #C8FF3D; display: flex; align-items: center; justify-content: center; margin: 0 auto;">
+                  <span style="width: 10px; height: 10px; border-radius: 50%; background: #C8FF3D; animation: blink 1.4s infinite;"></span>
+                </div>
+              </sc-if>
+              <div style="margin-top: 16px; font-weight: 700; font-size: 15px; color: {{ j.color }};">{{ j.label }}</div>
+              <div style="margin-top: 6px; font-size: 12px; font-weight: 700; color: {{ j.subColor }}; font-family: 'JetBrains Mono', monospace;">{{ j.sub }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div data-screen-label="CTA 배너" style="margin-top: 56px; text-align: center; background: linear-gradient(160deg, rgba(200,255,61,0.06), rgba(200,255,61,0.02)); border: 1px solid rgba(200,255,61,0.25); border-radius: 22px; padding: 48px 32px;">
+      <h2 style="margin: 0 auto; max-width: 560px; font-size: clamp(22px, 3vw, 30px); font-weight: 800; line-height: 1.4; color: #FFFFFF; letter-spacing: -0.01em; text-wrap: pretty;">다음 시즌, 당신의 서비스가<br>이 자리에 올라올 차례예요</h2>
+      <a href="PROOVIT Landing v2.dc.html" style="display: inline-block; margin-top: 26px; background: #C8FF3D; color: #0B1220; border-radius: 12px; padding: 14px 30px; font-size: 16px; font-weight: 800;" style-hover="background: #DCFF7A; color: #0B1220;">사전 신청하기</a>
+    </div>
+  </main>
+
+  <footer style="border-top: 1px solid rgba(255,255,255,0.07); padding: 36px 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; max-width: 1160px; margin: 0 auto;">
+    <div style="font-weight: 800; font-size: 16px; letter-spacing: 0.06em; color: #FFFFFF;">PROO<span style="color: #C8FF3D;">✓</span>IT</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; font-size: 13px;">
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">시즌 규칙</a>
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">유효 이용자 기준</a>
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">스폰서 문의</a>
+    </div>
+    <div style="display: flex; gap: 16px; font-size: 13px; font-family: 'JetBrains Mono', monospace;">
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">X</a>
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">Instagram</a>
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">Discord</a>
+    </div>
+  </footer>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%); background: #C8FF3D; color: #0B1220; font-weight: 800; font-size: 15px; padding: 14px 24px; border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.5); animation: toastIn 0.25s ease-out; z-index: 100;">✓ 임베드 코드가 복사됐어요</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280}}">
+class Component extends DCLogic {
+  state = { score: 0, toast: false, copied: false };
+  get reduced() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  componentDidMount() {
+    if (this.reduced) { this.setState({ score: 412 }); return; }
+    const t0 = performance.now(), dur = 1400;
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / dur);
+      this.setState({ score: Math.round(412 * (1 - Math.pow(1 - p, 3))) });
+      if (p < 1) this._raf = requestAnimationFrame(step); else this.setState({ score: 412 });
+    };
+    this._raf = requestAnimationFrame(step);
+    this._hard = setTimeout(() => { if (this.state.score === 0) this.setState({ score: 412 }); }, 2500);
+  }
+  componentWillUnmount() { if (this._raf) cancelAnimationFrame(this._raf); clearTimeout(this._hard); clearTimeout(this._tt); }
+  renderVals() {
+    const journeyData = [
+      ['수요 검증 통과', 'W2', true],
+      ['MVP 배포', 'W4', true],
+      ['유저 300명', 'W5', true],
+      ['첫 매출', '진행 중', false],
+    ];
+    const journey = journeyData.map(([label, sub, done]) => ({
+      label, sub, done, current: !done,
+      color: done ? '#FFFFFF' : '#C8FF3D',
+      subColor: done ? '#8A93A6' : '#C8FF3D',
+    }));
+    return {
+      score: this.state.score, journey, toast: this.state.toast,
+      copyLabel: this.state.copied ? '복사됨 ✓' : '임베드 코드 복사',
+      copyEmbed: () => {
+        const code = '<a href="https://proovit.kr/s1/bbangzip-radar"><img src="https://proovit.kr/badge/s1.svg" alt="PROOVIT 시즌 1 출품작"></a>';
+        if (navigator.clipboard) navigator.clipboard.writeText(code);
+        this.setState({ toast: true, copied: true });
+        clearTimeout(this._tt);
+        this._tt = setTimeout(() => this.setState({ toast: false, copied: false }), 2600);
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

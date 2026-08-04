@@ -1,0 +1,483 @@
+.main {
+  max-width: var(--w-page);
+  margin: 0 auto;
+  padding: 36px var(--pad-x) var(--s-18);
+  width: 100%;
+}
+
+.tabs {
+  margin-bottom: var(--s-8);
+}
+
+/* ---- 진행하기 ---- */
+.progressGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--s-5);
+  align-items: start;
+}
+
+.mainCol {
+  grid-column: span 2;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.sideCol {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.goldenCard {
+  background: var(--c-card);
+  border: 1px solid rgba(200, 255, 61, 0.3);
+  border-radius: var(--r-3xl);
+  padding: var(--s-7);
+}
+
+.goldenHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.chapter {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-lime);
+  letter-spacing: 0.1em;
+}
+
+.goldenTitle {
+  margin: 6px 0 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--c-text-strong);
+}
+
+.percent {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--c-lime);
+  text-align: right;
+}
+.percentLabel {
+  font-size: 11px;
+  color: var(--c-text-faint);
+  text-align: right;
+}
+
+.bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 18px 0 22px;
+}
+.barFill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--c-lime);
+  transition: width var(--t-slow);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--r-lg);
+  background: var(--c-surface);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+}
+
+.stepMark {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  background: transparent;
+  border: 1px solid var(--c-line-strong);
+  color: var(--c-text-dim);
+}
+.stepMarkDone {
+  background: var(--c-lime);
+  border-color: var(--c-lime);
+  color: var(--c-bg);
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.stepLabel {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-text);
+  min-width: 140px;
+}
+.stepLabelDone {
+  color: var(--c-text-faint);
+  text-decoration: line-through;
+}
+
+.stepLink {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-lime);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.stepLink:hover {
+  color: var(--c-lime-hover);
+}
+
+.lockedChapter {
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: var(--r-3xl);
+  padding: var(--s-6) var(--s-7);
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  opacity: 0.65;
+}
+.lockedTitle {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--c-text-muted);
+}
+.lockedHint {
+  margin-top: var(--s-1);
+  font-size: 13px;
+  color: var(--c-text-dim);
+}
+
+.panelLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text-dim);
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+}
+
+.panelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: var(--s-4);
+}
+.panelName {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--c-text-strong);
+}
+
+.divider {
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lockedOffer {
+  margin-top: var(--s-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  opacity: 0.6;
+}
+.lockedOfferName {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--c-text-muted);
+}
+.lockedOfferHint {
+  font-size: 12px;
+  color: var(--c-text-dim);
+}
+
+/* ---- 제출 현황 ---- */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--s-5);
+}
+
+.subCard {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-2xl);
+  padding: 26px;
+}
+.subCardOpen {
+  border-color: var(--c-warn-35);
+}
+.subCardLocked {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--c-line-3);
+  opacity: 0.65;
+}
+
+.subHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.subStage {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--c-lime);
+}
+.subStageLocked {
+  color: var(--c-text-dim);
+}
+.subTitle {
+  margin: var(--s-3) 0 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--c-text-strong);
+}
+.subTitleLocked {
+  color: var(--c-text-muted);
+}
+.subDesc {
+  margin: var(--s-2) 0 0;
+  font-size: 13px;
+  color: var(--c-text-dim);
+}
+.subDue {
+  margin-top: 14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+.subDueLocked {
+  color: var(--c-text-faint);
+  font-weight: 500;
+}
+.subBtn {
+  margin-top: var(--s-4);
+}
+
+/* ---- 혜택 ---- */
+.offerCard {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2xl);
+  padding: 26px;
+}
+.offerAvailable {
+  background: var(--c-card);
+  border: 1px solid var(--c-lime-45);
+}
+.offerLocked {
+  border: 1px dashed var(--c-line-3);
+  opacity: 0.7;
+}
+.offerNegotiating {
+  opacity: 0.45;
+}
+.offerLabel {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--c-text-dim);
+}
+.offerLabelOn {
+  color: var(--c-lime);
+}
+.offerTitle {
+  margin: var(--s-3) 0 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--c-text-strong);
+}
+.offerTitleOff {
+  color: var(--c-text-muted);
+}
+.offerDesc {
+  margin: var(--s-2) 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--c-text-dim);
+}
+.offerFoot {
+  margin: var(--s-6) 0 0;
+  font-size: 14px;
+  color: var(--c-text-dim);
+}
+
+/* ---- 상호 테스터 ---- */
+.peer {
+  max-width: 800px;
+}
+.peerTitle {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--c-text-strong);
+}
+.peerLead {
+  margin: 0 0 var(--s-5);
+  font-size: 13px;
+  color: var(--c-text-dim);
+}
+.peerList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.peerItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  background: var(--c-surface);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--r-2xl);
+  padding: 20px 24px;
+}
+.peerItemActive {
+  border-color: rgba(200, 255, 61, 0.3);
+}
+.peerName {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--c-text-strong);
+}
+.peerTeam {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--c-text-dim);
+}
+.peerActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.peerDone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-lime);
+  background: rgba(200, 255, 61, 0.09);
+  border-radius: var(--r-sm);
+  padding: 6px 12px;
+}
+.feedbackTitle {
+  margin: 36px 0 var(--s-4);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--c-text-strong);
+}
+.feedbackCount {
+  font-family: var(--font-mono);
+  color: var(--c-lime);
+}
+.feedbackCard {
+  background: var(--c-surface);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--r-2xl);
+  padding: 20px 24px;
+}
+.feedbackHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.feedbackFrom {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--c-lime);
+}
+.feedbackDate {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--c-text-faint);
+}
+.feedbackBody {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--c-text-muted);
+}
+
+/* ---- 크레딧 모달 ---- */
+.modalMark {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--c-lime-12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-lime);
+  font-weight: 900;
+  font-size: 20px;
+}
+.modalTitle {
+  margin: 18px 0 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--c-text-strong);
+}
+.modalDesc {
+  margin: var(--s-2) 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--c-text-dim);
+}
+.codeRow {
+  display: flex;
+  gap: 10px;
+  margin-top: var(--s-5);
+}
+.code {
+  flex: 1;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-lg);
+  padding: 13px 16px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--c-lime);
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .mainCol {
+    grid-column: span 1;
+  }
+}

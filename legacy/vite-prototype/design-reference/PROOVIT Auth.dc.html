@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+body { margin: 0; background: #0B1220; font-family: 'Pretendard Variable', Pretendard, sans-serif; color: #F4F6FA; }
+a { color: #C8FF3D; text-decoration: none; }
+a:hover { color: #DCFF7A; }
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: linear-gradient(180deg, #0B1220 0%, #0D1526 45%, #14181F 100%); display: flex; flex-direction: column;">
+
+  <nav style="display: flex; align-items: center; justify-content: center; padding: 20px 32px;">
+    <a href="PROOVIT Landing v2.dc.html" style="font-weight: 800; font-size: 22px; letter-spacing: 0.06em; color: #FFFFFF;">PROO<span style="color: #C8FF3D; font-weight: 900;">✓</span>IT</a>
+  </nav>
+
+  <main data-screen-label="로그인·회원가입" style="flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 32px 24px 88px;">
+    <div style="width: 100%; max-width: 400px; background: linear-gradient(160deg, #10192C, #0C1322); border: 1px solid rgba(255,255,255,0.09); border-radius: 22px; padding: 32px; box-shadow: 0 24px 60px rgba(0,0,0,0.45);">
+
+      <div style="display: flex; gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 5px; margin-bottom: 28px;">
+        <button onClick="{{ goLogin }}" style="flex: 1; border: none; border-radius: 9px; padding: 10px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; background: {{ loginTabBg }}; color: {{ loginTabFg }}; transition: all 0.15s ease;">로그인</button>
+        <button onClick="{{ goSignup }}" style="flex: 1; border: none; border-radius: 9px; padding: 10px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; background: {{ signupTabBg }}; color: {{ signupTabFg }}; transition: all 0.15s ease;">회원가입</button>
+      </div>
+
+      <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+        <form onSubmit="{{ loginSubmit }}" style="display: flex; flex-direction: column; gap: 18px;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 13px; font-weight: 700; color: #B7BFCC;">이메일</label>
+            <input type="email" required="{{ true }}" placeholder="you@example.com" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 13px 16px; font-size: 15px; color: #FFFFFF; font-family: inherit; outline: none;" style-focus="border-color: #C8FF3D;">
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 13px; font-weight: 700; color: #B7BFCC;">비밀번호</label>
+            <input type="password" required="{{ true }}" placeholder="••••••••" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 13px 16px; font-size: 15px; color: #FFFFFF; font-family: inherit; outline: none;" style-focus="border-color: #C8FF3D;">
+          </div>
+          <button type="submit" style="width: 100%; border: none; border-radius: 12px; padding: 15px; font-size: 15px; font-weight: 800; font-family: inherit; background: #C8FF3D; color: #0B1220; cursor: pointer;" style-hover="background: #DCFF7A;">로그인</button>
+          <div style="text-align: center; font-size: 13px; color: #626C7F;">비밀번호를 잊으셨나요? <a href="#">재설정</a></div>
+        </form>
+      </sc-if>
+
+      <sc-if value="{{ isSignup }}" hint-placeholder-val="{{ false }}">
+        <sc-if value="{{ signupForm }}" hint-placeholder-val="{{ true }}">
+          <form onSubmit="{{ signupSubmit }}" style="display: flex; flex-direction: column; gap: 18px;">
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label style="font-size: 13px; font-weight: 700; color: #B7BFCC;">이메일</label>
+              <input type="email" required="{{ true }}" placeholder="you@example.com" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 13px 16px; font-size: 15px; color: #FFFFFF; font-family: inherit; outline: none;" style-focus="border-color: #C8FF3D;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label style="font-size: 13px; font-weight: 700; color: #B7BFCC;">비밀번호</label>
+              <input type="password" required="{{ true }}" placeholder="8자 이상" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 13px 16px; font-size: 15px; color: #FFFFFF; font-family: inherit; outline: none;" style-focus="border-color: #C8FF3D;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label style="font-size: 13px; font-weight: 700; color: #B7BFCC;">이메일 인증 코드</label>
+              <div style="display: flex; gap: 10px;">
+                <input type="text" required="{{ true }}" placeholder="6자리 코드" maxLength="6" style="flex: 1; min-width: 0; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 13px 16px; font-size: 15px; font-weight: 700; letter-spacing: 0.2em; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; outline: none;" style-focus="border-color: #C8FF3D;">
+                <button type="button" onClick="{{ sendCode }}" style="flex-shrink: 0; background: rgba(200,255,61,0.12); color: #C8FF3D; border: 1px solid rgba(200,255,61,0.35); border-radius: 12px; padding: 0 16px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;" style-hover="background: rgba(200,255,61,0.2);">{{ codeLabel }}</button>
+              </div>
+              <sc-if value="{{ codeSent }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size: 12px; color: #C8FF3D;">✓ 인증 코드를 보냈어요. 메일함을 확인해 주세요.</div>
+              </sc-if>
+            </div>
+            <button type="submit" style="width: 100%; border: none; border-radius: 12px; padding: 15px; font-size: 15px; font-weight: 800; font-family: inherit; background: #C8FF3D; color: #0B1220; cursor: pointer;" style-hover="background: #DCFF7A;">가입하기</button>
+          </form>
+        </sc-if>
+        <sc-if value="{{ signupDone }}" hint-placeholder-val="{{ false }}">
+          <div style="text-align: center; padding: 12px 0 4px;">
+            <div style="width: 56px; height: 56px; border-radius: 50%; background: rgba(200,255,61,0.12); border: 1px solid rgba(200,255,61,0.4); display: flex; align-items: center; justify-content: center; margin: 0 auto;">
+              <svg width="26" height="26" viewBox="0 0 20 20"><path d="M4 10.5 L8.5 15 L16 6" fill="none" stroke="#C8FF3D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray: 24; stroke-dashoffset: 24; animation: drawLine 0.45s ease-out forwards;"></path></svg>
+            </div>
+            <h2 style="margin: 20px 0 0; font-size: 20px; font-weight: 800; color: #FFFFFF;">가입이 완료됐어요</h2>
+            <p style="margin: 10px 0 0; font-size: 14px; line-height: 1.6; color: #8A93A6;">이제 시즌 1에 참가할 수 있어요.</p>
+            <a href="PROOVIT Apply.dc.html" style="display: block; margin-top: 24px; background: #C8FF3D; color: #0B1220; border-radius: 12px; padding: 15px; font-size: 15px; font-weight: 800;" style-hover="background: #DCFF7A; color: #0B1220;">시즌 1 참가 신청 →</a>
+          </div>
+        </sc-if>
+      </sc-if>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280}}">
+class Component extends DCLogic {
+  state = { mode: 'login', codeSent: false, done: false };
+  renderVals() {
+    const { mode, codeSent, done } = this.state;
+    const isLogin = mode === 'login';
+    return {
+      isLogin, isSignup: !isLogin,
+      signupForm: !done, signupDone: done,
+      loginTabBg: isLogin ? '#C8FF3D' : 'transparent',
+      loginTabFg: isLogin ? '#0B1220' : '#8A93A6',
+      signupTabBg: !isLogin ? '#C8FF3D' : 'transparent',
+      signupTabFg: !isLogin ? '#0B1220' : '#8A93A6',
+      goLogin: () => this.setState({ mode: 'login' }),
+      goSignup: () => this.setState({ mode: 'signup' }),
+      codeSent,
+      codeLabel: codeSent ? '재전송' : '코드 받기',
+      sendCode: () => this.setState({ codeSent: true }),
+      loginSubmit: (e) => { e.preventDefault(); window.location.href = 'PROOVIT Dashboard.dc.html'; },
+      signupSubmit: (e) => { e.preventDefault(); this.setState({ done: true }); },
+    };
+  }
+}
+</script>
+</body>
+</html>

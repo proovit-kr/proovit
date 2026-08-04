@@ -1,0 +1,102 @@
+/* 운영자(OPS) 콘솔 공용 스타일 */
+.main {
+  max-width: var(--w-ops);
+  margin: 0 auto;
+  padding: var(--s-6) 28px var(--s-16, 64px);
+  width: 100%;
+}
+.mainNarrow {
+  max-width: 960px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-bottom: var(--s-5);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+.chip {
+  color: var(--c-text-muted);
+  background: var(--c-surface-2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--r-pill);
+  padding: 6px 14px;
+}
+.chipLime {
+  color: var(--c-lime);
+  background: rgba(200, 255, 61, 0.07);
+  border-color: var(--c-lime-25);
+}
+.chipWarn {
+  color: var(--c-warn);
+  background: rgba(255, 159, 107, 0.08);
+  border-color: rgba(255, 159, 107, 0.25);
+}
+
+.panel {
+  background: var(--c-surface-ops);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.panelPad {
+  padding: var(--s-6);
+}
+
+.panelHead {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--c-line);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--c-text-faint);
+  font-family: var(--font-mono);
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--c-text-strong);
+}
+
+.scroller {
+  overflow-x: auto;
+}
+
+.thumb {
+  border-radius: var(--r-sm);
+  background: linear-gradient(135deg, #1a2333, #131a28);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-text-faint);
+  cursor: pointer;
+  transition: border-color var(--t-fast);
+}
+.thumb:hover {
+  border-color: var(--c-lime-45);
+}
+
+.metricCell {
+  background: var(--c-bg-ops);
+  padding: 14px 16px;
+}
+.metricLabel {
+  font-size: 11px;
+  color: var(--c-text-faint);
+}
+.metricValue {
+  margin-top: var(--s-1);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--c-text-ops);
+}
+.metricValueLime {
+  color: var(--c-lime);
+}

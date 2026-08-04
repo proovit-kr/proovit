@@ -1,0 +1,265 @@
+@import './tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--c-lime);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--c-lime-hover);
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
+}
+
+input,
+textarea,
+button,
+select {
+  font-family: inherit;
+}
+
+/* ---------- 공통 유틸 ---------- */
+.mono {
+  font-family: var(--font-mono);
+}
+
+.page {
+  min-height: 100vh;
+  background: var(--c-bg-page);
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.page--ops {
+  background: var(--c-bg-ops);
+  color: var(--c-text-ops);
+}
+
+.container {
+  width: 100%;
+  max-width: var(--w-page);
+  margin: 0 auto;
+  padding-left: var(--pad-x);
+  padding-right: var(--pad-x);
+}
+
+.container--ops {
+  max-width: var(--w-ops);
+  padding-left: 28px;
+  padding-right: 28px;
+}
+
+.container--narrow {
+  max-width: var(--w-narrow);
+}
+
+.container--form {
+  max-width: var(--w-form);
+  padding-left: var(--s-6);
+  padding-right: var(--s-6);
+}
+
+.grow {
+  flex: 1;
+}
+
+.sectionTitle {
+  margin: 0 0 var(--s-3);
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--c-text-strong);
+}
+
+.sectionLead {
+  margin: 0 0 var(--s-10);
+  font-size: 16px;
+  color: var(--c-text-dim);
+}
+
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-2xl);
+  padding: var(--s-6);
+}
+
+.cardRaised {
+  background: var(--c-card);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-3xl);
+  box-shadow: var(--sh-card);
+  padding: var(--s-7);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text-muted);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-lg);
+  padding: 13px 16px;
+  font-size: 15px;
+  color: var(--c-text-strong);
+  outline: none;
+  transition: border-color var(--t-fast);
+}
+.textarea {
+  line-height: 1.6;
+  resize: vertical;
+}
+.input:focus,
+.textarea:focus {
+  border-color: var(--c-lime);
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--c-text-faint);
+}
+.input--mono {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.helpText {
+  font-size: 12px;
+  color: var(--c-text-faint);
+}
+
+.hint {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--c-text-faint);
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--c-text-dim);
+}
+.backLink:hover {
+  color: var(--c-lime);
+}
+
+/* ---------- 애니메이션 ---------- */
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes drawLine {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes tickerMove {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@keyframes checkPop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-lime);
+  animation: blink 1.6s infinite;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --pad-x: 20px;
+  }
+  .sectionTitle {
+    font-size: 26px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+body { margin: 0; background: #0D1119; font-family: 'Pretendard Variable', Pretendard, sans-serif; color: #E8ECF3; }
+a { color: #C8FF3D; text-decoration: none; }
+a:hover { color: #DCFF7A; }
+@keyframes modalIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0D1119;">
+
+  <nav style="position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 36px; padding: 12px 28px; background: #10151F; border-bottom: 1px solid rgba(255,255,255,0.08);">
+    <div style="font-weight: 800; font-size: 16px; letter-spacing: 0.06em; color: #FFFFFF;">PROO<span style="color: #C8FF3D;">✓</span>IT <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #626C7F; font-weight: 700;">OPS</span></div>
+    <div style="display: flex; gap: 26px; font-size: 13px; font-weight: 600;">
+      <span style="color: #FFFFFF; border-bottom: 2px solid #C8FF3D; padding-bottom: 3px; cursor: default;">심사</span>
+      <a href="PROOVIT Admin Metrics.dc.html" style="color: #8A93A6;" style-hover="color: #FFFFFF;">지표 검증</a>
+      <a href="PROOVIT Admin Seasons.dc.html" style="color: #8A93A6;" style-hover="color: #FFFFFF;">시즌 관리</a>
+    </div>
+  </nav>
+
+  <main style="max-width: 1240px; margin: 0 auto; padding: 24px 28px 64px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">
+      <span style="font-size: 12px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #B7BFCC; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 999px; padding: 6px 14px;">시즌 1</span>
+      <span style="font-size: 12px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #B7BFCC; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 999px; padding: 6px 14px;">스테이지 1</span>
+      <span style="font-size: 12px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #C8FF3D; background: rgba(200,255,61,0.07); border: 1px solid rgba(200,255,61,0.25); border-radius: 999px; padding: 6px 14px;">대기 12건</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: minmax(240px, 1fr) minmax(400px, 2fr); gap: 16px; align-items: start;">
+      <div data-screen-label="심사 목록" style="background: #10151F; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; overflow: hidden;">
+        <div style="padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.07); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #626C7F; font-family: 'JetBrains Mono', monospace;">제출 목록</div>
+        <sc-for list="{{ items }}" as="it" hint-placeholder-count="4">
+          <div onClick="{{ it.select }}" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); border-left: 2px solid {{ it.edge }}; background: {{ it.bg }};" style-hover="background: rgba(255,255,255,0.04);">
+            <div>
+              <div style="font-weight: 700; font-size: 14px; color: #FFFFFF;">{{ it.team }}</div>
+              <div style="margin-top: 2px; font-size: 12px; color: #626C7F;">{{ it.service }}</div>
+            </div>
+            <span style="flex-shrink: 0; font-size: 11px; font-weight: 700; border-radius: 5px; padding: 3px 8px; color: {{ it.stColor }}; background: {{ it.stBg }};">{{ it.status }}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div data-screen-label="심사 상세" style="background: #10151F; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 24px;">
+        <h1 style="margin: 0; font-size: 20px; font-weight: 800; color: #FFFFFF;">{{ detailTitle }}</h1>
+        <div style="margin-top: 18px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden;">
+          <div style="background: #0D1119; padding: 14px 16px;">
+            <div style="font-size: 11px; color: #626C7F;">사전 신청자</div>
+            <div style="margin-top: 4px; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 20px; color: #E8ECF3;">{{ d.signups }}</div>
+          </div>
+          <div style="background: #0D1119; padding: 14px 16px;">
+            <div style="font-size: 11px; color: #626C7F;">방문자</div>
+            <div style="margin-top: 4px; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 20px; color: #E8ECF3;">{{ d.visitors }}</div>
+          </div>
+          <div style="background: #0D1119; padding: 14px 16px;">
+            <div style="font-size: 11px; color: #626C7F;">전환율</div>
+            <div style="margin-top: 4px; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 20px; color: #C8FF3D;">{{ d.conv }}</div>
+          </div>
+        </div>
+        <div style="margin-top: 16px; display: flex; align-items: center; gap: 12px;">
+          <div style="width: 120px; height: 72px; border-radius: 8px; background: linear-gradient(135deg, #1A2333, #131A28); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 11px; color: #626C7F; cursor: pointer;" style-hover="border-color: rgba(200,255,61,0.4);">증빙 GA4.png</div>
+          <div style="font-size: 12px; color: #626C7F;">클릭 시 원본 확대</div>
+        </div>
+
+        <div style="margin-top: 18px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden;">
+          <div onClick="{{ toggleAi }}" style="display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; cursor: pointer; background: rgba(255,255,255,0.02);" style-hover="background: rgba(255,255,255,0.04);">
+            <span style="font-size: 13px; font-weight: 700; color: #B7BFCC;">AI 분석 리포트</span>
+            <span style="font-family: 'JetBrains Mono', monospace; color: #626C7F; transition: transform 0.2s; transform: {{ aiChev }};">+</span>
+          </div>
+          <sc-if value="{{ aiOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 4px 16px 16px; font-size: 13px; line-height: 1.7; color: #8A93A6;">
+              <div>· 전환율 12.4%는 스테이지 1 전체 중앙값(6.8%)의 약 1.8배 수준</div>
+              <div>· 고객 조사 요약에 구체적 시간대·구매 맥락 포함, 문제 정의 명확</div>
+              <div>· 방문자 유입원 다양성은 증빙만으로 확인 불가 — 원본 요청 권장</div>
+              <div style="margin-top: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #C8FF3D;">사업성 72/100 <span style="color: #626C7F; font-weight: 500;">· 참고용</span></div>
+            </div>
+          </sc-if>
+        </div>
+
+        <sc-if value="{{ fbOpen }}" hint-placeholder-val="{{ false }}">
+          <textarea rows="3" placeholder="보류 사유와 보완 요청 사항 입력" style="margin-top: 16px; width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.6; color: #FFFFFF; font-family: inherit; outline: none; resize: vertical;" style-focus="border-color: #C8FF3D;"></textarea>
+        </sc-if>
+        <div style="display: flex; gap: 10px; margin-top: 18px;">
+          <button onClick="{{ openPass }}" style="background: #C8FF3D; color: #0B1220; border: none; border-radius: 9px; padding: 10px 22px; font-size: 13px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">통과</button>
+          <button onClick="{{ toggleFb }}" style="background: transparent; color: #B7BFCC; border: 1px solid rgba(255,255,255,0.2); border-radius: 9px; padding: 10px 22px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;" style-hover="border-color: #C8FF3D; color: #C8FF3D;">{{ fbLabel }}</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{ passModal }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closePass }}" style="position: fixed; inset: 0; z-index: 100; background: rgba(5,9,18,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 24px;">
+      <div onClick="{{ stopProp }}" style="background: #10151F; border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 28px; max-width: 380px; width: 100%; animation: modalIn 0.25s ease-out; box-shadow: 0 32px 80px rgba(0,0,0,0.6);">
+        <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #FFFFFF;">통과 처리 확인</h3>
+        <p style="margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: #8A93A6;">통과 처리 시 해당 팀의 다음 스테이지 잠금 해제 및 결과 메일 발송</p>
+        <div style="display: flex; gap: 10px; margin-top: 22px;">
+          <button onClick="{{ confirmPass }}" style="flex: 1; background: #C8FF3D; color: #0B1220; border: none; border-radius: 9px; padding: 11px; font-size: 13px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">통과 처리</button>
+          <button onClick="{{ closePass }}" style="flex: 1; background: transparent; color: #B7BFCC; border: 1px solid rgba(255,255,255,0.2); border-radius: 9px; padding: 11px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;" style-hover="color: #FFFFFF;">취소</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280}}">
+class Component extends DCLogic {
+  state = { sel: 0, aiOpen: false, fbOpen: false, passModal: false, passed: {} };
+  data = [
+    { team: '새벽로켓', service: '빵집레이더', status: '대기', signups: 61, visitors: 492, conv: '12.4%' },
+    { team: '야근금지', service: '퇴근알림봇', status: '대기', signups: 34, visitors: 505, conv: '6.7%' },
+    { team: '오후네시', service: '간식투표', status: '통과', signups: 88, visitors: 719, conv: '12.2%' },
+    { team: '초록손', service: '텃밭일지', status: '보류', signups: 19, visitors: 402, conv: '4.7%' },
+  ];
+  renderVals() {
+    const { sel, passed } = this.state;
+    const stStyle = (s) => s === '통과' ? ['#C8FF3D', 'rgba(200,255,61,0.09)'] : s === '보류' ? ['#FF9F6B', 'rgba(255,159,107,0.1)'] : ['#8A93A6', 'rgba(255,255,255,0.06)'];
+    const items = this.data.map((d, i) => {
+      const status = passed[i] ? '통과' : d.status;
+      const [stColor, stBg] = stStyle(status);
+      return {
+        team: d.team, service: d.service, status, stColor, stBg,
+        edge: sel === i ? '#C8FF3D' : 'transparent',
+        bg: sel === i ? 'rgba(200,255,61,0.04)' : 'transparent',
+        select: () => this.setState({ sel: i, aiOpen: false, fbOpen: false }),
+      };
+    });
+    const d = this.data[sel];
+    return {
+      items, d,
+      detailTitle: d.team + ' — ' + d.service,
+      aiOpen: this.state.aiOpen,
+      aiChev: this.state.aiOpen ? 'rotate(45deg)' : 'rotate(0deg)',
+      toggleAi: () => this.setState(s => ({ aiOpen: !s.aiOpen })),
+      fbOpen: this.state.fbOpen,
+      fbLabel: this.state.fbOpen ? '피드백 접기' : '보류 + 피드백',
+      toggleFb: () => this.setState(s => ({ fbOpen: !s.fbOpen })),
+      passModal: this.state.passModal,
+      openPass: () => this.setState({ passModal: true }),
+      closePass: () => this.setState({ passModal: false }),
+      confirmPass: () => this.setState(s => ({ passModal: false, passed: { ...s.passed, [s.sel]: true } })),
+      stopProp: (e) => e.stopPropagation(),
+    };
+  }
+}
+</script>
+</body>
+</html>

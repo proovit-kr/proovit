@@ -1,0 +1,99 @@
+/* PROOVIT 디자인 토큰 — 시안(design-reference)의 색·폰트·라운드·간격을 중앙화 */
+:root {
+  /* ---- 색: 배경 ---- */
+  --c-bg: #0b1220;
+  --c-bg-mid: #0d1526;
+  --c-bg-end: #14181f;
+  --c-bg-page: linear-gradient(180deg, #0b1220 0%, #0d1526 45%, #14181f 100%);
+  --c-bg-ops: #0d1119; /* 운영자 콘솔 배경 */
+  --c-surface-ops: #10151f;
+  --c-surface: rgba(255, 255, 255, 0.03);
+  --c-surface-2: rgba(255, 255, 255, 0.05);
+  --c-surface-flat: #0e1626;
+  --c-card: linear-gradient(160deg, #10192c, #0c1322);
+  --c-chip: #131c2f;
+  --c-nav: rgba(11, 18, 32, 0.72);
+  --c-overlay: rgba(5, 9, 18, 0.7);
+
+  /* ---- 색: 텍스트 ---- */
+  --c-text: #f4f6fa;
+  --c-text-ops: #e8ecf3;
+  --c-text-strong: #ffffff;
+  --c-text-muted: #b7bfcc;
+  --c-text-dim: #8a93a6;
+  --c-text-faint: #626c7f;
+  --c-text-ghost: #4a5468;
+
+  /* ---- 색: 포인트 ---- */
+  --c-lime: #c8ff3d;
+  --c-lime-hover: #dcff7a;
+  --c-lime-08: rgba(200, 255, 61, 0.08);
+  --c-lime-10: rgba(200, 255, 61, 0.1);
+  --c-lime-12: rgba(200, 255, 61, 0.12);
+  --c-lime-20: rgba(200, 255, 61, 0.2);
+  --c-lime-25: rgba(200, 255, 61, 0.25);
+  --c-lime-35: rgba(200, 255, 61, 0.35);
+  --c-lime-45: rgba(200, 255, 61, 0.45);
+  --c-warn: #ff9f6b;
+  --c-warn-10: rgba(255, 159, 107, 0.1);
+  --c-warn-35: rgba(255, 159, 107, 0.35);
+  --c-danger: #ff6b6b;
+  --c-gold: #ffc24d;
+  --c-gold-10: rgba(255, 194, 77, 0.1);
+
+  /* ---- 색: 선 ---- */
+  --c-line: rgba(255, 255, 255, 0.07);
+  --c-line-2: rgba(255, 255, 255, 0.09);
+  --c-line-3: rgba(255, 255, 255, 0.14);
+  --c-line-strong: rgba(255, 255, 255, 0.25);
+
+  /* ---- 폰트 ---- */
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, 'Malgun Gothic', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+
+  /* ---- 라운드 ---- */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 12px;
+  --r-xl: 14px;
+  --r-2xl: 18px;
+  --r-3xl: 20px;
+  --r-4xl: 22px;
+  --r-pill: 999px;
+
+  /* ---- 간격 ---- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 28px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-14: 56px;
+  --s-18: 72px;
+  --s-22: 88px;
+
+  /* ---- 레이아웃 ---- */
+  --w-page: 1160px;
+  --w-ops: 1240px;
+  --w-narrow: 800px;
+  --w-form: 640px;
+  --pad-x: 32px;
+
+  /* ---- 그림자 ---- */
+  --sh-card: 0 24px 60px rgba(0, 0, 0, 0.45);
+  --sh-modal: 0 32px 80px rgba(0, 0, 0, 0.6);
+  --sh-toast: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --sh-lime-glow: 0 0 40px rgba(200, 255, 61, 0.07), 0 24px 60px rgba(0, 0, 0, 0.45);
+  --sh-ring: 0 0 0 5px rgba(200, 255, 61, 0.12);
+
+  /* ---- 모션 ---- */
+  --t-fast: 0.15s ease;
+  --t-base: 0.22s ease;
+  --t-slow: 0.6s ease;
+}

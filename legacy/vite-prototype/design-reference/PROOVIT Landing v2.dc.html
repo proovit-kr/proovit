@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+html { scroll-behavior: smooth; }
+body { margin: 0; background: #0B1220; font-family: 'Pretendard Variable', Pretendard, sans-serif; color: #F4F6FA; }
+a { color: #C8FF3D; text-decoration: none; }
+a:hover { color: #DCFF7A; }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
+@keyframes tickerMove { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes checkPop { 0% { transform: scale(0.5); opacity: 0; } 70% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
+@media (max-width: 720px) { #nav-menu { display: none !important; } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } html { scroll-behavior: auto; } }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: linear-gradient(180deg, #0B1220 0%, #0D1526 45%, #14181F 100%); overflow-x: hidden;">
+
+  <nav style="position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 32px; background: rgba(11,18,32,0.72); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.07);">
+    <div style="font-weight: 800; font-size: 20px; letter-spacing: 0.06em; color: #FFFFFF; cursor: pointer;" onClick="{{ goHero }}">PROO<span style="color: #C8FF3D; font-weight: 900;">✓</span>IT</div>
+    <div id="nav-menu" style="display: flex; gap: 32px; font-size: 14px; color: #B7BFCC; font-weight: 600;">
+      <span style="cursor: pointer;" style-hover="color: #FFFFFF;" onClick="{{ goHow }}">리그 소개</span>
+      <span style="cursor: pointer;" style-hover="color: #FFFFFF;" onClick="{{ goHero }}">리더보드</span>
+      <span style="cursor: pointer;" style-hover="color: #FFFFFF;" onClick="{{ goSeason }}">시즌 아카이브</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="font-size: 14px; color: #B7BFCC; font-weight: 600; cursor: pointer;" style-hover="color: #FFFFFF;">로그인</span>
+      <button onClick="{{ goForm }}" style="background: #C8FF3D; color: #0B1220; border: none; border-radius: 10px; padding: 9px 18px; font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">시즌 1 참가</button>
+    </div>
+  </nav>
+
+  <section id="hero" data-screen-label="히어로" style="max-width: 1160px; margin: 0 auto; padding: 88px 32px 64px; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 56px; align-items: center;">
+    <div>
+      <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(200,255,61,0.1); border: 1px solid rgba(200,255,61,0.35); color: #C8FF3D; border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em;">
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #C8FF3D; animation: blink 1.6s infinite;"></span>
+        SEASON 1 · 킥오프 D-{{ cdDays }}
+        <span style="color: #DCFF7A; letter-spacing: 0.06em;">{{ cdClock }}</span>
+      </div>
+      <h1 style="margin: 22px 0 0; font-size: clamp(38px, 5vw, 56px); line-height: 1.16; font-weight: 800; letter-spacing: -0.02em; color: #FFFFFF; text-wrap: pretty;">말이 아니라,<br>지표로 증명하라</h1>
+      <p style="margin: 18px 0 0; font-size: 18px; line-height: 1.6; color: #B7BFCC; max-width: 460px; text-wrap: pretty;">아이디어를 6주 만에 실제 유저와 매출 데이터로 바꾸는 AI 빌드 리그예요. 코딩 경험이 없어도 괜찮아요.</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px;">
+        <button onClick="{{ goForm }}" style="background: #C8FF3D; color: #0B1220; border: none; border-radius: 12px; padding: 14px 26px; font-size: 16px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">사전 신청하기</button>
+        <button onClick="{{ goHow }}" style="background: transparent; color: #F4F6FA; border: 1px solid rgba(255,255,255,0.25); border-radius: 12px; padding: 14px 26px; font-size: 16px; font-weight: 700; font-family: inherit; cursor: pointer;" style-hover="border-color: #C8FF3D; color: #C8FF3D;">작동 방식 보기</button>
+      </div>
+      <form onSubmit="{{ submitEmail }}" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; max-width: 460px;">
+        <input id="email-input" type="email" required placeholder="이메일 주소" value="{{ email }}" onChange="{{ onEmail }}" style="flex: 1 1 220px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 13px 16px; font-size: 15px; color: #FFFFFF; font-family: inherit; outline: none;" style-focus="border-color: #C8FF3D;">
+        <button type="submit" style="display: inline-flex; align-items: center; justify-content: center; min-width: 118px; background: rgba(200,255,61,0.14); color: #C8FF3D; border: 1px solid rgba(200,255,61,0.4); border-radius: 12px; padding: 13px 20px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer;" style-hover="background: rgba(200,255,61,0.24);">
+          <sc-if value="{{ notSubmitted }}" hint-placeholder-val="{{ true }}">시즌 소식 받기</sc-if>
+          <sc-if value="{{ submitted }}" hint-placeholder-val="{{ false }}">
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 10.5 L8.5 15 L16 6" fill="none" stroke="#C8FF3D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray: 24; stroke-dashoffset: 24; animation: drawLine 0.45s ease-out forwards;"></path></svg>
+          </sc-if>
+        </button>
+      </form>
+    </div>
+    <div style="background: linear-gradient(160deg, #10192C, #0C1322); border: 1px solid rgba(255,255,255,0.09); border-radius: 20px; padding: 26px; box-shadow: 0 24px 60px rgba(0,0,0,0.45);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px;">
+        <div style="font-size: 13px; font-weight: 700; letter-spacing: 0.14em; color: #8A93A6; font-family: 'JetBrains Mono', monospace;">LIVE LEADERBOARD</div>
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #C8FF3D; font-family: 'JetBrains Mono', monospace; font-weight: 700;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #C8FF3D; animation: blink 1.2s infinite;"></span>LIVE</div>
+      </div>
+      <sc-for list="{{ board }}" as="row" hint-placeholder-count="3">
+        <div data-lb-row="true" style="display: grid; grid-template-columns: 28px 1fr auto auto; align-items: center; gap: 14px; padding: 15px 14px; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); margin-bottom: 10px; transform: {{ row.shiftv }}; transition: {{ row.trans }};">
+          <div style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 18px; color: #8A93A6;">{{ row.rank }}</div>
+          <div>
+            <div style="font-weight: 700; font-size: 16px; color: #FFFFFF;">{{ row.name }}</div>
+            <div style="display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 11px; font-weight: 700; color: #C8FF3D; background: rgba(200,255,61,0.09); border-radius: 6px; padding: 2px 7px;">✓ 검증됨</div>
+          </div>
+          <sc-if value="{{ showSparklines }}" hint-placeholder-val="{{ true }}">
+            <svg width="52" height="18" viewBox="0 0 52 18" style="display: block;"><polyline points="{{ row.spark }}" fill="none" stroke="#C8FF3D" stroke-width="1.5" stroke-linecap="round" opacity="0.8" style="stroke-dasharray: 70; stroke-dashoffset: 70; animation: drawLine 1.1s ease-out forwards; animation-delay: {{ row.sparkDelay }};"></polyline></svg>
+          </sc-if>
+          <div style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 24px; color: #C8FF3D; min-width: 64px; text-align: right; transform: {{ row.roll }}; opacity: {{ row.rollOp }}; transition: transform 0.22s ease, opacity 0.22s ease;">{{ row.score }}</div>
+        </div>
+      </sc-for>
+      <div style="margin-top: 8px; font-size: 12px; color: #626C7F; text-align: right; font-family: 'JetBrains Mono', monospace;">단위: 유효 이용자 수</div>
+    </div>
+  </section>
+
+  <section id="stats" data-fade="true" data-screen-label="신뢰 지표" style="max-width: 1160px; margin: 0 auto; padding: 0 32px 24px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; overflow: hidden;">
+      <sc-for list="{{ stats }}" as="st" hint-placeholder-count="4">
+        <div style="background: #0E1626; padding: 28px 24px; text-align: center;">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: clamp(24px, 2.6vw, 32px); font-weight: 700; color: #C8FF3D; letter-spacing: -0.01em;">{{ st.value }}</div>
+          <div style="margin-top: 8px; font-size: 13px; color: #8A93A6; font-weight: 600;">{{ st.label }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section data-screen-label="티커" style="max-width: 1160px; margin: 0 auto; padding: 0 32px 72px;">
+    <div style="overflow: hidden; border-radius: 12px; border: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.02); padding: 12px 0; -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent); mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);">
+      <div style="display: flex; gap: 56px; width: max-content; animation: tickerMove 22s linear infinite;" style-hover="animation-play-state: paused;">
+        <div style="display: flex; gap: 56px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: #8A93A6; white-space: nowrap;">
+          <span>빵집레이더 <span style="color: #C8FF3D;">+12 가입</span></span>
+          <span>회의록요정 검증 완료 <span style="color: #C8FF3D;">✓</span></span>
+          <span>링크줍줍 <span style="color: #C8FF3D;">매출 발생</span></span>
+          <span style="color: #4A5468;">·</span>
+        </div>
+        <div style="display: flex; gap: 56px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: #8A93A6; white-space: nowrap;">
+          <span>빵집레이더 <span style="color: #C8FF3D;">+12 가입</span></span>
+          <span>회의록요정 검증 완료 <span style="color: #C8FF3D;">✓</span></span>
+          <span>링크줍줍 <span style="color: #C8FF3D;">매출 발생</span></span>
+          <span style="color: #4A5468;">·</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="compare" data-fade="true" data-screen-label="차별화 비교" style="max-width: 1160px; margin: 0 auto; padding: 0 32px 72px;">
+    <h2 style="margin: 0 0 36px; font-size: 32px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;">하루짜리 해커톤이 아니에요</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+      <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 30px; opacity: {{ cmpLeftOp }}; transition: opacity 0.9s ease;">
+        <div style="font-size: 13px; font-weight: 700; letter-spacing: 0.12em; color: #626C7F; font-family: 'JetBrains Mono', monospace;">기존 해커톤</div>
+        <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 20px;">
+          <div style="display: flex; gap: 10px; align-items: baseline; font-size: 16px; color: #79839A;"><span style="color: #4A5468;">—</span>8시간~1박 2일</div>
+          <div style="display: flex; gap: 10px; align-items: baseline; font-size: 16px; color: #79839A;"><span style="color: #4A5468;">—</span>발표와 심사위원 점수</div>
+          <div style="display: flex; gap: 10px; align-items: baseline; font-size: 16px; color: #79839A;"><span style="color: #4A5468;">—</span>출품하면 끝</div>
+        </div>
+      </div>
+      <div style="background: rgba(200,255,61,0.05); border: 1px solid {{ cmpRightBorder }}; box-shadow: {{ cmpRightGlow }}; border-radius: 18px; padding: 30px; transition: border-color 0.9s ease, box-shadow 0.9s ease;">
+        <div style="font-size: 13px; font-weight: 800; letter-spacing: 0.12em; color: #C8FF3D; font-family: 'JetBrains Mono', monospace;">PROOVIT</div>
+        <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 20px;">
+          <div style="display: flex; gap: 10px; align-items: baseline; font-size: 16px; color: #F4F6FA; font-weight: 600;"><span style="color: #C8FF3D; font-weight: 900;">✓</span>6주 리그</div>
+          <div style="display: flex; gap: 10px; align-items: baseline; font-size: 16px; color: #F4F6FA; font-weight: 600;"><span style="color: #C8FF3D; font-weight: 900;">✓</span>실제 유저와 매출 데이터</div>
+          <div style="display: flex; gap: 10px; align-items: baseline; font-size: 16px; color: #F4F6FA; font-weight: 600;"><span style="color: #C8FF3D; font-weight: 900;">✓</span>시즌이 끝나도 서비스는 남아요</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" data-fade="true" data-screen-label="작동 방식" style="max-width: 1160px; margin: 0 auto; padding: 0 32px 72px;">
+    <h2 style="margin: 0 0 10px; font-size: 32px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;">작동 방식</h2>
+    <p style="margin: 0 0 44px; font-size: 16px; color: #8A93A6;">6주, 다섯 개의 체크포인트. 트랙은 하나예요.</p>
+    <div style="overflow-x: auto; padding-bottom: 8px;">
+      <div style="position: relative; display: flex; min-width: 860px; gap: 0;">
+        <div style="position: absolute; top: 17px; left: 8%; right: 8%; height: 2px; background: rgba(255,255,255,0.14); border-radius: 2px;">
+          <div style="height: 100%; width: {{ trackFill }}; background: #C8FF3D; border-radius: 2px; transition: width 0.15s linear;"></div>
+        </div>
+        <sc-for list="{{ steps }}" as="step" hint-placeholder-count="5">
+          <div style="position: relative; flex: 1; text-align: center; padding: 0 8px;">
+            <sc-if value="{{ step.done }}" hint-placeholder-val="{{ false }}">
+              <div style="width: 36px; height: 36px; border-radius: 50%; background: #C8FF3D; color: #0B1220; font-weight: 900; font-size: 18px; display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 0 0 5px rgba(200,255,61,0.12); animation: checkPop 0.35s ease-out;">✓</div>
+            </sc-if>
+            <sc-if value="{{ step.todo }}" hint-placeholder-val="{{ true }}">
+              <div style="width: 36px; height: 36px; border-radius: 50%; background: #131C2F; border: 1px solid rgba(255,255,255,0.2); color: #8A93A6; font-weight: 700; font-size: 14px; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; justify-content: center; margin: 0 auto;">{{ step.n }}</div>
+            </sc-if>
+            <div style="margin-top: 16px; font-weight: 700; font-size: 16px; color: #FFFFFF;">{{ step.title }}</div>
+            <div style="margin-top: 6px; font-size: 13px; font-weight: 700; color: #C8FF3D; font-family: 'JetBrains Mono', monospace;">{{ step.week }}</div>
+            <div style="margin-top: 8px; font-size: 13px; line-height: 1.55; color: #8A93A6; text-wrap: pretty;">{{ step.desc }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <section id="benefits" data-fade="true" data-screen-label="참가 혜택" style="max-width: 800px; margin: 0 auto; padding: 0 32px 72px;">
+    <h2 style="margin: 0 0 32px; font-size: 32px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;">참가하면 이런 걸 받아요</h2>
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; gap: 16px; align-items: flex-start; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 22px 24px;">
+        <span style="flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: rgba(200,255,61,0.14); color: #C8FF3D; font-weight: 900; font-size: 14px; display: flex; align-items: center; justify-content: center;">✓</span>
+        <div><strong style="color: #FFFFFF; font-size: 16px;">스텝별 골든패스 가이드</strong><p style="margin: 6px 0 0; font-size: 15px; line-height: 1.6; color: #B7BFCC;">수요조사부터 빌드·배포·마케팅까지 따라만 하면 돼요.</p></div>
+      </div>
+      <div style="display: flex; gap: 16px; align-items: flex-start; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 22px 24px;">
+        <span style="flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: rgba(200,255,61,0.14); color: #C8FF3D; font-weight: 900; font-size: 14px; display: flex; align-items: center; justify-content: center;">✓</span>
+        <div><strong style="color: #FFFFFF; font-size: 16px;">AI 빌더·API 크레딧</strong><p style="margin: 6px 0 0; font-size: 15px; line-height: 1.6; color: #B7BFCC;">스테이지를 통과할수록 잠금이 풀려요.</p></div>
+      </div>
+      <div style="display: flex; gap: 16px; align-items: flex-start; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 22px 24px;">
+        <span style="flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: rgba(200,255,61,0.14); color: #C8FF3D; font-weight: 900; font-size: 14px; display: flex; align-items: center; justify-content: center;">✓</span>
+        <div><strong style="color: #FFFFFF; font-size: 16px;">상금과 공개 리더보드</strong><p style="margin: 6px 0 0; font-size: 15px; line-height: 1.6; color: #B7BFCC;">시즌 성과가 그대로 포트폴리오가 돼요.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="why" data-fade="true" data-screen-label="왜 PROOVIT" style="max-width: 1160px; margin: 0 auto; padding: 0 32px 72px;">
+    <h2 style="margin: 0 0 44px; font-size: 32px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;">왜 PROO<span style="color: #C8FF3D;">✓</span>IT인가</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 30px;">
+        <div style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #C8FF3D; font-size: 13px; letter-spacing: 0.1em;">01</div>
+        <h3 style="margin: 14px 0 10px; font-size: 20px; font-weight: 800; color: #FFFFFF;">전 과정 온라인</h3>
+        <p style="margin: 0; font-size: 15px; line-height: 1.65; color: #B7BFCC; text-wrap: pretty;">어디서든 같은 무대에서 경쟁해요.</p>
+      </div>
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 30px;">
+        <div style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #C8FF3D; font-size: 13px; letter-spacing: 0.1em;">02</div>
+        <h3 style="margin: 14px 0 10px; font-size: 20px; font-weight: 800; color: #FFFFFF;">6주 실측 경쟁</h3>
+        <p style="margin: 0; font-size: 15px; line-height: 1.65; color: #B7BFCC; text-wrap: pretty;">발표가 아니라 데이터로 평가받아요.</p>
+      </div>
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 30px;">
+        <div style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #C8FF3D; font-size: 13px; letter-spacing: 0.1em;">03</div>
+        <h3 style="margin: 14px 0 10px; font-size: 20px; font-weight: 800; color: #FFFFFF;">아이디어만 있으면 돼요</h3>
+        <p style="margin: 0; font-size: 15px; line-height: 1.65; color: #B7BFCC; text-wrap: pretty;">코딩 경험 없어도 가이드와 AI로 완성해요.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="criteria" data-fade="true" data-screen-label="심사 기준" style="max-width: 1160px; margin: 0 auto; padding: 0 32px 72px;">
+    <h2 style="margin: 0 0 12px; font-size: 32px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;">심사 기준 공개</h2>
+    <p style="margin: 0 0 36px; font-size: 16px; color: #8A93A6;">기준은 처음부터 전부 공개돼요. 숨겨진 점수는 없어요.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 30px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #C8FF3D; font-size: 13px; letter-spacing: 0.1em;">ROUND 1</span>
+          <h3 style="margin: 0; font-size: 20px; font-weight: 800; color: #FFFFFF;">1차 심사 — 사업성</h3>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 20px; font-size: 15px; color: #B7BFCC;">
+          <div style="display: flex; gap: 10px;"><span style="color: #C8FF3D;">·</span>사전 신청자 수</div>
+          <div style="display: flex; gap: 10px;"><span style="color: #C8FF3D;">·</span>랜딩 전환율</div>
+          <div style="display: flex; gap: 10px;"><span style="color: #C8FF3D;">·</span>문제 정의 명확성</div>
+        </div>
+      </div>
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 30px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #C8FF3D; font-size: 13px; letter-spacing: 0.1em;">FINAL</span>
+          <h3 style="margin: 0; font-size: 20px; font-weight: 800; color: #FFFFFF;">최종 심사 — 실행</h3>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 20px; font-size: 15px; color: #B7BFCC;">
+          <div style="display: flex; gap: 10px;"><span style="color: #C8FF3D;">·</span>유효 가입자</div>
+          <div style="display: flex; gap: 10px;"><span style="color: #C8FF3D;">·</span>활성·재방문</div>
+          <div style="display: flex; gap: 10px;"><span style="color: #C8FF3D;">·</span>매출(가산점)</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: 20px; font-size: 14px;"><a href="#">유효 이용자 기준 전문 보기 →</a></div>
+  </section>
+
+  <section id="season" data-fade="true" data-screen-label="시즌 정보" style="max-width: 1160px; margin: 0 auto; padding: 0 32px 72px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; overflow: hidden;">
+      <div style="background: #0E1626; padding: 26px 24px;">
+        <div style="font-size: 13px; color: #8A93A6; font-weight: 600;">팀 구성</div>
+        <div style="margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: #FFFFFF;">1~2인</div>
+      </div>
+      <div style="background: #0E1626; padding: 26px 24px;">
+        <div style="font-size: 13px; color: #8A93A6; font-weight: 600;">참가비</div>
+        <div style="margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: #C8FF3D;">무료</div>
+      </div>
+      <div style="background: #0E1626; padding: 26px 24px;">
+        <div style="font-size: 13px; color: #8A93A6; font-weight: 600;">진행 방식</div>
+        <div style="margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: #FFFFFF;">100% 온라인</div>
+      </div>
+      <div style="background: #0E1626; padding: 26px 24px;">
+        <div style="font-size: 13px; color: #8A93A6; font-weight: 600;">시즌 테마</div>
+        <div style="margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; color: #FFFFFF;">공개 예정</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" data-fade="true" data-screen-label="FAQ" style="max-width: 800px; margin: 0 auto; padding: 0 32px 72px;">
+    <h2 style="margin: 0 0 32px; font-size: 32px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;">자주 묻는 질문</h2>
+    <sc-for list="{{ faqs }}" as="f" hint-placeholder-count="4">
+      <div style="border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; margin-bottom: 12px; background: rgba(255,255,255,0.02); overflow: hidden;">
+        <div onClick="{{ f.toggle }}" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px; cursor: pointer; font-weight: 700; font-size: 16px; color: #F4F6FA;" style-hover="background: rgba(255,255,255,0.03);">
+          <span>{{ f.q }}</span>
+          <span style="color: #C8FF3D; font-family: 'JetBrains Mono', monospace; font-weight: 700; transition: transform 0.2s; transform: {{ f.chev }};">+</span>
+        </div>
+        <sc-if value="{{ f.open }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 0 22px 20px; font-size: 15px; line-height: 1.65; color: #B7BFCC; text-wrap: pretty;">{{ f.a }}</div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </section>
+
+  <section data-fade="true" data-screen-label="선언" style="text-align: center; padding: 96px 32px; border-top: 1px solid rgba(255,255,255,0.07); background: linear-gradient(180deg, rgba(200,255,61,0.03), transparent);">
+    <h2 style="margin: 0 auto; max-width: 760px; font-size: clamp(30px, 4.4vw, 48px); font-weight: 800; line-height: 1.3; color: #FFFFFF; letter-spacing: -0.02em; text-wrap: pretty;">우리는 지식을 팔지 않습니다.<br><span style="color: #C8FF3D;">증명의 무대</span>를 팝니다.</h2>
+    <button onClick="{{ goForm }}" style="margin-top: 36px; background: #C8FF3D; color: #0B1220; border: none; border-radius: 12px; padding: 16px 34px; font-size: 17px; font-weight: 800; font-family: inherit; cursor: pointer;" style-hover="background: #DCFF7A;">사전 신청하기</button>
+  </section>
+
+  <footer style="border-top: 1px solid rgba(255,255,255,0.07); padding: 36px 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; max-width: 1160px; margin: 0 auto;">
+    <div style="font-weight: 800; font-size: 16px; letter-spacing: 0.06em; color: #FFFFFF;">PROO<span style="color: #C8FF3D;">✓</span>IT</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; font-size: 13px;">
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">시즌 규칙</a>
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">유효 이용자 기준</a>
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">스폰서 문의</a>
+    </div>
+    <div style="display: flex; gap: 16px; font-size: 13px; font-family: 'JetBrains Mono', monospace;">
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">X</a>
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">Instagram</a>
+      <a href="#" style="color: #8A93A6;" style-hover="color: #C8FF3D;">Discord</a>
+    </div>
+  </footer>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%); background: #C8FF3D; color: #0B1220; font-weight: 800; font-size: 15px; padding: 14px 24px; border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.5); animation: toastIn 0.25s ease-out; z-index: 100;">✓ 사전 신청 완료! 시즌 소식을 보내드릴게요.</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;countUp&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;전광판&quot;},&quot;showSparklines&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;전광판&quot;},&quot;liveUpdates&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;전광판&quot;}}">
+class Component extends DCLogic {
+  state = {
+    p: 0, statP: 0, trackP: 0, cmpOn: false,
+    teams: [
+      { name: '빵집레이더', score: 412, spark: '0,15 9,13 17,14 26,10 34,11 43,6 52,3' },
+      { name: '링크줍줍', score: 356, spark: '0,16 9,14 17,12 26,13 34,9 43,7 52,4' },
+      { name: '회의록요정', score: 298, spark: '0,15 9,14 17,12 26,11 34,10 43,8 52,5' },
+    ],
+    shift: [null, null, null], lbTrans: false, rollIdx: -1,
+    email: '', toast: false, submitted: false, open: 0,
+    now: Date.now(),
+  };
+  target = new Date('2026-08-04T10:00:00+09:00').getTime();
+  get reduced() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  componentDidMount() {
+    this.startAnims();
+    this._retry = setTimeout(() => {
+      if (this.state.p === 0) { this._started = false; if (this._raf) cancelAnimationFrame(this._raf); this.startAnims(); }
+    }, 800);
+    this._hard = setTimeout(() => {
+      if (this.state.p === 0) this.setState({ p: 1 });
+      if (this.state.statP === 0) this.setState({ statP: 1 });
+    }, 2500);
+  }
+  startAnims() {
+    if (this._started) return;
+    this._started = true;
+    this._clock = setInterval(() => this.setState({ now: Date.now() }), 1000);
+    this._onScroll = () => this.handleScroll();
+    window.addEventListener('scroll', this._onScroll, { passive: true });
+    this.handleScroll();
+    if (this.props.countUp === false || this.reduced) {
+      this.setState({ p: 1, statP: 1 });
+    } else {
+      const t0 = performance.now(), dur = 1500;
+      const step = (t) => {
+        const pr = Math.min(1, (t - t0) / dur);
+        this.setState({ p: 1 - Math.pow(1 - pr, 3) });
+        if (pr < 1) this._raf = requestAnimationFrame(step); else this.setState({ p: 1 });
+      };
+      this._raf = requestAnimationFrame(step);
+      this.armStatsObserver(0);
+    }
+    if ((this.props.liveUpdates ?? true) && !this.reduced) this._live = setTimeout(() => this.liveTick(), 4500);
+    this.armFades();
+  }
+  armFades() {
+    if (this.reduced || !('IntersectionObserver' in window)) return;
+    const els = document.querySelectorAll('[data-fade]');
+    if (!els.length) return;
+    this._fadeIo = new IntersectionObserver((es) => {
+      es.forEach((en) => {
+        if (en.isIntersecting) {
+          const el = en.target;
+          el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+          el.style.opacity = '1';
+          el.style.transform = 'none';
+          this._fadeIo.unobserve(el);
+        }
+      });
+    }, { threshold: 0.12 });
+    els.forEach((el) => {
+      if (el.getBoundingClientRect().top < window.innerHeight) return; // already visible: no fade
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(16px)';
+      this._fadeIo.observe(el);
+    });
+  }
+  armStatsObserver(attempt) {
+    const el = document.getElementById('stats');
+    if (!el) {
+      if (attempt < 10) setTimeout(() => this.armStatsObserver(attempt + 1), 300);
+      else this.setState({ statP: 1 });
+      return;
+    }
+    if (!('IntersectionObserver' in window)) { this.setState({ statP: 1 }); return; }
+    this._io = new IntersectionObserver((es) => {
+      if (es[0].isIntersecting) {
+        this._io.disconnect();
+        const t1 = performance.now();
+        const run = (t) => {
+          const pr = Math.min(1, (t - t1) / 1400);
+          this.setState({ statP: pr < 1 ? 1 - Math.pow(1 - pr, 3) : 1 });
+          if (pr < 1) this._raf2 = requestAnimationFrame(run);
+        };
+        this._raf2 = requestAnimationFrame(run);
+      }
+    }, { threshold: 0.3 });
+    this._io.observe(el);
+  }
+  handleScroll() {
+    const el = document.getElementById('how');
+    if (el) {
+      const r = el.getBoundingClientRect(), vh = window.innerHeight;
+      const p = Math.max(0, Math.min(1, ((vh * 0.8) - r.top) / (vh * 0.55)));
+      if (Math.abs(p - this.state.trackP) > 0.005) this.setState({ trackP: p });
+    }
+    if (!this.state.cmpOn) {
+      const c = document.getElementById('compare');
+      if (c && c.getBoundingClientRect().top < window.innerHeight * 0.72) this.setState({ cmpOn: true });
+    }
+  }
+  liveTick() {
+    const delay = 4000 + Math.random() * 2000;
+    if (Math.random() < 0.3 && !this._swapping) this.doSwap();
+    else {
+      const i = Math.floor(Math.random() * 3);
+      this.setState(s => {
+        // Cap increment so a lower rank never exceeds the rank above it (order stays valid).
+        const cur = s.teams[i].score;
+        const ceil = i > 0 ? s.teams[i - 1].score - 1 : Infinity;
+        const inc = Math.min(2 + Math.floor(Math.random() * 10), Math.max(0, ceil - cur));
+        if (inc === 0) return null;
+        const teams = s.teams.map((t, j) => j === i ? { ...t, score: cur + inc } : t);
+        return { teams, rollIdx: i };
+      });
+      this._rollT = setTimeout(() => this.setState({ rollIdx: -1 }), 240);
+    }
+    this._live = setTimeout(() => this.liveTick(), delay);
+  }
+  doSwap() {
+    // Real overtake: 3위 score jumps past 2위 (but stays below 1위), then rows animate the swap.
+    const s0 = this.state;
+    const target = Math.min(s0.teams[1].score + 3 + Math.floor(Math.random() * 8), s0.teams[0].score - 1);
+    if (target <= s0.teams[1].score) return;
+    this.setState({ teams: s0.teams.map((t, j) => j === 2 ? { ...t, score: target } : t), rollIdx: 2 });
+    this._rollT = setTimeout(() => this.setState({ rollIdx: -1 }), 240);
+    this._overT = setTimeout(() => this.animateSwap(), 350);
+  }
+  animateSwap() {
+    const rows = document.querySelectorAll('[data-lb-row]');
+    if (rows.length < 3) return;
+    this._swapping = true;
+    const h = rows[2].getBoundingClientRect().top - rows[1].getBoundingClientRect().top;
+    this.setState({ shift: [null, 'translateY(' + h + 'px)', 'translateY(' + (-h) + 'px)'], lbTrans: true });
+    this._swapT = setTimeout(() => {
+      this.setState(s => {
+        const teams = [s.teams[0], s.teams[2], s.teams[1]];
+        return { teams, shift: [null, null, null], lbTrans: false };
+      });
+      this._swapping = false;
+    }, 520);
+  }
+  componentWillUnmount() {
+    clearTimeout(this._retry); clearTimeout(this._hard); clearTimeout(this._live);
+    clearTimeout(this._rollT); clearTimeout(this._swapT); clearTimeout(this._overT);
+    clearInterval(this._clock);
+    if (this._raf) cancelAnimationFrame(this._raf);
+    if (this._raf2) cancelAnimationFrame(this._raf2);
+    if (this._io) this._io.disconnect();
+    if (this._fadeIo) this._fadeIo.disconnect();
+    if (this._onScroll) window.removeEventListener('scroll', this._onScroll);
+  }
+  scrollTo(id, focus) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const y = el.getBoundingClientRect().top + window.scrollY - 84;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+    if (focus) setTimeout(() => { const i = document.getElementById('email-input'); if (i) i.focus(); }, 650);
+  }
+  renderVals() {
+    const { p, statP, trackP, teams, shift, lbTrans, rollIdx, cmpOn } = this.state;
+    const pad = (n) => String(n).padStart(2, '0');
+    const diff = Math.max(0, this.target - this.state.now);
+    const cdDays = Math.floor(diff / 864e5);
+    const cdClock = pad(Math.floor(diff / 36e5) % 24) + ':' + pad(Math.floor(diff / 6e4) % 60) + ':' + pad(Math.floor(diff / 1e3) % 60);
+    const board = teams.map((t, i) => ({
+      rank: i + 1, name: t.name, spark: t.spark,
+      score: Math.round(t.score * p),
+      sparkDelay: (0.2 + i * 0.18) + 's',
+      shiftv: shift[i] || 'none',
+      trans: lbTrans ? 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+      roll: rollIdx === i ? 'translateY(-4px)' : 'translateY(0)',
+      rollOp: rollIdx === i ? 0.35 : 1,
+    }));
+    const stats = [
+      { value: '₩' + Math.round(3000000 * statP).toLocaleString('ko-KR'), label: '총 상금' },
+      { value: Math.round(20 * statP) + '~' + Math.round(40 * statP) + '팀', label: '모집 규모' },
+      { value: '₩0', label: '참가비' },
+      { value: Math.round(128 * statP) + '명', label: '사전 신청' },
+    ];
+    const th = [0.12, 0.32, 0.52, 0.72, 0.92];
+    const stepData = [
+      ['수요 검증', '1주', '아이디어의 수요를 데이터로 먼저 확인해요.'],
+      ['1차 심사', '2주', '검증 결과로 본선 진출 팀을 가려요.'],
+      ['AI 빌드', '3~4주', 'AI 빌더로 실제 서비스를 만들어 배포해요.'],
+      ['유저 확보 레이스', '5~6주', '실제 유저를 모으며 리더보드에서 경쟁해요.'],
+      ['최종 심사·시상', '6주 말', '검증된 지표로 최종 순위와 시상이 결정돼요.'],
+    ];
+    const steps = stepData.map(([title, week, desc], i) => ({ n: i + 1, title, week, desc, done: trackP >= th[i], todo: trackP < th[i] }));
+    const faqData = [
+      ['코딩을 못 해도 되나요?', '네, AI 빌더와 스텝별 가이드로 첫 서비스를 완성할 수 있어요.'],
+      ['지표는 어떻게 검증하나요?', '애널리틱스 원본을 제출받아 운영진이 확인한 뒤 리더보드에 반영해요.'],
+      ['상금은 어디서 나오나요?', '참가비가 아니라 스폰서십과 자체 재원으로만 마련해요.'],
+      ['1차에서 떨어지면 끝인가요?', '아니요, 테스터로 시즌에 계속 참여하고 다음 시즌에 재도전할 수 있어요.'],
+    ];
+    const faqs = faqData.map(([q, a], i) => ({
+      q, a,
+      open: this.state.open === i,
+      chev: this.state.open === i ? 'rotate(45deg)' : 'rotate(0deg)',
+      toggle: () => this.setState(s => ({ open: s.open === i ? -1 : i })),
+    }));
+    return {
+      board, steps, faqs, stats, cdDays, cdClock,
+      trackFill: (trackP * 100).toFixed(1) + '%',
+      cmpLeftOp: cmpOn ? 0.45 : 1,
+      cmpRightBorder: cmpOn ? 'rgba(200,255,61,0.55)' : 'rgba(200,255,61,0.18)',
+      cmpRightGlow: cmpOn ? '0 0 32px rgba(200,255,61,0.08)' : 'none',
+      showSparklines: this.props.showSparklines ?? true,
+      email: this.state.email,
+      toast: this.state.toast,
+      submitted: this.state.submitted,
+      notSubmitted: !this.state.submitted,
+      onEmail: (e) => this.setState({ email: e.target.value }),
+      submitEmail: (e) => {
+        e.preventDefault();
+        this.setState({ toast: true, submitted: true, email: '' });
+        clearTimeout(this._tt); clearTimeout(this._st);
+        this._tt = setTimeout(() => this.setState({ toast: false }), 3200);
+        this._st = setTimeout(() => this.setState({ submitted: false }), 2800);
+      },
+      goForm: () => this.scrollTo('hero', true),
+      goHero: () => this.scrollTo('hero'),
+      goHow: () => this.scrollTo('how'),
+      goSeason: () => this.scrollTo('season'),
+    };
+  }
+}
+</script>
+</body>
+</html>

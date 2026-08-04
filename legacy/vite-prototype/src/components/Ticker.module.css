@@ -1,0 +1,39 @@
+.wrap {
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--c-line);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 12px 0;
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+}
+
+.track {
+  display: flex;
+  gap: 56px;
+  width: max-content;
+  animation: tickerMove 22s linear infinite;
+}
+.wrap:hover .track {
+  animation-play-state: paused;
+}
+
+.group {
+  display: flex;
+  gap: 56px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text-dim);
+  white-space: nowrap;
+}
+
+.lime {
+  color: var(--c-lime);
+}
+.gold {
+  color: var(--c-gold);
+}
+.sep {
+  color: var(--c-text-ghost);
+}

@@ -1,0 +1,43 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--r-2xl);
+  overflow: hidden;
+}
+
+.cell {
+  background: var(--c-surface-flat);
+  padding: 28px 24px;
+  text-align: center;
+}
+
+.cell--left {
+  text-align: left;
+  padding: 26px 24px;
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: clamp(24px, 2.6vw, 32px);
+  font-weight: 700;
+  color: var(--c-lime);
+}
+
+.value--plain {
+  font-size: 22px;
+  color: var(--c-text-strong);
+}
+
+.label {
+  margin-top: var(--s-2);
+  font-size: 13px;
+  color: var(--c-text-dim);
+  font-weight: 600;
+}
+
+.label--top {
+  margin: 0 0 var(--s-2);
+}

@@ -1,0 +1,154 @@
+.main {
+  max-width: var(--w-page);
+  margin: 0 auto;
+  padding: var(--s-12) var(--pad-x) var(--s-18);
+  width: 100%;
+}
+
+.head {
+  margin-bottom: var(--s-10);
+}
+.title {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--c-text-strong);
+}
+.lead {
+  margin: var(--s-3) 0 0;
+  font-size: 16px;
+  color: var(--c-text-dim);
+}
+
+.seasonCard {
+  background: var(--c-card);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-4xl);
+  padding: var(--s-8);
+  box-shadow: var(--sh-card);
+  margin-bottom: var(--s-5);
+}
+.seasonCardLive {
+  border-color: var(--c-lime-45);
+}
+
+.seasonHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-6);
+}
+
+.seasonName {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--c-text-strong);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+.theme {
+  font-family: var(--font-sans);
+  color: var(--c-text-muted);
+  font-weight: 700;
+}
+
+.meta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--c-text-faint);
+}
+
+.stages {
+  margin: var(--s-6) 0;
+}
+
+.stageRows {
+  display: flex;
+  flex-direction: column;
+}
+.stageRow {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr auto;
+  gap: var(--s-4);
+  align-items: center;
+  padding: 13px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 14px;
+}
+.stageLabel {
+  font-weight: 700;
+  color: var(--c-text-muted);
+}
+.stageLabelOn {
+  color: var(--c-lime);
+}
+.stageRange {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--c-text-dim);
+}
+.stageStatus {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--c-text-ghost);
+}
+
+.winners {
+  margin-top: var(--s-6);
+}
+.winnersTitle {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--c-text-dim);
+  margin-bottom: var(--s-3);
+}
+.winnerList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-3);
+}
+.winner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  background: var(--c-surface);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+}
+.winnerRank {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--c-lime);
+  font-size: 13px;
+}
+.winnerName {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--c-text-strong);
+}
+.winnerScore {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--c-lime);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: var(--s-6);
+}
