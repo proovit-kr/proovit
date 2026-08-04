@@ -30,7 +30,7 @@
 ## 이식 현황
 
 - [x] 디자인 토큰 → `src/app/globals.css`
-- [ ] 랜딩 `/`
+- [x] 랜딩 `/` — 티커·라이브 리더보드는 실데이터 없어 보류
 - [ ] 리더보드 `/leaderboard`
 - [ ] 참가작 `/projects/:id`
 - [ ] 시즌 아카이브 `/seasons`

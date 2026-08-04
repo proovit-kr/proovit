@@ -1,0 +1,161 @@
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: 14px var(--pad-x);
+  background: var(--c-nav);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.logo {
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  color: var(--c-text-strong);
+}
+.logo:hover {
+  color: var(--c-text-strong);
+}
+.logoCheck {
+  color: var(--c-lime);
+  font-weight: 900;
+}
+
+.menu {
+  display: flex;
+  gap: var(--s-8);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.menuLink {
+  color: var(--c-text-muted);
+}
+.menuLink:hover {
+  color: var(--c-text-strong);
+}
+
+.menuActive {
+  color: var(--c-lime);
+  border-bottom: 2px solid var(--c-lime);
+  padding-bottom: 2px;
+}
+.menuActive:hover {
+  color: var(--c-lime);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.signIn {
+  font-size: 14px;
+  color: var(--c-text-muted);
+  font-weight: 600;
+}
+.signIn:hover {
+  color: var(--c-text-strong);
+}
+
+.userChip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  background: var(--c-surface-2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--r-pill);
+  padding: 5px 14px 5px 5px;
+  cursor: pointer;
+  color: var(--c-text);
+  transition: border-color var(--t-fast);
+}
+.userChip:hover {
+  border-color: var(--c-lime-35);
+  color: var(--c-text);
+}
+
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #c8ff3d, #4a7a00);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--c-bg);
+  flex-shrink: 0;
+}
+
+.userName {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ---- 운영자 콘솔 ---- */
+.opsNav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 36px;
+  padding: 12px 28px;
+  background: var(--c-surface-ops);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.opsLogo {
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  color: var(--c-text-strong);
+}
+.opsTag {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--c-text-faint);
+  font-weight: 700;
+}
+
+.opsMenu {
+  display: flex;
+  gap: 26px;
+  font-size: 13px;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+.opsLink {
+  color: var(--c-text-dim);
+}
+.opsLink:hover {
+  color: var(--c-text-strong);
+}
+.opsActive {
+  color: var(--c-text-strong);
+  border-bottom: 2px solid var(--c-lime);
+  padding-bottom: 3px;
+}
+.opsActive:hover {
+  color: var(--c-text-strong);
+}
+
+.opsExit {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--c-text-faint);
+}
+
+@media (max-width: 720px) {
+  .menu {
+    display: none;
+  }
+}

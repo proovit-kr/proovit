@@ -1,0 +1,153 @@
+.scroller {
+  overflow-x: auto;
+  padding-bottom: var(--s-2);
+}
+
+.track {
+  position: relative;
+  display: flex;
+}
+.track--compact {
+  min-width: 640px;
+}
+.track--full {
+  min-width: 860px;
+}
+.track--journey {
+  min-width: 720px;
+}
+
+.line {
+  position: absolute;
+  top: 13px;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.line--full {
+  top: 17px;
+  left: 8%;
+  right: 8%;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 2px;
+}
+.fill {
+  height: 100%;
+  background: var(--c-lime);
+  border-radius: 2px;
+  transition: width 0.15s linear;
+}
+
+.step {
+  position: relative;
+  flex: 1;
+  text-align: center;
+  padding: 0 var(--s-2);
+}
+
+/* ---- 원형 마커 ---- */
+.dotSm {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  background: var(--c-chip);
+  color: var(--c-text-faint);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+.dotSm.current {
+  background: var(--c-lime);
+  color: var(--c-bg);
+  border-color: var(--c-lime);
+  box-shadow: var(--sh-ring);
+}
+.dotSm.done {
+  background: var(--c-lime);
+  color: var(--c-bg);
+  border-color: var(--c-lime);
+}
+
+.dotLg {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  background: var(--c-chip);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--c-text-dim);
+}
+.dotLg.done {
+  background: var(--c-lime);
+  color: var(--c-bg);
+  font-size: 18px;
+  font-weight: 900;
+  border-color: var(--c-lime);
+  box-shadow: var(--sh-ring);
+  animation: checkPop 0.35s ease-out;
+}
+.dotLg.current {
+  background: var(--c-chip);
+  border: 2px solid var(--c-lime);
+}
+.pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--c-lime);
+  animation: blink 1.4s infinite;
+}
+
+.label {
+  margin-top: var(--s-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text-faint);
+}
+.label.on {
+  color: var(--c-lime);
+}
+
+.titleFull {
+  margin-top: var(--s-4);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--c-text-strong);
+}
+.weekFull {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-lime);
+  font-family: var(--font-mono);
+}
+.descFull {
+  margin-top: var(--s-2);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--c-text-dim);
+}
+
+.journeyLabel {
+  margin-top: var(--s-4);
+  font-weight: 700;
+  font-size: 15px;
+}
+.journeySub {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}

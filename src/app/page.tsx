@@ -1,33 +1,46 @@
+import { Landing } from "@/components/Landing";
+import { prisma } from "@/lib/prisma";
+import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
+
 /*
-  임시 홀딩 페이지.
-  실제 랜딩은 legacy/vite-prototype/src/pages/LandingPage.tsx 를 이식한다.
-  지금은 원본 디자인 토큰이 제대로 걸렸는지 확인하는 용도다.
+  랜딩. 서버 컴포넌트에서 시즌과 사전신청 수를 읽어 클라이언트 컴포넌트에 내려준다.
+
+  Next.js를 택한 이유가 이 페이지의 SEO·OG(관전자 유입)였으므로,
+  데이터 조회는 서버에서 하고 클라이언트에는 결과만 넘긴다.
 */
-export default function Home() {
-  return (
-    <main className="page">
-      <div className="container grow flex items-center">
-        <div className="w-full max-w-xl py-20">
-          <p className="mono text-sm text-lime">SEASON 1 · 준비 중</p>
+/*
+  ISR. 기본값으로 두면 빌드 시점에 프리렌더돼 사전 신청 수와 CTA 상태가 그대로 굳는다.
+  요청마다 렌더(force-dynamic)하면 관전 트래픽이 전부 DB 조회가 되므로,
+  60초 주기 재생성으로 SEO(정적 HTML)와 최신성을 함께 가져간다.
+  제출 직후의 숫자는 클라이언트에서 낙관적으로 올려 보여준다.
+*/
+export const revalidate = 60;
 
-          <h1 className="mt-4 text-4xl font-extrabold leading-tight text-fg-strong sm:text-5xl">
-            아이디어를 <span className="text-lime">증명</span>하는
-            <br />
-            가장 빠른 방법
-          </h1>
+export default async function Home() {
+  const season = await getCurrentSeason();
 
-          <p className="mt-5 text-lg text-fg-dim">
-            AI로 만들고, 배포하고, 실제 이용자로 겨루는 온라인 시즌제 리그.
-            수료증이 아니라 지표를 가져갑니다.
-          </p>
-
-          <div className="card mt-10">
-            <p className="text-sm text-fg-faint">
-              랜딩 이식 진행 중 — 사전 신청 API는 동작합니다.
-            </p>
-          </div>
+  if (!season) {
+    // 열린 시즌이 없는 경우. 실제로는 시드가 항상 하나를 보장한다.
+    return (
+      <main className="page">
+        <div className="container grow flex items-center justify-center">
+          <p className="text-fg-dim">준비 중입니다.</p>
         </div>
-      </div>
-    </main>
+      </main>
+    );
+  }
+
+  const preRegisterCount = await prisma.lead.count({
+    where: { seasonId: season.id },
+  });
+
+  return (
+    <Landing
+      seasonName={season.name}
+      seasonTheme={season.theme}
+      startAt={season.startAt?.toISOString() ?? null}
+      cta={resolveLandingCta(season)}
+      preRegisterCount={preRegisterCount}
+    />
   );
 }
