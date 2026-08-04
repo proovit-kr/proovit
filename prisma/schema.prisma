@@ -1,76 +1,109 @@
 // PROOVIT — Prisma schema
 //
-// 원본 근거: Notion 04. API 명세서 / 06. ARCHITECTURE
-// 03. ERD 문서는 비어 있으므로, 당분간 이 파일이 스키마의 소스 오브 트루스다.
+// 이 파일이 DB 명세의 소스 오브 트루스다 (Notion 03 ERD/DB 설계서 명시).
+// Notion 쪽 enum·컬럼 블록은 이 파일의 읽기용 사본이며, 손으로 고치지 않는다.
+// ERD 그림은 prisma-erd-generator로 자동 생성한다.
+//
+// 근거 문서: 03 ERD/DB 설계서 · 04 API 명세 · 06 ARCHITECTURE §4 상태 설계
+//
 // 모델은 주차별 구현 범위에 맞춰 점진적으로 추가한다.
 //   W1(현재) Season · Lead
-//   W2       User · Team · TeamMember · TeamInvitation · Entry
-//   W3       Stage · Submission · Judgment
+//   W2       User · OAuthAccount · Session · Consent · Team · TeamMember · Entry
+//   W3       Stage · Submission · Judgment · AuditLog
 //   W4       MetricDaily · LeaderboardSnapshot · Award
+//
+// 규칙: 시즌 종속 테이블은 예외 없이 seasonId를 갖는다. 시즌2를 열었을 때
+// 시즌1 데이터가 섞이면 리더보드와 심사가 오염되고, 되돌리기가 가장 어렵다.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  // citext = 대소문자 구분 없는 텍스트. 이메일에 쓴다.
+  // 선언하지 않으면 마이그레이션이 CITEXT 타입만 내보내고
+  // CREATE EXTENSION을 빠뜨려 새 DB에서 실패한다.
+  extensions = [citext]
 }
 
-/// 시즌 생애주기. 랜딩 CTA 분기(GET /api/seasons/current)의 기준이 된다.
+/// 시즌 전체가 지금 몇 주차인가. 모든 팀에게 공통이며 크론 또는 운영자가 바꾼다.
+/// entry.stage(팀별 진행도)와 직교하는 축이다 — 06 §4.1 참조.
 enum SeasonPhase {
-  DRAFT // 준비 중 — 공개되지 않음
-  PREREGISTRATION // 사전 신청 — 랜딩 CTA "사전 신청하기"
-  RECRUITING // 모집 중 — CTA "참가 신청하기" (/apply)
-  IN_PROGRESS // 시즌 진행 중 — CTA "리더보드 보기"
-  FINISHED // 종료 — 시즌 아카이브로 이동
+  DRAFT // 준비중 (운영자만)
+  RECRUITING // 모집중 — 랜딩·사전신청·참가신청
+  W1_DEMAND // W1 수요조사
+  GATE1_REVIEW // 1차 심사 (제출 잠김)
+  W2_BUILD // W2 빌드·배포
+  RACE // W3~4 레이스 — 리더보드 실시간
+  GATE2_REVIEW // 최종 심사 (제출 잠김)
+  AWARDED // 시상 — 정산 액션 가능
+  ARCHIVED // 아카이브 — 모든 쓰기가 409
+
+  @@map("season_phase")
 }
 
 model Season {
-  id     String      @id @default(uuid()) @db.Uuid
+  id    String      @id @default(uuid()) @db.Uuid
   /// URL 조각. GET /api/seasons/:slug
-  slug   String      @unique
-  name   String
+  slug  String      @unique
+  name  String      @db.VarChar(120)
   /// 테마 시즌(예: 로컬 상권, 크리에이터 툴). 미정이면 null.
-  theme  String?
-  phase  SeasonPhase @default(DRAFT)
+  theme String?     @db.VarChar(120)
+  phase SeasonPhase @default(DRAFT)
+
+  /// 시즌별 화면 on/off. 전 화면을 개발하되 플래그로 차단한다(06 §4.4).
+  /// off인 라우트는 네비게이션에서 숨기고 직접 접근 시 404를 준다.
+  featureFlags Json @default("{}") @map("feature_flags")
+  /// 채점 가중치·상한. 시즌마다 바뀌므로 컬럼이 아니라 JSONB다.
+  /// 읽는 쪽에서 반드시 Zod로 검증한다 — 오타가 런타임에 터지지 않도록.
+  scoringConfig Json @default("{}") @map("scoring_config")
 
   /// 모집 기간
-  recruitStartAt DateTime? @db.Timestamptz(6)
-  recruitEndAt   DateTime? @db.Timestamptz(6)
-  /// 시즌 본편 기간 (2회차 회의에서 6주 → 4주로 축소)
-  startAt        DateTime? @db.Timestamptz(6)
-  endAt          DateTime? @db.Timestamptz(6)
+  recruitStartAt DateTime? @map("recruit_start_at") @db.Timestamptz(6)
+  recruitEndAt   DateTime? @map("recruit_end_at") @db.Timestamptz(6)
+  /// 시즌 본편 기간
+  startAt        DateTime? @map("start_at") @db.Timestamptz(6)
+  endAt          DateTime? @map("end_at") @db.Timestamptz(6)
 
   leads Lead[]
 
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([phase])
   @@map("seasons")
 }
 
-/// 사전 신청자. 시즌1 KPI 1번(실측 신청자 수·전환율)의 원천 데이터이고,
-/// '모두의 창업 2기' 지원서에 들어갈 수요 검증 근거다.
+/// 사전신청 이메일 = KPI#1의 원천.
+/// 수명이 '영구'인 이유: 시즌1 미참가자가 시즌2의 모집 풀이다.
+/// 시즌마다 지우면 자산이 사라진다 (03 H절).
 model Lead {
   id    String @id @default(uuid()) @db.Uuid
-  email String
+  email String @db.Citext
 
-  /// 어느 시즌을 보고 신청했는지. 시즌 삭제 시에도 리드는 남긴다.
-  seasonId String? @db.Uuid
-  season   Season? @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  /// 어느 시즌을 보고 신청했는지.
+  ///
+  /// nullable로 두지 않는 이유: Postgres는 UNIQUE에서 NULL을 서로 다른 값으로 취급한다.
+  /// season_id가 NULL이면 아래 @@unique가 무력화돼 같은 이메일이 무제한 쌓이고,
+  /// 그 숫자가 곧 KPI#1(실측 신청자 수)이자 지원사업 제출 수치라 부풀려지면 안 된다.
+  /// 사전신청은 항상 특정 시즌 맥락에서 일어나므로(랜딩 CTA가 seasons/current로 분기)
+  /// 시즌 없는 리드는 실제로 존재하지 않는다.
+  seasonId String @map("season_id") @db.Uuid
+  season   Season @relation(fields: [seasonId], references: [id], onDelete: Restrict)
 
   /// 유입 채널 분석용. 랜딩의 쿼리스트링에서 수집한다.
-  utmSource   String?
-  utmMedium   String?
-  utmCampaign String?
-  referrer    String?
+  utmSource   String? @map("utm_source") @db.VarChar(120)
+  utmMedium   String? @map("utm_medium") @db.VarChar(120)
+  utmCampaign String? @map("utm_campaign") @db.VarChar(120)
+  referrer    String? @db.Text
 
-  /// 모집 오픈 시 1순위 알림 대상. 발송 후 시각 기록.
-  notifiedAt DateTime? @db.Timestamptz(6)
+  /// 모집 오픈 시 1순위 알림 대상. 발송 후 시각을 남긴다.
+  notifiedAt DateTime? @map("notified_at") @db.Timestamptz(6)
 
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   /// 같은 시즌에 같은 이메일이 중복 신청되지 않도록 한다.
   @@unique([seasonId, email])
