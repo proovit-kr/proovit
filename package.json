@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "db:seed": "prisma db seed"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

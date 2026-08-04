@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 같은 브랜치에 새 커밋이 올라오면 이전 실행은 취소한다
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # 스키마가 문법적으로 유효한지. DB에 접속하지 않는다.
+      - name: Prisma 스키마 검증
+        run: npx prisma validate
+
+      # src/generated는 gitignore 대상이라 타입체크 전에 생성해야 한다.
+      - name: Prisma 클라이언트 생성
+        run: npx prisma generate
+
+      - name: 타입체크
+        run: npm run typecheck
+
+      - name: 린트
+        run: npm run lint
+
+# ─────────────────────────────────────────────────────────────
+# next build를 여기서 돌리지 않는 이유
+#
+# 랜딩(/)이 ISR이라 빌드 시점에 프리렌더되고, 그때 Neon에 실제로 접속한다.
+# CI에서 빌드하려면 DATABASE_URL 시크릿이 필요한데, 프로덕션 DB를 CI에 노출하는
+# 셈이라 06 §7의 "PR마다 Neon 브랜치 복제" 방침과도 어긋난다.
+#
+# 빌드 검증은 Vercel Preview가 PR마다 대신한다.
+# TODO: Neon GitHub 연동으로 PR 브랜치가 붙으면 여기에 빌드 스텝을 추가한다.
+# ─────────────────────────────────────────────────────────────

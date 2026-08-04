@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // 이식 원본. 빌드에도 들어가지 않으므로 린트 대상이 아니다 (legacy/README.md 참조)
+    "legacy/**",
+    // Prisma 생성물
+    "src/generated/**",
   ]),
 ]);
 
