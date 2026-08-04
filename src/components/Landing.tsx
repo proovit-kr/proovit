@@ -361,7 +361,7 @@ export function Landing({
       <section className={styles.section}>
         <Fade>
           <SectionHead no="03" label="BENEFITS" title="참가하면 이런 걸 받아요" />
-          <div className={`${styles.benefitList} ${styles.measure}`}>
+          <div className={styles.benefitList}>
             {LANDING_BENEFITS.map((b, i) => (
               <div className={styles.benefit} key={b.title}>
                 {/* 원형 체크 대신 번호. 항목 수가 적을 때 체크 아이콘은 장식으로만 남는다 */}
@@ -444,9 +444,7 @@ export function Landing({
       <section id="faq" className={styles.section}>
         <Fade>
           <SectionHead no="06" label="FAQ" title="자주 묻는 질문" />
-          <div className={styles.measure}>
-            <Accordion items={LANDING_FAQ} />
-          </div>
+          <Accordion items={LANDING_FAQ} />
         </Fade>
       </section>
 

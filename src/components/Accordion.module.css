@@ -42,6 +42,8 @@
   font-size: 15px;
   line-height: 1.65;
   color: var(--c-text-muted);
+  /* 박스는 폭을 다 쓰되 본문 한 줄은 읽기 좋은 길이에서 끊는다 */
+  max-width: 68ch;
 }
 
 /* 운영자 콘솔용 (AI 분석 리포트) */
