@@ -13,7 +13,7 @@
 .hero {
   max-width: var(--w-page);
   margin: 0 auto;
-  padding: var(--s-22) var(--pad-x) var(--s-18);
+  padding: var(--rhythm) var(--pad-x) var(--rhythm);
   display: grid;
   /* 균등 분할이 아니다. 글 쪽이 넓고 보드가 좁다 */
   grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
@@ -189,14 +189,14 @@
 .section {
   max-width: var(--w-page);
   margin: 0 auto;
-  padding: 0 var(--pad-x) var(--s-18);
+  padding: 0 var(--pad-x) var(--rhythm);
   width: 100%;
 }
 .sectionTight {
-  padding-bottom: var(--s-12);
+  padding-bottom: var(--rhythm-tight);
 }
 .sectionWide {
-  padding-bottom: var(--s-22);
+  padding-bottom: var(--rhythm-wide);
 }
 
 /*
@@ -428,7 +428,7 @@
   max-width: var(--w-page);
   margin: 0 auto;
   width: 100%;
-  padding: var(--s-22) var(--pad-x);
+  padding: var(--rhythm-wide) var(--pad-x);
   border-top: 1px solid var(--c-line-3);
 }
 .declareTitle {
