@@ -13,7 +13,12 @@
 .hero {
   max-width: var(--w-page);
   margin: 0 auto;
-  padding: var(--rhythm) var(--pad-x) var(--rhythm);
+  /*
+    히어로는 섹션 리듬을 따르지 않는다. 첫 화면이라 위를 과하게 띄우면 제목이
+    아래로 밀리고, 위아래를 같게 두면 글 덩어리가 길쭉해져 폭이 좁아 보인다.
+    위가 아래보다 넓은 원래 비율을 지킨다.
+  */
+  padding: var(--s-22) var(--pad-x) var(--s-18);
   display: grid;
   /* 균등 분할이 아니다. 글 쪽이 넓고 보드가 좁다 */
   grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
