@@ -9,7 +9,16 @@
   padding: 14px var(--pad-x);
   background: var(--c-nav);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--c-line);
+  /*
+    최상단에서는 선을 긋지 않는다. 헤더가 히어로와 같은 면에 있는 상태라
+    나눌 것이 없는데 선만 남아 촌스럽다 — 콘텐츠 위로 떠올랐을 때만 경계를 만든다.
+    자리를 미리 잡아두려고 투명 테두리로 둔다. 그래야 나타날 때 1px이 밀리지 않는다.
+  */
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-fast);
+}
+.navScrolled {
+  border-bottom-color: var(--c-line);
 }
 
 .logo {

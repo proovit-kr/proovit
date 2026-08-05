@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { Button, LinkButton } from "./Button";
 import styles from "./NavBar.module.css";
@@ -46,8 +47,18 @@ export interface NavBarProps {
 export function NavBar({ cta }: NavBarProps) {
   const pathname = usePathname();
 
+  // 헤더가 콘텐츠 위로 떠올랐는지. 경계선을 그때만 긋는다.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    // 새로고침으로 중간 위치에서 시작하는 경우가 있어 한 번 먼저 읽는다.
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <nav className={styles.nav}>
+    <nav className={scrolled ? `${styles.nav} ${styles.navScrolled}` : styles.nav}>
       <Logo />
       <div className={styles.menu}>
         {MENU.map((item) => {
