@@ -32,13 +32,20 @@
   font-size: 16px;
 }
 
-/* ---- 변형 ---- */
+/* ---- 변형 ----
+
+  hover에 color를 반드시 같이 적는다.
+  LinkButton은 <a>로 렌더되는데 globals.css의 `a:hover`가 글자색을 라임으로 바꾼다.
+  명시도가 `a:hover`(0,1,1) > `.primary`(0,1,0)라, hover에서 색을 못박지 않으면
+  전역 규칙이 이긴다. primary는 배경까지 같은 색이 되어 글자가 사라졌었다.
+*/
 .primary {
   background: var(--c-lime);
   color: var(--c-bg);
 }
 .primary:hover:not(:disabled) {
   background: var(--c-lime-hover);
+  color: var(--c-bg);
 }
 .primary:disabled {
   background: rgba(255, 255, 255, 0.06);
@@ -64,6 +71,7 @@
 }
 .soft:hover:not(:disabled) {
   background: var(--c-lime-20);
+  color: var(--c-lime);
 }
 
 .quiet {
