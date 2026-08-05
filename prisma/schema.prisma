@@ -22,7 +22,9 @@ generator client {
 }
 
 datasource db {
-  provider   = "postgresql"
+  provider = "postgresql"
+  // Prisma 7부터 url·directUrl은 이 파일에 둘 수 없다. prisma.config.ts가 정본이다.
+  // 런타임은 pooled 주소(DATABASE_URL), 마이그레이션은 direct 주소(DIRECT_URL)를 쓴다.
   // citext = 대소문자 구분 없는 텍스트. 이메일에 쓴다.
   // 선언하지 않으면 마이그레이션이 CITEXT 타입만 내보내고
   // CREATE EXTENSION을 빠뜨려 새 DB에서 실패한다.

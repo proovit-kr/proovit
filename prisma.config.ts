@@ -10,6 +10,16 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    /*
+      여기 URL은 **CLI 전용**이다 — migrate·introspect·db seed가 쓴다.
+      앱 런타임은 이 값을 보지 않고 src/lib/prisma.ts의 Neon 어댑터가 DATABASE_URL로 붙는다.
+
+      그래서 둘을 갈라야 한다. 런타임(DATABASE_URL)은 pooled(-pooler) 주소여야
+      Vercel 함수가 커넥션을 고갈시키지 않고, 마이그레이션은 pooler를 통과하지 못하므로
+      direct 주소가 따로 필요하다.
+
+      로컬은 아직 둘이 같을 수 있어 DATABASE_URL로 폴백한다.
+    */
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
   },
 });

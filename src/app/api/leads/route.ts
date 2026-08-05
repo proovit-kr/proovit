@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { getClientIp, limitByIp } from "@/lib/ratelimit";
 import { getCurrentSeason } from "@/lib/season";
 
 /*
@@ -10,9 +11,8 @@ import { getCurrentSeason } from "@/lib/season";
   사전신청 이메일 수집. 시즌1 KPI#1(실측 신청자 수·전환율)의 유일한 원천이고,
   '모두의 창업 2기' 지원서에 들어갈 수요 검증 근거다.
 
-  TODO(W2): 06 §12가 이 엔드포인트에 IP 레이트리밋 + Turnstile을 요구한다.
-  Upstash가 아직 없어 미구현이다. 공개 엔드포인트라 봇이 KPI 숫자를 부풀릴 수 있으므로,
-  랜딩 공개 전에 반드시 붙여야 한다.
+  IP 레이트리밋은 구현됐다(06 §12). 같은 조항이 요구하는 **Turnstile은 아직 없다** —
+  레이트리밋만으로는 분산 IP 봇을 막지 못하므로, 랜딩을 널리 홍보하기 전에 붙여야 한다.
 */
 
 const bodySchema = z.object({
@@ -23,6 +23,18 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // 가장 먼저 본다. 본문 파싱도 DB 조회도 하기 전에 끊는 것이 가장 싸다.
+  const { success, retryAfterSeconds } = await limitByIp(getClientIp(request));
+  if (!success) {
+    return Response.json(
+      {
+        error: "RATE_LIMITED",
+        message: "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.",
+      },
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } },
+    );
+  }
+
   let json: unknown;
   try {
     json = await request.json();
