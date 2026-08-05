@@ -180,6 +180,8 @@ export function Landing({
   const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
+  // CTA를 눌렀을 때 입력란 테두리를 한 번 짚어주는 신호. 애니메이션이 끝나면 스스로 꺼진다.
+  const [ping, setPing] = useState(false);
 
   // 낙관적으로 올려 보여준다. 새로고침하면 서버 값으로 정정된다.
   const [count, setCount] = useState(preRegisterCount);
@@ -200,15 +202,37 @@ export function Landing({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const scrollTo = (id: string, focusEmail = false) => {
+  const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (!el) return;
-    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 84 });
-    if (focusEmail) window.setTimeout(() => emailRef.current?.focus(), 500);
+    window.scrollTo({
+      top: el.getBoundingClientRect().top + window.scrollY - 84,
+      // 이동 거리가 짧을 때 순간이동하면 화면이 바뀐 줄 모른다. 움직임 자체가 응답이다.
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
   };
 
+  /*
+    사전신청 CTA. 히어로 안의 큰 버튼과 헤더의 작은 버튼이 같이 쓴다.
+
+    헤더 버튼은 폼이 이미 화면에 보이는 상태에서 눌리는 경우가 많아서,
+    스크롤만으로는 거의 아무 일도 일어나지 않아 무응답으로 느껴진다.
+    그래서 세 가지를 함께 한다 — 스크롤 · 입력란 포커스 · 테두리 한 번 짚기.
+  */
   const runCta = () => {
-    if (cta.kind === "PREREGISTER") scrollTo("hero", true);
+    if (cta.kind !== "PREREGISTER") return;
+    scrollTo("hero");
+    /*
+      preventScroll이 없으면 브라우저가 포커스 대상으로 즉시 튀어
+      방금 시작한 부드러운 스크롤과 충돌한다.
+      포커스를 타이머로 미루지 않는 이유는, 클릭 직후에 커서가 보여야
+      "눌렸다"는 신호가 되기 때문이다.
+    */
+    emailRef.current?.focus({ preventScroll: true });
+    // 이미 포커스가 있던 경우엔 포커스만으로는 변화가 없다. 그때를 위한 신호다.
+    setPing(true);
   };
 
   const onPreRegister = async (e: React.FormEvent) => {
@@ -250,7 +274,14 @@ export function Landing({
 
   return (
     <div className="page">
-      <NavBar cta={{ href: CTA_HREF[cta.kind], label: ctaLabel }} />
+      <NavBar
+        cta={{
+          href: CTA_HREF[cta.kind],
+          label: ctaLabel,
+          // 사전신청은 이 페이지 안에서 처리한다. 나머지는 실제 라우트 이동이다.
+          onClick: isScrollCta ? runCta : undefined,
+        }}
+      />
 
       <section id="hero" className={styles.hero}>
         <div>
@@ -294,7 +325,8 @@ export function Landing({
           <form className={styles.emailForm} onSubmit={onPreRegister}>
             <input
               ref={emailRef}
-              className={`input ${styles.emailInput}`}
+              className={`input ${styles.emailInput} ${ping ? styles.emailInputPing : ""}`}
+              onAnimationEnd={() => setPing(false)}
               type="email"
               required
               placeholder="이메일 주소"

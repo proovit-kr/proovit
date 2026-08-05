@@ -78,6 +78,31 @@
   flex: 1 1 220px;
 }
 
+/*
+  CTA를 눌렀는데 폼이 이미 보이고 포커스까지 있으면 화면이 전혀 안 변한다.
+  그 경우를 위해 테두리를 한 번만 짚는다.
+
+  글로우를 쓰지 않는 이유는 디자인 규칙(CLAUDE.md §7)이다.
+  포커스 상태의 라임 테두리가 이 폼의 원래 언어이므로, 그 톤 안에서만 움직인다.
+*/
+.emailInputPing {
+  animation: emailInputPing 0.5s ease-out;
+}
+@keyframes emailInputPing {
+  0%,
+  100% {
+    border-color: var(--c-lime);
+  }
+  40% {
+    border-color: var(--c-text-strong);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .emailInputPing {
+    animation: none;
+  }
+}
+
 /* ---- 라이브 보드 ----
    페이지에서 유일하게 '떠 있는' 요소다. 그래서 여기만 그림자를 쓴다. */
 .board {

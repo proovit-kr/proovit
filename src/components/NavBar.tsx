@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { LinkButton } from "./Button";
+import { Button, LinkButton } from "./Button";
 import styles from "./NavBar.module.css";
 
 /*
@@ -31,7 +31,16 @@ const MENU = [
 
 export interface NavBarProps {
   /** 우측 주 버튼. 시즌 상태에 따라 서버에서 정해 내려준다. */
-  cta: { href: string; label: string };
+  cta: {
+    href: string;
+    label: string;
+    /*
+      같은 페이지 안에서 처리하는 CTA(사전신청 폼으로 이동)면 이걸 준다.
+      해시 링크로 두면 안 된다 — 한 번 눌러 URL이 #hero가 된 뒤에는 주소가
+      그대로라 브라우저가 아무 일도 하지 않아, 버튼이 죽은 것처럼 보인다.
+    */
+    onClick?: () => void;
+  };
 }
 
 export function NavBar({ cta }: NavBarProps) {
@@ -61,9 +70,15 @@ export function NavBar({ cta }: NavBarProps) {
         <Link href="/signin" className={styles.signIn}>
           로그인
         </Link>
-        <LinkButton href={cta.href} size="sm">
-          {cta.label}
-        </LinkButton>
+        {cta.onClick ? (
+          <Button size="sm" onClick={cta.onClick}>
+            {cta.label}
+          </Button>
+        ) : (
+          <LinkButton href={cta.href} size="sm">
+            {cta.label}
+          </LinkButton>
+        )}
       </div>
     </nav>
   );
