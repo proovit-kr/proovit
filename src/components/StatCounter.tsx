@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useCountUp } from '@/hooks/useCountUp';
 import { useInView } from '@/hooks/useInView';
 import styles from './StatCounter.module.css';
@@ -33,7 +33,11 @@ function Cell({ item, run }: { item: StatItem; run: boolean }) {
 export function StatCounter({ items }: { items: StatItem[] }) {
   const { ref, inView } = useInView<HTMLDivElement>(0.3);
   return (
-    <div className={styles.grid} ref={ref}>
+    <div
+      className={styles.grid}
+      ref={ref}
+      style={{ '--cols': items.length } as CSSProperties}
+    >
       {items.map((item) => (
         <Cell key={item.label} item={item} run={inView} />
       ))}
@@ -48,7 +52,7 @@ export function InfoStrip({
   items: { label: string; value: ReactNode; accent?: boolean }[];
 }) {
   return (
-    <div className={styles.grid}>
+    <div className={styles.grid} style={{ '--cols': items.length } as CSSProperties}>
       {items.map((item) => (
         <div key={item.label} className={`${styles.cell} ${styles['cell--left']}`}>
           <div className={`${styles.label} ${styles['label--top']}`}>{item.label}</div>

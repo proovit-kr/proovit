@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 
 import { Accordion } from "./Accordion";
 import { Button, LinkButton } from "./Button";
@@ -111,6 +117,70 @@ function CompareBlock() {
   );
 }
 
+/*
+  킥오프 카운트다운.
+
+  히어로 우측은 첫 화면에서 가장 눈이 가는 자리인데, 지금은 빈 리더보드 골격이
+  들어가 있어 "아직 아무것도 없다"를 강조하고 있다. 킥오프 시각이 정해져 있는
+  동안에는 남은 시간을 대신 세운다 — 사전 신청을 받아야 하는 구간이 정확히
+  그 구간이기 때문이다.
+
+  숫자를 라임으로 칠하지 않는 이유는 §7이다. 히어로에는 이미 라임 CTA가 있고
+  한 화면에 라임을 두 번 세게 쓰지 않는다. 크기와 흰색으로 무게를 준다.
+*/
+function KickoffPanel({
+  kickoff,
+  seasonName,
+}: {
+  kickoff: ReturnType<typeof useCountdown>;
+  seasonName: string;
+}) {
+  /*
+    카운트다운은 첫 렌더에 서버와 클라이언트의 값이 다를 수밖에 없다.
+    마운트 전에는 자리만 잡아두고, 붙은 뒤에 실제 숫자를 넣는다.
+    useEffect + setState 대신 useSyncExternalStore를 쓰는 이유는, 이 값이
+    "렌더가 어디서 일어나는가"라는 외부 사실이지 상태 변화가 아니기 때문이다.
+  */
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
+  const cells: [string, number][] = [
+    ["DAYS", kickoff.days],
+    ["HOURS", kickoff.hours],
+    ["MINS", kickoff.minutes],
+    ["SECS", kickoff.seconds],
+  ];
+
+  return (
+    <div className={styles.board}>
+      <div className={styles.boardHead}>
+        <div className={styles.boardTitle}>KICKOFF</div>
+        <div className={styles.live} style={{ color: "var(--c-text-faint)" }}>
+          {seasonName} 시작까지
+        </div>
+      </div>
+
+      <div className={styles.countdown}>
+        {cells.map(([label, value]) => (
+          <div className={styles.countCell} key={label}>
+            <div className={styles.countValue}>
+              {mounted ? String(value).padStart(2, "0") : "--"}
+            </div>
+            <div className={styles.countLabel}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.boardFoot}>
+        사전 신청은 킥오프 전까지 받아요. 시작하면 이 자리에 리더보드가 올라와요.
+      </div>
+    </div>
+  );
+}
+
 /** 참가팀이 아직 없을 때의 리더보드 자리. 프레임은 유지하고 숫자만 비운다. */
 function BoardPlaceholder() {
   return (
@@ -195,7 +265,18 @@ export function Landing({
       if (!el) return;
       const rect = el.getBoundingClientRect();
       const vh = window.innerHeight;
-      setTrackFill(Math.max(0, Math.min(1, (vh * 0.8 - rect.top) / (vh * 0.55))));
+      /*
+        진행도를 뷰포트 높이만으로 재면 트랙이 길어질수록 어긋난다.
+        좁은 화면에서 트랙이 세로로 서면서 높이가 화면보다 커졌고, 그러면
+        섹션 머리가 화면에 들어오자마자 다섯 칸이 전부 체크로 바뀌어서
+        정작 3~5번을 보기도 전에 채움이 끝나 있었다.
+
+        요소 자신의 높이를 span에 넣어, 위가 화면 85% 지점에 닿을 때 0,
+        아래가 40% 지점을 지날 때 1이 되게 한다. 세로든 가로든 같은 식이 통한다.
+      */
+      const travelled = vh * 0.85 - rect.top;
+      const span = rect.height + vh * 0.45;
+      setTrackFill(Math.max(0, Math.min(1, travelled / span)));
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -288,15 +369,11 @@ export function Landing({
           <div className={styles.pill}>
             <span className="dot" style={{ width: 7, height: 7 }} />
             {seasonName.toUpperCase()}
-            {startAt ? (
-              <>
-                {" "}
-                · 킥오프 D-{kickoff.days}
-                <span className={styles.pillClock}>{kickoff.clock}</span>
-              </>
-            ) : (
-              <> · 일정 확정 중</>
-            )}
+            {/*
+              초 단위 시계는 우측 카운트다운 패널이 이미 보여준다.
+              한 화면에서 두 개가 같이 돌아가면 서로 시선을 뺏는다. 여기는 D-N까지만.
+            */}
+            {startAt ? <> · 킥오프 D-{kickoff.days}</> : <> · 일정 확정 중</>}
           </div>
           <h1 className={styles.title}>
             말이 아니라,
@@ -366,7 +443,12 @@ export function Landing({
           </form>
         </div>
 
-        <BoardPlaceholder />
+        {/* 킥오프가 잡혀 있으면 남은 시간을, 아직이면 리더보드 자리를 보여준다 */}
+        {startAt ? (
+          <KickoffPanel kickoff={kickoff} seasonName={seasonName} />
+        ) : (
+          <BoardPlaceholder />
+        )}
       </section>
 
       <section className={styles.section} style={{ paddingBottom: "var(--s-6)" }}>

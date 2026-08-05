@@ -1,5 +1,7 @@
 // 프로토타입은 @/types의 SeasonStage를 썼다. 여기서는 표시용 타입만 필요하므로
 // content의 SeasonStageInfo를 쓴다. stages가 DB로 옮겨가면 그때 Prisma 타입으로 바꾼다.
+import type { CSSProperties } from 'react';
+
 import type { SeasonStageInfo as SeasonStage } from '@/content/landing';
 import styles from './StageProgress.module.css';
 
@@ -54,7 +56,11 @@ export function StageTrack({ stages, fill }: FullProps) {
     <div className={styles.scroller}>
       <div className={`${styles.track} ${styles['track--full']}`}>
         <div className={`${styles.line} ${styles['line--full']}`}>
-          <div className={styles.fill} style={{ width: `${(fill * 100).toFixed(1)}%` }} />
+          {/* 축(가로/세로)은 CSS가 정한다 — 좁은 화면에서는 같은 값이 높이가 된다 */}
+          <div
+            className={styles.fill}
+            style={{ '--fill': `${(fill * 100).toFixed(1)}%` } as CSSProperties}
+          />
         </div>
         {stages.map((stage, i) => {
           const done = fill >= (THRESHOLDS[i] ?? 1);

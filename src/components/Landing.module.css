@@ -39,27 +39,27 @@
   font-family: var(--font-mono);
   letter-spacing: 0.08em;
 }
-.pillClock {
-  color: var(--c-text-faint);
-  letter-spacing: 0.06em;
-}
-
+/*
+  제목을 키운다. 1440에서 62px은 첫 화면을 지배하지 못해서 페이지가 문서처럼 읽혔다.
+  상한을 72px까지 올려도 좌측 열(약 580px)에 "지표로 증명하라" 7자가 들어간다.
+  자간을 조금 더 조이는 건 큰 글씨에서 자간이 상대적으로 벌어 보이기 때문이다.
+*/
 .title {
-  margin: 20px 0 0;
-  font-size: clamp(40px, 5.4vw, 62px);
-  line-height: 1.08;
+  margin: 24px 0 0;
+  font-size: clamp(40px, 5.9vw, 72px);
+  line-height: 1.06;
   font-weight: 800;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.04em;
   color: var(--c-text-strong);
   text-wrap: balance;
 }
 
 .lead {
-  margin: 20px 0 0;
-  font-size: 17px;
-  line-height: 1.7;
+  margin: 24px 0 0;
+  font-size: 18px;
+  line-height: 1.72;
   color: var(--c-text-dim);
-  max-width: 420px;
+  max-width: 440px;
   text-wrap: pretty;
 }
 
@@ -188,6 +188,39 @@
   color: var(--c-text-faint);
 }
 
+/* ---- 킥오프 카운트다운 ----
+   네 칸을 균등 분할하고 칸 사이에만 얇은 세로 괘선을 둔다. 상자를 더 만들지 않는다.
+   숫자는 tabular-nums라야 초가 바뀔 때 폭이 흔들리지 않는다. */
+.countdown {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 26px 0 22px;
+}
+.countCell {
+  text-align: center;
+  border-left: 1px solid var(--c-line);
+}
+.countCell:first-child {
+  border-left: 0;
+}
+.countValue {
+  font-family: var(--font-mono);
+  font-size: clamp(30px, 3.4vw, 44px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--c-text-strong);
+  font-variant-numeric: tabular-nums;
+}
+.countLabel {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--c-text-faint);
+}
+
 /* ---- 섹션 ----
    밀도를 셋으로 나눈다: 촘촘(tight) / 기본 / 널찍(wide).
    전부 같은 간격이면 페이지에 리듬이 없다. */
@@ -262,13 +295,21 @@
 }
 
 /* ---- 비교 ----
-   두 칸을 같은 무게로 두지 않는다. 왼쪽은 흐리게 눕고 오른쪽만 선다. */
+   두 칸을 같은 무게로 두지 않는다. 왼쪽은 흐리게 눕고 오른쪽만 선다.
+
+   단, 눕히는 수단을 opacity로 잡으면 안 된다. 원래 값(0.4)이 이미 흐린
+   --c-text-faint 위에 곱해져서 배경 대비가 1.6:1까지 떨어졌고, 실제 화면에서
+   왼쪽 항목이 거의 안 보였다. 비교는 양쪽이 다 읽혀야 성립한다 —
+   안 읽히면 대조가 아니라 그냥 빈 칸으로 보인다.
+
+   위계는 §7이 말한 방식대로 색·크기·굵기로 만든다. opacity는 살짝 물러나는
+   정도로만 남긴다. */
 .compareCard {
   padding: 28px 28px 28px 0;
   transition: opacity 0.9s ease;
 }
 .compareCardOn {
-  opacity: 0.4;
+  opacity: 0.9;
 }
 .compareCardUs {
   padding-left: 28px;
@@ -281,7 +322,7 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.18em;
-  color: var(--c-text-ghost);
+  color: var(--c-text-dim);
   font-family: var(--font-mono);
 }
 .compareLabelUs {
@@ -298,7 +339,7 @@
   gap: 12px;
   align-items: baseline;
   font-size: 16px;
-  color: var(--c-text-faint);
+  color: var(--c-text-dim);
 }
 .compareItemUs {
   color: var(--c-text-strong);
@@ -307,7 +348,7 @@
   letter-spacing: -0.01em;
 }
 .dash {
-  color: var(--c-text-ghost);
+  color: var(--c-text-faint);
 }
 .check {
   color: var(--c-lime);
