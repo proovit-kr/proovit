@@ -11,57 +11,62 @@ export interface SeasonStageInfo {
   n: number;
   label: string;
   week: string;
-  range: string;
   description: string;
+  /** 이 스테이지 끝에 심사 게이트가 있으면 그 이름. 시즌1은 2회뿐이다 */
+  gate?: string;
 }
 
 /**
  * 시즌 단계 표시용.
  *
+ * 3회차 회의(8/5) 확정 — **시즌1 = 5주 · STAGE 1~5**, 게이트는 2회뿐이다.
+ * 2회차의 "6주 → 4주"를 거쳐 3회차에서 "4주 → 5 Stage(전체 5주 고정)"로 다시 정해졌다.
+ *
+ * 심사를 트랙의 별도 칸으로 두지 않는다. 게이트는 스테이지에 붙는 것이고,
+ * 제출 2회(step1·step2)와 게이트 2회가 1:1로 대응한다(동혁 요구사항 명세서 용어표).
+ *
  * TODO: 지금은 상수다. 03 ERD의 `stages` 테이블이 생기면 DB에서 읽어야 한다.
  * 06 §4에 따르면 stages는 크론이 페이즈를 넘기는 유일한 입력값이라 결국 DB로 가야 한다.
- * 날짜(range)도 2회차 회의의 "6주 → 4주" 결정이 반영되지 않은 값이므로 확정 후 갱신한다.
+ * 날짜는 여기 두지 않는다 — 시즌1 캘린더(9/7~10/11)가 WBS에서 "잠정"이고,
+ * 마감 시각의 정본은 `stages.opensAt`/`closesAt`이어야 한다(명세서 3.1.2).
  */
 export const SEASON_STAGES: SeasonStageInfo[] = [
   {
     key: "S1",
     n: 1,
-    label: "수요 검증",
-    week: "1주",
-    range: "8/3 ~ 8/9",
-    description: "아이디어의 수요를 데이터로 먼저 확인해요.",
-  },
-  {
-    key: "REVIEW1",
-    n: 2,
-    label: "1차 심사",
-    week: "2주",
-    range: "8/10",
-    description: "검증 결과로 본선 진출 팀을 가려요.",
+    label: "등록·아이디어 고도화",
+    week: "1주차",
+    description: "아이디어를 실행 가능한 형태로 다듬어요.",
   },
   {
     key: "S2",
-    n: 3,
-    label: "AI 빌드",
-    week: "3~4주",
-    range: "8/11 ~ 8/24",
-    description: "AI 빌더로 실제 서비스를 만들어 배포해요.",
+    n: 2,
+    label: "랜딩·수요조사",
+    week: "2주차",
+    description: "아이디어의 수요를 데이터로 먼저 확인해요.",
+    gate: "1차 심사 — 사업성",
   },
   {
     key: "S3",
-    n: 4,
-    label: "유저 확보 레이스",
-    week: "5~6주",
-    range: "8/25 ~ 9/7",
-    description: "실제 유저를 모으며 리더보드에서 경쟁해요.",
+    n: 3,
+    label: "AI 빌드·배포",
+    week: "3주차",
+    description: "AI 빌더로 실제 서비스를 만들어 배포해요.",
   },
   {
-    key: "FINAL",
+    key: "S4",
+    n: 4,
+    label: "마케팅·유저 유입",
+    week: "4주차",
+    description: "가이드를 따라 직접 유저를 모아요.",
+  },
+  {
+    key: "S5",
     n: 5,
-    label: "최종 심사·시상",
-    week: "6주 말",
-    range: "9/8 ~ 9/10",
-    description: "검증된 지표로 최종 순위와 시상이 결정돼요.",
+    label: "트래픽·매출",
+    week: "5주차",
+    description: "실측 지표로 리더보드에서 최종 순위를 겨뤄요.",
+    gate: "최종 심사 — 실행",
   },
 ];
 
@@ -95,7 +100,7 @@ export const LANDING_BENEFITS = [
 
 export const LANDING_WHY = [
   { no: "01", title: "전 과정 온라인", desc: "어디서든 같은 무대에서 경쟁해요." },
-  { no: "02", title: "6주 실측 경쟁", desc: "발표가 아니라 데이터로 평가받아요." },
+  { no: "02", title: "5주 실측 경쟁", desc: "발표가 아니라 데이터로 평가받아요." },
   {
     no: "03",
     title: "아이디어만 있으면 돼요",
@@ -119,7 +124,7 @@ export const LANDING_CRITERIA = [
 export const COMPARE = {
   hackathon: ["8시간~1박 2일", "발표와 심사위원 점수", "출품하면 끝"],
   proovit: [
-    "6주 리그",
+    "5주 리그",
     "실제 유저와 매출 데이터",
     "시즌이 끝나도 서비스는 남아요",
   ],

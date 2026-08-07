@@ -72,6 +72,9 @@ export function StageTrack({ stages, fill }: FullProps) {
               <div className={styles.titleFull}>{stage.label}</div>
               <div className={styles.weekFull}>{stage.week}</div>
               <div className={styles.descFull}>{stage.description}</div>
+              {stage.gate ? (
+                <div className={styles.gateFull}>{stage.gate}</div>
+              ) : null}
             </div>
           );
         })}

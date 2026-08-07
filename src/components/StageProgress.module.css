@@ -145,6 +145,18 @@
   color: var(--c-text-dim);
 }
 
+/* 게이트가 붙은 스테이지에만 나온다 (시즌1은 2개).
+   라임은 주차 표기가 이미 쓰고 있으므로 여기서는 괘선과 자간으로만 구분한다. */
+.gateFull {
+  margin-top: var(--s-3);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--c-line);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--c-text-strong);
+}
+
 .journeyLabel {
   margin-top: var(--s-4);
   font-weight: 700;
