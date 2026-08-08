@@ -12,6 +12,7 @@ import { Accordion } from "./Accordion";
 import { Button, LinkButton } from "./Button";
 import ConsentFields, {
   EMPTY_CONSENT,
+  focusFirstMissingConsent,
   isConsentComplete,
   type ConsentState,
 } from "./ConsentFields";
@@ -262,6 +263,11 @@ export function Landing({
     실패하면 제출 버튼만 조용히 잠기고 이유를 볼 곳이 없으므로 따로 붙인다.
   */
   const [botFailed, setBotFailed] = useState(false);
+  /*
+    필수 동의 없이 제출을 눌러봤다. 눌러보기 전에는 켜지 않는다 —
+    아직 아무것도 안 한 사람에게 경고부터 띄우는 화면이 되면 안 된다.
+  */
+  const [showMissingConsent, setShowMissingConsent] = useState(false);
   const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -334,6 +340,27 @@ export function Landing({
   const onPreRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (pending) return;
+
+    /*
+      버튼을 `disabled`로 잠그지 않고 여기서 막는다. disabled인 버튼은 클릭
+      이벤트 자체가 발생하지 않아서, 눌러도 아무 일이 없고 왜 안 되는지
+      알려줄 수 없다. 눌리게 두고 이유를 말해주는 쪽이 맞다.
+      미동의 접수는 서버(`/api/leads`)가 한 번 더 막으므로 방어선은 그대로다.
+    */
+    if (!isConsentComplete(consent)) {
+      setShowMissingConsent(true);
+      focusFirstMissingConsent(consent);
+      return;
+    }
+    if (turnstileEnabled && !botToken) {
+      show(
+        botFailed
+          ? "사람 확인에 실패했어요. 새로고침 후 다시 시도해주세요."
+          : "사람 확인 중이에요. 잠시 후 다시 눌러주세요.",
+      );
+      return;
+    }
+
     setPending(true);
     try {
       const res = await fetch("/api/leads", {
@@ -444,11 +471,15 @@ export function Landing({
               size="lg"
               style={{ minWidth: 118 }}
               /*
-                필수 동의 전에는 제출할 수 없다(D7의 "체크 없이는 버튼 비활성").
-                서버도 같은 조건을 다시 막으므로 이건 편의이지 방어선이 아니다.
+                미동의 상태에서도 버튼은 눌린다. 잠그면 이유를 말할 자리가
+                없어지기 때문이다(onPreRegister 참고). 대신 `aria-disabled`로
+                "지금은 진행할 수 없는 상태"임을 보조기기에 알리고,
+                흐리게 칠해 눌러도 바로 안 될 것처럼 보이지는 않게 한다.
+
+                `pending`만 진짜 `disabled`다 — 전송 중 두 번 눌리면 안 된다.
               */
-              disabled={
-                pending ||
+              disabled={pending}
+              aria-disabled={
                 !isConsentComplete(consent) ||
                 // 키가 없으면 토큰을 요구하지 않는다 — 도입 전에는 지금과 똑같이 동작한다
                 (turnstileEnabled && !botToken)
@@ -477,7 +508,16 @@ export function Landing({
               )}
             </Button>
 
-            <ConsentFields value={consent} onChange={setConsent} disabled={pending} />
+            <ConsentFields
+              value={consent}
+              onChange={(next) => {
+                setConsent(next);
+                // 다 채우면 안내를 스스로 거둔다. 고쳤는데도 빨간 줄이 남으면 안 된다
+                if (isConsentComplete(next)) setShowMissingConsent(false);
+              }}
+              disabled={pending}
+              showMissing={showMissingConsent}
+            />
             {/*
               부모(.emailForm)가 flex-wrap이라 감싸지 않으면 위젯이 입력칸 옆에
               끼어 눌린다. 키가 없는 지금은 아무것도 안 그려져서 티가 안 나므로

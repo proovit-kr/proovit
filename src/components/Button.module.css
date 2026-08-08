@@ -17,6 +17,20 @@
   cursor: not-allowed;
 }
 
+/*
+  `aria-disabled`는 `disabled`와 다르게 다룬다.
+
+  진짜 `disabled`는 클릭 이벤트가 발생하지 않아서 "왜 안 되는지" 말해줄 수
+  없다. 그래서 아직 조건이 안 갖춰진 버튼은 `aria-disabled`로 두고 눌리게
+  둔다 — 누르면 핸들러가 이유를 알려준다.
+
+  따라서 커서는 `not-allowed`가 아니라 `pointer`다. 눌러야 설명을 듣는데
+  못 누르는 것처럼 보이면 그 설명에 영영 닿지 못한다.
+*/
+.btn[aria-disabled="true"] {
+  cursor: pointer;
+}
+
 /* ---- 크기 ---- */
 .sm {
   padding: 8px 16px;
@@ -69,9 +83,24 @@
   border-color: var(--c-lime-35);
   font-weight: 700;
 }
-.soft:hover:not(:disabled) {
+.soft:hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--c-lime-20);
   color: var(--c-lime);
+}
+/*
+  아직 보낼 수 없는 상태. 라임을 거둬 "지금은 아니다"를 먼저 보여주고,
+  이유는 눌렀을 때 말한다.
+
+  글자색이 `--c-text-faint`가 아닌 이유는 대비다. 이 배경(#1a202d) 위에서
+  faint는 3.08:1로 4.5:1에 미달한다. 16px 700은 WCAG 대형 텍스트(18.66px 700)가
+  아니라 예외가 없고, 무엇보다 이 버튼은 실제로 눌리는 버튼이라 "비활성 요소는
+  대비 예외"(WCAG 1.4.3)에도 해당하지 않는다. dim은 5.28:1로 통과한다.
+*/
+.soft:disabled,
+.soft[aria-disabled="true"] {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--c-text-dim);
+  border-color: var(--c-line);
 }
 
 .quiet {

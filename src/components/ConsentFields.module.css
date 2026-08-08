@@ -46,6 +46,26 @@
   flex: 1 1 auto;
 }
 
+/*
+  제출을 눌렀는데 비어 있던 필수 항목.
+
+  빨강(--c-danger)이 아니라 주황(--c-warn)을 쓴다. 이건 이용자가 뭘 틀린 게
+  아니라 아직 안 한 것이라, 오류가 아니라 안내의 톤이어야 한다.
+*/
+.labelInvalid {
+  color: var(--c-warn);
+}
+.checkbox[aria-invalid] {
+  outline: 1px solid var(--c-warn-35);
+  outline-offset: 2px;
+}
+.missing {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--c-warn);
+}
+
 /* [필수]/[선택] 앞머리. 필수를 눈에 띄게 해 선택과 구분한다(D4) */
 .tagRequired {
   color: var(--c-text);
@@ -53,6 +73,10 @@
 }
 .tagOptional {
   color: var(--c-text-dim);
+}
+/* 앞머리 태그도 같이 물들여야 한 줄이 통째로 안내로 읽힌다 */
+.labelInvalid .tagRequired {
+  color: var(--c-warn);
 }
 
 .toggle {

@@ -32,24 +32,42 @@ export const EMPTY_CONSENT: ConsentState = {
   marketing: false,
 };
 
-/** 필수 동의가 모두 채워졌는가. 제출 버튼 활성 조건이다. */
+/** 필수 동의가 모두 채워졌는가. 제출 가능 조건이다. */
 export function isConsentComplete(state: ConsentState): boolean {
   return PREREGISTER_CONSENTS.every((c) => !c.required || state[c.key]);
+}
+
+/** 체크박스 DOM id. 안내를 띄운 뒤 그 항목으로 포커스를 옮길 때 쓴다. */
+const rowId = (key: ConsentItem["key"]) => `consent-${key}`;
+
+/**
+ * 아직 체크되지 않은 첫 필수 항목으로 포커스를 옮긴다.
+ *
+ * 문구로만 알리면 항목이 셋일 때 어느 것인지 찾아야 한다. 포커스까지 옮겨야
+ * "무엇을 해야 하는지"가 한 번에 전달된다.
+ */
+export function focusFirstMissingConsent(state: ConsentState): void {
+  const missing = PREREGISTER_CONSENTS.find((c) => c.required && !state[c.key]);
+  if (!missing) return;
+  document.getElementById(rowId(missing.key))?.focus({ preventScroll: true });
 }
 
 function ConsentRow({
   item,
   checked,
   disabled,
+  invalid,
   onChange,
 }: {
   item: ConsentItem;
   checked: boolean;
   disabled: boolean;
+  /** 제출을 시도했는데 이 필수 항목이 비어 있다 */
+  invalid: boolean;
   onChange: (next: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const id = `consent-${item.key}`;
+  const id = rowId(item.key);
   const detailId = `${id}-detail`;
   const hasDetail = Boolean(item.body || item.table || item.notes);
 
@@ -67,10 +85,15 @@ function ConsentRow({
           className={styles.checkbox}
           checked={checked}
           disabled={disabled}
-          required={item.required}
+          /*
+            `required`를 쓰지 않는다. 브라우저 기본 검증이 걸리면 우리 onSubmit이
+            아예 안 불려서, 어느 항목이 왜 막혔는지 직접 안내할 기회가 사라진다.
+            미동의 접수는 제출 핸들러와 서버(`/api/leads`)가 각각 막는다.
+          */
+          aria-invalid={invalid || undefined}
           onChange={(e) => onChange(e.target.checked)}
         />
-        <label htmlFor={id} className={styles.label}>
+        <label htmlFor={id} className={`${styles.label} ${invalid ? styles.labelInvalid : ""}`}>
           {tag ? (
             <span className={item.required ? styles.tagRequired : styles.tagOptional}>
               {tag}{" "}
@@ -118,10 +141,18 @@ export default function ConsentFields({
   value,
   onChange,
   disabled = false,
+  showMissing = false,
 }: {
   value: ConsentState;
   onChange: (next: ConsentState) => void;
   disabled?: boolean;
+  /**
+   * 필수 동의 없이 제출을 시도했다. 비어 있는 필수 항목을 짚어준다.
+   *
+   * 처음부터 빨갛게 칠하지 않는 이유는, 아직 아무것도 안 한 사람에게 잘못을
+   * 지적하는 화면이 되기 때문이다. 제출을 눌러본 뒤에만 켠다.
+   */
+  showMissing?: boolean;
 }) {
   return (
     <div className={styles.root}>
@@ -131,9 +162,16 @@ export default function ConsentFields({
           item={item}
           checked={value[item.key]}
           disabled={disabled}
+          invalid={showMissing && item.required && !value[item.key]}
           onChange={(next) => onChange({ ...value, [item.key]: next })}
         />
       ))}
+
+      {showMissing && !isConsentComplete(value) ? (
+        <p className={styles.missing} role="alert">
+          필수 항목에 동의해야 사전 신청을 접수할 수 있어요.
+        </p>
+      ) : null}
 
       {/*
         TODO: 개인정보처리방침 링크 자리.
