@@ -84,6 +84,20 @@
 }
 
 /*
+  Turnstile이 `interaction-only`라 평소엔 위젯이 안 보인다. 실패했을 때만
+  이 줄이 나타나 제출 버튼이 잠긴 이유를 설명한다.
+
+  라임을 쓰지 않는다 — 히어로 CTA가 이미 쓰고 있고, 오류는 강조가 아니라
+  설명이라 본문 톤을 유지한다(CLAUDE.md §7).
+*/
+.formError {
+  margin: var(--s-2) 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--c-text-muted);
+}
+
+/*
   CTA를 눌렀는데 폼이 이미 보이고 포커스까지 있으면 화면이 전혀 안 변한다.
   그 경우를 위해 테두리를 한 번만 짚는다.
 

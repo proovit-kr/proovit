@@ -257,6 +257,11 @@ export function Landing({
   const [botToken, setBotToken] = useState<string | null>(null);
   // 토큰은 1회용이다. 제출할 때마다 올려서 위젯을 새로 받게 한다.
   const [botReset, setBotReset] = useState(0);
+  /*
+    Turnstile을 `interaction-only`로 띄워서 평소엔 위젯이 화면에 없다.
+    실패하면 제출 버튼만 조용히 잠기고 이유를 볼 곳이 없으므로 따로 붙인다.
+  */
+  const [botFailed, setBotFailed] = useState(false);
   const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -479,7 +484,19 @@ export function Landing({
               여기서 미리 잡아둔다.
             */}
             <div style={{ flex: "1 0 100%" }}>
-              <Turnstile onToken={setBotToken} resetSignal={botReset} />
+              <Turnstile
+                onToken={(token) => {
+                  setBotToken(token);
+                  if (token) setBotFailed(false);
+                }}
+                onError={() => setBotFailed(true)}
+                resetSignal={botReset}
+              />
+              {botFailed ? (
+                <p className={styles.formError} role="alert">
+                  사람 확인에 실패했어요. 새로고침 후 다시 시도해 주세요.
+                </p>
+              ) : null}
             </div>
           </form>
         </div>

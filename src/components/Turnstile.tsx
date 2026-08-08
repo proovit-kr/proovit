@@ -21,6 +21,7 @@ interface TurnstileApi {
     opts: {
       sitekey: string;
       theme?: "light" | "dark" | "auto";
+      appearance?: "always" | "execute" | "interaction-only";
       callback: (token: string) => void;
       "expired-callback"?: () => void;
       "error-callback"?: () => void;
@@ -43,9 +44,17 @@ export const turnstileEnabled = Boolean(TURNSTILE_SITE_KEY);
 
 export default function Turnstile({
   onToken,
+  onError,
   resetSignal,
 }: {
   onToken: (token: string | null) => void;
+  /**
+   * 위젯이 토큰을 못 받은 채 끝났을 때 불린다.
+   *
+   * `interaction-only`라 위젯이 화면에 없다 — 실패하면 제출 버튼만 말없이 잠긴다.
+   * 이유를 대신 말해줄 곳이 필요해서 따로 뺐다.
+   */
+  onError?: () => void;
   /** 값이 바뀌면 위젯을 초기화한다. 토큰은 1회용이라 제출 후 반드시 새로 받아야 한다. */
   resetSignal: number;
 }) {
@@ -59,9 +68,11 @@ export default function Turnstile({
     때문이다. 아래 콜백들은 사용자 조작 시점에 불리므로 이 순서로 충분하다.
   */
   const onTokenRef = useRef(onToken);
+  const onErrorRef = useRef(onError);
   useEffect(() => {
     onTokenRef.current = onToken;
-  }, [onToken]);
+    onErrorRef.current = onError;
+  }, [onToken, onError]);
 
   useEffect(() => {
     if (!ready || !TURNSTILE_SITE_KEY) return;
@@ -72,10 +83,23 @@ export default function Turnstile({
     widgetIdRef.current = api.render(el, {
       sitekey: TURNSTILE_SITE_KEY,
       theme: "dark",
+      /*
+        정상 트래픽에는 위젯을 그리지 않는다. 검증은 그대로 돌고 토큰도 그대로
+        받되, Cloudflare가 실제로 사람 확인을 요구할 때만 위젯이 나타난다.
+        히어로 폼에 65px짜리 상자를 상시 띄우지 않으려는 판단이다.
+
+        "always"(기본)로 되돌리면 다시 상시 노출된다. 봇 차단 강도는
+        이 옵션과 무관하다 — 관리형 모드의 판정은 동일하게 수행된다.
+      */
+      appearance: "interaction-only",
       callback: (token) => onTokenRef.current(token),
       // 토큰은 유효기간이 있다. 만료되면 없는 것으로 되돌려 제출을 막는다.
+      // 만료는 스스로 다시 받아오므로 실패로 알리지 않는다.
       "expired-callback": () => onTokenRef.current(null),
-      "error-callback": () => onTokenRef.current(null),
+      "error-callback": () => {
+        onTokenRef.current(null);
+        onErrorRef.current?.();
+      },
     });
 
     return () => {
