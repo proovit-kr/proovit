@@ -1,5 +1,19 @@
 import type { Metadata } from "next";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
+
+/*
+  GA4 측정 ID. 없으면 태그를 아예 심지 않는다 —
+  로컬·프리뷰 방문이 운영 집계에 섞이면 되돌릴 방법이 없다.
+
+  수동 gtag 스니펫을 쓰지 않는 이유: App Router는 라우트 이동이 문서 재요청이
+  아니라서 gtag('config')의 자동 page_view가 첫 진입 한 번만 잡힌다.
+  이 컴포넌트는 라우터 이동을 구독해 page_view를 다시 쏜다.
+
+  09 심사 기준서가 유효 방문자를 "GA4 일별 활성 사용자 합"으로 고정했으므로
+  이 숫자가 곧 심사 근거다. 계측 누락은 점수 누락이다.
+*/
+const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
 /*
   OG 카드·정규 URL의 기준이 되는 절대 주소.
@@ -42,6 +56,7 @@ export default function RootLayout({
   return (
     <html lang="ko" className="h-full antialiased">
       <body className="min-h-full flex flex-col">{children}</body>
+      {gaId ? <GoogleAnalytics gaId={gaId} /> : null}
     </html>
   );
 }
