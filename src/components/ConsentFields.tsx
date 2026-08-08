@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { PREREGISTER_CONSENTS, type ConsentItem } from "@/content/consent";
+import { PRIVACY_POLICY } from "@/content/privacy";
 import styles from "./ConsentFields.module.css";
 
 /**
@@ -174,18 +176,23 @@ export default function ConsentFields({
       ) : null}
 
       {/*
-        TODO: 개인정보처리방침 링크 자리.
+        문안 A의 마지막 문장("자세한 내용은 [개인정보처리방침]에서 확인할 수
+        있어요")이 전제하는 링크.
 
-        문안 A는 "자세한 내용은 [개인정보처리방침]에서 확인할 수 있어요"로 끝나고,
-        시행령 제31조 제2항은 첫 화면 하단 지속 게재를 요구한다. 그런데 팀장님
-        방침 문서에 상호·연락처·시행일과 제6·7조(수탁자·국외이전) 표가 비어 있고,
-        같은 문서의 확인목록 1번이 "표가 비면 제28조의8의 동의 갈음 요건이 깨져
-        방침이 무력화됨"이라고 적고 있다. 반쯤 채운 방침을 올리면 안 올린 것보다
-        나쁘므로 값이 확정될 때까지 링크를 걸지 않는다.
-
-        동의 자체는 고지 4요소(목적·항목·기간·거부권)를 이 화면에서 전부
-        보여주므로 링크 없이도 유효하다.
+        방침 본문이 확정되기 전에는 렌더하지 않는다 — 빈칸이 남은 방침은 게재
+        안 한 것보다 나쁘다(content/privacy.ts 주석). 동의 자체는 고지 4요소
+        (목적·항목·기간·거부권)를 이 화면에서 전부 보여주므로 링크 없이도 유효하다.
       */}
+      {PRIVACY_POLICY ? (
+        <p className={styles.policyLink}>
+          자세한 내용은{" "}
+          {/* 새 탭으로 연다 — 같은 탭에서 이동하면 채우던 폼이 날아간다 */}
+          <Link href="/privacy" target="_blank" rel="noopener">
+            개인정보처리방침
+          </Link>
+          에서 확인할 수 있어요.
+        </p>
+      ) : null}
     </div>
   );
 }

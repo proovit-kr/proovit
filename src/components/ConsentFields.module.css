@@ -132,3 +132,17 @@
   font-weight: 600;
 }
 
+.policyLink {
+  margin: var(--s-2) 0 0;
+  font-size: 12px;
+  color: var(--c-text-dim);
+}
+.policyLink a {
+  color: var(--c-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.policyLink a:hover {
+  color: var(--c-lime);
+}
+

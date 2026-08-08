@@ -34,6 +34,16 @@
   color: var(--c-lime);
 }
 
+/*
+  개인정보처리방침은 다른 링크와 구분되게 표시한다 — 표준 개인정보 처리방침
+  작성지침의 권고이자, 급할 때 찾는 사람이 실제로 눈으로 훑어 찾는 항목이다.
+  라임을 쓰지 않는 이유는 §7 — 라임은 한 화면에 한 번만 세게 쓴다.
+*/
+.legal {
+  color: var(--c-text-muted);
+  font-weight: 600;
+}
+
 .social {
   display: flex;
   gap: var(--s-4);

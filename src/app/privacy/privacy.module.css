@@ -1,0 +1,167 @@
+.head {
+  max-width: var(--w-page);
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--s-6) var(--pad-x);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.main {
+  max-width: var(--w-page);
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--rhythm-tight) var(--pad-x) var(--rhythm);
+  flex: 1;
+}
+
+/*
+  §6 폭 규칙 — 박스(.main)는 폭을 다 쓰고 읽기 폭 제한은 텍스트에만 건다.
+  법령 문서라 한 문장이 길다. 70ch를 넘기면 다음 줄 첫 글자를 놓친다.
+*/
+.main p,
+.list {
+  max-width: 70ch;
+}
+
+.title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--c-text-strong);
+}
+
+/*
+  시행일은 장식이 아니라 법정 기재사항이다(제18조 ①). 어느 버전에 동의했는지를
+  가리는 근거라 제목 바로 아래 고정 위치에 둔다.
+*/
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-5);
+  margin: var(--s-4) 0 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.meta dt {
+  color: var(--c-text-faint);
+}
+.meta dd {
+  margin: 0;
+  color: var(--c-text-muted);
+}
+.meta dt::after {
+  content: "";
+}
+
+.preamble {
+  margin: var(--s-6) 0 0;
+  color: var(--c-text-muted);
+  line-height: 1.75;
+}
+
+.summary {
+  margin-top: var(--rhythm-tight);
+}
+.summary h2 {
+  margin: 0 0 var(--s-4);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--c-text-strong);
+}
+
+.toc {
+  margin-top: var(--s-10);
+  padding: var(--s-5) 0;
+  border-top: 1px solid var(--c-line);
+  border-bottom: 1px solid var(--c-line);
+}
+.toc ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--s-2) var(--s-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.toc a {
+  color: var(--c-text-dim);
+}
+.toc a:hover {
+  color: var(--c-lime);
+}
+
+.article {
+  margin-top: var(--s-14);
+  /* 스크롤 앵커로 뛰었을 때 제목이 화면 맨 위에 붙어버리지 않게 */
+  scroll-margin-top: var(--s-8);
+}
+.article h2 {
+  margin: 0 0 var(--s-4);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--c-text-strong);
+}
+.article p {
+  margin: 0 0 var(--s-3);
+  color: var(--c-text-muted);
+  line-height: 1.8;
+}
+
+.list {
+  margin: 0 0 var(--s-3);
+  padding-left: 1.4em;
+  color: var(--c-text-muted);
+  line-height: 1.8;
+}
+.list li {
+  margin-bottom: var(--s-1);
+}
+
+/*
+  표는 자기 안에서만 가로로 스크롤한다. 페이지 본문이 가로로 밀리면
+  좁은 화면에서 읽기가 통째로 망가진다.
+*/
+.tableWrap {
+  margin: var(--s-4) 0 var(--s-5);
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 460px;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.table th,
+.table td {
+  padding: var(--s-3) var(--s-4);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--c-line);
+}
+.table th {
+  color: var(--c-text-dim);
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom-color: var(--c-line-3);
+}
+.table td {
+  color: var(--c-text-muted);
+}
+
+.tableNote {
+  margin: var(--s-3) 0 0;
+  font-size: 12px;
+  color: var(--c-text-faint);
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding-top: var(--s-10);
+  }
+  .title {
+    font-size: 26px;
+  }
+}
