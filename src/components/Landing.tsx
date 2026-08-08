@@ -20,6 +20,7 @@ import { NavBar } from "./NavBar";
 import { StageTrack } from "./StageProgress";
 import { InfoStrip, StatCounter, type StatItem } from "./StatCounter";
 import { Toast, useToast } from "./Toast";
+import Turnstile, { turnstileEnabled } from "./Turnstile";
 import styles from "./Landing.module.css";
 
 import {
@@ -253,6 +254,9 @@ export function Landing({
 
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState<ConsentState>(EMPTY_CONSENT);
+  const [botToken, setBotToken] = useState<string | null>(null);
+  // 토큰은 1회용이다. 제출할 때마다 올려서 위젯을 새로 받게 한다.
+  const [botReset, setBotReset] = useState(0);
   const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -335,17 +339,21 @@ export function Landing({
           privacyConsent: consent.privacy,
           ageConfirmed: consent.age,
           marketingOptIn: consent.marketing,
+          turnstileToken: botToken ?? undefined,
         }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
         show(body?.message ?? "신청에 실패했어요. 잠시 후 다시 시도해주세요.");
+        // 실패해도 토큰은 이미 소모됐다. 새로 받지 않으면 다시 눌러도 계속 막힌다.
+        setBotReset((n) => n + 1);
         return;
       }
       setEmail("");
       // 동의도 함께 비운다. 남겨두면 다음 사람이 체크된 화면을 보게 되고,
       // 그건 "자유로운 의사에 따른 결정"(D1 ①)이 아니다.
       setConsent(EMPTY_CONSENT);
+      setBotReset((n) => n + 1);
       setCount((n) => n + 1);
       setSubmitted(true);
       show("✓ 사전 신청 완료! 시즌 소식을 보내드릴게요.");
@@ -434,7 +442,12 @@ export function Landing({
                 필수 동의 전에는 제출할 수 없다(D7의 "체크 없이는 버튼 비활성").
                 서버도 같은 조건을 다시 막으므로 이건 편의이지 방어선이 아니다.
               */
-              disabled={pending || !isConsentComplete(consent)}
+              disabled={
+                pending ||
+                !isConsentComplete(consent) ||
+                // 키가 없으면 토큰을 요구하지 않는다 — 도입 전에는 지금과 똑같이 동작한다
+                (turnstileEnabled && !botToken)
+              }
             >
               {submitted ? (
                 <svg width="20" height="20" viewBox="0 0 20 20" aria-label="완료">
@@ -460,6 +473,14 @@ export function Landing({
             </Button>
 
             <ConsentFields value={consent} onChange={setConsent} disabled={pending} />
+            {/*
+              부모(.emailForm)가 flex-wrap이라 감싸지 않으면 위젯이 입력칸 옆에
+              끼어 눌린다. 키가 없는 지금은 아무것도 안 그려져서 티가 안 나므로
+              여기서 미리 잡아둔다.
+            */}
+            <div style={{ flex: "1 0 100%" }}>
+              <Turnstile onToken={setBotToken} resetSignal={botReset} />
+            </div>
           </form>
         </div>
 

@@ -7,6 +7,7 @@ import {
 } from "@/content/consent";
 import { prisma } from "@/lib/prisma";
 import { getClientIp, limitByIp } from "@/lib/ratelimit";
+import { verifyTurnstile } from "@/lib/turnstile";
 import { getCurrentSeason } from "@/lib/season";
 
 /*
@@ -15,8 +16,11 @@ import { getCurrentSeason } from "@/lib/season";
   사전신청 이메일 수집. 시즌1 KPI#1(실측 신청자 수·전환율)의 유일한 원천이고,
   '모두의 창업 2기' 지원서에 들어갈 수요 검증 근거다.
 
-  IP 레이트리밋은 구현됐다(06 §12). 같은 조항이 요구하는 **Turnstile은 아직 없다** —
-  레이트리밋만으로는 분산 IP 봇을 막지 못하므로, 랜딩을 널리 홍보하기 전에 붙여야 한다.
+  06 §12가 요구하는 IP 레이트리밋과 Turnstile이 모두 붙어 있다. 레이트리밋은 한 IP의
+  연사만 막으므로 분산 IP 봇은 Turnstile이 맡는다.
+
+  다만 **Turnstile은 키가 설정된 뒤부터 실제로 작동한다** — `TURNSTILE_SECRET_KEY`가
+  없으면 검증을 건너뛴다. 키를 넣기 전까지는 레이트리밋 한 겹뿐이다.
 */
 
 /*
@@ -36,14 +40,18 @@ const bodySchema = z.object({
   }),
   /* 선택 동의. 기본값은 미동의이고, 미동의로도 접수된다(D5). */
   marketingOptIn: z.boolean().default(false),
+  /* Turnstile 토큰. 키가 설정되기 전까지는 없어도 통과한다 */
+  turnstileToken: z.string().max(2048).optional(),
   utmSource: z.string().max(120).optional(),
   utmMedium: z.string().max(120).optional(),
   utmCampaign: z.string().max(120).optional(),
 });
 
 export async function POST(request: NextRequest) {
+  const clientIp = getClientIp(request);
+
   // 가장 먼저 본다. 본문 파싱도 DB 조회도 하기 전에 끊는 것이 가장 싸다.
-  const { success, retryAfterSeconds } = await limitByIp(getClientIp(request));
+  const { success, retryAfterSeconds } = await limitByIp(clientIp);
   if (!success) {
     return Response.json(
       {
@@ -73,6 +81,19 @@ export async function POST(request: NextRequest) {
       },
       { status: 400 },
     );
+  }
+
+  /*
+    봇 검증은 동의·형식 검증 다음, DB 조회 앞에 둔다. 형식이 틀린 요청에까지
+    Cloudflare를 왕복할 이유가 없고, 반대로 DB를 건드리기 전에는 끝나야 한다.
+  */
+  const bot = await verifyTurnstile(parsed.data.turnstileToken, clientIp);
+  if (!bot.ok) {
+    const message =
+      bot.reason === "UNAVAILABLE"
+        ? "확인 절차를 완료하지 못했어요. 잠시 후 다시 시도해주세요."
+        : "사람인지 확인이 필요해요. 확인란을 완료한 뒤 다시 눌러주세요.";
+    return Response.json({ error: "BOT_CHECK_FAILED", message }, { status: 403 });
   }
 
   const season = await getCurrentSeason();
