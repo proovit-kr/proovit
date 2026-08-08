@@ -10,6 +10,11 @@ import {
 
 import { Accordion } from "./Accordion";
 import { Button, LinkButton } from "./Button";
+import ConsentFields, {
+  EMPTY_CONSENT,
+  isConsentComplete,
+  type ConsentState,
+} from "./ConsentFields";
 import { Footer } from "./Footer";
 import { NavBar } from "./NavBar";
 import { StageTrack } from "./StageProgress";
@@ -247,6 +252,7 @@ export function Landing({
   const kickoff = useCountdown(startAt ?? "");
 
   const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState<ConsentState>(EMPTY_CONSENT);
   const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -324,7 +330,12 @@ export function Landing({
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          privacyConsent: consent.privacy,
+          ageConfirmed: consent.age,
+          marketingOptIn: consent.marketing,
+        }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
@@ -332,6 +343,9 @@ export function Landing({
         return;
       }
       setEmail("");
+      // 동의도 함께 비운다. 남겨두면 다음 사람이 체크된 화면을 보게 되고,
+      // 그건 "자유로운 의사에 따른 결정"(D1 ①)이 아니다.
+      setConsent(EMPTY_CONSENT);
       setCount((n) => n + 1);
       setSubmitted(true);
       show("✓ 사전 신청 완료! 시즌 소식을 보내드릴게요.");
@@ -416,7 +430,11 @@ export function Landing({
               variant="soft"
               size="lg"
               style={{ minWidth: 118 }}
-              disabled={pending}
+              /*
+                필수 동의 전에는 제출할 수 없다(D7의 "체크 없이는 버튼 비활성").
+                서버도 같은 조건을 다시 막으므로 이건 편의이지 방어선이 아니다.
+              */
+              disabled={pending || !isConsentComplete(consent)}
             >
               {submitted ? (
                 <svg width="20" height="20" viewBox="0 0 20 20" aria-label="완료">
@@ -440,6 +458,8 @@ export function Landing({
                 "시즌 소식 받기"
               )}
             </Button>
+
+            <ConsentFields value={consent} onChange={setConsent} disabled={pending} />
           </form>
         </div>
 

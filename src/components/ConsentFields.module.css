@@ -1,0 +1,110 @@
+/*
+  사전 신청 동의 블록.
+
+  §7("AI 티 피하기")을 따라 상자를 쓰지 않는다. 폼과의 경계는 괘선 하나로만 긋고,
+  나머지는 여백과 글자 크기로 나눈다. 라임은 히어로 CTA가 이미 쓰고 있으므로
+  여기서는 쓰지 않는다 — 한 화면에 한 번만.
+*/
+.root {
+  /*
+    부모(.emailForm)가 flex-wrap 이라 그냥 두면 이 블록이 입력칸·버튼과
+    같은 줄에 끼어 들어간다. 100%를 기준 폭으로 잡아 항상 제 줄을 차지하게 한다.
+  */
+  flex: 1 0 100%;
+  margin-top: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+
+/*
+  체크박스는 브라우저 기본을 쓴다. 커스텀 박스를 그리면 키보드 포커스 링과
+  스크린리더 상태 전달을 직접 떠맡게 되는데, 동의 UI에서 그걸 잘못 만들면
+  "동의 여부를 명확하게 표시할 수 있는 방법"(D1 ④)을 해치는 쪽이 된다.
+*/
+.checkbox {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--c-lime);
+  cursor: pointer;
+}
+
+.label {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  /* 라벨과 펼침 버튼이 한 줄에 붙되, 좁아지면 자연스럽게 접히도록 */
+  flex: 1 1 auto;
+}
+
+/* [필수]/[선택] 앞머리. 필수를 눈에 띄게 해 선택과 구분한다(D4) */
+.tagRequired {
+  color: var(--c-text);
+  font-weight: 600;
+}
+.tagOptional {
+  color: var(--c-text-dim);
+}
+
+.toggle {
+  flex: none;
+  background: none;
+  border: none;
+  padding: 0 0 0 var(--s-1);
+  font: inherit;
+  font-size: 12px;
+  color: var(--c-text-dim);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.toggle:hover {
+  color: var(--c-text);
+}
+
+/* 펼친 본문. 체크박스 폭 + gap 만큼 들여써서 라벨과 세로선을 맞춘다 */
+.detail {
+  margin: var(--s-1) 0 var(--s-3) calc(16px + var(--s-2));
+  padding-left: var(--s-3);
+  border-left: 1px solid var(--c-line-2);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--c-text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.detail dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s-1) var(--s-3);
+  margin: 0;
+}
+.detail dt {
+  color: var(--c-text-faint);
+  white-space: nowrap;
+}
+.detail dd {
+  margin: 0;
+  color: var(--c-text-muted);
+}
+
+/*
+  보유·이용 기간은 법이 "중요한 내용"으로 지정해 본문과 시각적으로 구분할 것을
+  요구한다(D3 — 개인정보 보호법 제22조 제2항, 시행령 제17조 제3항).
+*/
+.important {
+  color: var(--c-text-strong);
+  font-weight: 600;
+}
+
