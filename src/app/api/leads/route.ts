@@ -89,6 +89,25 @@ export async function POST(request: NextRequest) {
   */
   const bot = await verifyTurnstile(parsed.data.turnstileToken, clientIp);
   if (!bot.ok) {
+    /*
+      MISCONFIGURED는 우리 잘못이다 — 시크릿이 틀렸거나 비어 있다. 사용자는
+      무엇을 해도 통과할 수 없으므로 "확인란을 완료하라"고 하면 안 된다.
+      500을 주는 것도 그래서다: 클라이언트 오류가 아니라 서버 설정 오류이고,
+      상태 코드로 남겨야 나중에 원인을 되짚을 수 있다.
+    */
+    if (bot.reason === "MISCONFIGURED") {
+      console.error(
+        "[turnstile] 시크릿 키가 유효하지 않습니다. TURNSTILE_SECRET_KEY를 확인하세요.",
+      );
+      return Response.json(
+        {
+          error: "BOT_CHECK_MISCONFIGURED",
+          message: "일시적인 오류예요. 잠시 후 다시 시도해주세요.",
+        },
+        { status: 500 },
+      );
+    }
+
     const message =
       bot.reason === "UNAVAILABLE"
         ? "확인 절차를 완료하지 못했어요. 잠시 후 다시 시도해주세요."
