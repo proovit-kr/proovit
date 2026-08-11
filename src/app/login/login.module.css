@@ -1,0 +1,84 @@
+/*
+  로그인 화면.
+
+  §7 "AI 티 피하기"에 따라 카드 상자를 쓰지 않는다. 화면에 요소가 몇 개
+  없어서 상자를 두르면 그 상자가 화면의 주인공이 된다 — 여백과 괘선으로 나눈다.
+  §6 폭 규칙: 박스는 폭을 다 쓰고 읽기 폭 제한은 텍스트에만 건다.
+*/
+
+.page {
+  /* 로그인은 스크롤될 내용이 없다. 화면 가운데에서 만나는 게 자연스럽다. */
+  justify-content: center;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s-6);
+  padding-block: var(--s-10);
+  max-width: 420px;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.title {
+  margin: var(--s-4) 0 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--c-text-strong);
+}
+
+.lead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--c-text-muted);
+  max-width: 34ch;
+}
+
+.providers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  /* 괘선 하나로 머리말과 행동을 가른다. 상자를 두르는 것보다 조용하다. */
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--c-line);
+}
+
+.error {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-left: 2px solid var(--c-warn);
+  background: var(--c-surface);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--c-text);
+}
+
+.empty {
+  margin: 0;
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--c-line);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--c-text-dim);
+}
+
+.note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  /*
+    --c-text-faint는 이 배경에서 대비가 모자란다(3.08:1).
+    12px는 WCAG 대형 텍스트가 아니라 4.5:1이 필요하다 → --c-text-dim(5.28:1).
+  */
+  color: var(--c-text-dim);
+  max-width: 38ch;
+}

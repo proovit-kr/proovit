@@ -4,23 +4,17 @@ import Google from "next-auth/providers/google";
 import Kakao from "next-auth/providers/kakao";
 
 import { ProovitAdapter } from "@/lib/auth-adapter";
+import { isProviderConfigured } from "@/lib/auth-providers";
 
 /*
-  제공자를 환경변수가 있을 때만 등록한다.
-
-  Turnstile·개인정보처리방침과 같은 방식이다 — 키가 없으면 그 기능이 통째로 빠지고
-  나머지는 지금과 똑같이 동작한다. 카카오·구글 앱 등록은 아직이라, 이렇게 두지 않으면
-  키가 생기기 전까지 배포가 깨진다. 키를 넣는 순간 버튼이 생긴다.
+  켜져 있는 제공자만 등록한다. 판정은 auth-providers.ts 한 곳에서 하고
+  /login 화면도 같은 목록을 읽는다 — 따로 두면 버튼과 실제 제공자가 어긋난다.
 */
 function configuredProviders(): Provider[] {
   const providers: Provider[] = [];
 
-  if (process.env.AUTH_KAKAO_ID && process.env.AUTH_KAKAO_SECRET) {
-    providers.push(Kakao);
-  }
-  if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
-    providers.push(Google);
-  }
+  if (isProviderConfigured("kakao")) providers.push(Kakao);
+  if (isProviderConfigured("google")) providers.push(Google);
 
   return providers;
 }
@@ -66,6 +60,3 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   */
   trustHost: true,
 });
-
-/** 제공자가 하나도 없으면 로그인 화면이 버튼 없이 뜬다 — 화면 쪽에서 이 값으로 안내를 바꾼다. */
-export const hasAuthProviders = configuredProviders().length > 0;
