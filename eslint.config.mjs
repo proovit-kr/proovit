@@ -16,6 +16,11 @@ const eslintConfig = defineConfig([
     "legacy/**",
     // Prisma 생성물
     "src/generated/**",
+    // Cloudflare Workers 빌드 산출물 (spike/cloudflare-workers 브랜치에서 생긴다).
+    // .gitignore에도 있지만 eslint는 gitignore를 보지 않아 따로 적어야 한다 —
+    // 안 적으면 남의 번들이 린트 에러 480건을 만들어 우리 코드 문제를 덮는다.
+    ".open-next/**",
+    ".wrangler/**",
   ]),
 ]);
 
