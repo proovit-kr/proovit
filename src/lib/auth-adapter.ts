@@ -58,6 +58,21 @@ const USER_SELECT = {
 export function ProovitAdapter(): Adapter {
   return {
     async createUser(user) {
+      /*
+        제공자가 이메일을 주지 않는 경우가 실제로 있다 — 카카오는 「카카오계정(이메일)」
+        동의항목이 비즈 앱 + 비즈니스 정보 심사를 통과해야 열린다(2026-08-12 확인).
+
+        여기서 막지 않으면 Prisma NOT NULL 위반이 그대로 올라가 사용자에게는
+        원인을 알 수 없는 오류 화면만 뜬다. 무엇보다 이메일을 가짜값으로 채우는
+        우회를 하면 안 된다 — 마감 통지가 조용히 실패하는데 그 통지가 분쟁의 근거다.
+      */
+      if (!user.email) {
+        throw new Error(
+          "이메일을 주지 않는 제공자로는 가입할 수 없습니다. " +
+            "해당 제공자의 이메일 제공 권한을 먼저 확보하세요.",
+        );
+      }
+
       const name = provisionalName(user.name, user.email);
       const created = await prisma.user.create({
         // id는 넘기지 않는다. gen_random_uuid()가 정본이다.
