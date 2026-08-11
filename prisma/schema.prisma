@@ -22,7 +22,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
   // Prisma 7부터 url·directUrl은 이 파일에 둘 수 없다. prisma.config.ts가 정본이다.
   // 런타임은 pooled 주소(DATABASE_URL), 마이그레이션은 direct 주소(DIRECT_URL)를 쓴다.
   // citext = 대소문자 구분 없는 텍스트. 이메일에 쓴다.
@@ -58,7 +58,7 @@ model Season {
 
   /// 시즌별 화면 on/off. 전 화면을 개발하되 플래그로 차단한다(06 §4.4).
   /// off인 라우트는 네비게이션에서 숨기고 직접 접근 시 404를 준다.
-  featureFlags Json @default("{}") @map("feature_flags")
+  featureFlags  Json @default("{}") @map("feature_flags")
   /// 채점 가중치·상한. 시즌마다 바뀌므로 컬럼이 아니라 JSONB다.
   /// 읽는 쪽에서 반드시 Zod로 검증한다 — 오타가 런타임에 터지지 않도록.
   scoringConfig Json @default("{}") @map("scoring_config")
@@ -70,7 +70,8 @@ model Season {
   startAt        DateTime? @map("start_at") @db.Timestamptz(6)
   endAt          DateTime? @map("end_at") @db.Timestamptz(6)
 
-  leads Lead[]
+  leads     Lead[]
+  userRoles UserRole[]
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -105,18 +106,16 @@ model Lead {
   /// 모집 오픈 시 1순위 알림 대상. 발송 후 시각을 남긴다.
   notifiedAt DateTime? @map("notified_at") @db.Timestamptz(6)
 
-  /*
-    동의 로그 — 운영규칙서 D8이 "동의 일시·문안 버전·식별값"의 서버 저장을 요구한다.
-    동의 사실의 입증 책임이 회사에 있으므로 문안이 개정돼도 "그때 무엇에 동의했는지"가
-    남아야 한다. 그래서 불리언이 아니라 버전 문자열을 박는다.
-
-    필수 동의(개인정보 수집·이용, 만14세)는 없으면 리드가 생성되지 않는다.
-    따라서 동의 일시는 createdAt이 곧 정답이고 별도 컬럼을 두지 않는다.
-
-    식별값으로 IP를 쓰지 않는 이유: 문안 A의 수집 항목이 이메일 하나뿐이라
-    IP를 저장하면 문안에 없는 항목을 수집하게 되어 최소수집 위반이 된다
-    (운영규칙서 게시 전 확인목록 3). 식별값은 이미 저장 중인 email로 갈음한다.
-  */
+  /**
+   * 동의 로그 — 운영규칙서 D8이 "동의 일시·문안 버전·식별값"의 서버 저장을 요구한다.
+   * 동의 사실의 입증 책임이 회사에 있으므로 문안이 개정돼도 "그때 무엇에 동의했는지"가
+   * 남아야 한다. 그래서 불리언이 아니라 버전 문자열을 박는다.
+   * 필수 동의(개인정보 수집·이용, 만14세)는 없으면 리드가 생성되지 않는다.
+   * 따라서 동의 일시는 createdAt이 곧 정답이고 별도 컬럼을 두지 않는다.
+   * 식별값으로 IP를 쓰지 않는 이유: 문안 A의 수집 항목이 이메일 하나뿐이라
+   * IP를 저장하면 문안에 없는 항목을 수집하게 되어 최소수집 위반이 된다
+   * (운영규칙서 게시 전 확인목록 3). 식별값은 이미 저장 중인 email로 갈음한다.
+   */
 
   /// 동의한 「개인정보 수집·이용 동의문」 문안 A의 버전. 필수라 항상 값이 있다.
   privacyConsentVersion String @map("privacy_consent_version") @db.VarChar(20)
@@ -124,15 +123,15 @@ model Lead {
   /// 만 14세 이상 확인(필수). 14세 미만은 법정대리인 동의 체계가 없어 접수 자체를 막는다.
   ageConfirmed Boolean @map("age_confirmed")
 
-  /*
-    마케팅 수신 동의(선택). 기본 해제이며 미동의로도 접수된다(D5).
-    철회 시점을 남겨야 정보통신망법 제50조의 "즉시 전송 중단"을 입증할 수 있어서
-    on/off 불리언과 시각을 함께 둔다. 2년 주기 재확인(M7)의 기준일도 optInAt이다.
-  */
-  marketingOptIn      Boolean   @default(false) @map("marketing_opt_in")
-  marketingOptInAt    DateTime? @map("marketing_opt_in_at") @db.Timestamptz(6)
-  marketingOptOutAt   DateTime? @map("marketing_opt_out_at") @db.Timestamptz(6)
-  marketingConsentVersion String? @map("marketing_consent_version") @db.VarChar(20)
+  /**
+   * 마케팅 수신 동의(선택). 기본 해제이며 미동의로도 접수된다(D5).
+   * 철회 시점을 남겨야 정보통신망법 제50조의 "즉시 전송 중단"을 입증할 수 있어서
+   * on/off 불리언과 시각을 함께 둔다. 2년 주기 재확인(M7)의 기준일도 optInAt이다.
+   */
+  marketingOptIn          Boolean   @default(false) @map("marketing_opt_in")
+  marketingOptInAt        DateTime? @map("marketing_opt_in_at") @db.Timestamptz(6)
+  marketingOptOutAt       DateTime? @map("marketing_opt_out_at") @db.Timestamptz(6)
+  marketingConsentVersion String?   @map("marketing_consent_version") @db.VarChar(20)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -140,4 +139,181 @@ model Lead {
   @@unique([seasonId, email])
   @@index([createdAt])
   @@map("leads")
+}
+
+// ═════════════════════════════════════════════════════════════
+// A. 인증 · 권한 — 명세서 종결본(2026-08-11, 39테이블/21ENUM) A절 이식분
+//
+// 종결본 전체가 아니라 A절만 먼저 넣는다. 지표·심사 계열(F·E절)은 심사 기준
+// 정본이 세 문서로 갈라져 있어 8/17 회의 결과에 종속되지만, 인증·권한은
+// 어느 결론에도 걸리지 않아 지금 확정할 수 있다.
+//
+// 컬럼 정의는 명세서 종결본을 그대로 따른다. 문법만 Prisma 7로 옮겼다
+// (generator·datasource는 이 레포 것을 쓴다 — 종결본은 Prisma 6 문법이다).
+// ═════════════════════════════════════════════════════════════
+
+/// 동의 종류. 하나의 append-only 로그에 다 담기므로 종류로 구분한다.
+enum ConsentType {
+  terms
+  privacy
+  marketing
+  /// 지표 공개 동의 — 리더보드에 우리 팀 숫자가 뜨는 것에 대한 동의
+  metrics_public
+  /// 증빙 자료 제출·보관 동의
+  evidence
+  /// 상호 테스터 참여 동의
+  tester
+}
+
+model User {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email    String @unique @db.Citext
+  name     String @db.VarChar(60)
+  /// 리더보드·참가작 페이지에 노출되는 이름. 실명(name)과 분리한다.
+  nickname String @db.VarChar(60)
+
+  /// 자체 회원가입용. null = 소셜 전용 계정.
+  /// 06 §12는 "OAuth 2종만"으로 유출 표면을 줄이는 설계였는데 자체 가입이
+  /// 추가되면서 그 근거가 무효화된다 — 동혁이 명세서에 "원칙 변경 보고 필요"로
+  /// 표시했고 8/17 회의 안건이다. 컬럼은 두되 화면 도입은 회의 후에 결정한다.
+  passwordHash String? @map("password_hash")
+
+  /// 알림톡 발송처. 카카오 알림톡은 심사가 필요해 시즌1 도입은 미정이다.
+  phone     String? @db.VarChar(20)
+  avatarUrl String? @map("avatar_url")
+
+  /// 마케팅 동의와 별개인 서비스 알림(마감 통지·판정 결과).
+  /// 마감 통지는 분쟁의 근거가 되므로 끄더라도 법정 통지는 별도로 나간다.
+  notifyEmail    Boolean @default(true) @map("notify_email")
+  /// phone이 null이면 발송 불가
+  notifyAlimtalk Boolean @default(false) @map("notify_alimtalk")
+
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(6)
+  /// 추가정보 입력 완료 시각. null이면 온보딩 화면을 다시 띄운다.
+  onboardedAt     DateTime? @map("onboarded_at") @db.Timestamptz(6)
+
+  oauthAccounts OauthAccount[]
+  sessions      Session[]
+  userRoles     UserRole[]
+  consents      Consent[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("users")
+}
+
+model OauthAccount {
+  id                String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String @map("user_id") @db.Uuid
+  /// kakao / google
+  provider          String @db.VarChar(20)
+  /// 소셜 제공자가 그 사용자에게 붙인 고유 번호
+  providerAccountId String @map("provider_account_id") @db.VarChar(255)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+/// 역할을 enum이 아니라 테이블로 두는 이유: 심사위원·스폰서처럼 시즌마다
+/// 생기고 사라지는 역할이 있어서, 값을 추가할 때 마이그레이션이 필요하면 안 된다.
+model Role {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// participant / admin / mentor / judge / sponsor — 코드가 읽는 값
+  key         String  @unique @db.VarChar(30)
+  /// 사람이 읽는 표시명
+  name        String  @db.VarChar(60)
+  description String?
+
+  userRoles UserRole[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("roles")
+}
+
+model UserRole {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId   String  @map("user_id") @db.Uuid
+  roleId   String  @map("role_id") @db.Uuid
+  /// null = 전역 역할(시즌과 무관한 운영자).
+  /// 시즌 종속 테이블은 seasonId를 갖는다는 규칙의 유일한 예외다 —
+  /// 운영자 권한이 시즌마다 끊기면 시즌 사이에 아무도 못 들어온다.
+  seasonId String? @map("season_id") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id])
+
+  /// ⚠️ Cascade여야 한다. Prisma 기본값(SET NULL)을 쓰면 시즌이 지워질 때
+  /// season_id가 null이 되는데, 이 표에서 null은 "전역 역할"을 뜻한다.
+  /// 즉 시즌1 심사위원이 조용히 전 시즌 심사위원으로 승격된다.
+  /// 권한이 좁아지는 게 아니라 넓어지는 방향의 사고라 기본값을 그대로 두면 안 된다.
+  season Season? @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([userId, roleId, seasonId])
+  @@map("user_roles")
+}
+
+/// Auth.js DB 세션. JWT를 쓰지 않는 이유는 실격 시 즉시 무효화가 요건이기
+/// 때문이다 — JWT는 만료 전까지 서버가 회수할 수 없다.
+model Session {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id") @db.Uuid
+  expires      DateTime @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+/// 이메일 인증·비밀번호 재설정 토큰.
+/// 가입 전에도 발급되므로 users.id를 참조하지 않는다(참조할 행이 아직 없다).
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime @db.Timestamptz(6)
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}
+
+/// append-only 로그. 같은 (user, type)에 여러 행이 쌓이고 가장 최근 행이 최종 상태다.
+/// 철회를 UPDATE로 덮으면 "그때 무엇에 동의했는지"가 사라져 입증이 불가능해진다.
+///
+/// ⚠️ 비로그인 사전신청자의 동의는 이 표에 들어가지 않는다 — userId가 필수라서다.
+/// 그쪽은 leads의 privacyConsentVersion·marketingConsentVersion이 담당한다.
+model Consent {
+  id      String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId  String      @map("user_id") @db.Uuid
+  type    ConsentType
+  /// 동의 = true, 철회 = false
+  granted Boolean
+  /// 동의한 문안의 버전. 문안이 개정되면 D6에 따라 재동의를 받는다.
+  version String?     @db.VarChar(20)
+
+  /// 동의 증빙. 참가신청 동의문은 수집 항목이 이메일 하나보다 넓으므로
+  /// leads와 달리 IP 해시를 남길 수 있다(원문은 절대 저장하지 않는다).
+  ipHash    String? @map("ip_hash") @db.VarChar(64)
+  userAgent String? @map("user_agent")
+
+  /// 참가 시점 동의(null = 계정 동의).
+  /// entries 테이블이 아직 없어 외래키를 걸지 않았다. Entry를 넣을 때 관계를 추가한다.
+  entryId String? @map("entry_id") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId, type])
+  @@map("consents")
 }
