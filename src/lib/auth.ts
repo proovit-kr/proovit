@@ -5,6 +5,7 @@ import Kakao from "next-auth/providers/kakao";
 
 import { ProovitAdapter } from "@/lib/auth-adapter";
 import { isProviderConfigured } from "@/lib/auth-providers";
+import { prisma } from "@/lib/prisma";
 
 /*
   켜져 있는 제공자만 등록한다. 판정은 auth-providers.ts 한 곳에서 하고
@@ -14,7 +15,27 @@ function configuredProviders(): Provider[] {
   const providers: Provider[] = [];
 
   if (isProviderConfigured("kakao")) providers.push(Kakao);
-  if (isProviderConfigured("google")) providers.push(Google);
+
+  if (isProviderConfigured("google")) {
+    providers.push(
+      Google({
+        /*
+          구글이 주는 email_verified 클레임을 여기서 실어 보낸다.
+          이 값을 쓰는 곳은 아래 events.linkAccount다 — createUser가 아니다.
+          이유는 그쪽 주석에 있다.
+        */
+        profile(profile) {
+          return {
+            id: profile.sub,
+            name: profile.name,
+            email: profile.email,
+            image: profile.picture,
+            emailVerified: profile.email_verified ? new Date() : null,
+          };
+        },
+      }),
+    );
+  }
 
   return providers;
 }
@@ -51,6 +72,37 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     session({ session, user }) {
       session.user.id = user.id;
       return session;
+    },
+  },
+
+  events: {
+    /*
+      소셜 가입자의 이메일 인증 상태를 여기서 남긴다.
+
+      ⚠️ provider의 profile()에서 emailVerified를 채워도 소용이 없다.
+      Auth.js가 신규 OAuth 가입에서 `createUser({ ...profile, emailVerified: null })`로
+      **강제로 덮어쓴다**(@auth/core handle-login.js). 그 필드는 Email 제공자 전용이라는
+      전제로 짜여 있어서다. 그래서 계정이 연결된 직후인 이 이벤트에서 바로잡는다.
+
+      안 하면 users.email_verified_at이 영원히 비어서 **구글로 가입한 사람 전원이
+      미인증 상태**가 된다. 나중에 인증을 조건으로 거는 화면이 생기면 한 명도 통과 못 한다.
+
+      linkAccount는 계정이 **새로 연결될 때만** 불린다. 재로그인마다 쓰기가 생기지 않는다.
+    */
+    async linkAccount({ user, profile }) {
+      const verified =
+        "emailVerified" in profile ? profile.emailVerified : null;
+      if (!verified) return;
+
+      /*
+        updateMany + emailVerifiedAt: null 조건인 이유 — 이미 인증된 사용자가
+        소셜 계정을 하나 더 붙일 때 최초 인증 시각을 덮어쓰지 않기 위함이다.
+        "언제 인증됐나"는 분쟁에서 근거가 되는 값이라 뒤로 밀면 안 된다.
+      */
+      await prisma.user.updateMany({
+        where: { id: user.id, emailVerifiedAt: null },
+        data: { emailVerifiedAt: verified },
+      });
     },
   },
 
