@@ -1,0 +1,97 @@
+/*
+  온보딩 화면. /login과 같은 골격을 쓴다 — 로그인 직후 바로 이어지는 화면이라
+  두 화면의 머리말 위치와 폭이 어긋나면 화면이 튄 것처럼 보인다.
+
+  §7 "AI 티 피하기": 카드 상자를 두르지 않는다. 요소가 몇 개 없어서 상자를
+  쓰면 그 상자가 주인공이 된다 — 괘선과 여백으로 나눈다.
+*/
+
+.page {
+  justify-content: center;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s-6);
+  padding-block: var(--s-10);
+  max-width: 420px;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.title {
+  margin: var(--s-4) 0 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--c-text-strong);
+}
+
+.lead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--c-text-muted);
+  max-width: 34ch;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  /* /login의 .providers와 같은 괘선. 머리말과 입력을 가른다. */
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--c-line);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text-strong);
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  /*
+    --c-text-faint는 이 배경에서 3.08:1이라 모자란다. 12px는 WCAG 대형 텍스트가
+    아니라 4.5:1이 필요하다 → --c-text-dim(5.28:1). /login .note와 같은 판단.
+  */
+  color: var(--c-text-dim);
+  max-width: 38ch;
+}
+
+/*
+  오류는 강조가 아니라 설명이다. 라임(--c-lime)은 화면당 한 번만 세게 쓰는
+  색이라 여기 쓰지 않는다 — 랜딩 .formError와 같은 규칙.
+*/
+.fieldError {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--c-warn);
+}
+
+.formError {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-left: 2px solid var(--c-warn);
+  background: var(--c-surface);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--c-text);
+}

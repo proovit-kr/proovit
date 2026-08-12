@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/Button";
 import { Footer } from "@/components/Footer";
 import { Logo } from "@/components/NavBar";
+import { safeNext } from "@/lib/access";
 import { auth, signIn } from "@/lib/auth";
 import { AUTH_PROVIDERS } from "@/lib/auth-providers";
 
@@ -45,11 +46,20 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ error?: string; callbackUrl?: string }>;
 }) {
-  const session = await auth();
-  // 이미 로그인한 사람에게 로그인 화면을 보여줄 이유가 없다.
-  if (session?.user) redirect("/");
-
   const { error, callbackUrl } = await searchParams;
+  /*
+    ⚠️ 반드시 걸러서 쓴다. 그대로 넘기면 오픈 리다이렉트가 된다 —
+    근거는 access.ts safeNext 주석.
+  */
+  const next = safeNext(callbackUrl) ?? "/";
+
+  const session = await auth();
+  /*
+    이미 로그인한 사람에게 로그인 화면을 보여줄 이유가 없다.
+    온보딩을 마쳤으면 /onboarding이 곧바로 next로 흘려보낸다.
+  */
+  if (session?.user) redirect(`/onboarding?next=${encodeURIComponent(next)}`);
+
   const errorMessage = error
     ? (ERROR_MESSAGES[error] ?? "로그인에 실패했습니다. 다시 시도해 주세요.")
     : null;
@@ -78,8 +88,14 @@ export default async function LoginPage({
                 key={provider.id}
                 action={async () => {
                   "use server";
+                  /*
+                    로그인 후 목적지로 곧장 가지 않고 /onboarding을 거친다.
+                    소셜 가입은 이름을 이메일 아이디로 갈음해두기 때문에
+                    (auth-adapter.ts) 그 자리를 지나야 실제 이름이 채워진다.
+                    이미 마친 사람에게는 서버 리다이렉트 한 번이라 티가 안 난다.
+                  */
                   await signIn(provider.id, {
-                    redirectTo: callbackUrl ?? "/",
+                    redirectTo: `/onboarding?next=${encodeURIComponent(next)}`,
                   });
                 }}
               >
