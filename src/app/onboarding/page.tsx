@@ -57,8 +57,10 @@ export default async function OnboardingPage({
         <div className={styles.head}>
           <Logo />
           <h1 className={styles.title}>거의 다 됐습니다</h1>
+          {/* 문장마다 제 줄을 갖게 한다 — 근거는 ProfileFields.tsx 주석 */}
           <p className={styles.lead}>
-            PROOVIT에서 쓸 이름을 알려주세요. 실명과 공개용 닉네임을 따로 받습니다.
+            <span>PROOVIT에서 쓸 이름을 알려주세요.</span>
+            <span>실명과 공개용 닉네임을 따로 받습니다.</span>
           </p>
         </div>
 

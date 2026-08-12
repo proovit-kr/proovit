@@ -1,0 +1,44 @@
+/*
+  이름·닉네임 입력 두 칸. /onboarding과 /settings가 함께 쓴다.
+*/
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text-strong);
+}
+
+/*
+  안내문은 문장마다 제 줄을 쓴다. 문장 중간에서 접히면 읽는 리듬이 끊긴다.
+  <br> 대신 블록으로 두는 이유는 ProfileFields.tsx 주석에 있다.
+*/
+.hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  /*
+    --c-text-faint는 이 배경에서 3.08:1이라 모자란다. 12px는 WCAG 대형 텍스트가
+    아니라 4.5:1이 필요하다 → --c-text-dim(5.28:1).
+  */
+  color: var(--c-text-dim);
+}
+.hint > span {
+  display: block;
+}
+
+/*
+  오류는 강조가 아니라 설명이다. 라임(--c-lime)은 화면당 한 번만 세게 쓰는
+  색이라 여기 쓰지 않는다 — 랜딩 .formError와 같은 규칙.
+*/
+.fieldError {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--c-warn);
+}

@@ -154,6 +154,21 @@ body {
   color: var(--c-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+
+  /*
+    ⚠️ 한글은 기본값(word-break: normal)에서 **음절 단위로 아무 데나** 끊긴다.
+    "표시됩니다"가 "표시됩" / "니다"로 갈라지는 게 그래서다. 영문은 단어 사이에서만
+    끊기는데 한글만 이 대접을 받는 이유는, 브라우저가 CJK를 각 글자가 독립적인
+    문자로 보기 때문이다.
+
+    keep-all은 어절(공백) 단위로만 끊게 한다. 한국어는 어절 사이에 공백이 있어
+    이 규칙이 그대로 통한다.
+
+    다만 keep-all은 공백 없는 긴 토큰(URL·영문 식별자)을 절대 안 끊어서 칸을
+    넘치게 만든다 — overflow-wrap이 그때만 개입한다. 둘은 같이 써야 한다.
+  */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 a {

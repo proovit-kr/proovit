@@ -1,8 +1,16 @@
 import { z } from "zod";
 
 /*
-  온보딩 입력 규칙. 서버 액션(검증)과 폼(maxLength·안내문)이 같은 값을 봐야
-  "화면에선 되는데 저장이 안 되는" 상태가 생기지 않는다.
+  이름·닉네임의 **규칙**만 둔다. 저장(DB 쓰기)은 profile-store.ts다.
+
+  ⚠️ 나누는 이유는 취향이 아니다. 이 파일을 클라이언트 컴포넌트
+  (ProfileFields.tsx)가 maxLength 때문에 import하는데, 여기에 prisma가 같이
+  있으면 클라이언트 번들이 node:module을 끌어와 빌드가 통째로 깨진다.
+  실제로 깨져서 나눴다.
+
+  같은 값을 받는 화면이 둘이다 — /onboarding(가입 직후 처음 받는 자리)과
+  /settings(나중에 고치는 자리). 규칙을 양쪽에 복사하면 한쪽만 고쳐져서
+  "설정에서는 되는데 온보딩에서는 안 되는" 상태가 생긴다.
 */
 
 export const NAME_MAX = 60; // users.name = VarChar(60)
@@ -20,7 +28,7 @@ const NO_CONTROL_CHARS = /^[^\p{Cc}\p{Cf}]+$/u;
 /** 연속 공백을 하나로 줄인다. "홍  길동"과 "홍 길동"이 다른 사람이 되지 않게. */
 const collapseSpaces = (value: string) => value.trim().replace(/\s+/g, " ");
 
-export const OnboardingSchema = z.object({
+export const ProfileSchema = z.object({
   name: z
     .string()
     .transform(collapseSpaces)
@@ -43,4 +51,7 @@ export const OnboardingSchema = z.object({
     }),
 });
 
-export type OnboardingInput = z.infer<typeof OnboardingSchema>;
+export interface ProfileFieldErrors {
+  name?: string[];
+  nickname?: string[];
+}

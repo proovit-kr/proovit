@@ -1,16 +1,14 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { z } from "zod";
 
 import { getSessionUser, safeNext } from "@/lib/access";
-import { prisma } from "@/lib/prisma";
-
-import { OnboardingSchema } from "./schema";
+import { type ProfileFieldErrors } from "@/lib/profile";
+import { saveProfile } from "@/lib/profile-store";
 
 export interface OnboardingState {
   /** 필드별 오류. 첫 줄만 화면에 보여준다. */
-  errors?: { name?: string[]; nickname?: string[] };
+  errors?: ProfileFieldErrors;
   /** 필드에 못 붙는 오류(로그인 만료 등). */
   message?: string;
   /** 되돌려 채울 입력값. 없으면 사용자가 방금 친 것을 잃는다. */
@@ -31,52 +29,14 @@ export async function saveOnboarding(
     return { message: "로그인이 풀렸습니다. 다시 로그인해 주세요." };
   }
 
-  const raw = {
+  const values = {
     name: String(formData.get("name") ?? ""),
     nickname: String(formData.get("nickname") ?? ""),
   };
-  const values = { name: raw.name, nickname: raw.nickname };
 
-  const parsed = OnboardingSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { errors: z.flattenError(parsed.error).fieldErrors, values };
-  }
-  const { name, nickname } = parsed.data;
-
-  /*
-    ⚠️ 닉네임 중복 검사가 앱에만 있고 DB 제약이 없다.
-    종결본 스키마의 users.nickname에는 @unique가 없어서, 두 사람이 같은 순간에
-    같은 닉네임을 넣으면 둘 다 통과한다. 실제로는 거의 안 일어나지만
-    "리더보드에 뜨는 이름"이라 남의 팀 이름을 그대로 쓰는 사칭이 가능해진다.
-    → 8/17에 unique 제약 추가를 올릴 것. 제약이 생기면 이 코드는 그대로 두고
-      P2002만 잡으면 된다.
-
-    citext가 아니라 VarChar라 대소문자를 안 가린다 — insensitive로 비교한다.
-  */
-  const taken = await prisma.user.findFirst({
-    where: { nickname: { equals: nickname, mode: "insensitive" }, NOT: { id: user.id } },
-    select: { id: true },
-  });
-  if (taken) {
-    return {
-      errors: { nickname: ["이미 사용 중인 닉네임입니다. 다른 이름을 써 주세요."] },
-      values,
-    };
-  }
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      name,
-      nickname,
-      /*
-        이미 값이 있으면 덮어쓰지 않는다. onboarded_at은 "언제 가입 절차를
-        마쳤나"라서 나중에 이름을 고칠 때마다 뒤로 밀리면 안 된다.
-        emailVerifiedAt을 다루는 방식과 같은 이유다(auth.ts events.linkAccount).
-      */
-      onboardedAt: user.onboardedAt ?? new Date(),
-    },
-  });
+  // 온보딩만 onboarded_at을 채운다 — /settings는 안 건드린다.
+  const result = await saveProfile(user, values, { markOnboarded: true });
+  if (!result.ok) return { errors: result.errors, values };
 
   // redirect()는 예외를 던져 흐름을 끊는다 — try 안에 두면 안 된다.
   redirect(safeNext(String(formData.get("next") ?? "")) ?? "/");

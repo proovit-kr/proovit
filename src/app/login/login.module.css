@@ -18,6 +18,11 @@
   gap: var(--s-6);
   padding-block: var(--s-10);
   max-width: 420px;
+  /*
+    ⚠️ 이게 없으면 420px 칸이 800px 컨테이너의 왼쪽 끝에 붙어 오른쪽이 통째로
+    빈다 — 자세한 설명은 onboarding.module.css의 같은 자리에 있다.
+  */
+  margin-inline: auto;
 }
 
 .head {
@@ -34,12 +39,17 @@
   color: var(--c-text-strong);
 }
 
+/*
+  ⚠️ 읽기 폭을 ch로 걸지 않는다 — 1ch는 숫자 `0`의 폭이라 영문 단위다.
+  한글은 글자당 약 1em이라 34ch가 한글 18자쯤에서 끊겨, 420px 칸에서
+  오른쪽이 크게 빈다. 읽기 폭은 .wrap(420px)이 이미 잡고 있다.
+  (자세한 설명은 onboarding.module.css의 같은 자리에 있다)
+*/
 .lead {
   margin: 0;
   font-size: 14px;
   line-height: 1.6;
   color: var(--c-text-muted);
-  max-width: 34ch;
 }
 
 .providers {
@@ -80,5 +90,5 @@
     12px는 WCAG 대형 텍스트가 아니라 4.5:1이 필요하다 → --c-text-dim(5.28:1).
   */
   color: var(--c-text-dim);
-  max-width: 38ch;
+  /* 읽기 폭은 .wrap(420px)이 잡는다 — 위 .lead 주석 참조 */
 }
