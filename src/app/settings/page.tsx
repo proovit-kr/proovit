@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Footer } from "@/components/Footer";
 import { Logo } from "@/components/NavBar";
 import { requireOnboardedUser } from "@/lib/access";
+import { hasAnyEntry } from "@/lib/apply-store";
 
 import { SettingsForm } from "./SettingsForm";
 
@@ -23,8 +24,9 @@ import styles from "./settings.module.css";
   이름 두 칸이 임시값(이메일 아이디)인 채로 보여서 무엇을 고치는 화면인지
   알 수 없다 — 온보딩으로 먼저 보낸다.
 
-  ⚠️ 실명 칸은 참가 신청이 확정되면 읽기 전용으로 바꾼다(DEV3). 근거는
-  profile-store.ts 머리 주석에 있다.
+  실명 칸은 참가 신청이 확정되면 읽기 전용이 된다(DEV3에서 구현). 근거는
+  profile-store.ts 머리 주석에 있다 — 상금 지급 때 예금주와 대조하는 값이라
+  계약이 성립한 뒤에 조용히 바뀌면 안 된다.
 */
 
 export const metadata: Metadata = {
@@ -34,6 +36,7 @@ export const metadata: Metadata = {
 
 export default async function SettingsPage() {
   const user = await requireOnboardedUser("/settings");
+  const nameLocked = await hasAnyEntry(user.id);
 
   return (
     <main className={`page ${styles.page}`}>
@@ -47,7 +50,11 @@ export default async function SettingsPage() {
           </p>
         </div>
 
-        <SettingsForm defaultName={user.name} defaultNickname={user.nickname} />
+        <SettingsForm
+          defaultName={user.name}
+          defaultNickname={user.nickname}
+          nameLocked={nameLocked}
+        />
       </div>
       <Footer />
     </main>

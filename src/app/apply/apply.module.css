@@ -1,0 +1,142 @@
+/*
+  참가 신청 화면. /onboarding·/login과 같은 골격이되 폭만 넓다 —
+  동의 3종의 표(수집 항목·목적·기간)가 420px에서는 줄이 심하게 접힌다.
+
+  §7 "AI 티 피하기": 카드 상자를 두르지 않는다. 머리말·입력·동의를 괘선으로 나눈다.
+*/
+
+.page {
+  justify-content: flex-start;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding-block: var(--s-10);
+  max-width: 560px;
+  /* 없으면 800px 컨테이너 왼쪽에 붙는다 — onboarding.module.css 주석 참조 */
+  margin-inline: auto;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.title {
+  margin: var(--s-4) 0 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--c-text-strong);
+}
+
+.lead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--c-text-muted);
+}
+/* 문장마다 제 줄 — ProfileFields.tsx 주석 */
+.lead > span {
+  display: block;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--c-line);
+}
+
+.fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choices {
+  display: flex;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  font-size: 14px;
+  color: var(--c-text);
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--c-text-strong);
+  color: var(--c-text-strong);
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--c-text-muted);
+}
+
+.textarea {
+  /* .input은 한 줄 높이를 전제로 한 값이라 여러 줄에서는 줄간격을 다시 준다 */
+  min-height: 76px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.consents {
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--c-line);
+}
+
+/*
+  필드에 못 붙는 오류(모집 마감·동의 누락·로그인 만료). 폼 맨 위에 한 줄로 선다.
+  라임은 화면당 한 번만 세게 쓰는 색이라 오류에는 쓰지 않는다.
+*/
+.formError {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-left: 2px solid var(--c-warn);
+  background: var(--c-surface);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--c-text);
+}
+
+/* 접수 완료 화면 — 신청 내역 */
+.receipt {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: var(--s-3) var(--s-4);
+  margin: 0;
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--c-line);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.receipt dt {
+  color: var(--c-text-muted);
+}
+
+.receipt dd {
+  margin: 0;
+  color: var(--c-text-strong);
+}
+
+.note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--c-text-muted);
+}

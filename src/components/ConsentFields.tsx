@@ -22,21 +22,26 @@ import styles from "./ConsentFields.module.css";
  * 조건에서 멀어진다.
  */
 
-export interface ConsentState {
-  privacy: boolean;
-  age: boolean;
-  marketing: boolean;
+/*
+  항목 목록을 밖에서 받는다. 사전 신청(PREREGISTER_CONSENTS)과 참가 신청
+  (APPLY_CONSENTS)이 같은 컴포넌트를 쓰는데, D1~D5는 문안이 아니라 **받는 방식**의
+  요건이라 화면마다 복사하면 한쪽만 고쳐진다. profile.ts를 둘로 나눈 것과 같은 이유다.
+*/
+export type ConsentState = Record<string, boolean>;
+
+export function emptyConsent(items: ConsentItem[]): ConsentState {
+  return Object.fromEntries(items.map((c) => [c.key, false]));
 }
 
-export const EMPTY_CONSENT: ConsentState = {
-  privacy: false,
-  age: false,
-  marketing: false,
-};
+/** 사전 신청 폼의 초기값. 항목이 고정이라 상수로 둔다. */
+export const EMPTY_CONSENT: ConsentState = emptyConsent(PREREGISTER_CONSENTS);
 
 /** 필수 동의가 모두 채워졌는가. 제출 가능 조건이다. */
-export function isConsentComplete(state: ConsentState): boolean {
-  return PREREGISTER_CONSENTS.every((c) => !c.required || state[c.key]);
+export function isConsentComplete(
+  state: ConsentState,
+  items: ConsentItem[] = PREREGISTER_CONSENTS,
+): boolean {
+  return items.every((c) => !c.required || state[c.key]);
 }
 
 /** 체크박스 DOM id. 안내를 띄운 뒤 그 항목으로 포커스를 옮길 때 쓴다. */
@@ -48,8 +53,11 @@ const rowId = (key: ConsentItem["key"]) => `consent-${key}`;
  * 문구로만 알리면 항목이 셋일 때 어느 것인지 찾아야 한다. 포커스까지 옮겨야
  * "무엇을 해야 하는지"가 한 번에 전달된다.
  */
-export function focusFirstMissingConsent(state: ConsentState): void {
-  const missing = PREREGISTER_CONSENTS.find((c) => c.required && !state[c.key]);
+export function focusFirstMissingConsent(
+  state: ConsentState,
+  items: ConsentItem[] = PREREGISTER_CONSENTS,
+): void {
+  const missing = items.find((c) => c.required && !state[c.key]);
   if (!missing) return;
   document.getElementById(rowId(missing.key))?.focus({ preventScroll: true });
 }
@@ -140,14 +148,20 @@ function ConsentRow({
 }
 
 export default function ConsentFields({
+  items = PREREGISTER_CONSENTS,
   value,
   onChange,
   disabled = false,
   showMissing = false,
+  missingMessage = "필수 항목에 동의해야 사전 신청을 접수할 수 있어요.",
 }: {
+  /** 표시할 동의 항목. 기본값은 사전 신청 폼이다. */
+  items?: ConsentItem[];
   value: ConsentState;
   onChange: (next: ConsentState) => void;
   disabled?: boolean;
+  /** 필수 항목이 비었을 때 띄우는 문장. 화면마다 "무엇을" 접수하는지가 다르다. */
+  missingMessage?: string;
   /**
    * 필수 동의 없이 제출을 시도했다. 비어 있는 필수 항목을 짚어준다.
    *
@@ -158,7 +172,7 @@ export default function ConsentFields({
 }) {
   return (
     <div className={styles.root}>
-      {PREREGISTER_CONSENTS.map((item) => (
+      {items.map((item) => (
         <ConsentRow
           key={item.key}
           item={item}
@@ -169,9 +183,9 @@ export default function ConsentFields({
         />
       ))}
 
-      {showMissing && !isConsentComplete(value) ? (
+      {showMissing && !isConsentComplete(value, items) ? (
         <p className={styles.missing} role="alert">
-          필수 항목에 동의해야 사전 신청을 접수할 수 있어요.
+          {missingMessage}
         </p>
       ) : null}
 

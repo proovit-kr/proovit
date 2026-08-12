@@ -18,10 +18,16 @@ export function ProfileFields({
   errors,
   defaultName,
   defaultNickname,
+  nameLocked = false,
 }: {
   errors?: ProfileFieldErrors;
   defaultName: string;
   defaultNickname: string;
+  /**
+   * 참가 신청이 확정돼 실명이 잠겼다. 판정은 서버(profile-store)가 하고
+   * 여기서는 그 사실을 보여주기만 한다.
+   */
+  nameLocked?: boolean;
 }) {
   const nameError = errors?.name?.[0];
   const nicknameError = errors?.nickname?.[0];
@@ -39,7 +45,18 @@ export function ProfileFields({
         */}
         <p className={styles.hint}>
           <span>운영·심사 연락과 상금 지급에 쓰입니다.</span>
-          <span>공개되지 않습니다.</span>
+          {nameLocked ? (
+            /*
+              왜 잠겼는지를 같이 말한다. 이유 없이 회색으로 굳어 있으면
+              고장으로 읽히고, 그 문의가 그대로 운영 손으로 온다.
+            */
+            <span>
+              참가 신청이 접수돼 바꿀 수 없습니다. 고쳐야 하면 운영에 문의해
+              주세요.
+            </span>
+          ) : (
+            <span>공개되지 않습니다.</span>
+          )}
         </p>
         <input
           id="name"
@@ -49,6 +66,11 @@ export function ProfileFields({
           maxLength={NAME_MAX}
           autoComplete="name"
           defaultValue={defaultName}
+          /*
+            disabled가 아니라 readOnly다. disabled는 값이 폼에서 통째로 빠져
+            서버가 "빈 값으로 고치려는 요청"과 구분하지 못한다.
+          */
+          readOnly={nameLocked}
           aria-invalid={nameError ? true : undefined}
           aria-describedby={nameError ? "name-error" : undefined}
         />

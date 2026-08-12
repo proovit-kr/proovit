@@ -14,9 +14,12 @@ const INITIAL: SettingsState = {};
 export function SettingsForm({
   defaultName,
   defaultNickname,
+  nameLocked = false,
 }: {
   defaultName: string;
   defaultNickname: string;
+  /** 참가 신청이 확정돼 실명이 잠겼다(profile-store.ts 머리 주석) */
+  nameLocked?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(saveSettings, INITIAL);
 
@@ -32,6 +35,7 @@ export function SettingsForm({
         errors={state.errors}
         defaultName={state.values?.name ?? defaultName}
         defaultNickname={state.values?.nickname ?? defaultNickname}
+        nameLocked={nameLocked}
       />
 
       <div className={styles.actions}>
