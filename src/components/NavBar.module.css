@@ -61,7 +61,26 @@
 .right {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
+  /*
+    12px면 텍스트 링크와 채운 버튼이 한 덩어리로 붙어 보인다 — 무게가 다른
+    두 요소라 같은 간격으로 두면 CTA가 링크에 딸린 것처럼 읽힌다.
+    메뉴 항목 사이(32px)보다는 좁게, 붙지는 않게 24px.
+  */
+  gap: var(--s-6);
+  /* 헤더는 어떤 경우에도 두 줄이 되지 않는다 */
+  flex-wrap: nowrap;
+}
+
+/*
+  로그인 상태가 정해지기 전 빈 자리를 미리 잡아둔다.
+  min-width는 "로그인" 링크의 폭(14px·3글자)에서 왔다 — 방문자 대부분이
+  비로그인이라 그쪽에서 흔들림이 0이 되는 값을 고른다.
+*/
+.authSlot {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 44px;
+  white-space: nowrap;
 }
 
 .signIn {
@@ -104,9 +123,87 @@
   flex-shrink: 0;
 }
 
+
+/* 드롭다운이 이 칸을 기준으로 선다 */
+.account {
+  position: relative;
+}
+
+/*
+  메뉴가 열린다는 표시. 이름과 붙지 않게 살짝 띄우고, 이름보다 약하게 둔다 —
+  읽는 것은 이름이고 이건 안내다.
+*/
+.caret {
+  color: var(--c-text-dim);
+  margin-left: -2px;
+  flex-shrink: 0;
+  transition: transform var(--t-fast);
+}
+/* 열리면 뒤집어 "지금 열려 있다"를 모양으로도 알린다 */
+.caretOpen {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    transition: none;
+  }
+}
+
+/*
+  닉네임은 20자까지 들어온다. 그대로 두면 긴 이름 하나가 헤더를 밀어낸다.
+  ch가 아니라 rem으로 자르는 이유 — 1ch는 숫자 0의 폭이라 한글에서는
+  의도한 글자 수의 절반쯤에서 끊긴다.
+*/
 .userName {
   font-size: 13px;
   font-weight: 700;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountMenu {
+  position: absolute;
+  top: calc(100% + var(--s-2));
+  right: 0;
+  z-index: 60; /* .nav가 50이다 */
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-1);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-lg);
+  /*
+    드롭다운은 실제로 떠 있는 요소다 — §7이 금지한 건 "안 떠 있는 것에
+    상자를 두르는 것"이지 이건 해당하지 않는다.
+  */
+  box-shadow: var(--sh-card);
+}
+
+.accountItem {
+  display: block;
+  width: 100%;
+  /* form 안의 button과 a가 같은 모양이어야 한다 */
+  box-sizing: border-box;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 600;
+  /* 13px는 WCAG 대형 텍스트가 아니라 4.5:1이 필요하다 → --c-text-dim(5.28:1) */
+  color: var(--c-text-dim);
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+}
+.accountItem:hover {
+  background: var(--c-chip);
+  color: var(--c-text-strong);
 }
 
 /* ---- 운영자 콘솔 ---- */
