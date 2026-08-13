@@ -35,7 +35,7 @@
 
 .title {
   margin: var(--s-4) 0 0;
-  font-size: 28px;
+  font-size: var(--fs-5xl);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--c-text-strong);
@@ -53,7 +53,7 @@
 */
 .lead {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1.6;
   color: var(--c-text-muted);
 }
@@ -87,7 +87,7 @@
   border-left: 2px solid var(--c-warn);
   background: var(--c-surface);
   border-radius: 0 var(--r-md) var(--r-md) 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.6;
   color: var(--c-text);
 }

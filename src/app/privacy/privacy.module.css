@@ -25,7 +25,7 @@
 
 .title {
   margin: 0;
-  font-size: 32px;
+  font-size: var(--fs-6xl);
   font-weight: 800;
   color: var(--c-text-strong);
 }
@@ -40,7 +40,7 @@
   gap: var(--s-2) var(--s-5);
   margin: var(--s-4) 0 0;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .meta dt {
   color: var(--c-text-faint);
@@ -64,7 +64,7 @@
 }
 .summary h2 {
   margin: 0 0 var(--s-4);
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 700;
   color: var(--c-text-strong);
 }
@@ -82,7 +82,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .toc a {
   color: var(--c-text-dim);
@@ -98,7 +98,7 @@
 }
 .article h2 {
   margin: 0 0 var(--s-4);
-  font-size: 17px;
+  font-size: var(--fs-xl);
   font-weight: 700;
   color: var(--c-text-strong);
 }
@@ -131,7 +131,7 @@
   width: 100%;
   min-width: 460px;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.7;
 }
 .table th,
@@ -153,7 +153,7 @@
 
 .tableNote {
   margin: var(--s-3) 0 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--c-text-faint);
 }
 
@@ -162,6 +162,6 @@
     padding-top: var(--s-10);
   }
   .title {
-    font-size: 26px;
+    font-size: var(--fs-4xl);
   }
 }

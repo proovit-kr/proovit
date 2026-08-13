@@ -2,7 +2,7 @@
   border: 1px solid var(--c-line-2);
   border-radius: var(--r-xl);
   margin-bottom: var(--s-3);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--c-surface);
   overflow: hidden;
 }
 
@@ -14,7 +14,7 @@
   padding: 20px 22px;
   cursor: pointer;
   font-weight: 700;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   color: var(--c-text);
   width: 100%;
   background: transparent;
@@ -24,7 +24,7 @@
   transition: background var(--t-fast);
 }
 .head:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--c-surface);
 }
 
 .chev {
@@ -39,7 +39,7 @@
 
 .body {
   padding: 0 22px 20px;
-  font-size: 15px;
+  font-size: var(--fs-md);
   line-height: 1.65;
   color: var(--c-text-muted);
   /* 박스는 폭을 다 쓰되 본문 한 줄은 읽기 좋은 길이에서 끊는다 */
@@ -48,7 +48,7 @@
 
 /* 운영자 콘솔용 (AI 분석 리포트) */
 .opsItem {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--c-line-2);
   border-radius: var(--r-md);
   overflow: hidden;
   margin-bottom: 0;
@@ -56,17 +56,17 @@
 }
 .opsHead {
   padding: 13px 16px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--c-text-muted);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--c-surface);
 }
 .opsHead .chev {
   color: var(--c-text-faint);
 }
 .opsBody {
   padding: 4px 16px 16px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.7;
   color: var(--c-text-dim);
 }

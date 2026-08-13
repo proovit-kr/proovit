@@ -23,7 +23,7 @@
 
 .logo {
   font-weight: 800;
-  font-size: 20px;
+  font-size: var(--fs-2xl);
   letter-spacing: 0.06em;
   color: var(--c-text-strong);
 }
@@ -38,7 +38,7 @@
 .menu {
   display: flex;
   gap: var(--s-8);
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
 }
 
@@ -84,7 +84,7 @@
 }
 
 .signIn {
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--c-text-muted);
   font-weight: 600;
 }
@@ -97,7 +97,7 @@
   align-items: center;
   gap: var(--s-3);
   background: var(--c-surface-2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--c-line-2);
   border-radius: var(--r-pill);
   padding: 5px 14px 5px 5px;
   cursor: pointer;
@@ -113,12 +113,12 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #c8ff3d, #4a7a00);
+  background: linear-gradient(135deg, var(--c-lime), var(--c-lime-deep));
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--c-bg);
   flex-shrink: 0;
 }
@@ -155,7 +155,7 @@
   의도한 글자 수의 절반쯤에서 끊긴다.
 */
 .userName {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   max-width: 8rem;
   overflow: hidden;
@@ -193,7 +193,7 @@
   cursor: pointer;
   padding: var(--s-2) var(--s-3);
   border-radius: var(--r-md);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   /* 13px는 WCAG 대형 텍스트가 아니라 4.5:1이 필요하다 → --c-text-dim(5.28:1) */
   color: var(--c-text-dim);
@@ -216,18 +216,18 @@
   gap: 36px;
   padding: 12px 28px;
   background: var(--c-surface-ops);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--c-line-2);
 }
 
 .opsLogo {
   font-weight: 800;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   letter-spacing: 0.06em;
   color: var(--c-text-strong);
 }
 .opsTag {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--c-text-faint);
   font-weight: 700;
 }
@@ -235,7 +235,7 @@
 .opsMenu {
   display: flex;
   gap: 26px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   flex-wrap: wrap;
 }
@@ -256,7 +256,7 @@
 
 .opsExit {
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--c-text-faint);
 }
 

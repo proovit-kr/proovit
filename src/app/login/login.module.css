@@ -33,7 +33,7 @@
 
 .title {
   margin: var(--s-4) 0 0;
-  font-size: 28px;
+  font-size: var(--fs-5xl);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--c-text-strong);
@@ -47,7 +47,7 @@
 */
 .lead {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1.6;
   color: var(--c-text-muted);
 }
@@ -67,7 +67,7 @@
   border-left: 2px solid var(--c-warn);
   background: var(--c-surface);
   border-radius: 0 var(--r-md) var(--r-md) 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.6;
   color: var(--c-text);
 }
@@ -76,14 +76,14 @@
   margin: 0;
   padding-top: var(--s-6);
   border-top: 1px solid var(--c-line);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.6;
   color: var(--c-text-dim);
 }
 
 .note {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   line-height: 1.7;
   /*
     --c-text-faint는 이 배경에서 대비가 모자란다(3.08:1).

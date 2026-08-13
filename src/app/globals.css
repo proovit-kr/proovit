@@ -37,6 +37,7 @@
   /* ---- 색: 포인트 ---- */
   --c-lime: #c8ff3d;
   --c-lime-hover: #dcff7a;
+  --c-lime-deep: #4a7a00; /* 아바타 그라디언트의 끝색. 라임의 어두운 짝이다 */
   --c-lime-08: rgba(200, 255, 61, 0.08);
   --c-lime-10: rgba(200, 255, 61, 0.1);
   --c-lime-12: rgba(200, 255, 61, 0.12);
@@ -55,13 +56,38 @@
   --c-line: rgba(255, 255, 255, 0.07);
   --c-line-2: rgba(255, 255, 255, 0.09);
   --c-line-3: rgba(255, 255, 255, 0.14);
+  /* 미완료 단계 원의 테두리. dotSm 0.16 / dotLg 0.2로 갈라져 있던 것을 합쳤다 */
+  --c-line-4: rgba(255, 255, 255, 0.18);
   --c-line-strong: rgba(255, 255, 255, 0.25);
+
+  /* ---- 색: 역할 ----
+     흰색 알파를 모듈마다 새로 지어 쓰던 것을 이름으로 묶는다.
+     같은 역할에 0.06·0.1·0.12가 제각각 쓰이고 있었다. */
+  --c-field: rgba(255, 255, 255, 0.06); /* 입력칸·보조 버튼 바탕 */
 
   /* ---- 폰트 ---- */
   --font-sans:
     "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     system-ui, "Malgun Gothic", sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+
+  /* ---- 글자 크기 ----
+     원래 토큰이 없어서 모듈들이 px를 직접 박았고, 그 결과 10~32px 사이에
+     15종이 흩어져 있었다(13px 25회, 12px 18회 …). 실제로 쓰이던 값을 그대로
+     단계로 세우고, 한두 번만 등장하던 표류값(10·17·19)은 인접 단계로 붙였다.
+     값을 새로 지어내지 않았으므로 대부분의 화면은 픽셀 단위로 동일하다. */
+  --fs-2xs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 14px;
+  --fs-md: 15px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+  --fs-2xl: 20px;
+  --fs-3xl: 22px;
+  --fs-4xl: 26px;
+  --fs-5xl: 28px;
+  --fs-6xl: 32px;
 
   /* ---- 라운드 ---- */
   --r-xs: 6px;
@@ -254,14 +280,14 @@ select {
 
 .sectionTitle {
   margin: 0 0 var(--s-3);
-  font-size: 32px;
+  font-size: var(--fs-6xl);
   font-weight: 800;
   color: var(--c-text-strong);
 }
 
 .sectionLead {
   margin: 0 0 var(--s-10);
-  font-size: 16px;
+  font-size: var(--fs-lg);
   color: var(--c-text-dim);
 }
 
@@ -287,7 +313,7 @@ select {
 }
 
 .label {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--c-text-muted);
 }
@@ -295,11 +321,11 @@ select {
 .input,
 .textarea {
   width: 100%;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--c-field);
   border: 1px solid var(--c-line-3);
   border-radius: var(--r-lg);
   padding: 13px 16px;
-  font-size: 15px;
+  font-size: var(--fs-md);
   color: var(--c-text-strong);
   outline: none;
   transition: border-color var(--t-fast);
@@ -322,14 +348,14 @@ select {
 }
 
 .helpText {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--c-text-faint);
 }
 
 .hint {
   margin: 0;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--c-text-faint);
 }
 
@@ -337,7 +363,7 @@ select {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 700;
   color: var(--c-text-dim);
 }
@@ -416,7 +442,7 @@ select {
     --pad-x: 20px;
   }
   .sectionTitle {
-    font-size: 26px;
+    font-size: var(--fs-4xl);
   }
 }
 

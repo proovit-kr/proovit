@@ -34,7 +34,7 @@
   padding: 0 0 0 12px;
   border-left: 2px solid var(--c-lime);
   color: var(--c-text-muted);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   font-family: var(--font-mono);
   letter-spacing: 0.08em;
@@ -56,7 +56,7 @@
 
 .lead {
   margin: 24px 0 0;
-  font-size: 18px;
+  font-size: var(--fs-xl);
   line-height: 1.72;
   color: var(--c-text-dim);
   max-width: 440px;
@@ -92,7 +92,7 @@
 */
 .formError {
   margin: var(--s-2) 0 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   line-height: 1.5;
   color: var(--c-text-muted);
 }
@@ -139,7 +139,7 @@
   border-bottom: 1px solid var(--c-line-2);
 }
 .boardTitle {
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   letter-spacing: 0.18em;
   color: var(--c-text-faint);
@@ -149,7 +149,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   color: var(--c-lime);
   font-family: var(--font-mono);
   letter-spacing: 0.08em;
@@ -173,18 +173,18 @@
 }
 .boardRank {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--c-text-ghost);
 }
 .boardName {
   font-weight: 700;
-  font-size: 15px;
+  font-size: var(--fs-md);
   color: var(--c-text-strong);
 }
 .boardScore {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 22px;
+  font-size: var(--fs-3xl);
   color: var(--c-text-strong);
   font-variant-numeric: tabular-nums;
   min-width: 64px;
@@ -197,7 +197,7 @@
 }
 .boardFoot {
   margin-top: 14px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   line-height: 1.6;
   color: var(--c-text-faint);
 }
@@ -229,7 +229,7 @@
 .countLabel {
   margin-top: 10px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   letter-spacing: 0.18em;
   color: var(--c-text-faint);
@@ -267,7 +267,7 @@
   margin-bottom: 28px;
   border-bottom: 1px solid var(--c-line-2);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   letter-spacing: 0.18em;
   color: var(--c-text-faint);
 }
@@ -291,7 +291,7 @@
 }
 .headLead {
   margin: 14px 0 0;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   line-height: 1.7;
   color: var(--c-text-dim);
   max-width: 56ch;
@@ -333,7 +333,7 @@
   opacity: 1;
 }
 .compareLabel {
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   letter-spacing: 0.18em;
   color: var(--c-text-dim);
@@ -352,12 +352,12 @@
   display: flex;
   gap: 12px;
   align-items: baseline;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   color: var(--c-text-dim);
 }
 .compareItemUs {
   color: var(--c-text-strong);
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -387,20 +387,20 @@
 }
 .benefitMark {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.1em;
   color: var(--c-text-ghost);
 }
 .benefitTitle {
   display: block;
   color: var(--c-text-strong);
-  font-size: 19px;
+  font-size: var(--fs-xl);
   font-weight: 700;
   letter-spacing: -0.015em;
 }
 .benefitDesc {
   margin: 8px 0 0;
-  font-size: 15px;
+  font-size: var(--fs-md);
   line-height: 1.7;
   color: var(--c-text-dim);
   max-width: 52ch;
@@ -421,20 +421,20 @@
   font-family: var(--font-mono);
   font-weight: 700;
   color: var(--c-text-ghost);
-  font-size: 32px;
+  font-size: var(--fs-6xl);
   line-height: 1;
   letter-spacing: -0.02em;
 }
 .whyTitle {
   margin: 18px 0 10px;
-  font-size: 19px;
+  font-size: var(--fs-xl);
   font-weight: 700;
   letter-spacing: -0.015em;
   color: var(--c-text-strong);
 }
 .whyDesc {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs-md);
   line-height: 1.7;
   color: var(--c-text-dim);
   text-wrap: pretty;
@@ -457,13 +457,13 @@
 }
 .criteriaRound {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   letter-spacing: 0.18em;
   color: var(--c-text-ghost);
 }
 .criteriaTitle {
   margin: 0;
-  font-size: 17px;
+  font-size: var(--fs-xl);
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--c-text-strong);
@@ -473,7 +473,7 @@
   flex-direction: column;
   gap: var(--s-3);
   margin-top: var(--s-5);
-  font-size: 15px;
+  font-size: var(--fs-md);
   color: var(--c-text-dim);
 }
 .criteriaItem {
