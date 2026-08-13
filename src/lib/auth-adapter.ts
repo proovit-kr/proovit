@@ -1,5 +1,6 @@
 import type { Adapter, AdapterAccount, AdapterUser } from "next-auth/adapters";
 
+import { OauthProvider } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -55,6 +56,19 @@ const USER_SELECT = {
   emailVerifiedAt: true,
 } as const;
 
+/**
+ * Auth.js는 provider를 string으로 넘기는데 oauth_accounts.provider는 ENUM이다
+ * (2026-08-13 종결본에서 VARCHAR → ENUM으로 바뀌었다).
+ *
+ * 캐스팅으로 눌러 담지 않고 여기서 막는다. 모르는 제공자가 오는 경우는 설정 실수뿐이고,
+ * 그때 조용히 통과시키면 Postgres가 던지는 22P02가 로그인 화면에 그대로 뜬다.
+ * auth-providers.ts가 키 있는 제공자만 등록하므로 실제로는 도달하지 않는 경로다.
+ */
+function toOauthProvider(provider: string): OauthProvider {
+  if (provider === "google" || provider === "kakao") return provider;
+  throw new Error(`등록되지 않은 소셜 제공자입니다: ${provider}`);
+}
+
 export function ProovitAdapter(): Adapter {
   return {
     async createUser(user) {
@@ -109,7 +123,12 @@ export function ProovitAdapter(): Adapter {
 
     async getUserByAccount({ provider, providerAccountId }) {
       const account = await prisma.oauthAccount.findUnique({
-        where: { provider_providerAccountId: { provider, providerAccountId } },
+        where: {
+          provider_providerAccountId: {
+            provider: toOauthProvider(provider),
+            providerAccountId,
+          },
+        },
         select: { user: { select: USER_SELECT } },
       });
       return account ? toAdapterUser(account.user) : null;
@@ -143,7 +162,7 @@ export function ProovitAdapter(): Adapter {
       await prisma.oauthAccount.create({
         data: {
           userId: account.userId,
-          provider: account.provider,
+          provider: toOauthProvider(account.provider),
           providerAccountId: account.providerAccountId,
         },
       });
@@ -151,13 +170,23 @@ export function ProovitAdapter(): Adapter {
 
     async unlinkAccount({ provider, providerAccountId }) {
       await prisma.oauthAccount.delete({
-        where: { provider_providerAccountId: { provider, providerAccountId } },
+        where: {
+          provider_providerAccountId: {
+            provider: toOauthProvider(provider),
+            providerAccountId,
+          },
+        },
       });
     },
 
     async getAccount(providerAccountId, provider) {
       const account = await prisma.oauthAccount.findUnique({
-        where: { provider_providerAccountId: { provider, providerAccountId } },
+        where: {
+          provider_providerAccountId: {
+            provider: toOauthProvider(provider),
+            providerAccountId,
+          },
+        },
         select: { userId: true, provider: true, providerAccountId: true },
       });
       if (!account) return null;

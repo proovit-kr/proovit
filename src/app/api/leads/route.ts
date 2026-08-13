@@ -35,6 +35,11 @@ const bodySchema = z.object({
   privacyConsent: z.literal(true, {
     message: "개인정보 수집·이용에 동의해야 신청할 수 있어요.",
   }),
+  /*
+    만 14세 확인. 통과 조건이지 저장 항목이 아니다 — 종결본이 age_confirmed 컬럼을
+    빼면서 이 조항은 문안 A 안에 든 것으로 정리됐고, 어느 문안에 동의했는지는
+    privacyConsentVersion이 남긴다. 접수를 막는 역할은 그대로다.
+  */
   ageConfirmed: z.literal(true, {
     message: "만 14세 이상만 신청할 수 있어요.",
   }),
@@ -153,13 +158,16 @@ export async function POST(request: NextRequest) {
           referrer: request.headers.get("referer") ?? undefined,
 
           /*
-            동의 로그(D8). 필수 동의는 위 스키마를 통과한 시점에 확정돼 있으므로
-            여기서는 버전만 박는다 — 동의 일시는 createdAt이 정본이다.
+            동의 로그(D8). 필수 동의는 위 스키마를 통과한 시점에 확정돼 있다.
+
+            privacyConsentAt은 2026-08-13에 종결본이 요구해 생긴 칸이다.
+            지금은 createdAt과 같은 값이지만 둘은 다른 질문에 답한다 —
+            createdAt은 "행이 언제 생겼나", 이쪽은 "언제 동의했나"다.
+            운영자가 대신 넣는 행이 생기면 갈라진다.
           */
+          privacyConsentAt: new Date(),
           privacyConsentVersion: PRIVACY_CONSENT_VERSION,
-          ageConfirmed: true,
           marketingOptIn,
-          marketingOptInAt: marketingOptIn ? new Date() : null,
           marketingConsentVersion: marketingOptIn ? MARKETING_CONSENT_VERSION : null,
         },
       });
@@ -176,15 +184,14 @@ export async function POST(request: NextRequest) {
       반대 방향(기존 동의 → 이번엔 체크 해제)은 일부러 건드리지 않는다.
       이 폼은 철회 수단이 아니라 신청 폼이고, 체크를 안 한 것과 철회 의사를
       밝힌 것은 다르다. 철회의 정본 경로는 메일 하단의 수신거부 링크(M5)이며
-      그때 marketingOptOutAt이 찍힌다.
+      그때 unsubscribedAt이 찍힌다.
     */
     await prisma.lead.update({
       where: { id: existing.id },
       data: {
         marketingOptIn: true,
-        marketingOptInAt: new Date(),
         marketingConsentVersion: MARKETING_CONSENT_VERSION,
-        marketingOptOutAt: null,
+        unsubscribedAt: null,
       },
     });
   }

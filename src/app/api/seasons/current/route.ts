@@ -14,17 +14,18 @@ export async function GET() {
     return Response.json({ season: null, cta: { kind: "CLOSED" } });
   }
 
+  // 모집 기간 두 칸(recruitStartAt·recruitEndAt)은 2026-08-13에 없어졌다.
+  // 페이즈 전환 시각의 정본이 season_schedules로 옮겨갔기 때문이다(ADR-010).
+  // 화면이 "모집 D-N"을 그려야 하면 그 표를 읽는 필드를 여기에 새로 붙인다.
   return Response.json({
     season: {
       id: season.id,
       slug: season.slug,
-      name: season.name,
+      title: season.title,
       theme: season.theme,
       phase: season.phase,
-      recruitStartAt: season.recruitStartAt,
-      recruitEndAt: season.recruitEndAt,
-      startAt: season.startAt,
-      endAt: season.endAt,
+      startsAt: season.startsAt,
+      endsAt: season.endsAt,
       featureFlags: season.featureFlags,
     },
     cta: resolveLandingCta(season),

@@ -1,16 +1,19 @@
 // PROOVIT — Prisma schema
 //
 // 이 파일이 DB 명세의 소스 오브 트루스다 (Notion 03 ERD/DB 설계서 명시).
-// Notion 쪽 enum·컬럼 블록은 이 파일의 읽기용 사본이며, 손으로 고치지 않는다.
 // ERD 그림은 prisma-erd-generator로 자동 생성한다.
 //
-// 근거 문서: 03 ERD/DB 설계서 · 04 API 명세 · 06 ARCHITECTURE §4 상태 설계
+// 근거: 노션 「작업」 DB의 schema.prisma 종결본(2026-08-13, 42테이블/33ENUM) ·
+//       PLN6 필드 정의서 v0.1(2026-08-13) · PLN5 API 명세서 v0.2(2026-08-13) ·
+//       06 ARCHITECTURE §4 상태 설계
 //
-// 모델은 주차별 구현 범위에 맞춰 점진적으로 추가한다.
-//   W1(현재) Season · Lead
-//   W2       User · OAuthAccount · Session · Consent · Team · TeamMember · Entry
-//   W3       Stage · Submission · Judgment · AuditLog
-//   W4       MetricDaily · LeaderboardSnapshot · Award
+// 2026-08-13 DEV8 이식. 정본 규칙 = 레포와 노션 중 최신 쪽(이번엔 노션).
+// 단 generator·datasource 블록은 레포가 정본이다 — 노션본은 Prisma 6 문법이다.
+//
+// 노션본을 그대로 따르지 않은 지점은 한 곳뿐이다.
+//   VerificationToken — 노션본에 없다. 자체 회원가입용이 아니라 Auth.js 어댑터가
+//   구현해야 하는 인터페이스(createVerificationToken/useVerificationToken)의
+//   저장소라, 지우면 src/lib/auth-adapter.ts가 컴파일되지 않는다.
 //
 // 규칙: 시즌 종속 테이블은 예외 없이 seasonId를 갖는다. 시즌2를 열었을 때
 // 시즌1 데이터가 섞이면 리더보드와 심사가 오염되고, 되돌리기가 가장 어렵다.
@@ -25,134 +28,62 @@ datasource db {
   provider   = "postgresql"
   // Prisma 7부터 url·directUrl은 이 파일에 둘 수 없다. prisma.config.ts가 정본이다.
   // 런타임은 pooled 주소(DATABASE_URL), 마이그레이션은 direct 주소(DIRECT_URL)를 쓴다.
-  // citext = 대소문자 구분 없는 텍스트. 이메일에 쓴다.
-  // 선언하지 않으면 마이그레이션이 CITEXT 타입만 내보내고
-  // CREATE EXTENSION을 빠뜨려 새 DB에서 실패한다.
-  extensions = [citext]
+  // citext = 대소문자 구분 없는 텍스트(이메일).
+  // pgcrypto = gen_random_uuid(). 선언하지 않으면 마이그레이션이 CREATE EXTENSION을
+  // 빠뜨려 새 DB에서 실패한다.
+  extensions = [citext, pgcrypto]
 }
 
-/// 시즌 전체가 지금 몇 주차인가. 모든 팀에게 공통이며 크론 또는 운영자가 바꾼다.
-/// entry.stage(팀별 진행도)와 직교하는 축이다 — 06 §4.1 참조.
+// ═════════════════════════════════════════════════════════════
+// J. ENUM (33)
+//
+// ⚠️ 이전 레포본은 SeasonPhase만 대문자 + @@map("season_phase")였다. 종결본 표기
+// (PascalCase 타입명 · 소문자 값 · @@map 없음)로 통일했다. 8/17 안건이던
+// "ENUM 타입명 규칙"이 이걸로 닫힌다.
+// ═════════════════════════════════════════════════════════════
+
+/// 시즌 타임라인. 전환 주체는 season_schedules다 (ADR-010).
+/// pre_apply = 사전신청만 받는 구간. 이 값이 생기면서 랜딩 CTA를 recruit_start_at
+/// 비교로 우회하던 것이 사라진다 — phase 하나로 갈린다.
 enum SeasonPhase {
-  DRAFT // 준비중 (운영자만)
-  RECRUITING // 모집중 — 랜딩·사전신청·참가신청
-  W1_DEMAND // W1 수요조사
-  GATE1_REVIEW // 1차 심사 (제출 잠김)
-  W2_BUILD // W2 빌드·배포
-  RACE // W3~4 레이스 — 리더보드 실시간
-  GATE2_REVIEW // 최종 심사 (제출 잠김)
-  AWARDED // 시상 — 정산 액션 가능
-  ARCHIVED // 아카이브 — 모든 쓰기가 409
-
-  @@map("season_phase")
+  draft
+  pre_apply
+  recruiting
+  w1_demand
+  gate1_review
+  w2_build
+  race
+  gate2_review
+  awarded
+  archived
 }
 
-model Season {
-  id    String      @id @default(uuid()) @db.Uuid
-  /// URL 조각. GET /api/seasons/:slug
-  slug  String      @unique
-  name  String      @db.VarChar(120)
-  /// 테마 시즌(예: 로컬 상권, 크리에이터 툴). 미정이면 null.
-  theme String?     @db.VarChar(120)
-  phase SeasonPhase @default(DRAFT)
-
-  /// 시즌별 화면 on/off. 전 화면을 개발하되 플래그로 차단한다(06 §4.4).
-  /// off인 라우트는 네비게이션에서 숨기고 직접 접근 시 404를 준다.
-  featureFlags  Json @default("{}") @map("feature_flags")
-  /// 채점 가중치·상한. 시즌마다 바뀌므로 컬럼이 아니라 JSONB다.
-  /// 읽는 쪽에서 반드시 Zod로 검증한다 — 오타가 런타임에 터지지 않도록.
-  scoringConfig Json @default("{}") @map("scoring_config")
-
-  /// 모집 기간
-  recruitStartAt DateTime? @map("recruit_start_at") @db.Timestamptz(6)
-  recruitEndAt   DateTime? @map("recruit_end_at") @db.Timestamptz(6)
-  /// 시즌 본편 기간
-  startAt        DateTime? @map("start_at") @db.Timestamptz(6)
-  endAt          DateTime? @map("end_at") @db.Timestamptz(6)
-
-  leads     Lead[]
-  userRoles UserRole[]
-  tracks    Track[]
-  entries   Entry[]
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  @@index([phase])
-  @@map("seasons")
+/// 팀의 진도만 나타낸다. 통과·보완·탈락은 judgments가 정본이고 여기 섞지 않는다.
+/// 값이 s3이면 s2 게이트를 통과했다는 뜻이다(전진 자체가 통과의 근거).
+enum EntryStage {
+  applied
+  s1
+  s2
+  s3
+  s4
+  s5
+  completed
 }
 
-/// 사전신청 이메일 = KPI#1의 원천.
-/// 수명이 '영구'인 이유: 시즌1 미참가자가 시즌2의 모집 풀이다.
-/// 시즌마다 지우면 자산이 사라진다 (03 H절).
-model Lead {
-  id    String @id @default(uuid()) @db.Uuid
-  email String @db.Citext
-
-  /// 어느 시즌을 보고 신청했는지.
-  ///
-  /// nullable로 두지 않는 이유: Postgres는 UNIQUE에서 NULL을 서로 다른 값으로 취급한다.
-  /// season_id가 NULL이면 아래 @@unique가 무력화돼 같은 이메일이 무제한 쌓이고,
-  /// 그 숫자가 곧 KPI#1(실측 신청자 수)이자 지원사업 제출 수치라 부풀려지면 안 된다.
-  /// 사전신청은 항상 특정 시즌 맥락에서 일어나므로(랜딩 CTA가 seasons/current로 분기)
-  /// 시즌 없는 리드는 실제로 존재하지 않는다.
-  seasonId String @map("season_id") @db.Uuid
-  season   Season @relation(fields: [seasonId], references: [id], onDelete: Restrict)
-
-  /// 유입 채널 분석용. 랜딩의 쿼리스트링에서 수집한다.
-  utmSource   String? @map("utm_source") @db.VarChar(120)
-  utmMedium   String? @map("utm_medium") @db.VarChar(120)
-  utmCampaign String? @map("utm_campaign") @db.VarChar(120)
-  referrer    String? @db.Text
-
-  /// 모집 오픈 시 1순위 알림 대상. 발송 후 시각을 남긴다.
-  notifiedAt DateTime? @map("notified_at") @db.Timestamptz(6)
-
-  /**
-   * 동의 로그 — 운영규칙서 D8이 "동의 일시·문안 버전·식별값"의 서버 저장을 요구한다.
-   * 동의 사실의 입증 책임이 회사에 있으므로 문안이 개정돼도 "그때 무엇에 동의했는지"가
-   * 남아야 한다. 그래서 불리언이 아니라 버전 문자열을 박는다.
-   * 필수 동의(개인정보 수집·이용, 만14세)는 없으면 리드가 생성되지 않는다.
-   * 따라서 동의 일시는 createdAt이 곧 정답이고 별도 컬럼을 두지 않는다.
-   * 식별값으로 IP를 쓰지 않는 이유: 문안 A의 수집 항목이 이메일 하나뿐이라
-   * IP를 저장하면 문안에 없는 항목을 수집하게 되어 최소수집 위반이 된다
-   * (운영규칙서 게시 전 확인목록 3). 식별값은 이미 저장 중인 email로 갈음한다.
-   */
-
-  /// 동의한 「개인정보 수집·이용 동의문」 문안 A의 버전. 필수라 항상 값이 있다.
-  privacyConsentVersion String @map("privacy_consent_version") @db.VarChar(20)
-
-  /// 만 14세 이상 확인(필수). 14세 미만은 법정대리인 동의 체계가 없어 접수 자체를 막는다.
-  ageConfirmed Boolean @map("age_confirmed")
-
-  /**
-   * 마케팅 수신 동의(선택). 기본 해제이며 미동의로도 접수된다(D5).
-   * 철회 시점을 남겨야 정보통신망법 제50조의 "즉시 전송 중단"을 입증할 수 있어서
-   * on/off 불리언과 시각을 함께 둔다. 2년 주기 재확인(M7)의 기준일도 optInAt이다.
-   */
-  marketingOptIn          Boolean   @default(false) @map("marketing_opt_in")
-  marketingOptInAt        DateTime? @map("marketing_opt_in_at") @db.Timestamptz(6)
-  marketingOptOutAt       DateTime? @map("marketing_opt_out_at") @db.Timestamptz(6)
-  marketingConsentVersion String?   @map("marketing_consent_version") @db.VarChar(20)
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  /// 같은 시즌에 같은 이메일이 중복 신청되지 않도록 한다.
-  @@unique([seasonId, email])
-  @@index([createdAt])
-  @@map("leads")
+/// 생존 여부 — stage와 직교. 실격돼도 진행도는 보존된다.
+/// eliminated = 게이트 미통과, disqualified = 규칙 위반 실격
+enum EntryStatus {
+  active
+  eliminated
+  disqualified
+  withdrawn
 }
 
-// ═════════════════════════════════════════════════════════════
-// A. 인증 · 권한 — 명세서 종결본(2026-08-11, 39테이블/21ENUM) A절 이식분
-//
-// 종결본 전체가 아니라 A절만 먼저 넣는다. 지표·심사 계열(F·E절)은 심사 기준
-// 정본이 세 문서로 갈라져 있어 8/17 회의 결과에 종속되지만, 인증·권한은
-// 어느 결론에도 걸리지 않아 지금 확정할 수 있다.
-//
-// 컬럼 정의는 명세서 종결본을 그대로 따른다. 문법만 Prisma 7로 옮겼다
-// (generator·datasource는 이 레포 것을 쓴다 — 종결본은 Prisma 6 문법이다).
-// ═════════════════════════════════════════════════════════════
+/// 시즌1은 ADR-007로 custom 등록을 애플리케이션에서 차단한다. 값은 시즌2 대비 유지.
+enum HostnameType {
+  proovit_sub
+  custom
+}
 
 /// 동의 종류. 하나의 append-only 로그에 다 담기므로 종류로 구분한다.
 enum ConsentType {
@@ -167,20 +98,216 @@ enum ConsentType {
   tester
 }
 
+enum NotifChannel {
+  inapp
+  email
+  alimtalk
+}
+
+/// upheld = 어뷰징 확정(실격 유지), overturned = 플래그 취소(active 복귀)
+enum AbuseStatus {
+  flagged
+  appealed
+  upheld
+  overturned
+}
+
+enum OauthProvider {
+  kakao
+  google
+}
+
+enum OrgType {
+  public
+  b2b
+  edu
+}
+
+/// disabled는 시즌 종료·참가 포기로 측정을 끝낼 때만 쓴다. 실격은 사유가 되지 않는다.
+enum DeployStatus {
+  pending
+  verifying
+  active
+  failed
+  disabled
+}
+
+enum SslStatus {
+  pending
+  issuing
+  active
+  expired
+  failed
+}
+
+enum ExclusionReason {
+  self_payment
+  team_member
+  related_party
+  test
+  under_minimum
+}
+
+/// 마감 통지 분쟁의 근거는 delivered와 bounced를 가르는 것이다.
+enum DeliveryStatus {
+  queued
+  sent
+  delivered
+  bounced
+  failed
+}
+
+enum ViolationType {
+  report_late
+  evidence_ignored
+  tester_skip
+}
+
+enum PrizeType {
+  cash
+  credit
+  incubation
+}
+
+enum SanctionStage {
+  warning
+  week_invalidated
+  disqualified
+  award_revoked
+}
+
+/// 제15조 금지행위 7종. 규정 개정에 30일 예고가 걸려 운영 중 임의로 안 늘어난다고 보고 ENUM으로 닫음.
+enum SanctionReason {
+  bot_traffic
+  multi_account
+  paid_signup
+  evidence_forged
+  undisclosed_ad
+  attack_or_spam
+  false_representation
+}
+
+enum SanctionStatus {
+  pending
+  applied
+  withdrawn
+}
+
+/// column = metric_daily의 고정 칸, extra = metric_extra_daily
+enum MetricStorage {
+  column
+  extra
+}
+
+/// edge = 측정 프록시 집계본, manual = 운영자 보정 (ADR-006 리버스 프록시 확정).
+/// ga4는 체류시간 보조 확인 전용이다 — 측정 표준이 아니다.
+enum MetricSource {
+  edge
+  manual
+  ga4
+}
+
+enum JudgmentResult {
+  pass
+  revision
+  fail
+}
+
+enum MemberRole {
+  leader
+  member
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  expired
+  revoked
+}
+
+/// 시즌의 제출 단계(PLN6, 2026-08-13). 게이트 여부는 stages.is_gate가 따로 가진다 —
+/// s2·s5만 게이트이고 s1·s3·s4는 제출만 받는다. 제출 축과 심사 축을 한 값에 겸하지 않는다.
+enum StageKey {
+  s1
+  s2
+  s3
+  s4
+  s5
+}
+
+enum SubmissionStatus {
+  draft
+  submitted
+  locked
+}
+
+enum DepositStatus {
+  pending
+  paid
+  refunded
+  forfeited
+}
+
+enum PaymentProvider {
+  toss
+  portone
+}
+
+enum IntegrationStatus {
+  pending
+  verified
+  failed
+  disabled
+}
+
+enum CreditStatus {
+  issued
+  claimed
+  expired
+}
+
+enum LeadStatus {
+  new
+  contacted
+  converted
+  unsubscribed
+}
+
+enum TransactionStatus {
+  paid
+  canceled
+  refunded
+}
+
+enum AwardType {
+  overall
+  traffic
+  revenue
+  growth
+  special
+}
+
+/// R3 심사 트랙을 결정한다. s1 제출 후 변경 불가.
+enum ChargeType {
+  payment
+  inquiry
+}
+
+// ═════════════════════════════════════════════════════════════
+// A. 인증 · 권한
+// ═════════════════════════════════════════════════════════════
+
 model User {
   id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email    String @unique @db.Citext
   name     String @db.VarChar(60)
   /// 리더보드·참가작 페이지에 노출되는 이름. 실명(name)과 분리한다.
+  /// ⚠️ @unique가 없다 — 상위 팀 닉네임을 그대로 쓰는 사칭이 성립한다.
+  /// 지금은 앱에서만 막고 있어 동시 제출이면 둘 다 통과한다. 8/17 안건 2-1.
   nickname String @db.VarChar(60)
 
-  /// 자체 회원가입용. null = 소셜 전용 계정.
-  /// 06 §12는 "OAuth 2종만"으로 유출 표면을 줄이는 설계였는데 자체 가입이
-  /// 추가되면서 그 근거가 무효화된다 — 동혁이 명세서에 "원칙 변경 보고 필요"로
-  /// 표시했고 8/17 회의 안건이다. 컬럼은 두되 화면 도입은 회의 후에 결정한다.
-  passwordHash String? @map("password_hash")
-
-  /// 알림톡 발송처. 카카오 알림톡은 심사가 필요해 시즌1 도입은 미정이다.
+  /// 알림톡 발송처. 카카오 동의항목으로만 채워진다(카카오가 인증한 값).
+  /// 구글 가입자와 번호 미동의자는 null이고 이메일·인앱으로만 통지한다.
   phone     String? @db.VarChar(20)
   avatarUrl String? @map("avatar_url")
 
@@ -190,15 +317,28 @@ model User {
   /// phone이 null이면 발송 불가
   notifyAlimtalk Boolean @default(false) @map("notify_alimtalk")
 
+  /// 소셜 제공자가 인증해 넘겨준 이메일을 받은 시각. 우리가 인증 메일을 보내지 않는다.
   emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(6)
   /// 추가정보 입력 완료 시각. null이면 온보딩 화면을 다시 띄운다.
   onboardedAt     DateTime? @map("onboarded_at") @db.Timestamptz(6)
 
-  oauthAccounts OauthAccount[]
-  sessions      Session[]
-  userRoles     UserRole[]
-  consents      Consent[]
-  teamMembers   TeamMember[]
+  oauthAccounts        OauthAccount[]
+  sessions             Session[]
+  userRoles            UserRole[]
+  consents             Consent[]
+  teamMembers          TeamMember[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+  appliedSchedules     SeasonSchedule[]
+  judgments            Judgment[]
+  submissions          Submission[]
+  reviewedMetrics      MetricDaily[]
+  excludedTransactions Transaction[]
+  reviewedAbuseFlags   AbuseFlag[]
+  complianceRecords    ComplianceViolation[]
+  ipBlocks             IpBlocklist[]
+  decidedSanctions     Sanction[]
+  respondedAppeals     Appeal[]
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -207,12 +347,11 @@ model User {
 }
 
 model OauthAccount {
-  id                String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId            String @map("user_id") @db.Uuid
-  /// kakao / google
-  provider          String @db.VarChar(20)
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String        @map("user_id") @db.Uuid
+  provider          OauthProvider
   /// 소셜 제공자가 그 사용자에게 붙인 고유 번호
-  providerAccountId String @map("provider_account_id") @db.VarChar(255)
+  providerAccountId String        @map("provider_account_id") @db.VarChar(255)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -256,7 +395,6 @@ model UserRole {
   /// ⚠️ Cascade여야 한다. Prisma 기본값(SET NULL)을 쓰면 시즌이 지워질 때
   /// season_id가 null이 되는데, 이 표에서 null은 "전역 역할"을 뜻한다.
   /// 즉 시즌1 심사위원이 조용히 전 시즌 심사위원으로 승격된다.
-  /// 권한이 좁아지는 게 아니라 넓어지는 방향의 사고라 기본값을 그대로 두면 안 된다.
   season Season? @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -279,7 +417,8 @@ model Session {
   @@map("sessions")
 }
 
-/// 이메일 인증·비밀번호 재설정 토큰.
+/// ⚠️ 종결본에 없다. 지우지 않은 이유는 파일 머리 주석 1번 참조 —
+/// Auth.js 어댑터 인터페이스가 요구하고, 이메일 코드 로그인의 자리다.
 /// 가입 전에도 발급되므로 users.id를 참조하지 않는다(참조할 행이 아직 없다).
 model VerificationToken {
   identifier String
@@ -325,50 +464,21 @@ model Consent {
 }
 
 // ═════════════════════════════════════════════════════════════
-// B·D. 팀 · 참가 — 종결본(2026-08-11) B절·D절 중 /apply(DEV3)에 필요한 만큼만.
-//
-// A절과 같은 원칙으로 넣는다: 심사 결론에 걸리지 않는 것만 먼저 확정한다.
-// 여기 없는 것 — TeamInvitation(팀 초대는 DEV4) · Deposit(플래그 off) ·
-// Hostname·PaymentIntegration(측정/결제 연동, W4) · Submission 이하 E절
-// (StageKey가 8/17 ADR-008에 종속이라 지금 넣으면 다시 고친다).
-//
-// ⚠️ enum 표기가 파일 안에서 갈린다 — SeasonPhase만 대문자 + @@map이고
-// ConsentType 이후는 종결본 그대로 소문자다. 새로 넣는 것은 종결본을 따른다.
-// 통일은 8/17에 한 번에 한다(섞인 상태로 이름을 바꾸면 마이그레이션이 두 번 난다).
+// B. 조직 · 팀
 // ═════════════════════════════════════════════════════════════
 
-enum MemberRole {
-  leader
-  member
-}
+model Organization {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String   @db.VarChar(100)
+  type         OrgType?
+  contactEmail String?  @map("contact_email") @db.Citext
 
-/// 팀별 진행도(순서 있음). season.phase와 직교한다 — 시즌이 3주차여도
-/// 1차 탈락한 팀이 있다. 순서 비교는 상수 맵으로 한다(CLAUDE.md §4).
-enum EntryStage {
-  applied
-  onboarded
-  demand_submitted
-  gate1_revision
-  gate1_passed
-  gate1_failed
-  deployed
-  final_submitted
-  completed
-}
+  seasons Season[]
 
-/// 생존 여부 — stage와 직교. 실격돼도 "어디까지 왔었는지"는 보존한다.
-enum EntryStatus {
-  active
-  disqualified
-  withdrawn
-}
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-/// 과금 유형. 심사 기준서 v0.3의 R3 트랙을 가른다.
-/// ⚠️ /apply에서 받지 않는다 — 기준서가 "s1 제출 폼에서 받고 이후 변경 불가"로
-/// 정한 값이라 제출 폼(DEV5)의 필드다. 여기서 미리 받으면 변경 불가 시점이 당겨진다.
-enum ChargeType {
-  payment
-  inquiry
+  @@map("organizations")
 }
 
 /// 팀장 컬럼을 두지 않는다. 팀장의 정본은 team_members.role = leader다.
@@ -382,8 +492,9 @@ model Team {
   /// 전부 두 갈래가 된다. isSolo는 그 사실의 표시일 뿐 구조가 아니다.
   isSolo Boolean @default(false) @map("is_solo")
 
-  members TeamMember[]
-  entries Entry[]
+  members     TeamMember[]
+  invitations TeamInvitation[]
+  entries     Entry[]
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -403,13 +514,78 @@ model TeamMember {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   /// ⚠️ "팀당 팀장 1명"은 Prisma로 표현할 수 없다(부분 유니크 인덱스).
-  /// 마이그레이션 SQL에 손으로 넣는다 — 종결본 파일 하단 주석과 같은 항목이다.
+  /// 마이그레이션 SQL에 손으로 넣는다 — 파일 하단 주석 2번.
   @@unique([teamId, userId])
   @@map("team_members")
 }
 
+model TeamInvitation {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId     String           @map("team_id") @db.Uuid
+  inviteCode String           @unique @map("invite_code") @db.VarChar(12)
+  email      String?          @db.Citext
+  status     InvitationStatus @default(pending)
+  expiresAt  DateTime         @map("expires_at") @db.Timestamptz(6)
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("team_invitations")
+}
+
+// ═════════════════════════════════════════════════════════════
+// C. 시즌 구조
+// ═════════════════════════════════════════════════════════════
+
+model Season {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// null = 공개 리그
+  organizationId String?     @map("organization_id") @db.Uuid
+  title          String      @db.VarChar(100)
+  /// URL 조각. GET /api/seasons/:slug
+  slug           String      @unique @db.VarChar(60)
+  theme          String?     @db.VarChar(100)
+  /// 시즌 타임라인(전역 축). season_schedules를 크론이 읽어 전환한다.
+  /// 이 칸에 직접 쓰지 않는다.
+  phase          SeasonPhase @default(draft)
+  /// 시즌 전체 시작일(표시용). 페이즈 전환은 season_schedules가 한다.
+  startsAt       DateTime?   @map("starts_at") @db.Timestamptz(6)
+  /// 시즌 전체 종료일(표시용). 페이즈 전환은 season_schedules가 한다.
+  endsAt         DateTime?   @map("ends_at") @db.Timestamptz(6)
+  /// 보증금(원). feature_flags.deposit = false면 무시
+  depositAmount  BigInt      @default(30000) @map("deposit_amount")
+
+  /// 시즌별 화면 on/off. 전 화면을 개발하되 플래그로 차단한다(06 §4.4).
+  /// off인 라우트는 네비게이션에서 숨기고 직접 접근 시 404를 준다.
+  /// 읽는 모든 지점에서 Zod 런타임 검증 필수.
+  featureFlags  Json @default("{}") @map("feature_flags")
+  /// 채점 가중치·상한·매출모드. 시즌마다 바뀌므로 컬럼이 아니라 JSONB다.
+  scoringConfig Json @default("{}") @map("scoring_config")
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  tracks      Track[]
+  stages      Stage[]
+  schedules   SeasonSchedule[]
+  entries     Entry[]
+  userRoles   UserRole[]
+  leads       Lead[]
+  snapshots   LeaderboardSnapshot[]
+  testers     TesterAssignment[]
+  awards      Award[]
+  creditCodes CreditCode[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([phase])
+  @@map("seasons")
+}
+
 /// 시즌 내 참가 분야. 시즌1은 단일 트랙이라 화면에 선택칸을 두지 않고
-/// entries.trackId를 null로 남긴다. 표를 지금 만드는 이유는 Entry의 FK 대상이라서다.
+/// entries.trackId를 null로 남긴다.
 model Track {
   id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   seasonId String @map("season_id") @db.Uuid
@@ -427,6 +603,61 @@ model Track {
   @@map("tracks")
 }
 
+/// 제출 단위. 페이즈 전환은 하지 않는다 (ADR-010).
+model Stage {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seasonId String   @map("season_id") @db.Uuid
+  stageKey StageKey @map("stage_key")
+  name     String   @db.VarChar(60)
+  /// s2(1차 심사)·s5(2차 심사)만 true. 제출 축과 심사 축을 가르는 유일한 칸이다.
+  isGate   Boolean  @default(false) @map("is_gate")
+
+  /// 제출 시작. s4 행의 이 값이 주차 기산일이고 거기서 7일씩 끊어 week를 센다.
+  opensAt  DateTime? @map("opens_at") @db.Timestamptz(6)
+  /// 제출 마감. 이 시각과 season_schedules의 심사 페이즈 시작 시각이 어긋나지 않아야 한다.
+  closesAt DateTime? @map("closes_at") @db.Timestamptz(6)
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([seasonId, stageKey])
+  @@map("stages")
+}
+
+/// ADR-010. 페이즈 전환의 유일한 정본. 크론이 이 표만 읽는다.
+model SeasonSchedule {
+  id       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seasonId String      @map("season_id") @db.Uuid
+  /// 이 시각에 seasons.phase를 이 값으로 바꾼다
+  phase    SeasonPhase
+  /// 전환 예정 시각
+  startsAt DateTime    @map("starts_at") @db.Timestamptz(6)
+
+  /// 크론이 실제로 전환한 시각. null = 아직 전환 안 됨.
+  /// 중복 실행돼도 null인 행만 처리한다.
+  appliedAt DateTime? @map("applied_at") @db.Timestamptz(6)
+  /// 운영자가 수동으로 앞당긴 경우의 처리자. 크론 자동이면 null
+  appliedBy String?   @map("applied_by") @db.Uuid
+  /// 예정 시각과 다르게 전환한 사유
+  note      String?
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  actor  User?  @relation(fields: [appliedBy], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([seasonId, phase])
+  @@index([seasonId, startsAt])
+  @@map("season_schedules")
+}
+
+// ═════════════════════════════════════════════════════════════
+// D. 참가
+// ═════════════════════════════════════════════════════════════
+
 /// 한 팀이 한 시즌에 참가한 기록. 제출·지표·심사·매출·실격이 전부 여기 매달린다.
 /// 팀 ≠ 참가다 — 같은 팀이 시즌2에 나가면 참가는 새로 생긴다.
 model Entry {
@@ -436,30 +667,52 @@ model Entry {
   /// 시즌1은 단일 트랙이라 null이다.
   trackId  String? @map("track_id") @db.Uuid
 
+  /// 진도. 심사 결과는 judgments에서 읽는다.
   stage  EntryStage  @default(applied)
   status EntryStatus @default(active)
 
-  /// 1차 탈락팀의 상호 테스터 참여 선택. 심사 결과가 아니라 본인 선택이다.
+  /// 탈락팀의 상호 테스터 참여 선택. 심사 결과가 아니라 본인 선택이다.
   isTester Boolean @default(false) @map("is_tester")
 
   ideaTitle   String  @map("idea_title") @db.VarChar(120)
   ideaSummary String? @map("idea_summary")
 
   /// 참가자가 신고한 배포 주소(표시용). 측정 대상 주소의 정본은 hostnames다.
-  /// 신청 시점에는 아직 만든 것이 없으므로 null로 두고 배포 단계에서 채운다.
   serviceUrl String? @map("service_url")
 
+  /// 과금 유형. R3 심사 트랙을 결정하며 s1 제출 후 변경 불가.
   chargeType ChargeType @default(payment) @map("charge_type")
 
   /// 신청 접수 시각. createdAt과 따로 두는 이유는 운영자가 대신 만든 행이
   /// 있을 수 있어서다 — "언제 행이 생겼나"와 "언제 신청했나"는 다른 질문이다.
+  /// 참가 동의 3종을 신청 전에 받으므로, 팀장이 신청을 시작할 때 행을 먼저 만들고
+  /// 이 칸을 비워 둔다(2026-08-13 종결본).
   appliedAt DateTime? @map("applied_at") @db.Timestamptz(6)
 
   season Season @relation(fields: [seasonId], references: [id])
   team   Team   @relation(fields: [teamId], references: [id])
   track  Track? @relation(fields: [trackId], references: [id])
 
-  consents Consent[]
+  deposit       Deposit?
+  hostname      Hostname?
+  integration   PaymentIntegration?
+  entryLeads    EntryLead[]
+  submissions   Submission[]
+  metricDaily   MetricDaily[]
+  metricExtra   MetricExtraDaily[]
+  metricChannel MetricChannelDaily[]
+  metricHourly  MetricHourly[]
+  transactions  Transaction[]
+  snapshots     LeaderboardSnapshot[]
+  abuseFlags    AbuseFlag[]
+  violations    ComplianceViolation[]
+  sanctions     Sanction[]
+  appeals       Appeal[]
+  creditIssues  CreditIssuance[]
+  awards        Award[]
+  consents      Consent[]
+  testerOf      TesterAssignment[]    @relation("TesterEntry")
+  testedBy      TesterAssignment[]    @relation("TargetEntry")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -470,3 +723,755 @@ model Entry {
   @@index([seasonId, status])
   @@map("entries")
 }
+
+model Deposit {
+  id      String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId String        @unique @map("entry_id") @db.Uuid
+  amount  BigInt
+  /// 환불은 진도가 completed에 도달한 팀만. 1차 탈락 후 테스터 전환은
+  /// 완주가 아니라 forfeited다.
+  status  DepositStatus @default(pending)
+
+  pgPaymentKey String?   @map("pg_payment_key") @db.VarChar(255)
+  paidAt       DateTime? @map("paid_at") @db.Timestamptz(6)
+  refundedAt   DateTime? @map("refunded_at") @db.Timestamptz(6)
+  refundReason String?   @map("refund_reason")
+
+  entry Entry @relation(fields: [entryId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("deposits")
+}
+
+/// 측정 대상 주소. 프록시 확정(ADR-006)으로 전 컬럼 유지.
+model Hostname {
+  id       String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId  String       @unique @map("entry_id") @db.Uuid
+  /// 팀명.proovit.kr 또는 참가자 도메인
+  hostname String       @unique @db.VarChar(255)
+  /// 시즌1은 custom 등록을 애플리케이션에서 차단한다 (ADR-007)
+  type     HostnameType @default(proovit_sub)
+
+  originUrl    String? @map("origin_url")
+  cfHostnameId String? @map("cf_hostname_id") @db.VarChar(255)
+  /// 측정 프록시 라우트
+  workerRoute  String? @map("worker_route") @db.VarChar(255)
+
+  deployStatus DeployStatus @default(pending) @map("deploy_status")
+  sslStatus    SslStatus?   @map("ssl_status")
+
+  ownershipVerifiedAt DateTime? @map("ownership_verified_at") @db.Timestamptz(6)
+  /// 참가자가 DNS를 자기 오리진으로 돌려 엣지를 우회한 시각
+  bypassDetectedAt    DateTime? @map("bypass_detected_at") @db.Timestamptz(6)
+  lastCheckedAt       DateTime? @map("last_checked_at") @db.Timestamptz(6)
+
+  /// 참가자 소유 GA4 속성 ID. 체류 10초 판정을 여기서 병행 확인한다 —
+  /// 리버스 프록시는 체류시간을 잴 수 없어서다. 측정 표준이 아니라 보조 확인이다.
+  analyticsPropertyId      String?   @map("analytics_property_id") @db.VarChar(40)
+  /// 참가자가 운영자에게 조회 권한을 준 시각. null이면 GA4 값을 신뢰하지 않는다.
+  analyticsAccessGrantedAt DateTime? @map("analytics_access_granted_at") @db.Timestamptz(6)
+
+  entry Entry @relation(fields: [entryId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("hostnames")
+}
+
+model PaymentIntegration {
+  id       String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId  String          @unique @map("entry_id") @db.Uuid
+  provider PaymentProvider
+
+  merchantId       String? @map("merchant_id") @db.VarChar(120)
+  readonlyKeyEnc   String? @map("readonly_key_enc")
+  webhookSecretEnc String? @map("webhook_secret_enc")
+
+  status     IntegrationStatus @default(pending)
+  verifiedAt DateTime?         @map("verified_at") @db.Timestamptz(6)
+
+  entry Entry @relation(fields: [entryId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("payment_integrations")
+}
+
+/// ⚠️ 보류 — 점수 축이 유효 방문수로 확정되어 시즌1에서 쓰지 않는다.
+model EntryLead {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId     String    @map("entry_id") @db.Uuid
+  contactHash String    @map("contact_hash") @db.VarChar(64)
+  /// null = 미인증 → 점수 미반영
+  verifiedAt  DateTime? @map("verified_at") @db.Timestamptz(6)
+  sourceHost  String?   @map("source_host") @db.VarChar(255)
+
+  entry Entry @relation(fields: [entryId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([entryId, contactHash])
+  @@index([entryId, verifiedAt])
+  @@map("entry_leads")
+}
+
+// ═════════════════════════════════════════════════════════════
+// E. 제출 · 심사
+// ═════════════════════════════════════════════════════════════
+
+model Submission {
+  id       String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId  String           @map("entry_id") @db.Uuid
+  stageKey StageKey         @map("stage_key")
+  /// 주차. stages의 s4 행 opens_at부터 7일씩 끊어 센다. 단발 제출 넷은 0.
+  week     Int              @default(0) @db.SmallInt
+  status   SubmissionStatus @default(draft)
+  payload  Json             @default("{}")
+
+  /// 피칭자료·로고·데모영상 + 지표 증빙. R2 저장.
+  /// ⚠️ 지표의 근거로 쓰지 않는다 — 서버측 집계가 유일한 근거다(PLN5 §8).
+  evidenceUrls String[] @map("evidence_urls")
+
+  /// 보완 재제출 마감(원 마감 +48시간). 팀별로 달라 stages.closes_at과 별개.
+  revisionDueAt DateTime? @map("revision_due_at") @db.Timestamptz(6)
+
+  /// 제출을 누른 사람. 팀장만 누를 수 있으나 시즌 중 팀장이 바뀔 수 있어
+  /// 그 시각의 주체를 남긴다 — 마감 직전 재제출 분쟁의 유일한 근거다.
+  submittedBy String?   @map("submitted_by") @db.Uuid
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(6)
+
+  entry     Entry      @relation(fields: [entryId], references: [id])
+  submitter User?      @relation(fields: [submittedBy], references: [id])
+  judgments Judgment[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([entryId, stageKey, week])
+  @@map("submissions")
+}
+
+model Judgment {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submissionId String         @map("submission_id") @db.Uuid
+  result       JudgmentResult
+  autoScore    Decimal?       @map("auto_score") @db.Decimal(10, 4)
+
+  /// 2차는 전면 공개, 1차는 결과와 항목별 근거만 공개하고 배점 숫자는 비공개.
+  /// 컬럼은 두 경우 다 값을 갖고, 응답 단계에서 stage_key로 갈라 마스킹한다.
+  scoreBreakdown Json?   @map("score_breakdown")
+  /// 채점식 버전. 규칙이 바뀌어도 과거 판정을 재현한다.
+  formulaVersion String? @map("formula_version") @db.VarChar(20)
+  /// 참고자료. 점수 미반영(주관심사 배제 원칙).
+  aiReport       Json?   @map("ai_report")
+  feedback       String?
+
+  judgedBy String?  @map("judged_by") @db.Uuid
+  judgedAt DateTime @default(now()) @map("judged_at") @db.Timestamptz(6)
+
+  submission Submission @relation(fields: [submissionId], references: [id])
+  judge      User?      @relation(fields: [judgedBy], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("judgments")
+}
+
+/// ⚠️ 제안 단계(2026-08-13) — 수연·윤서 확인 전.
+/// 제11조(이의신청): 판정 통지 후 5영업일 이내 신청, 운영자는 5영업일 내 서면 답변,
+/// 산정 오류 확인 시 정정. "제재 결정에도 본 조를 준용함"(제11조③)이라
+/// judgments와 sanctions 양쪽이 이 표 하나를 공유한다.
+/// sanctions.appeal_text는 별개다 — 그건 제재 "적용 전" 소명(제16조①)이고
+/// 이 표는 판정·제재 "결정 후" 정식 이의신청이다.
+model Appeal {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId    String @map("entry_id") @db.Uuid
+  /// judgment / sanction
+  targetType String @map("target_type") @db.VarChar(20)
+  targetId   String @map("target_id") @db.Uuid
+  reasonText String @map("reason_text")
+
+  submittedAt   DateTime  @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  /// 접수 시각 + 5영업일. 영업일 계산은 애플리케이션이 한다.
+  responseDueAt DateTime? @map("response_due_at") @db.Timestamptz(6)
+  responseText  String?   @map("response_text")
+  respondedAt   DateTime? @map("responded_at") @db.Timestamptz(6)
+  respondedBy   String?   @map("responded_by") @db.Uuid
+  /// 산정 오류가 확인돼 원 판정·제재가 정정됐는지(제11조③)
+  corrected     Boolean   @default(false)
+
+  entry     Entry @relation(fields: [entryId], references: [id])
+  responder User? @relation(fields: [respondedBy], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([targetType, targetId])
+  @@index([entryId])
+  @@map("appeals")
+}
+
+// ═════════════════════════════════════════════════════════════
+// F. 지표
+// ═════════════════════════════════════════════════════════════
+
+model MetricDefinition {
+  id   String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// visitors / signups / retention / channels
+  key  String  @unique @db.VarChar(40)
+  name String  @db.VarChar(60)
+  unit String? @db.VarChar(20)
+
+  /// column이면 metric_daily의 고정 칸에, extra면 metric_extra_daily에 저장한다.
+  /// 지표를 늘릴 때 컬럼이 아니라 정의 행만 추가하면 되는 구조다.
+  storage    MetricStorage @default(extra)
+  /// storage가 column일 때 대응하는 metric_daily 컬럼명. extra면 비운다.
+  columnName String?       @map("column_name") @db.VarChar(40)
+  /// 행 삭제가 아닌 on/off
+  isActive   Boolean       @default(true) @map("is_active")
+
+  extraDaily MetricExtraDaily[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("metric_definitions")
+}
+
+model MetricDaily {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  entryId    String   @map("entry_id") @db.Uuid
+  metricDate DateTime @map("metric_date") @db.Date
+
+  rawVisitors   Int    @default(0) @map("raw_visitors")
+  validVisitors Int    @default(0) @map("valid_visitors")
+  pageviews     Int    @default(0)
+  botFiltered   Int    @default(0) @map("bot_filtered")
+  signups       Int    @default(0)
+  revenue       BigInt @default(0)
+
+  source MetricSource @default(edge)
+
+  /// 무효율 검수(1 − 유효 방문/총 세션 > 0.6)의 분모
+  sessions     Int @default(0)
+  /// 일별 유효 방문이 기간 중위값의 20배를 넘을 때 잘라낸 수
+  spikeTrimmed Int @default(0) @map("spike_trimmed")
+
+  /// 엣지가 이 집계본을 만든 배치 시각. 엣지가 값과 함께 보낸다.
+  /// upsert는 batch_at이 더 최신일 때만 덮어쓴다. manual 행은 null.
+  /// ⚠️ CHECK 제약은 Prisma가 표현하지 못한다. 파일 하단 주석 1번.
+  batchAt DateTime? @map("batch_at") @db.Timestamptz(6)
+
+  /// abuse_flags가 걸린 건만 채운다. 그 외 행에서는 의미 없음.
+  manualReviewPassed Boolean @default(true) @map("manual_review_passed")
+  reviewedBy         String? @map("reviewed_by") @db.Uuid
+
+  entry    Entry @relation(fields: [entryId], references: [id])
+  reviewer User? @relation(fields: [reviewedBy], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([entryId, metricDate])
+  @@map("metric_daily")
+}
+
+/// 채점 축이 아닌 참고 지표. 지표를 늘릴 때 컬럼이 아니라 행이 는다.
+model MetricExtraDaily {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  entryId      String   @map("entry_id") @db.Uuid
+  metricDate   DateTime @map("metric_date") @db.Date
+  definitionId String   @map("definition_id") @db.Uuid
+
+  /// 개수·금액·비율을 한 칸에 담아야 해서 정수형을 쓰지 않는다.
+  value  Decimal      @default(0) @db.Decimal(20, 4)
+  source MetricSource @default(edge)
+
+  /// upsert는 이 값이 더 최신일 때만 덮어쓴다.
+  /// metric_daily와 달리 CHECK 제약을 걸지 않는다 — 채점에 들어가지 않는 값이다.
+  batchAt DateTime? @map("batch_at") @db.Timestamptz(6)
+
+  entry      Entry            @relation(fields: [entryId], references: [id])
+  definition MetricDefinition @relation(fields: [definitionId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([entryId, metricDate, definitionId])
+  @@index([definitionId])
+  @@map("metric_extra_daily")
+}
+
+/// T3 유입 채널 다양성의 원자료. 채널별 비중 제곱합으로 유효 채널 수를 낸다.
+/// 날짜별 합계 한 줄로는 채널별 비중을 복원할 수 없어 따로 둔다.
+model MetricChannelDaily {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  entryId    String   @map("entry_id") @db.Uuid
+  metricDate DateTime @map("metric_date") @db.Date
+  /// direct는 통째로 하나로 세고, UTM 태깅분은 각각 하나.
+  /// 참가자가 UTM을 직접 정하므로 ENUM으로 닫지 않는다.
+  channel    String   @db.VarChar(60)
+  visitors   Int      @default(0)
+
+  entry Entry @relation(fields: [entryId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([entryId, metricDate, channel])
+  @@map("metric_channel_daily")
+}
+
+model MetricHourly {
+  id       String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  entryId  String   @map("entry_id") @db.Uuid
+  bucketAt DateTime @map("bucket_at") @db.Timestamptz(6)
+
+  validVisitors Int    @default(0) @map("valid_visitors")
+  pageviews     Int    @default(0)
+  revenue       BigInt @default(0)
+
+  /// 엣지가 이 집계본을 만든 배치 시각. upsert는 이 값이 더 최신일 때만 덮어쓴다.
+  batchAt DateTime @map("batch_at") @db.Timestamptz(6)
+
+  entry Entry @relation(fields: [entryId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([entryId, bucketAt])
+  @@map("metric_hourly")
+}
+
+model Transaction {
+  id      String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  entryId String @map("entry_id") @db.Uuid
+
+  /// 멱등키(중복 웹훅 방지)
+  providerTxId String  @unique @map("provider_tx_id") @db.VarChar(255)
+  /// 환불·취소가 어느 결제에 대한 것인지(순매출 계산)
+  relatedTxId  String? @map("related_tx_id") @db.VarChar(255)
+
+  amount     BigInt
+  status     TransactionStatus
+  paidAt     DateTime          @map("paid_at") @db.Timestamptz(6)
+  rawPayload Json              @map("raw_payload")
+
+  /// 결제자 식별 해시. 유효 결제자 수 c, L3 "서로 다른 3인", L4 재결제 판정의
+  /// 유일한 근거. null이면 결제자 수 집계에서 제외.
+  payerHash String? @map("payer_hash") @db.VarChar(64)
+
+  /// 순매출·전환율 계산에서 빠짐
+  isExcluded      Boolean          @default(false) @map("is_excluded")
+  exclusionReason ExclusionReason? @map("exclusion_reason")
+  /// 수동 제외한 운영자. 자동 판정이면 null
+  excludedBy      String?          @map("excluded_by") @db.Uuid
+  excludedAt      DateTime?        @map("excluded_at") @db.Timestamptz(6)
+
+  entry    Entry @relation(fields: [entryId], references: [id])
+  excluder User? @relation(fields: [excludedBy], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([entryId, paidAt])
+  @@index([entryId, payerHash])
+  @@map("transactions")
+}
+
+model LeaderboardSnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seasonId     String   @map("season_id") @db.Uuid
+  entryId      String   @map("entry_id") @db.Uuid
+  snapshotDate DateTime @map("snapshot_date") @db.Date
+
+  /// 실격 여부와 무관하게 전 팀 기준으로 저장한다(06 §6.3).
+  /// 공개 응답에서 status != active인 행을 빼고 번호를 다시 매긴다 —
+  /// 저장은 전체 기준, 노출은 생존 팀 기준으로 갈라둔 것이다.
+  rank  Int
+  score Decimal @db.Decimal(12, 4)
+
+  validVisitorsTotal Int     @default(0) @map("valid_visitors_total")
+  revenueTotal       BigInt  @default(0) @map("revenue_total")
+  isFinal            Boolean @default(false) @map("is_final")
+
+  /// R3 수익화 단계(L0~L4 또는 L0'~L4')와 판정 근거도 여기에 담는다
+  scoreBreakdown  Json    @default("{}") @map("score_breakdown")
+  /// 채점식·앵커 버전. 기준이 바뀌어도 과거 순위를 그대로 재현
+  formulaVersion  String? @map("formula_version") @db.VarChar(20)
+  /// 축 하한(T>=20 그리고 R>=10) 충족 여부.
+  /// false면 종합 시상에서 제외하고 순위표에는 표시한다.
+  isAwardEligible Boolean @default(true) @map("is_award_eligible")
+
+  season Season @relation(fields: [seasonId], references: [id])
+  entry  Entry  @relation(fields: [entryId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([seasonId, entryId, snapshotDate])
+  @@index([seasonId, snapshotDate, rank])
+  @@map("leaderboard_snapshots")
+}
+
+// ═════════════════════════════════════════════════════════════
+// G. 상호 테스터
+// ═════════════════════════════════════════════════════════════
+
+model TesterAssignment {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seasonId      String @map("season_id") @db.Uuid
+  week          Int    @db.SmallInt
+  testerEntryId String @map("tester_entry_id") @db.Uuid
+  targetEntryId String @map("target_entry_id") @db.Uuid
+
+  /// 배정 시 생성. 이 토큰이 붙은 방문만 상대 팀 지표에서 제외한다.
+  trackingToken String    @unique @map("tracking_token") @db.VarChar(32)
+  /// 토큰으로 실제 접속한 시각. 의무 이행 확인 보조.
+  visitedAt     DateTime? @map("visited_at") @db.Timestamptz(6)
+
+  season      Season          @relation(fields: [seasonId], references: [id])
+  testerEntry Entry           @relation("TesterEntry", fields: [testerEntryId], references: [id])
+  targetEntry Entry           @relation("TargetEntry", fields: [targetEntryId], references: [id])
+  feedback    TesterFeedback?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([week, testerEntryId, targetEntryId])
+  @@map("tester_assignments")
+}
+
+model TesterFeedback {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assignmentId String @unique @map("assignment_id") @db.Uuid
+  content      String
+  /// 1~5
+  rating       Int?   @db.SmallInt
+
+  submittedAt DateTime @default(now()) @map("submitted_at") @db.Timestamptz(6)
+
+  assignment TesterAssignment @relation(fields: [assignmentId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("tester_feedbacks")
+}
+
+// ═════════════════════════════════════════════════════════════
+// H. 혜택 · 스폰서
+// ═════════════════════════════════════════════════════════════
+
+model Sponsor {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String  @db.VarChar(80)
+  benefitDesc String? @map("benefit_desc")
+  websiteUrl  String? @map("website_url")
+
+  creditCodes CreditCode[]
+  issuances   CreditIssuance[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("sponsors")
+}
+
+model CreditCode {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sponsorId String  @map("sponsor_id") @db.Uuid
+  seasonId  String? @map("season_id") @db.Uuid
+
+  /// 언락 조건. 이 진도에 도달하면 발급한다. 스폰서마다 다를 수 있다.
+  /// 스테이지 언락형이라 파밍이 차단되고, 이중 발급은 DB 유니크가 막는다.
+  unlockStage EntryStage   @map("unlock_stage")
+  code        String       @unique @db.VarChar(120)
+  status      CreditStatus @default(issued)
+
+  sponsor  Sponsor         @relation(fields: [sponsorId], references: [id])
+  season   Season?         @relation(fields: [seasonId], references: [id])
+  issuance CreditIssuance?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([sponsorId, status])
+  @@map("credit_codes")
+}
+
+model CreditIssuance {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  creditCodeId String   @unique @map("credit_code_id") @db.Uuid
+  entryId      String   @map("entry_id") @db.Uuid
+  sponsorId    String   @map("sponsor_id") @db.Uuid
+  issuedAt     DateTime @default(now()) @map("issued_at") @db.Timestamptz(6)
+
+  creditCode CreditCode @relation(fields: [creditCodeId], references: [id])
+  entry      Entry      @relation(fields: [entryId], references: [id])
+  sponsor    Sponsor    @relation(fields: [sponsorId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([entryId, sponsorId])
+  @@map("credit_issuances")
+}
+
+// ═════════════════════════════════════════════════════════════
+// I. 운영
+// ═════════════════════════════════════════════════════════════
+
+/// 사전신청 이메일 = KPI#1의 원천.
+/// 수명이 '영구'인 이유: 시즌1 미참가자가 시즌2의 모집 풀이다.
+model Lead {
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email String @db.Citext
+
+  /// 어느 시즌을 보고 신청했는지.
+  ///
+  /// nullable로 두지 않는 이유: Postgres는 UNIQUE에서 NULL을 서로 다른 값으로 취급한다.
+  /// season_id가 NULL이면 아래 @@unique가 무력화돼 같은 이메일이 무제한 쌓이고,
+  /// 그 숫자가 곧 KPI#1(실측 신청자 수)이자 지원사업 제출 수치라 부풀려지면 안 된다.
+  seasonId String @map("season_id") @db.Uuid
+  season   Season @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+
+  /// 유입 채널 분석용. 랜딩의 쿼리스트링에서 수집한다.
+  sourceChannel String? @map("source_channel") @db.VarChar(60)
+  utmSource     String? @map("utm_source") @db.VarChar(120)
+  utmMedium     String? @map("utm_medium") @db.VarChar(120)
+  utmCampaign   String? @map("utm_campaign") @db.VarChar(120)
+  /// Referer 헤더. UTM 없는 자연 유입의 유일한 근거.
+  referrer      String? @db.Text
+
+  /// 모집 오픈 시 1순위 알림 대상. 발송 후 시각을 남긴다.
+  notifiedAt DateTime? @map("notified_at") @db.Timestamptz(6)
+
+  status LeadStatus @default(new)
+
+  /**
+   * 동의 로그 — 운영규칙서 D8이 "동의 일시·문안 버전·식별값"의 서버 저장을 요구한다.
+   * 동의 사실의 입증 책임이 회사에 있으므로 문안이 개정돼도 "그때 무엇에 동의했는지"가
+   * 남아야 한다. 그래서 불리언이 아니라 버전 문자열을 박는다.
+   * 만 14세 확인은 문안 A 안에 든 항목이라 별도 컬럼을 두지 않는다 —
+   * 어느 문안에 동의했는지가 남으면 그 안의 조항도 함께 특정된다.
+   * 식별값으로 IP를 쓰지 않는 이유: 문안 A의 수집 항목이 이메일 하나뿐이라
+   * IP를 저장하면 문안에 없는 항목을 수집하게 되어 최소수집 위반이 된다.
+   */
+
+  /// 개인정보 수집·이용 필수 동의 시각. 이 값 없이 행을 만들지 않는다.
+  privacyConsentAt      DateTime @map("privacy_consent_at") @db.Timestamptz(6)
+  /// 동의한 「개인정보 수집·이용 동의문」 문안 A의 버전.
+  privacyConsentVersion String?  @map("privacy_consent_version") @db.VarChar(20)
+
+  /// 마케팅 수신 동의(선택). 기본 해제이며 미동의로도 접수된다(D5).
+  marketingOptIn          Boolean   @default(false) @map("marketing_opt_in")
+  /// 동의한 마케팅 수신 문안의 버전. marketingOptIn이 참일 때만 값이 있다.
+  marketingConsentVersion String?   @map("marketing_consent_version") @db.VarChar(20)
+  /// 수신거부 시각. null이면 거부 안 함. 철회의 정본 경로는 메일 하단 수신거부 링크(M5)다.
+  unsubscribedAt          DateTime? @map("unsubscribed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  /// 같은 시즌에 같은 이메일이 중복 신청되지 않도록 한다.
+  @@unique([seasonId, email])
+  @@index([createdAt])
+  @@map("leads")
+}
+
+model Notification {
+  id      String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId  String  @map("user_id") @db.Uuid
+  /// deadline / gate_result / appeal 등. 값 목록은 코드 상수로 관리.
+  type    String  @db.VarChar(40)
+  title   String
+  body    String?
+  linkUrl String? @map("link_url")
+
+  /// 통지 정본은 email·inapp이다. alimtalk은 users.phone이 있을 때만 보조로 얹는다.
+  channel NotifChannel @default(inapp)
+
+  sentAt         DateTime?       @map("sent_at") @db.Timestamptz(6)
+  /// 도달 결과. 근거로 삼는 채널은 전원에게 가는 email.
+  deliveryStatus DeliveryStatus? @map("delivery_status")
+  /// null = 미읽음
+  readAt         DateTime?       @map("read_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model AbuseFlag {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId  String   @map("entry_id") @db.Uuid
+  ipHash   String?  @map("ip_hash") @db.VarChar(64)
+  /// CF 봇 스코어
+  botScore Decimal? @map("bot_score") @db.Decimal(5, 2)
+  reason   String?  @db.VarChar(120)
+
+  status           AbuseStatus @default(flagged)
+  adjustedVisitors Int?        @map("adjusted_visitors")
+
+  /// 참가자 소명 — 실격이 곧 분쟁이므로 창구가 반드시 있어야 한다.
+  appealText String?   @map("appeal_text")
+  appealedAt DateTime? @map("appealed_at") @db.Timestamptz(6)
+
+  /// 운영자 처리 사유(필수 기록)
+  resolutionNote String? @map("resolution_note")
+  reviewedBy     String? @map("reviewed_by") @db.Uuid
+
+  entry    Entry @relation(fields: [entryId], references: [id])
+  reviewer User? @relation(fields: [reviewedBy], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([entryId, status])
+  @@map("abuse_flags")
+}
+
+/// ⚠️ ADR-008(심사 구조)에 종속. report_late의 정의는 8/17 확인 대기.
+model ComplianceViolation {
+  id      String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId String        @map("entry_id") @db.Uuid
+  week    Int           @db.SmallInt
+  /// 실격 기간에 못 낸 제출은 위반으로 세지 않는다. 실격 구간은 audit_logs로 판정한다.
+  type    ViolationType
+  note    String?
+
+  createdBy String? @map("created_by") @db.Uuid
+
+  entry   Entry @relation(fields: [entryId], references: [id])
+  creator User? @relation(fields: [createdBy], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([entryId, week, type])
+  @@index([entryId, type])
+  @@map("compliance_violations")
+}
+
+/// ⚠️ 제안 단계(2026-08-13) — 수연(구현 가능성)·윤서(제16조 해석) 확인 전.
+/// 제16조 제재 4단계를 이 표 하나로 받는다. 비례 적용이라 warning부터 순서대로
+/// 안 거치고 바로 높은 단계로 갈 수 있다.
+/// week_invalidated는 metric_daily에 캐시 컬럼을 두지 않고 채점 시점에 조인해서 뺀다.
+model Sanction {
+  id      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId String         @map("entry_id") @db.Uuid
+  /// 제16조1항 4단계
+  stage   SanctionStage
+  /// 제15조 금지행위 7종 중 근거
+  reason  SanctionReason
+  /// 위반 사실 서술(필수 기록). audit_logs.reason과 같은 이유로 meta에 안 넣고 컬럼으로 강제.
+  detail  String
+
+  /// 이 제재를 촉발한 근거 종류. abuse_flag / compliance_violation / manual
+  sourceType String? @map("source_type") @db.VarChar(20)
+  sourceId   String? @map("source_id") @db.Uuid
+
+  /// stage=week_invalidated일 때만. compliance_violations.week와 같은 타입.
+  week Int? @db.SmallInt
+
+  /// stage=warning의 24시간 시정 기한
+  correctionDeadline DateTime? @map("correction_deadline") @db.Timestamptz(6)
+  /// 적용 전 소명 기한(제16조1항). 이 시각까지 소명 없으면 적용한다.
+  /// appeals 표와 다른 절차다 — 그쪽은 결정 "후" 정식 이의신청이다.
+  appealDeadlineAt   DateTime? @map("appeal_deadline_at") @db.Timestamptz(6)
+  appealText         String?   @map("appeal_text")
+  appealedAt         DateTime? @map("appealed_at") @db.Timestamptz(6)
+
+  status SanctionStatus @default(pending)
+
+  /// stage=award_revoked일 때만. 제16조2항 취소·환수 대상 시상.
+  awardId        String? @map("award_id") @db.Uuid
+  /// 환수 금액(원). null이면 시상 취소만이고 환수는 없음.
+  clawbackAmount BigInt? @map("clawback_amount")
+
+  decidedBy String?   @map("decided_by") @db.Uuid
+  appliedAt DateTime? @map("applied_at") @db.Timestamptz(6)
+
+  entry   Entry  @relation(fields: [entryId], references: [id])
+  award   Award? @relation(fields: [awardId], references: [id])
+  decider User?  @relation(fields: [decidedBy], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([entryId, stage])
+  @@map("sanctions")
+}
+
+model IpBlocklist {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ipHash    String  @unique @map("ip_hash") @db.VarChar(64)
+  reason    String? @db.VarChar(120)
+  createdBy String? @map("created_by") @db.Uuid
+
+  creator User? @relation(fields: [createdBy], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("ip_blocklist")
+}
+
+model Award {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seasonId String @map("season_id") @db.Uuid
+  entryId  String @map("entry_id") @db.Uuid
+
+  /// 종합 시상에만 사용하고 부문상은 null
+  rank      Int?
+  prizeType PrizeType? @map("prize_type")
+  prizeDesc String?    @map("prize_desc")
+  amount    BigInt?
+  awardType AwardType  @default(overall) @map("award_type")
+  awardedAt DateTime?  @map("awarded_at") @db.Timestamptz(6)
+
+  season    Season     @relation(fields: [seasonId], references: [id])
+  entry     Entry      @relation(fields: [entryId], references: [id])
+  sanctions Sanction[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("awards")
+}
+
+model AuditLog {
+  id         BigInt  @id @default(autoincrement())
+  actorId    String? @map("actor_id") @db.Uuid
+  /// judge_pass / disqualify / refund 등
+  action     String  @db.VarChar(60)
+  targetType String  @map("target_type") @db.VarChar(40)
+  targetId   String? @map("target_id") @db.Uuid
+  meta       Json?
+  /// 실격·오버라이드 사유 필수. meta JSONB에 넣으면 강제가 안 된다.
+  reason     String
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([targetType, targetId])
+  @@map("audit_logs")
+}
+
+// ═════════════════════════════════════════════════════════════
+// ⚠️ Prisma가 표현하지 못하는 제약 2건 — 마이그레이션 SQL에 손으로 넣는다.
+//    migrate reset이나 새 환경 구축에서도 따라오게 하기 위해서다.
+//
+// 1) metric_daily.batch_at 조건부 필수
+//    ALTER TABLE metric_daily
+//      ADD CONSTRAINT metric_daily_batch_at_required
+//      CHECK (source <> 'edge' OR batch_at IS NOT NULL);
+//    → 없으면 엣지가 배치 시각을 안 보내도 통과해서 역행 방어가 무력화된다.
+//
+// 2) team_members 팀당 leader 1명
+//    CREATE UNIQUE INDEX team_members_one_leader
+//      ON team_members (team_id) WHERE role = 'leader';
+//    → 없으면 한 팀에 팀장이 둘 생길 수 있다.
+//
+// uuidv7()은 확장이 필요 없다 — 운영 Neon이 PostgreSQL 18.4이고 18부터 코어 함수다.
+// (확장이 주는 이름은 uuid_generate_v7(), 코어가 주는 이름은 uuidv7()로 다를 뿐이다)
+// ═════════════════════════════════════════════════════════════

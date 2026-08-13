@@ -36,9 +36,9 @@ export default async function Home() {
 
   return (
     <Landing
-      seasonName={season.name}
+      seasonName={season.title}
       seasonTheme={season.theme}
-      startAt={season.startAt?.toISOString() ?? null}
+      startAt={season.startsAt?.toISOString() ?? null}
       cta={resolveLandingCta(season)}
       preRegisterCount={preRegisterCount}
     />

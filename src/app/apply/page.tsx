@@ -163,7 +163,7 @@ export default async function ApplyPage({
           <Logo />
           <h1 className={styles.title}>참가 신청</h1>
           <p className={styles.lead}>
-            <span>{season.name}에 참가할 팀과 참가작을 알려주세요.</span>
+            <span>{season.title}에 참가할 팀과 참가작을 알려주세요.</span>
             <span>신청 후에도 시즌 시작 전까지는 내용을 고칠 수 있습니다.</span>
           </p>
         </div>
