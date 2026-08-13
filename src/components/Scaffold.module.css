@@ -1,0 +1,97 @@
+/*
+  자리표시 화면의 공통 형태.
+  상자를 쓰지 않고 괘선과 여백으로 나눈다 — CLAUDE.md §7(카드 남발 금지).
+  라임은 「준비 중」 배지 한 곳에만 쓴다.
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding-block: var(--s-10) var(--s-12);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.badge {
+  align-self: flex-start;
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--c-lime-25);
+  border-radius: 999px;
+  color: var(--c-lime);
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.04em;
+}
+
+.badgeLocked {
+  composes: badge;
+  border-color: var(--c-line-3);
+  color: var(--c-text-dim);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-4xl);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.purpose {
+  /* 읽기 폭은 텍스트에만 건다 — CLAUDE.md §6. 한글이라 ch를 쓰지 않는다 */
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+  line-height: 1.7;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--c-line-3);
+}
+
+.label {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-width: 34em;
+  margin: 0;
+  padding-left: var(--s-4);
+  color: var(--c-text-muted);
+  font-size: var(--fs-base);
+  line-height: 1.7;
+}
+
+.blocked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  max-width: 34em;
+  margin: 0;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--c-line-2);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.blockedLabel {
+  color: var(--c-text-faint);
+  font-weight: 600;
+}

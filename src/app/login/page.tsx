@@ -36,7 +36,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   OAuthAccountNotLinked:
     "이미 다른 방법으로 가입한 이메일입니다. 처음 가입할 때 쓰신 방법으로 로그인해 주세요.",
   AccessDenied: "로그인이 취소되었거나 접근이 거부되었습니다.",
-  Verification: "인증 링크가 만료되었거나 이미 사용되었습니다. 다시 시도해 주세요.",
+  Verification:
+    "인증 링크가 만료되었거나 이미 사용되었습니다. 다시 시도해 주세요.",
   Configuration:
     "로그인 설정에 문제가 있어 지금은 진행할 수 없습니다. 잠시 후 다시 시도해 주세요.",
 };

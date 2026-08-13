@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { notFound, redirect } from "next/navigation";
 
 import {
@@ -172,122 +174,124 @@ const EMPTY_ONBOARDING: OnboardingProgress = {
  * ⚠️ 비로그인이면 쿼리가 시즌 하나로 끝난다. 랜딩의 관전 트래픽이 대부분
  * 비로그인이라 이 단락이 중요하다(`/api/v1/me`가 쿠키부터 보는 것과 같은 이유).
  */
-export async function loadViewerState(): Promise<ViewerState> {
-  const [user, season] = await Promise.all([
-    getSessionUser(),
-    getCurrentSeason(),
-  ]);
+export const loadViewerState = cache(
+  async function loadViewerState(): Promise<ViewerState> {
+    const [user, season] = await Promise.all([
+      getSessionUser(),
+      getCurrentSeason(),
+    ]);
 
-  const seasonState = season
-    ? {
-        slug: season.slug,
-        title: season.title,
-        phase: season.phase,
-        flags: parseFeatureFlags(season.featureFlags),
-      }
-    : null;
+    const seasonState = season
+      ? {
+          slug: season.slug,
+          title: season.title,
+          phase: season.phase,
+          flags: parseFeatureFlags(season.featureFlags),
+        }
+      : null;
 
-  if (!user || !season) {
-    return {
-      user: user
-        ? {
-            id: user.id,
-            nickname: user.nickname,
-            onboarded: user.onboardedAt !== null,
-            roles: [],
-          }
-        : null,
-      season: seasonState,
-      team: null,
-      entry: null,
-      onboarding: EMPTY_ONBOARDING,
-    };
-  }
+    if (!user || !season) {
+      return {
+        user: user
+          ? {
+              id: user.id,
+              nickname: user.nickname,
+              onboarded: user.onboardedAt !== null,
+              roles: [],
+            }
+          : null,
+        season: seasonState,
+        team: null,
+        entry: null,
+        onboarding: EMPTY_ONBOARDING,
+      };
+    }
 
-  const [roles, membership] = await Promise.all([
-    prisma.userRole.findMany({
-      where: {
-        userId: user.id,
-        /* 전역 역할(season_id = null)과 이번 시즌 역할을 함께 본다 */
-        OR: [{ seasonId: null }, { seasonId: season.id }],
-      },
-      select: { role: { select: { key: true } } },
-    }),
-    prisma.teamMember.findFirst({
-      where: {
-        userId: user.id,
-        team: { entries: { some: { seasonId: season.id } } },
-      },
-      select: {
-        role: true,
-        team: {
-          select: {
-            id: true,
-            name: true,
-            isSolo: true,
-            _count: { select: { members: true } },
-            entries: {
-              where: { seasonId: season.id },
-              select: {
-                id: true,
-                stage: true,
-                status: true,
-                isTester: true,
-                /* 온보딩의 나머지 절반. 검증까지 끝나야 배포 완료로 친다 */
-                hostname: {
-                  select: { deployStatus: true, ownershipVerifiedAt: true },
+    const [roles, membership] = await Promise.all([
+      prisma.userRole.findMany({
+        where: {
+          userId: user.id,
+          /* 전역 역할(season_id = null)과 이번 시즌 역할을 함께 본다 */
+          OR: [{ seasonId: null }, { seasonId: season.id }],
+        },
+        select: { role: { select: { key: true } } },
+      }),
+      prisma.teamMember.findFirst({
+        where: {
+          userId: user.id,
+          team: { entries: { some: { seasonId: season.id } } },
+        },
+        select: {
+          role: true,
+          team: {
+            select: {
+              id: true,
+              name: true,
+              isSolo: true,
+              _count: { select: { members: true } },
+              entries: {
+                where: { seasonId: season.id },
+                select: {
+                  id: true,
+                  stage: true,
+                  status: true,
+                  isTester: true,
+                  /* 온보딩의 나머지 절반. 검증까지 끝나야 배포 완료로 친다 */
+                  hostname: {
+                    select: { deployStatus: true, ownershipVerifiedAt: true },
+                  },
+                  deposit: { select: { status: true } },
                 },
-                deposit: { select: { status: true } },
+                take: 1,
               },
-              take: 1,
             },
           },
         },
+      }),
+    ]);
+
+    const team = membership?.team ?? null;
+    const entry = team?.entries[0] ?? null;
+
+    return {
+      user: {
+        id: user.id,
+        nickname: user.nickname,
+        onboarded: user.onboardedAt !== null,
+        roles: roles.map((r) => r.role.key),
       },
-    }),
-  ]);
-
-  const team = membership?.team ?? null;
-  const entry = team?.entries[0] ?? null;
-
-  return {
-    user: {
-      id: user.id,
-      nickname: user.nickname,
-      onboarded: user.onboardedAt !== null,
-      roles: roles.map((r) => r.role.key),
-    },
-    season: seasonState,
-    team: team
-      ? {
-          id: team.id,
-          name: team.name,
-          isLeader: membership?.role === MemberRole.leader,
-        }
-      : null,
-    entry: entry
-      ? {
-          id: entry.id,
-          stage: entry.stage,
-          status: entry.status,
-          isTester: entry.isTester,
-        }
-      : null,
-    onboarding: {
-      /*
+      season: seasonState,
+      team: team
+        ? {
+            id: team.id,
+            name: team.name,
+            isLeader: membership?.role === MemberRole.leader,
+          }
+        : null,
+      entry: entry
+        ? {
+            id: entry.id,
+            stage: entry.stage,
+            status: entry.status,
+            isTester: entry.isTester,
+          }
+        : null,
+      onboarding: {
+        /*
         ⚠️ 가정이다 — PLN3·PLN7 어디에도 "팀 구성 완료"의 정의가 없다.
         1인 팀은 신청만으로 끝나고, 2인 팀은 초대가 수락돼야 끝난다고 봤다.
         초대를 보내고 수락 전인 팀을 완료로 치면 온보딩 체크리스트가
         할 일이 남았는데도 사라진다. 8/17에 확인할 것.
       */
-      teamReady: team ? team.isSolo || team._count.members >= 2 : false,
-      measurementReady:
-        entry?.hostname?.deployStatus === DeployStatus.active &&
-        entry.hostname.ownershipVerifiedAt !== null,
-      depositReady: entry?.deposit?.status === DepositStatus.paid,
-    },
-  };
-}
+        teamReady: team ? team.isSolo || team._count.members >= 2 : false,
+        measurementReady:
+          entry?.hostname?.deployStatus === DeployStatus.active &&
+          entry.hostname.ownershipVerifiedAt !== null,
+        depositReady: entry?.deposit?.status === DepositStatus.paid,
+      },
+    };
+  },
+);
 
 /** 판정에 필요한 만큼만 잘라낸다. canAccess는 이 좁은 모양만 안다 */
 export function toAccessContext(viewer: ViewerState): AccessContext {
@@ -351,4 +355,22 @@ export function accessFailure(result: AccessResult): Response | null {
   return apiFail(result.code, result.message, {
     details: result.details as Record<string, unknown> | undefined,
   });
+}
+
+/**
+ * 서버 컴포넌트의 한 줄 관문.
+ *
+ * 화면마다 `loadViewerState` → `toAccessContext` → `assertAccess` 세 줄을 쓰면
+ * 그중 하나를 빠뜨린 화면이 반드시 생긴다. 스물여덟 개를 한꺼번에 까는 지금은
+ * 특히 그렇다. 한 줄로 묶어 빠뜨릴 자리를 없앤다.
+ *
+ * `loadViewerState`가 React cache로 감싸여 있어 레이아웃과 페이지가 각각 불러도
+ * 요청당 한 번만 DB를 읽는다.
+ */
+export async function guardPage(
+  route: RouteKey,
+  next?: string,
+): Promise<{ viewer: ViewerState; access: AccessResult }> {
+  const viewer = await loadViewerState();
+  return { viewer, access: assertAccess(route, toAccessContext(viewer), next) };
 }
