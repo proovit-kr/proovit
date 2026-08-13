@@ -58,6 +58,7 @@ src/components/           UI. CSS Modules 사용
 src/content/              실제 노출되는 카피 (목데이터 아님)
 src/lib/                  prisma 클라이언트, 시즌/CTA 로직
 legacy/vite-prototype/    이식 원본. 빌드·린트·타입체크 제외
+docs/DEPLOY.md            배포 절차. 스키마가 바뀌면 push만으로는 안 나간다
 ```
 
 ## 이 프로젝트의 규칙
@@ -127,7 +128,7 @@ Notion 03 ERD 문서가 `prisma/schema.prisma`를 소스 오브 트루스로 명
 | 항목 | 상태 |
 |---|---|
 | **측정 방식** 안 A(CF 엣지 프록시) vs 안 B(검증된 전환만 수집) | 회의 확정 대상. §2·§3.1·§9.1·비용이 전부 여기에 달림 |
-| **`POST /api/leads` 레이트리밋** | **미구현.** 06 §12가 IP 레이트리밋 + Turnstile 요구. KPI#1이자 지원사업 제출 수치라 **랜딩 공개 전 필수** |
+| ~~**`POST /api/leads` 레이트리밋**~~ | **구현됨** (`src/lib/ratelimit.ts` · Upstash, IP당 10분 10건). Turnstile도 붙어 있다 |
 | `SeasonPhase`에 사전신청 단계 | 9개 phase에 '사전신청만' 단계가 없다. 지금은 `RECRUITING` + `recruitStartAt` 비교로 우회 |
 | 보증금 | 04 API에 있으나 시즌1 참가비는 무료. `featureFlags.deposit`으로 차단 중 |
 | 총 상금 금액 | 미확정이라 랜딩에서 뺐다 |
