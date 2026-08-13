@@ -1,28 +1,10 @@
 import { SeasonPhase, type Season } from "@/generated/prisma/client";
+import { phaseAtLeast } from "@/lib/season-phase";
 
 import { prisma } from "./prisma";
 
-/*
-  phase는 순서가 있지만 enum은 대소 비교를 보장하지 않는다.
-  03 ERD가 EntryStage에 대해 경고한 것과 같은 문제라, 같은 방식으로 상수 맵을 둔다.
-  DB 필터가 필요해지면 그때 rank 컬럼을 추가한다.
-*/
-const PHASE_RANK: Record<SeasonPhase, number> = {
-  draft: 0,
-  pre_apply: 1,
-  recruiting: 2,
-  w1_demand: 3,
-  gate1_review: 4,
-  w2_build: 5,
-  race: 6,
-  gate2_review: 7,
-  awarded: 8,
-  archived: 9,
-};
-
-export function phaseAtLeast(phase: SeasonPhase, min: SeasonPhase): boolean {
-  return PHASE_RANK[phase] >= PHASE_RANK[min];
-}
+/* 페이즈 술어는 순수 모듈에 있다. 기존 import 경로를 깨지 않으려고 여기서 다시 내보낸다 */
+export * from "@/lib/season-phase";
 
 /*
   랜딩 CTA 상태.

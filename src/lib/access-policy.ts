@@ -1,0 +1,448 @@
+/*
+  접근 판정의 **순수** 절반이다. DB도 세션도 건드리지 않는다.
+
+  access.ts에서 갈라낸 이유는 취향이 아니라 강제다 — 그쪽은 prisma를 import하는데,
+  판정 표나 타입만 필요한 곳(클라이언트 컴포넌트·테스트·엣지)이 그걸 따라 끌고 오면
+  `node:module`이 번들에 딸려가 빌드가 통째로 깨진다. profile.ts / profile-store.ts를
+  가른 것과 같은 이유다(2026-08-12에 실제로 깨뜨려 봤다).
+
+  **바깥에서는 access.ts를 통해 쓴다.** 거기서 이 파일을 다시 내보내므로
+  "접근 판정은 한 자리"(CLAUDE.md §3)는 그대로 지켜진다.
+
+  근거 문서는 PLN3 화면정의서 v0.1(8/13) 2장 카탈로그 · 3장 phase×stage 분기표다.
+*/
+
+import {
+  EntryStage,
+  EntryStatus,
+  type SeasonPhase,
+} from "@/generated/prisma/client";
+import type { ApiErrorCode } from "@/lib/api";
+import type { FeatureFlagKey, FeatureFlags } from "@/lib/feature-flags";
+import {
+  isArchived,
+  isGateReview,
+  isRacing,
+  isRecruiting,
+} from "@/lib/season-phase";
+
+// ═════════════════════════════════════════════════════════════
+// canAccess — 시즌 페이즈 × 참가 진도 × 생존 상태 × 기능 플래그
+// ═════════════════════════════════════════════════════════════
+
+/*
+  진도는 순서가 있지만 Postgres enum은 대소 비교를 보장하지 않는다(CLAUDE.md §4).
+  phase 쪽 PHASE_RANK와 같은 이유로 상수 맵을 둔다.
+*/
+const STAGE_RANK: Record<EntryStage, number> = {
+  applied: 0,
+  s1: 1,
+  s2: 2,
+  s3: 3,
+  s4: 4,
+  s5: 5,
+  completed: 6,
+};
+
+export function stageAtLeast(stage: EntryStage, min: EntryStage): boolean {
+  return STAGE_RANK[stage] >= STAGE_RANK[min];
+}
+
+/** PLN3 2장 카탈로그의 화면 하나에 대응한다. 라우트 문자열을 키로 쓰지 않는 이유는 오타가 조용히 통과하기 때문이다. */
+export type RouteKey =
+  // 공개
+  | "landing"
+  | "seasonDetail"
+  | "rules"
+  | "leaderboard"
+  | "projectDetail"
+  | "seasonArchive"
+  // 참가자
+  | "apply"
+  | "dashboard"
+  | "dashboardTeam"
+  | "dashboardDeposit"
+  | "dashboardMeasurement"
+  | "dashboardPayment"
+  | "dashboardSubmit"
+  | "dashboardMetrics"
+  | "dashboardJudgments"
+  | "dashboardAppeal"
+  | "dashboardTester"
+  | "dashboardCredits"
+  | "notifications"
+  | "settings"
+  // 운영자
+  | "admin"
+  | "adminSeasons"
+  | "adminEntries"
+  | "adminJudging"
+  | "adminMetrics"
+  | "adminLeads"
+  | "adminAbuse"
+  | "adminNotifications"
+  | "adminAuditLogs"
+  | "adminAwards"
+  | "adminSponsors";
+
+type RoutePolicy = {
+  /** 누가 들어올 수 있나. onboarded = 로그인 + 온보딩 완료 */
+  auth: "public" | "user" | "onboarded" | "admin";
+  /** 이 플래그가 꺼져 있으면 404. 있다는 사실 자체를 숨긴다 */
+  flag?: FeatureFlagKey;
+  /** 참가 기록이 있어야 열린다. 없으면 404 */
+  entry?: boolean;
+  /** 이 진도 이상이어야 열린다. 미달이면 409 STAGE_LOCKED */
+  minStage?: EntryStage;
+  /** 시즌 페이즈 조건. 값이 아니라 술어를 받는다(ADR-008 대비 — season.ts 주석) */
+  phase?: (phase: SeasonPhase) => boolean;
+  /** 쓰기 화면. status가 active가 아니면 409 ENTRY_INACTIVE */
+  write?: boolean;
+  /** 팀 단위 쓰기는 팀장만(요구사항 명세서 G5). 팀원은 조회만 */
+  leaderOnly?: boolean;
+  /** status가 active가 아니어도 열린다. 소명이 여기 든다 — 막으면 분쟁 창구가 사라진다 */
+  allowInactive?: boolean;
+  /**
+   * 게이트에서 떨어진 팀(`eliminated`)에게 숨긴다.
+   * PLN3 3.2 「탈락팀 접근」: 대시보드는 막지 않고 지표·제출 라우트만 404다.
+   * 대시보드까지 막으면 소명·테스터로 갈 길이 없어진다.
+   */
+  hideWhenEliminated?: boolean;
+};
+
+/*
+  PLN3 2장 카탈로그 30행을 그대로 옮긴 표다. 조건을 화면 파일에 흩뿌리지 않고
+  여기 한 곳에 모으는 것이 이 파일의 존재 이유다.
+
+  ⚠️ 라우트 이름은 PLN3을 따른다 — 제출은 `/dashboard/submit/:stageKey`다.
+  옛 문서의 `/dashboard/submissions/:stage`·`/dashboard/sub/stepN`이 아니다.
+*/
+const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
+  // ── 공개 ──────────────────────────────────────────────────
+  landing: { auth: "public" },
+  seasonDetail: { auth: "public" },
+  rules: { auth: "public" },
+  /** 관전 트래픽의 목적지. 레이스에 들어가야 숫자가 생긴다 */
+  leaderboard: { auth: "public", flag: "leaderboard", phase: isRacing },
+  /** 참가작 공개 페이지. 레이스 전에는 보여줄 것이 없다 */
+  projectDetail: { auth: "public", phase: isRacing },
+  seasonArchive: { auth: "public", flag: "archive" },
+
+  // ── 참가자 ────────────────────────────────────────────────
+  /** 참가 신청. 모집 구간에만 열린다 */
+  apply: { auth: "onboarded", phase: isRecruiting, write: true },
+  /** 골든패스 진입점. 탈락·실격 팀도 들어와야 소명·테스터로 갈 수 있다 */
+  dashboard: { auth: "onboarded", entry: true, allowInactive: true },
+  dashboardTeam: {
+    auth: "onboarded",
+    entry: true,
+    write: true,
+    leaderOnly: true,
+  },
+  dashboardDeposit: {
+    auth: "onboarded",
+    entry: true,
+    flag: "deposit",
+    write: true,
+    leaderOnly: true,
+  },
+  /** 측정 연동은 온보딩의 절반이라 진도 조건을 걸지 않는다 */
+  dashboardMeasurement: {
+    auth: "onboarded",
+    entry: true,
+    write: true,
+    leaderOnly: true,
+  },
+  /** PG 조회키 등록. 배포(s3) 후부터 의미가 있다(API v0.2 §7) */
+  dashboardPayment: {
+    auth: "onboarded",
+    entry: true,
+    minStage: EntryStage.s3,
+    write: true,
+    leaderOnly: true,
+  },
+  /** 스테이지 제출. 스테이지별 개별 조건은 canSubmitStage가 따로 본다 */
+  dashboardSubmit: {
+    auth: "onboarded",
+    entry: true,
+    write: true,
+    leaderOnly: true,
+    hideWhenEliminated: true,
+  },
+  /** 본인 지표. 배포 전에는 집계 자체가 없다(API v0.2 §10) */
+  dashboardMetrics: {
+    auth: "onboarded",
+    entry: true,
+    minStage: EntryStage.s3,
+    hideWhenEliminated: true,
+  },
+  /** 심사 결과. 첫 게이트(s2)를 지나야 판정이 생긴다(API v0.2 §9.1) */
+  dashboardJudgments: {
+    auth: "onboarded",
+    entry: true,
+    minStage: EntryStage.s2,
+    allowInactive: true,
+  },
+  /** 소명. 실격 팀에게 열려 있어야 하는 유일한 쓰기 화면이다 */
+  dashboardAppeal: {
+    auth: "onboarded",
+    entry: true,
+    write: true,
+    leaderOnly: true,
+    allowInactive: true,
+  },
+  /** 상호 테스터. 탈락 팀이 오는 자리라 hideWhenEliminated를 걸지 않는다 */
+  dashboardTester: {
+    auth: "onboarded",
+    entry: true,
+    flag: "testerAssignments",
+    allowInactive: true,
+  },
+  dashboardCredits: {
+    auth: "onboarded",
+    entry: true,
+    flag: "credits",
+    minStage: EntryStage.s1,
+  },
+  notifications: { auth: "user", flag: "notifications" },
+  /** 계정 설정. 참가하지 않은 회원도 쓴다 */
+  settings: { auth: "onboarded" },
+
+  // ── 운영자 ────────────────────────────────────────────────
+  admin: { auth: "admin" },
+  adminSeasons: { auth: "admin", write: true },
+  adminEntries: { auth: "admin", write: true },
+  adminJudging: { auth: "admin", write: true },
+  adminMetrics: { auth: "admin", write: true },
+  adminLeads: { auth: "admin" },
+  adminAbuse: { auth: "admin", write: true },
+  adminNotifications: { auth: "admin", write: true },
+  adminAuditLogs: { auth: "admin" },
+  adminAwards: { auth: "admin", write: true },
+  adminSponsors: { auth: "admin", flag: "sponsors", write: true },
+};
+
+/** 판정에 필요한 것 전부. 화면·핸들러가 이걸 만들어 넘긴다 */
+export type AccessContext = {
+  user: { id: string; onboarded: boolean; isAdmin: boolean } | null;
+  season: { phase: SeasonPhase; flags: FeatureFlags } | null;
+  /** 참가 기록. 회원이지만 참가하지 않았으면 null */
+  entry: {
+    stage: EntryStage;
+    status: EntryStatus;
+    /** 팀장인가. 팀 단위 쓰기의 조건(G5) */
+    isLeader: boolean;
+  } | null;
+};
+
+export type AccessResult =
+  | { ok: true }
+  | {
+      ok: false;
+      code: Extract<
+        ApiErrorCode,
+        | "UNAUTHENTICATED"
+        | "FORBIDDEN"
+        | "NOT_FOUND"
+        | "STAGE_LOCKED"
+        | "ENTRY_INACTIVE"
+      >;
+      message: string;
+      details?: { currentStage: string | null; requiredStage: string | null };
+    };
+
+const ALLOW: AccessResult = { ok: true };
+
+/**
+ * 접근 판정. **순서가 규약이다** — API 명세서 v0.2 §0.7.
+ *
+ * 먼저 걸리는 것이 응답을 결정한다. 순서를 바꾸면 같은 상황에 다른 코드가 나가고,
+ * 그중 일부는 정보를 흘린다. 예를 들어 플래그 판정을 롤 판정보다 앞에 두면
+ * 권한 없는 사람이 "이 기능은 꺼져 있다"는 사실을 알게 된다.
+ */
+export function canAccess(route: RouteKey, ctx: AccessContext): AccessResult {
+  const policy = ROUTE_POLICY[route];
+
+  // 1) 인증 — 401
+  if (policy.auth !== "public") {
+    if (!ctx.user) {
+      return {
+        ok: false,
+        code: "UNAUTHENTICATED",
+        message: "로그인이 필요합니다.",
+      };
+    }
+    if (policy.auth === "onboarded" && !ctx.user.onboarded) {
+      return {
+        ok: false,
+        code: "FORBIDDEN",
+        message: "추가 정보를 입력해야 이용할 수 있습니다.",
+      };
+    }
+    if (policy.auth === "admin" && !ctx.user.isAdmin) {
+      /*
+        운영자 화면은 403이 맞다. 404로 숨기면 운영자 본인이 권한을 잃었을 때
+        "없어졌다"로 읽혀 원인을 못 찾는다. 플래그 off와 달리 존재는 공개된 사실이다.
+      */
+      return { ok: false, code: "FORBIDDEN", message: "접근 권한이 없습니다." };
+    }
+  }
+
+  // 2) 참가 기록 — 없으면 404
+  if (policy.entry && !ctx.entry) {
+    return { ok: false, code: "NOT_FOUND", message: "참가 기록이 없습니다." };
+  }
+
+  // 3) 생존 상태 — 쓰기 차단(409) · 탈락 팀에게 숨김(404)
+  if (ctx.entry) {
+    const inactive = ctx.entry.status !== EntryStatus.active;
+
+    if (
+      policy.hideWhenEliminated &&
+      ctx.entry.status === EntryStatus.eliminated
+    ) {
+      return {
+        ok: false,
+        code: "NOT_FOUND",
+        message: "지금은 이용할 수 없습니다.",
+      };
+    }
+    if (inactive && policy.write && !policy.allowInactive) {
+      return {
+        ok: false,
+        code: "ENTRY_INACTIVE",
+        message:
+          ctx.entry.status === EntryStatus.disqualified
+            ? "실격 상태에서는 수정할 수 없습니다. 소명 화면에서 이의를 제기할 수 있습니다."
+            : "지금 상태에서는 수정할 수 없습니다.",
+      };
+    }
+    // 팀 단위 쓰기는 팀장만(G5). 팀원은 조회만 한다
+    if (policy.leaderOnly && !ctx.entry.isLeader) {
+      return {
+        ok: false,
+        code: "FORBIDDEN",
+        message: "팀장만 할 수 있습니다.",
+      };
+    }
+  }
+
+  // 4) 기능 플래그 — 404. "있는데 못 본다"(403)가 아니라 "없다"로 숨긴다
+  if (policy.flag && ctx.season && !ctx.season.flags[policy.flag]) {
+    return {
+      ok: false,
+      code: "NOT_FOUND",
+      message: "지금은 이용할 수 없습니다.",
+    };
+  }
+
+  // 5) 시즌 페이즈 — 아카이브는 전 화면 읽기 전용(G4)
+  if (ctx.season) {
+    if (isArchived(ctx.season.phase) && policy.write) {
+      return {
+        ok: false,
+        code: "STAGE_LOCKED",
+        message: "종료된 시즌입니다. 조회만 할 수 있습니다.",
+        details: { currentStage: "archived", requiredStage: null },
+      };
+    }
+    if (policy.phase && !policy.phase(ctx.season.phase)) {
+      return {
+        ok: false,
+        code: "STAGE_LOCKED",
+        message: "아직 열리지 않았습니다.",
+        details: { currentStage: ctx.season.phase, requiredStage: null },
+      };
+    }
+  }
+
+  // 6) 진도 — 409 STAGE_LOCKED
+  if (
+    policy.minStage &&
+    ctx.entry &&
+    !stageAtLeast(ctx.entry.stage, policy.minStage)
+  ) {
+    return {
+      ok: false,
+      code: "STAGE_LOCKED",
+      message: "아직 이 단계에 도달하지 않았습니다.",
+      details: {
+        currentStage: ctx.entry.stage,
+        requiredStage: policy.minStage,
+      },
+    };
+  }
+
+  return ALLOW;
+}
+
+/**
+ * 스테이지 제출 가능 여부. `dashboardSubmit` 정책을 통과한 뒤 한 겹 더 본다.
+ *
+ * 제출은 라우트가 하나(`/dashboard/submit/:stageKey`)인데 조건이 스테이지마다
+ * 다르다 — 자기 진도보다 앞선 스테이지는 열리지 않고, 게이트 심사 중에는
+ * 전부 잠긴다. 그걸 ROUTE_POLICY에 담으면 표가 스테이지 수만큼 늘어난다.
+ */
+export function canSubmitStage(
+  stageKey: EntryStage,
+  ctx: AccessContext,
+): AccessResult {
+  const base = canAccess("dashboardSubmit", ctx);
+  if (!base.ok) return base;
+  if (!ctx.entry || !ctx.season) {
+    return { ok: false, code: "NOT_FOUND", message: "참가 기록이 없습니다." };
+  }
+
+  /*
+    게이트 심사 중에는 제출이 잠긴다(06 §4.2 · PLN3 3.1 「심사 대기 안내 — 없음(잠김)」).
+    10값 모델에만 있는 구간이라 6값으로 합쳐지면 이 분기는 저절로 죽는다.
+  */
+  if (isGateReview(ctx.season.phase)) {
+    return {
+      ok: false,
+      code: "STAGE_LOCKED",
+      message: "심사 중에는 제출할 수 없습니다.",
+      details: { currentStage: ctx.entry.stage, requiredStage: stageKey },
+    };
+  }
+
+  /*
+    자기 진도보다 앞선 스테이지는 못 낸다. 같거나 지난 것은 열어둔다 —
+    재제출이 정상 경로이기 때문이다(PLN3 2장 「스테이지별 필드, 재제출」).
+    마감 이후 잠금은 `stages.closes_at`·`revision_due_at`이 따로 판정한다.
+  */
+  if (!stageAtLeast(ctx.entry.stage, stageKey)) {
+    return {
+      ok: false,
+      code: "STAGE_LOCKED",
+      message: `${stageKey} 제출은 이전 단계를 마친 팀만 할 수 있습니다.`,
+      details: { currentStage: ctx.entry.stage, requiredStage: stageKey },
+    };
+  }
+
+  return ALLOW;
+}
+
+/*
+  ⚠️ **온보딩 완료 조건이 아직 미정이다** — PLN3 미결 2번.
+  "팀 구성 + 측정 연동"까지는 확정이고, 보증금 결제를 넣을지가 열려 있다
+  (보증금 도입 자체가 미정이라 두 겹으로 걸려 있다).
+
+  PLN3 1장이 정한 것: 온보딩은 `entry.stage`의 저장값이 **아니다.**
+  현재 EntryStage 7값에 `onboarded`가 없으므로 **파생 계산**한다.
+
+  8/17에 결론이 나면 아래 상수 한 줄과 함수 본문만 고친다. 이 판정이
+  대시보드 첫 분기(PLN3 3.1 첫 행)를 가르므로 화면에 흩뿌리면 안 된다.
+*/
+const ONBOARDING_REQUIRES_DEPOSIT = false;
+
+export type OnboardingProgress = {
+  teamReady: boolean;
+  measurementReady: boolean;
+  depositReady: boolean;
+};
+
+export function isOnboardingComplete(progress: OnboardingProgress): boolean {
+  if (!progress.teamReady || !progress.measurementReady) return false;
+  return ONBOARDING_REQUIRES_DEPOSIT ? progress.depositReady : true;
+}

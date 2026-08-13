@@ -1,17 +1,42 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
+import { MemberRole } from "@/generated/prisma/client";
+import {
+  canAccess,
+  type AccessContext,
+  type AccessResult,
+  type RouteKey,
+} from "@/lib/access-policy";
+import { apiFail } from "@/lib/api";
 import { auth } from "@/lib/auth";
+import { parseFeatureFlags } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
+import { getCurrentSeason } from "@/lib/season";
+
+/*
+  판정 표와 순수 함수는 access-policy.ts에 있다(그쪽 머리 주석 참조).
+  바깥에서는 이 파일 하나만 import하면 되도록 여기서 다시 내보낸다 —
+  "접근 판정은 한 자리"(CLAUDE.md §3)를 파일이 둘이어도 지키는 방법이다.
+*/
+export * from "@/lib/access-policy";
 
 /*
   서버 측 접근 판정의 유일한 자리다 (06 §5.2 · CLAUDE.md §3).
   서버 컴포넌트와 Route Handler가 **같은 함수**를 부른다 — 프론트에 판정을
   흩뿌리면 미통과 팀에게 화면이 순간 노출된다.
 
-  지금 있는 것은 두 관문뿐이다: 로그인했는가 · 온보딩을 마쳤는가.
-  시즌 phase와 참가팀 stage 조합 판정(canAccess 본체)은 8/17 회의에서
-  화면 규모 정본이 정해진 뒤 이 파일에 얹는다. 응답 규약은 그때도 같다 —
-  권한 없음 403 / 없거나 플래그 off 404 / 단계 불일치 409 STAGE_LOCKED.
+  두 층이다.
+  ① 세션 관문(`requireUser`·`requireOnboardedUser`) — 로그인·온보딩. 리다이렉트한다.
+  ② `canAccess()` — 시즌 페이즈 × 참가 진도 × 생존 상태 × 기능 플래그 4축 판정.
+     순수 함수라 던지지도 리다이렉트하지도 않고 판정만 돌려준다.
+
+  ②를 순수 함수로 두는 이유: 서버 컴포넌트는 404를 부르고 Route Handler는 JSON
+  봉투를 내려야 하는데, 판정 안에서 응답까지 만들면 둘 중 한쪽을 못 쓴다.
+  판정과 응답을 갈라두면 같은 표를 화면과 API가 함께 쓴다.
+
+  근거 문서는 **PLN3 화면정의서 v0.1(8/13)** 이다 — 2장 카탈로그 30행과
+  3장 phase×stage 분기표. 06 §5.1 가드표는 4주·2게이트 시절이라 쓰지 않는다.
+  응답 규약: 권한 없음 403 / 없거나 플래그 off 404 / 단계 불일치 409 STAGE_LOCKED.
 */
 
 /** 게이트가 판정에 쓰는 최소 필드. 넓히려면 여기부터 넓힌다. */
@@ -89,4 +114,111 @@ export async function requireOnboardedUser(next?: string): Promise<GateUser> {
   redirect(
     target ? `/onboarding?next=${encodeURIComponent(target)}` : "/onboarding",
   );
+}
+
+// ═════════════════════════════════════════════════════════════
+// 판정에 필요한 것을 DB에서 모으고, 결과를 응답으로 바꾸는 다리
+// ═════════════════════════════════════════════════════════════
+
+/**
+ * 판정 컨텍스트를 한 번에 읽는다. 화면마다 조각조각 조회하면 같은 판정에
+ * 다른 재료가 들어가고, 그게 곧 화면마다 다른 결론이 된다.
+ *
+ * 비로그인·미참가도 정상 입력이다 — 공개 화면이 같은 함수를 쓰기 때문이다.
+ */
+export async function loadAccessContext(): Promise<AccessContext> {
+  const [user, season] = await Promise.all([
+    getSessionUser(),
+    getCurrentSeason(),
+  ]);
+
+  const seasonCtx = season
+    ? { phase: season.phase, flags: parseFeatureFlags(season.featureFlags) }
+    : null;
+
+  if (!user || !season) {
+    return { user: null, season: seasonCtx, entry: null };
+  }
+
+  const [roles, membership] = await Promise.all([
+    prisma.userRole.findMany({
+      where: {
+        userId: user.id,
+        /* 전역 역할(season_id = null)과 이번 시즌 역할을 함께 본다 */
+        OR: [{ seasonId: null }, { seasonId: season.id }],
+      },
+      select: { role: { select: { key: true } } },
+    }),
+    prisma.teamMember.findFirst({
+      where: {
+        userId: user.id,
+        team: { entries: { some: { seasonId: season.id } } },
+      },
+      select: {
+        role: true,
+        team: {
+          select: {
+            entries: {
+              where: { seasonId: season.id },
+              select: { stage: true, status: true },
+              take: 1,
+            },
+          },
+        },
+      },
+    }),
+  ]);
+
+  const entry = membership?.team.entries[0] ?? null;
+
+  return {
+    user: {
+      id: user.id,
+      onboarded: user.onboardedAt !== null,
+      isAdmin: roles.some((r) => r.role.key === "admin"),
+    },
+    season: seasonCtx,
+    entry: entry
+      ? {
+          stage: entry.stage,
+          status: entry.status,
+          isLeader: membership?.role === MemberRole.leader,
+        }
+      : null,
+  };
+}
+
+/**
+ * 서버 컴포넌트용. 막히면 화면을 그리지 않고 끊는다.
+ *
+ * 401은 로그인으로 보내고, 나머지는 404로 덮는다 — 화면에서는 403과 404를
+ * 가르는 실익이 없고(둘 다 "못 본다"), 404 쪽이 존재를 덜 흘린다.
+ * 409는 화면이 직접 안내를 그려야 하는 경우가 많아 결과를 그대로 돌려준다.
+ */
+export function assertAccess(
+  route: RouteKey,
+  ctx: AccessContext,
+  next?: string,
+): AccessResult {
+  const result = canAccess(route, ctx);
+  if (result.ok) return result;
+
+  if (result.code === "UNAUTHENTICATED") {
+    const target = safeNext(next);
+    redirect(
+      target ? `/login?callbackUrl=${encodeURIComponent(target)}` : "/login",
+    );
+  }
+  if (result.code === "FORBIDDEN" || result.code === "NOT_FOUND") notFound();
+
+  /* STAGE_LOCKED · ENTRY_INACTIVE — 화면이 사유를 그린다 */
+  return result;
+}
+
+/** Route Handler용. 판정 실패를 그대로 API 봉투로 바꾼다 */
+export function accessFailure(result: AccessResult): Response | null {
+  if (result.ok) return null;
+  return apiFail(result.code, result.message, {
+    details: result.details as Record<string, unknown> | undefined,
+  });
 }
