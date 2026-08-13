@@ -98,7 +98,7 @@ function ConsentRow({
           /*
             `required`를 쓰지 않는다. 브라우저 기본 검증이 걸리면 우리 onSubmit이
             아예 안 불려서, 어느 항목이 왜 막혔는지 직접 안내할 기회가 사라진다.
-            미동의 접수는 제출 핸들러와 서버(`/api/leads`)가 각각 막는다.
+            미동의 접수는 제출 핸들러와 서버(`/api/v1/leads`)가 각각 막는다.
           */
           aria-invalid={invalid || undefined}
           onChange={(e) => onChange(e.target.checked)}

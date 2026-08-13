@@ -1,7 +1,7 @@
 /**
  * Cloudflare Turnstile 검증 (서버).
  *
- * 06 §12가 `POST /api/leads`에 IP 레이트리밋 **과** Turnstile을 함께 요구한다.
+ * 06 §12가 `POST /api/v1/leads`에 IP 레이트리밋 **과** Turnstile을 함께 요구한다.
  * 레이트리밋은 한 IP의 연사만 막는다. 사전신청 수는 KPI#1이자 '모두의 창업'
  * 지원서에 들어갈 수치라, 분산 IP로 흩뿌린 봇 한 번이면 숫자가 통째로 오염되고
  * 그건 되돌릴 수 없다.

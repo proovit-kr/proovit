@@ -12,7 +12,7 @@ import styles from "./NavBar.module.css";
 /*
   프로토타입 NavBar의 Next 버전.
 
-  로그인 상태는 /api/me에서 읽는다. 서버에서 prop으로 내리려던 원래 계획을
+  로그인 상태는 /api/v1/me에서 읽는다. 서버에서 prop으로 내리려던 원래 계획을
   바꾼 이유는 그 엔드포인트 주석에 있다 — 요약하면 NavBar가 붙는 유일한 화면이
   ISR 랜딩이라, 거기서 세션을 읽으면 관전 트래픽이 전부 DB 조회가 된다.
 
@@ -228,16 +228,21 @@ export function NavBar({ cta }: NavBarProps) {
   const [me, setMe] = useState<Me>({ state: "unknown" });
   useEffect(() => {
     let alive = true;
-    fetch("/api/me")
-      .then((res) => (res.ok ? res.json() : { user: null }))
-      .then((data) => {
+    fetch("/api/v1/me")
+      .then((res) => res.json())
+      /*
+        응답이 `{ok, data}` 봉투다(명세서 §0.2). 성공·실패를 res.ok가 아니라
+        본문의 ok로 가린다 — 봉투를 쓰는 이유가 이 분기를 한 군데로 모으는 것이다.
+      */
+      .then((body) => {
         if (!alive) return;
+        const user = body?.ok ? body.data?.user : null;
         setMe(
-          data.user
+          user
             ? {
                 state: "signedIn",
-                nickname: data.user.nickname,
-                onboarded: data.user.onboarded,
+                nickname: user.nickname,
+                onboarded: user.onboarded,
               }
             : { state: "anonymous" },
         );

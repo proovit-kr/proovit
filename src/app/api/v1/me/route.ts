@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { getSessionUser } from "@/lib/access";
+import { apiOk } from "@/lib/api";
 
 /*
   NavBar가 로그인 상태를 그리는 데 필요한 최소값만 준다.
@@ -34,7 +35,7 @@ export async function GET() {
 
   const body = hasSession ? await buildBody() : { user: null };
 
-  return Response.json(body, {
+  return apiOk(body, {
     // 사용자마다 다른 값이다. 중간 캐시에 한 사람 것이 남으면 남에게 나간다.
     headers: { "Cache-Control": "no-store, private" },
   });

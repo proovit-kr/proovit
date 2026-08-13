@@ -5,13 +5,14 @@ import {
   MARKETING_CONSENT_VERSION,
   PRIVACY_CONSENT_VERSION,
 } from "@/content/consent";
+import { apiFail, apiOk } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { getClientIp, limitByIp } from "@/lib/ratelimit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { getCurrentSeason } from "@/lib/season";
 
 /*
-  POST /api/leads — 04 API 명세 §1
+  POST /api/v1/leads — API 명세서 v0.2 §1.2
 
   사전신청 이메일 수집. 시즌1 KPI#1(실측 신청자 수·전환율)의 유일한 원천이고,
   '모두의 창업 2기' 지원서에 들어갈 수요 검증 근거다.
@@ -58,33 +59,24 @@ export async function POST(request: NextRequest) {
   // 가장 먼저 본다. 본문 파싱도 DB 조회도 하기 전에 끊는 것이 가장 싸다.
   const { success, retryAfterSeconds } = await limitByIp(clientIp);
   if (!success) {
-    return Response.json(
-      {
-        error: "RATE_LIMITED",
-        message: "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.",
-      },
-      { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } },
-    );
+    return apiFail("RATE_LIMITED", "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.", {
+      headers: { "Retry-After": String(retryAfterSeconds) },
+    });
   }
 
   let json: unknown;
   try {
     json = await request.json();
   } catch {
-    return Response.json(
-      { error: "INVALID_JSON", message: "요청 본문을 읽을 수 없습니다." },
-      { status: 400 },
-    );
+    return apiFail("INVALID_JSON", "요청 본문을 읽을 수 없습니다.");
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return Response.json(
-      {
-        error: "VALIDATION_FAILED",
-        message: parsed.error.issues[0]?.message ?? "입력값을 확인해주세요.",
-      },
-      { status: 400 },
+    /* 명세서 §0.3이 검증 실패를 422로 고정했다. 이전엔 400이었다. */
+    return apiFail(
+      "VALIDATION_FAILED",
+      parsed.error.issues[0]?.message ?? "입력값을 확인해주세요.",
     );
   }
 
@@ -104,12 +96,9 @@ export async function POST(request: NextRequest) {
       console.error(
         "[turnstile] 시크릿 키가 유효하지 않습니다. TURNSTILE_SECRET_KEY를 확인하세요.",
       );
-      return Response.json(
-        {
-          error: "BOT_CHECK_MISCONFIGURED",
-          message: "일시적인 오류예요. 잠시 후 다시 시도해주세요.",
-        },
-        { status: 500 },
+      return apiFail(
+        "BOT_CHECK_MISCONFIGURED",
+        "일시적인 오류예요. 잠시 후 다시 시도해주세요.",
       );
     }
 
@@ -117,18 +106,12 @@ export async function POST(request: NextRequest) {
       bot.reason === "UNAVAILABLE"
         ? "확인 절차를 완료하지 못했어요. 잠시 후 다시 시도해주세요."
         : "사람인지 확인이 필요해요. 확인란을 완료한 뒤 다시 눌러주세요.";
-    return Response.json({ error: "BOT_CHECK_FAILED", message }, { status: 403 });
+    return apiFail("BOT_CHECK_FAILED", message);
   }
 
   const season = await getCurrentSeason();
   if (!season) {
-    return Response.json(
-      {
-        error: "NO_OPEN_SEASON",
-        message: "지금은 사전 신청을 받고 있지 않습니다.",
-      },
-      { status: 409 },
-    );
+    return apiFail("NO_OPEN_SEASON", "지금은 사전 신청을 받고 있지 않습니다.");
   }
 
   const { email, marketingOptIn, utmSource, utmMedium, utmCampaign } = parsed.data;
@@ -196,5 +179,5 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  return Response.json({ ok: true, seasonSlug: season.slug }, { status: 201 });
+  return apiOk({ seasonSlug: season.slug }, { status: 201 });
 }

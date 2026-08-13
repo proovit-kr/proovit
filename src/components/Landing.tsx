@@ -382,7 +382,7 @@ export function Landing({
       버튼을 `disabled`로 잠그지 않고 여기서 막는다. disabled인 버튼은 클릭
       이벤트 자체가 발생하지 않아서, 눌러도 아무 일이 없고 왜 안 되는지
       알려줄 수 없다. 눌리게 두고 이유를 말해주는 쪽이 맞다.
-      미동의 접수는 서버(`/api/leads`)가 한 번 더 막으므로 방어선은 그대로다.
+      미동의 접수는 서버(`/api/v1/leads`)가 한 번 더 막으므로 방어선은 그대로다.
     */
     if (!isConsentComplete(consent)) {
       setShowMissingConsent(true);
@@ -400,7 +400,7 @@ export function Landing({
 
     setPending(true);
     try {
-      const res = await fetch("/api/leads", {
+      const res = await fetch("/api/v1/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -411,9 +411,16 @@ export function Landing({
           turnstileToken: botToken ?? undefined,
         }),
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        show(body?.message ?? "신청에 실패했어요. 잠시 후 다시 시도해주세요.");
+      /* 실패 문구는 봉투의 error.message에 있다(명세서 §0.2) */
+      const body = (await res.json().catch(() => null)) as
+        | { ok: true }
+        | { ok: false; error?: { message?: string } }
+        | null;
+      if (!body?.ok) {
+        const message =
+          (body && "error" in body ? body.error?.message : null) ??
+          "신청에 실패했어요. 잠시 후 다시 시도해주세요.";
+        show(message);
         // 실패해도 토큰은 이미 소모됐다. 새로 받지 않으면 다시 눌러도 계속 막힌다.
         setBotReset((n) => n + 1);
         return;
