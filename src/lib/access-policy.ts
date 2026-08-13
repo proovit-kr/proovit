@@ -48,6 +48,21 @@ export function stageAtLeast(stage: EntryStage, min: EntryStage): boolean {
   return STAGE_RANK[stage] >= STAGE_RANK[min];
 }
 
+/**
+ * sN을 제출하려면 어느 진도까지 와 있어야 하는가 — API 명세서 v0.2 §8 게이트 열.
+ * `entry.stage`가 "마지막으로 완료한 단계"라서 한 칸 앞을 본다.
+ * `completed`는 제출 대상이 아니라 자기 자신을 요구값으로 둔다(도달 불가 = 항상 잠김).
+ */
+const SUBMIT_PREREQUISITE: Record<EntryStage, EntryStage> = {
+  applied: EntryStage.applied,
+  s1: EntryStage.applied,
+  s2: EntryStage.s1,
+  s3: EntryStage.s2,
+  s4: EntryStage.s3,
+  s5: EntryStage.s4,
+  completed: EntryStage.completed,
+};
+
 /** PLN3 2장 카탈로그의 화면 하나에 대응한다. 라우트 문자열을 키로 쓰지 않는 이유는 오타가 조용히 통과하기 때문이다. */
 export type RouteKey =
   // 공개
@@ -407,16 +422,25 @@ export function canSubmitStage(
   }
 
   /*
-    자기 진도보다 앞선 스테이지는 못 낸다. 같거나 지난 것은 열어둔다 —
-    재제출이 정상 경로이기 때문이다(PLN3 2장 「스테이지별 필드, 재제출」).
+    ⚠️ `entry.stage`는 **마지막으로 완료한 단계**다. "지금 하는 단계"가 아니다.
+
+    근거는 API 명세서 v0.2 §8 게이트 열이다 — `PUT s1`의 조건이 `applied`,
+    `PUT s2`가 `s1`, `PUT s3`이 `s2 통과`다. 스키마 주석도 같은 말을 한다:
+    "값이 s3이면 s2 게이트를 통과했다는 뜻이다(전진 자체가 통과의 근거)".
+
+    그래서 필요한 진도는 stageKey 자신이 아니라 **그 앞 단계**다.
+    stageKey 자신으로 비교하면 `applied` 팀이 s1을 못 내 첫 제출이 통째로 막힌다.
+
+    같거나 지난 것은 열어둔다 — 재제출이 정상 경로다(PLN3 2장 「재제출」).
     마감 이후 잠금은 `stages.closes_at`·`revision_due_at`이 따로 판정한다.
   */
-  if (!stageAtLeast(ctx.entry.stage, stageKey)) {
+  const required = SUBMIT_PREREQUISITE[stageKey];
+  if (!stageAtLeast(ctx.entry.stage, required)) {
     return {
       ok: false,
       code: "STAGE_LOCKED",
       message: `${stageKey} 제출은 이전 단계를 마친 팀만 할 수 있습니다.`,
-      details: { currentStage: ctx.entry.stage, requiredStage: stageKey },
+      details: { currentStage: ctx.entry.stage, requiredStage: required },
     };
   }
 
@@ -437,8 +461,11 @@ export function canSubmitStage(
 const ONBOARDING_REQUIRES_DEPOSIT = false;
 
 export type OnboardingProgress = {
+  /** 팀 구성 완료 — 1인 팀이면 자동, 2인 팀이면 초대 수락까지 */
   teamReady: boolean;
+  /** 측정 연동 검증 완료. 배포 완료로 인정되는 조건이다 */
   measurementReady: boolean;
+  /** 보증금 결제 완료. 도입 자체가 미정이라 플래그가 꺼져 있으면 판정에 안 쓴다 */
   depositReady: boolean;
 };
 

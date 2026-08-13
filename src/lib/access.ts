@@ -1,15 +1,23 @@
 import { notFound, redirect } from "next/navigation";
 
-import { MemberRole } from "@/generated/prisma/client";
+import {
+  DepositStatus,
+  DeployStatus,
+  MemberRole,
+  type EntryStage,
+  type EntryStatus,
+  type SeasonPhase,
+} from "@/generated/prisma/client";
 import {
   canAccess,
   type AccessContext,
   type AccessResult,
+  type OnboardingProgress,
   type RouteKey,
 } from "@/lib/access-policy";
 import { apiFail } from "@/lib/api";
 import { auth } from "@/lib/auth";
-import { parseFeatureFlags } from "@/lib/feature-flags";
+import { parseFeatureFlags, type FeatureFlags } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSeason } from "@/lib/season";
 
@@ -121,23 +129,79 @@ export async function requireOnboardedUser(next?: string): Promise<GateUser> {
 // ═════════════════════════════════════════════════════════════
 
 /**
- * 판정 컨텍스트를 한 번에 읽는다. 화면마다 조각조각 조회하면 같은 판정에
- * 다른 재료가 들어가고, 그게 곧 화면마다 다른 결론이 된다.
+ * 로그인한 사람에 대해 화면·API가 알아야 할 전부.
  *
- * 비로그인·미참가도 정상 입력이다 — 공개 화면이 같은 함수를 쓰기 때문이다.
+ * `AccessContext`(판정용)보다 넓다 — 대시보드는 판정만으로 못 그린다.
+ * 팀 이름·진도·온보딩 진척이 함께 있어야 "지금 무엇을 해야 하는지"가 나온다.
  */
-export async function loadAccessContext(): Promise<AccessContext> {
+export type ViewerState = {
+  user: {
+    id: string;
+    nickname: string;
+    onboarded: boolean;
+    roles: string[];
+  } | null;
+  season: {
+    slug: string;
+    title: string;
+    phase: SeasonPhase;
+    flags: FeatureFlags;
+  } | null;
+  team: { id: string; name: string; isLeader: boolean } | null;
+  entry: {
+    id: string;
+    stage: EntryStage;
+    status: EntryStatus;
+    isTester: boolean;
+  } | null;
+  onboarding: OnboardingProgress;
+};
+
+const EMPTY_ONBOARDING: OnboardingProgress = {
+  teamReady: false,
+  measurementReady: false,
+  depositReady: false,
+};
+
+/**
+ * 판정·렌더에 필요한 것을 **한 번에** 읽는다. 화면마다 조각조각 조회하면 같은
+ * 판정에 다른 재료가 들어가고, 그게 곧 화면마다 다른 결론이 된다.
+ *
+ * 비로그인·미참가도 정상 입력이다 — 공개 화면이 같은 함수를 쓴다.
+ *
+ * ⚠️ 비로그인이면 쿼리가 시즌 하나로 끝난다. 랜딩의 관전 트래픽이 대부분
+ * 비로그인이라 이 단락이 중요하다(`/api/v1/me`가 쿠키부터 보는 것과 같은 이유).
+ */
+export async function loadViewerState(): Promise<ViewerState> {
   const [user, season] = await Promise.all([
     getSessionUser(),
     getCurrentSeason(),
   ]);
 
-  const seasonCtx = season
-    ? { phase: season.phase, flags: parseFeatureFlags(season.featureFlags) }
+  const seasonState = season
+    ? {
+        slug: season.slug,
+        title: season.title,
+        phase: season.phase,
+        flags: parseFeatureFlags(season.featureFlags),
+      }
     : null;
 
   if (!user || !season) {
-    return { user: null, season: seasonCtx, entry: null };
+    return {
+      user: user
+        ? {
+            id: user.id,
+            nickname: user.nickname,
+            onboarded: user.onboardedAt !== null,
+            roles: [],
+          }
+        : null,
+      season: seasonState,
+      team: null,
+      entry: null,
+      onboarding: EMPTY_ONBOARDING,
+    };
   }
 
   const [roles, membership] = await Promise.all([
@@ -158,9 +222,23 @@ export async function loadAccessContext(): Promise<AccessContext> {
         role: true,
         team: {
           select: {
+            id: true,
+            name: true,
+            isSolo: true,
+            _count: { select: { members: true } },
             entries: {
               where: { seasonId: season.id },
-              select: { stage: true, status: true },
+              select: {
+                id: true,
+                stage: true,
+                status: true,
+                isTester: true,
+                /* 온보딩의 나머지 절반. 검증까지 끝나야 배포 완료로 친다 */
+                hostname: {
+                  select: { deployStatus: true, ownershipVerifiedAt: true },
+                },
+                deposit: { select: { status: true } },
+              },
               take: 1,
             },
           },
@@ -169,23 +247,75 @@ export async function loadAccessContext(): Promise<AccessContext> {
     }),
   ]);
 
-  const entry = membership?.team.entries[0] ?? null;
+  const team = membership?.team ?? null;
+  const entry = team?.entries[0] ?? null;
 
   return {
     user: {
       id: user.id,
+      nickname: user.nickname,
       onboarded: user.onboardedAt !== null,
-      isAdmin: roles.some((r) => r.role.key === "admin"),
+      roles: roles.map((r) => r.role.key),
     },
-    season: seasonCtx,
-    entry: entry
+    season: seasonState,
+    team: team
       ? {
-          stage: entry.stage,
-          status: entry.status,
+          id: team.id,
+          name: team.name,
           isLeader: membership?.role === MemberRole.leader,
         }
       : null,
+    entry: entry
+      ? {
+          id: entry.id,
+          stage: entry.stage,
+          status: entry.status,
+          isTester: entry.isTester,
+        }
+      : null,
+    onboarding: {
+      /*
+        ⚠️ 가정이다 — PLN3·PLN7 어디에도 "팀 구성 완료"의 정의가 없다.
+        1인 팀은 신청만으로 끝나고, 2인 팀은 초대가 수락돼야 끝난다고 봤다.
+        초대를 보내고 수락 전인 팀을 완료로 치면 온보딩 체크리스트가
+        할 일이 남았는데도 사라진다. 8/17에 확인할 것.
+      */
+      teamReady: team ? team.isSolo || team._count.members >= 2 : false,
+      measurementReady:
+        entry?.hostname?.deployStatus === DeployStatus.active &&
+        entry.hostname.ownershipVerifiedAt !== null,
+      depositReady: entry?.deposit?.status === DepositStatus.paid,
+    },
   };
+}
+
+/** 판정에 필요한 만큼만 잘라낸다. canAccess는 이 좁은 모양만 안다 */
+export function toAccessContext(viewer: ViewerState): AccessContext {
+  return {
+    user: viewer.user
+      ? {
+          id: viewer.user.id,
+          onboarded: viewer.user.onboarded,
+          isAdmin: viewer.user.roles.includes("admin"),
+        }
+      : null,
+    season: viewer.season
+      ? { phase: viewer.season.phase, flags: viewer.season.flags }
+      : null,
+    entry:
+      viewer.entry && viewer.team
+        ? {
+            stage: viewer.entry.stage,
+            status: viewer.entry.status,
+            isLeader: viewer.team.isLeader,
+          }
+        : null,
+  };
+}
+
+/** 한 번 읽어 판정 컨텍스트만 필요할 때 */
+export async function loadAccessContext(): Promise<AccessContext> {
+  return toAccessContext(await loadViewerState());
 }
 
 /**
