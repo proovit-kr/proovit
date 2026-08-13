@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { LinkButton } from "@/components/Button";
 import { Footer } from "@/components/Footer";
 import { Logo } from "@/components/NavBar";
 import { requireOnboardedUser } from "@/lib/access";
@@ -50,8 +51,31 @@ export default async function ApplyPage({
             <Logo />
             <h1 className={styles.title}>지금은 참가 신청을 받지 않습니다</h1>
             <p className={styles.lead}>
-              <span>모집이 시작되면 랜딩에서 바로 신청할 수 있습니다.</span>
-              <span>사전 신청을 해두시면 모집 시작을 메일로 알려드립니다.</span>
+              <span>모집이 시작되면 이 화면에서 바로 신청할 수 있습니다.</span>
+              <span>
+                사전 신청을 해두시면 모집이 열리는 날 메일로 알려드립니다.
+              </span>
+            </p>
+            {/*
+              여기까지 온 사람은 참가 의사가 이미 확실하다. 그런데 이 화면에는
+              할 수 있는 일이 없다 — 안내만 읽고 닫으면 모집이 열려도 다시 오지
+              않는다. 사전 신청 폼이 어디 있는지 말로만 적어두면 랜딩으로 돌아가
+              스스로 찾아야 하므로, 그 자리로 직접 보낸다.
+
+              해시(#앵커)가 아니라 쿼리인 이유: 해시를 쓰면 브라우저가 그 요소를
+              화면 맨 위에 붙이는 기본 점프를 하는데, 그게 우리 스크롤보다 늦게
+              확정돼 이긴다. 입력란이 고정 헤더 밑으로 잘리고 그 아래 동의
+              체크박스부터 보였다. 쿼리에는 그 기본 동작이 없다.
+
+              도착 처리는 Landing.tsx의 preregister 효과가 한다 —
+              입력란을 화면 중앙에 놓고 커서를 넣는다.
+            */}
+            <LinkButton href="/?preregister=1" size="lg" className={styles.cta}>
+              사전 신청하기
+            </LinkButton>
+            <p className={styles.ctaNote}>
+              랜딩 첫 화면의 이메일 칸으로 이동해 커서까지 놓아드립니다. 이메일
+              주소 하나면 됩니다.
             </p>
           </div>
         </div>

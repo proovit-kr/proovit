@@ -337,6 +337,43 @@ export function Landing({
     setPing(true);
   };
 
+  /*
+    다른 화면에서 "사전 신청하러 가기"로 넘어온 경우 — 지금은 /apply의 모집 전
+    안내가 유일하다. 그쪽에서 이미 의사를 밝히고 온 사람이라, 도착해서 폼을
+    다시 찾게 하면 한 번 더 일을 시키는 셈이다. 같은 화면 안에서 CTA를 누른
+    것과 똑같이 대접한다 — 스크롤 · 포커스 · 테두리 짚기.
+
+    앵커를 입력란 자신(#preregister)에 두는 이유는 JS 없이도 최소한 그 자리로
+    가게 하려는 것이다. 아래 효과는 그 위에 얹는 개선이다.
+
+    처리한 뒤 해시를 지운다. 남겨두면 새로고침·뒤로가기마다 포커스가 다시 튀어,
+    페이지 위쪽을 읽으려던 사람을 계속 아래로 끌어내린다.
+  */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("preregister")) return;
+    // 주소를 되돌려 새로고침·뒤로가기마다 화면이 다시 튀지 않게 한다.
+    history.replaceState(null, "", window.location.pathname);
+
+    const el = emailRef.current;
+    if (!el) return;
+    el.scrollIntoView({
+      /*
+        고정 헤더에 가리지 않으려고 top이 아니라 center로 놓는다.
+        헤더 높이를 상수로 빼서 더하는 방법도 있지만, 그 값이 바뀔 때마다
+        여기가 같이 틀어진다. 중앙은 헤더 높이를 몰라도 성립한다.
+      */
+      block: "center",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+    el.focus({ preventScroll: true });
+    // 이미 포커스가 있던 경우를 위한 신호. runCta와 같은 이유다.
+    setPing(true);
+    // 최초 도착 1회만 — 이후 상태가 바뀌어도 다시 실행하지 않는다.
+  }, []);
+
   const onPreRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (pending) return;

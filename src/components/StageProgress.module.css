@@ -23,13 +23,13 @@
   left: 10%;
   right: 10%;
   height: 2px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--c-line-3);
 }
 .line--full {
   top: 17px;
   left: 8%;
   right: 8%;
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--c-line-3);
   border-radius: 2px;
 }
 /*
@@ -62,10 +62,10 @@
   justify-content: center;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   background: var(--c-chip);
   color: var(--c-text-faint);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--c-line-4);
 }
 .dotSm.current {
   background: var(--c-lime);
@@ -89,15 +89,15 @@
   justify-content: center;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--fs-base);
   background: var(--c-chip);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--c-line-4);
   color: var(--c-text-dim);
 }
 .dotLg.done {
   background: var(--c-lime);
   color: var(--c-bg);
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 900;
   border-color: var(--c-lime);
   box-shadow: var(--sh-ring);
@@ -117,7 +117,7 @@
 
 .label {
   margin-top: var(--s-2);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--c-text-faint);
 }
@@ -128,19 +128,19 @@
 .titleFull {
   margin-top: var(--s-4);
   font-weight: 700;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   color: var(--c-text-strong);
 }
 .weekFull {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--c-lime);
   font-family: var(--font-mono);
 }
 .descFull {
   margin-top: var(--s-2);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.55;
   color: var(--c-text-dim);
 }
@@ -151,7 +151,7 @@
   margin-top: var(--s-3);
   padding-top: var(--s-2);
   border-top: 1px solid var(--c-line);
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--c-text-strong);
@@ -160,11 +160,11 @@
 .journeyLabel {
   margin-top: var(--s-4);
   font-weight: 700;
-  font-size: 15px;
+  font-size: var(--fs-md);
 }
 .journeySub {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   font-family: var(--font-mono);
 }

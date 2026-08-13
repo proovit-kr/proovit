@@ -6,7 +6,7 @@
   background: var(--c-lime);
   color: var(--c-bg);
   font-weight: 800;
-  font-size: 15px;
+  font-size: var(--fs-md);
   padding: 14px 24px;
   border-radius: var(--r-lg);
   box-shadow: var(--sh-toast);

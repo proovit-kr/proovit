@@ -27,7 +27,7 @@
 
 .title {
   margin: var(--s-4) 0 0;
-  font-size: 28px;
+  font-size: var(--fs-5xl);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--c-text-strong);
@@ -35,13 +35,30 @@
 
 .lead {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1.6;
   color: var(--c-text-muted);
 }
 /* 문장마다 제 줄 — ProfileFields.tsx 주석 */
 .lead > span {
   display: block;
+}
+
+/*
+  .head가 gap --s-3(12px)으로 촘촘히 붙는다. 버튼이 그 리듬에 그대로 끼면
+  안내문에 딸린 줄처럼 보여 누를 것으로 안 읽힌다. 위만 띄워 떼어낸다.
+  align-self는 폭을 글자에 맞추기 위한 것이다 — 폼이 아니라 안내 화면이라
+  가로로 꽉 찬 버튼은 과하다.
+*/
+.cta {
+  align-self: flex-start;
+  margin-top: var(--s-5);
+}
+
+.ctaNote {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--c-text-faint);
 }
 
 .form {
@@ -71,7 +88,7 @@
   padding: var(--s-3) var(--s-4);
   border: 1px solid var(--c-line);
   border-radius: var(--r-md);
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--c-text);
   cursor: pointer;
 }
@@ -108,7 +125,7 @@
   border-left: 2px solid var(--c-warn);
   background: var(--c-surface);
   border-radius: 0 var(--r-md) var(--r-md) 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.6;
   color: var(--c-text);
 }
@@ -121,7 +138,7 @@
   margin: 0;
   padding-top: var(--s-6);
   border-top: 1px solid var(--c-line);
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1.6;
 }
 
@@ -136,7 +153,7 @@
 
 .note {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.6;
   color: var(--c-text-muted);
 }

@@ -13,7 +13,7 @@
 
 .brand {
   font-weight: 800;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   letter-spacing: 0.06em;
   color: var(--c-text-strong);
 }
@@ -25,7 +25,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-6);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .links a {
   color: var(--c-text-dim);
@@ -47,7 +47,7 @@
 .social {
   display: flex;
   gap: var(--s-4);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-family: var(--font-mono);
 }
 .social a {
