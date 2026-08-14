@@ -80,7 +80,7 @@ export type S1Payload = z.infer<typeof S1Schema>;
 
   ⚠️ `S1Schema.partial()`로는 안 된다 — partial은 「칸이 없어도 된다」로 바꿔줄 뿐,
   빈 문자열은 **있는 값**이라 `min(1)`에 걸린다. 절반 쓴 폼이 저장되지 않는다
-  (8/15에 그렇게 짰다가 잡았다). 임시 저장이 지키는 것은 상한 하나다 —
+  (8/14에 그렇게 짰다가 잡았다). 임시 저장이 지키는 것은 상한 하나다 —
   payload가 무한히 커지는 것만 막고, 비어 있는 것은 그대로 받는다.
 */
 export const S1DraftSchema = z.object({

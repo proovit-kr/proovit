@@ -74,9 +74,12 @@ const GATE_STAGES: readonly EntryStage[] = [EntryStage.s2, EntryStage.s5];
  * 아니라 팀별 상태다 — 같은 시각에 통과한 팀은 다음 단계를 만들고 있다.
  *
  * `entry.stage`는 "마지막으로 완료한 단계"이고 게이트를 통과하면 다음 값으로
- * 전진한다(스키마 주석: "값이 s3이면 s2 게이트를 통과했다는 뜻"). 그래서
- * 게이트 스테이지에 멈춘 팀이 곧 판정 대기다. 탈락은 stage가 아니라
- * `status`(eliminated)로 나타나므로 여기서 보지 않는다.
+ * 전진한다. 그래서 게이트 스테이지에 멈춘 팀이 곧 판정 대기다. 탈락은 stage가
+ * 아니라 `status`(eliminated)로 나타나므로 여기서 보지 않는다.
+ *
+ * ✅ **전진 규칙은 동혁이 확인해 줬다(2026-08-14 스크럼): "팀별로 게이트 통과하면
+ * 스테이지 값 올라갑니다."** 스키마 주석("값이 s3이면 s2 게이트를 통과했다는 뜻")과
+ * 같은 말이다. 이 전제가 뒤집히면 잠금이 반대로 걸리므로 근거를 여기 남긴다.
  */
 export function isAwaitingGate(stage: EntryStage): boolean {
   return GATE_STAGES.includes(stage);
