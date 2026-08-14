@@ -111,6 +111,16 @@ Notion 03 ERD 문서가 `prisma/schema.prisma`를 소스 오브 트루스로 명
 - 라임(`--c-lime`)은 한 화면에 한 번만 세게 쓴다. 나머지 강조는 흰색과 굵기로
 - 원형 체크 불릿·글로우·중앙정렬 마무리는 쓰지 않는다
 
+### 8. 클라이언트가 읽는 값은 prisma를 import하는 파일에 두지 않는다
+
+상수 하나를 store 파일에 두고 클라이언트 컴포넌트에서 가져오면 `node:module`이
+브라우저 번들에 딸려가 **그 화면이 통째로 500**이 된다. 네 번 겪었다 —
+`profile.ts` / `profile-store.ts`, `access-policy.ts` / `access.ts`,
+`lib/admin.ts` / `admin-store.ts`, `lib/notify.ts` / `notify-store.ts`.
+
+규칙: **순수(규칙·상수·타입) 파일과 저장(prisma) 파일을 처음부터 가른다.**
+클라이언트가 쓸 값은 순수 쪽에만 둔다. 판정 함수도 마찬가지다.
+
 ## 시즌1 라우트
 
 ```
