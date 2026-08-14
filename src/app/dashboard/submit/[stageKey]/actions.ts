@@ -2,18 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 
-import { S1_GUIDE_CHECKS } from "@/content/submission";
+import { AI_CHECKS, LAUNCH_CHECKS, S1_GUIDE_CHECKS } from "@/content/submission";
 import { ChargeType, EntryStage } from "@/generated/prisma/enums";
 import { canSubmitStage, loadViewerState, toAccessContext } from "@/lib/access";
 import {
   NOT_BUILDING_COUNT,
   S1DraftSchema,
   S1Schema,
+  S3DraftSchema,
+  S3Schema,
   SUBMISSION_FAILURE_MESSAGE,
+  s3Missing,
   type SubmissionFieldErrors,
   type SubmitIntent,
 } from "@/lib/submission";
-import { saveS1 } from "@/lib/submission-store";
+import { saveS1, saveS3 } from "@/lib/submission-store";
 
 /*
   s1 제출.
@@ -154,4 +157,103 @@ function flatten(error: {
     out[key] = [...(out[key] ?? []), issue.message];
   }
   return out;
+}
+
+/*
+  s3 제출 — AI 빌드·배포.
+
+  s1과 나눈 이유는 필드가 겹치지 않기 때문이다. 한 액션이 스테이지를 분기하면
+  "이 칸이 어느 스테이지 것인지"를 매번 되짚어야 한다.
+*/
+export async function saveStage3(
+  _prev: SubmitState,
+  formData: FormData,
+): Promise<SubmitState> {
+  const intent: SubmitIntent =
+    String(formData.get("intent") ?? "") === "submit" ? "submit" : "draft";
+
+  const text = (key: string) => String(formData.get(key) ?? "");
+  const values: Record<string, string> = {
+    serviceUrl: text("serviceUrl"),
+    builder: text("builder"),
+    builderOther: text("builderOther"),
+    memo: text("memo"),
+  };
+
+  const viewer = await loadViewerState();
+  if (!viewer.user) {
+    return { message: "로그인이 풀렸습니다. 다시 로그인해 주세요.", values };
+  }
+  if (!viewer.entry || !viewer.season) {
+    return { message: "참가 기록이 없습니다.", values };
+  }
+
+  const permission = canSubmitStage(EntryStage.s3, toAccessContext(viewer));
+  if (!permission.ok) return { message: permission.message, values };
+
+  const raw = {
+    serviceUrl: values.serviceUrl,
+    builder: values.builder,
+    builderOther: values.builderOther,
+    signupConnected: formData.get("signupConnected") === "on",
+    paymentReturnRegistered: formData.get("paymentReturn") === "on",
+    /* 순서가 곧 뜻이라 개수를 고정해 읽는다 — 체크리스트 항목과 1:1 */
+    launchChecks: LAUNCH_CHECKS.map(
+      (_, i) => formData.get(`launch${i}`) === "on",
+    ),
+    aiFeature: formData.get("aiFeature") === "on",
+    aiChecks: AI_CHECKS.map((_, i) => formData.get(`ai${i}`) === "on"),
+    memo: values.memo,
+  };
+
+  if (intent === "draft") {
+    const trimmed = S3DraftSchema.safeParse(raw);
+    if (!trimmed.success) {
+      return {
+        errors: flatten(trimmed.error),
+        message: "글자수를 넘긴 칸이 있어요.",
+        values,
+      };
+    }
+    const saved = await saveS3({
+      entryId: viewer.entry.id,
+      seasonId: viewer.season.id,
+      userId: viewer.user.id,
+      payload: trimmed.data,
+      intent,
+    });
+    if (!saved.ok) {
+      return { message: SUBMISSION_FAILURE_MESSAGE[saved.code], values };
+    }
+    revalidatePath("/dashboard/submit/s3");
+    return { done: "draft", values };
+  }
+
+  const parsed = S3Schema.safeParse(raw);
+  if (!parsed.success) {
+    return { errors: flatten(parsed.error), values };
+  }
+  /*
+    체크박스는 타입이 boolean이라 전부 false여도 스키마를 통과한다.
+    화면이 버튼을 잠글 때 쓰는 것과 **같은 함수**로 본다.
+  */
+  const missing = s3Missing(parsed.data);
+  if (missing) {
+    return { message: SUBMISSION_FAILURE_MESSAGE[missing], values };
+  }
+
+  const saved = await saveS3({
+    entryId: viewer.entry.id,
+    seasonId: viewer.season.id,
+    userId: viewer.user.id,
+    payload: parsed.data,
+    intent,
+  });
+  if (!saved.ok) {
+    return { message: SUBMISSION_FAILURE_MESSAGE[saved.code], values };
+  }
+
+  revalidatePath("/dashboard/submit/s3");
+  revalidatePath("/dashboard");
+  return { done: "submitted", values };
 }

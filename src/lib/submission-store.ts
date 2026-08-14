@@ -1,5 +1,6 @@
 import {
   ChargeType,
+  DeployStatus,
   EntryStage,
   StageKey,
   SubmissionStatus,
@@ -9,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import {
   SINGLE_WEEK,
   type S1Payload,
+  type S3Payload,
   type SubmissionFailureCode,
   type SubmitIntent,
 } from "@/lib/submission";
@@ -120,6 +122,31 @@ export type SaveResult =
   | { ok: false; code: SubmissionFailureCode };
 
 /**
+ * 측정 연동이 어디까지 됐는가 — s3 화면이 「서비스 주소」 옆에 보여준다.
+ *
+ * 제출 폼에서 호스트명을 등록하지 않는 이유: 소유 확인·프록시 라우트가 붙는 별도
+ * 화면(`/dashboard/measurement`)이 정본이고, 같은 값을 두 곳에서 받으면 어느 쪽이
+ * 측정 대상인지 흐려진다. 여기서는 **상태만 읽어 보여주고 그 화면으로 보낸다.**
+ */
+export async function loadHostnameStatus(entryId: string) {
+  const hostname = await prisma.hostname.findUnique({
+    where: { entryId },
+    select: {
+      hostname: true,
+      deployStatus: true,
+      ownershipVerifiedAt: true,
+    },
+  });
+  return {
+    registered: hostname !== null,
+    hostname: hostname?.hostname ?? null,
+    verified:
+      hostname?.deployStatus === DeployStatus.active &&
+      hostname.ownershipVerifiedAt !== null,
+  };
+}
+
+/**
  * s1 저장.
  *
  * 임시 저장과 제출이 같은 행을 쓴다 — `status`만 다르다. 행을 따로 만들면
@@ -194,6 +221,88 @@ export async function saveS1(args: {
       await tx.entry.update({
         where: { id: entryId },
         data: { stage: EntryStage.s1 },
+      });
+    }
+  });
+
+  return { ok: true, status };
+}
+
+/**
+ * s3 저장.
+ *
+ * s1과 다른 것은 **참가 기록에도 쓴다**는 점이다 — 서비스 주소는 심사·상호 테스터·
+ * 참가작 페이지가 함께 읽는 값이라 payload 안에만 두면 그때마다 제출을 뒤져야 한다.
+ * `entries.service_url`은 표시용이고 측정 대상은 `hostnames.hostname`이 정본이다
+ * (스키마 주석). 그래서 여기서 호스트명을 만들지 않는다.
+ */
+export async function saveS3(args: {
+  entryId: string;
+  seasonId: string;
+  userId: string;
+  payload: S3Payload;
+  intent: SubmitIntent;
+}): Promise<SaveResult> {
+  const { entryId, seasonId, userId, payload, intent } = args;
+
+  const view = await loadStageView(entryId, seasonId, StageKey.s3);
+  if (!view) return { ok: false, code: "NOT_FOUND" };
+  if (!view.editable) {
+    return { ok: false, code: view.lockedReason ?? "STAGE_LOCKED" };
+  }
+
+  const submitting = intent === "submit";
+  const status = submitting
+    ? SubmissionStatus.submitted
+    : SubmissionStatus.draft;
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.submission.upsert({
+      where: {
+        entryId_stageKey_week: {
+          entryId,
+          stageKey: StageKey.s3,
+          week: SINGLE_WEEK,
+        },
+      },
+      create: {
+        entryId,
+        stageKey: StageKey.s3,
+        week: SINGLE_WEEK,
+        status,
+        payload,
+        submittedBy: submitting ? userId : null,
+        submittedAt: submitting ? now : null,
+      },
+      update: {
+        status,
+        payload,
+        ...(submitting ? { submittedBy: userId, submittedAt: now } : {}),
+      },
+    });
+
+    /*
+      주소는 임시 저장에도 반영한다 — 참가작 페이지가 비어 있는 것보다 낫고,
+      틀린 주소는 참가팀이 곧바로 고친다. 제출 여부와 무관하게 최신 신고값이다.
+    */
+    if (payload.serviceUrl) {
+      await tx.entry.update({
+        where: { id: entryId },
+        data: { serviceUrl: payload.serviceUrl },
+      });
+    }
+
+    if (!submitting) return;
+
+    const entry = await tx.entry.findUniqueOrThrow({
+      where: { id: entryId },
+      select: { stage: true },
+    });
+    if (!stageAtLeast(entry.stage, EntryStage.s3)) {
+      await tx.entry.update({
+        where: { id: entryId },
+        data: { stage: EntryStage.s3 },
       });
     }
   });

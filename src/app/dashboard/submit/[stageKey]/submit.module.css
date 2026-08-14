@@ -170,3 +170,19 @@
     font-size: var(--fs-2xl);
   }
 }
+
+/* 체크리스트 항목 번호(A1·B2). 원문 대조가 되게 붙여둔다 */
+.checkKey {
+  color: var(--c-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+}
+
+/* 측정 연동이 끝난 경우의 안내 — 경고가 아니라 사실이라 괘선 없이 둔다 */
+.note {
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
