@@ -1,0 +1,121 @@
+/*
+  심사 결과. 상자 없이 줄과 괘선으로만(CLAUDE.md §7).
+  판정 결과에만 색을 쓴다 — 통과/보완/미통과는 색이 곧 정보다.
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding-block: var(--s-10) var(--s-14);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.purpose {
+  /* 읽기 폭은 텍스트에만(§6) */
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+  line-height: 1.7;
+}
+
+.locked {
+  max-width: 34em;
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-lg);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-block: var(--s-5);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.itemHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.stage {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  color: var(--c-text-strong);
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+.pending {
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.when {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+}
+
+.feedback {
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-base);
+  line-height: 1.8;
+  /* 심사 의견은 줄바꿈이 뜻을 갖는다 */
+  white-space: pre-wrap;
+}
+
+.muted {
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: var(--fs-sm);
+}
+
+.link {
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  border-bottom: 1px solid var(--c-line-3);
+}
+
+.link:hover {
+  color: var(--c-text-strong);
+}

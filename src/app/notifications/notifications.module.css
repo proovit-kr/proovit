@@ -1,0 +1,128 @@
+/*
+  알림센터.
+
+  대시보드 바깥의 화면이라(로그인만 하면 참가 전에도 본다) 자체 껍데기를 쓴다.
+  읽은 알림은 지우지 않고 색만 눌러 남긴다 — 통지 분쟁의 근거라 목록에서 사라지면 안 된다.
+*/
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding-block: var(--s-10) var(--s-14);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.purpose {
+  /* 읽기 폭은 텍스트에만(§6) */
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+  line-height: 1.7;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-block: var(--s-5);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.itemRead {
+  composes: item;
+  color: var(--c-text-faint);
+}
+
+.itemHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.when {
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+}
+
+.delivery {
+  padding: 1px var(--s-2);
+  border: 1px solid var(--c-line-3);
+  border-radius: 999px;
+}
+
+.itemTitle {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+.itemRead .itemTitle {
+  color: var(--c-text-muted);
+  font-weight: 400;
+}
+
+.body {
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.itemActions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.link {
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  border-bottom: 1px solid var(--c-line-3);
+}
+
+.link:hover {
+  color: var(--c-text-strong);
+}
