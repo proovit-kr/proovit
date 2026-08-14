@@ -1,0 +1,172 @@
+/*
+  스테이지 제출.
+
+  긴 폼이라 상자를 쓰지 않고 여백으로만 끊는다(CLAUDE.md §7). 라임은 「제출하기」
+  버튼 한 곳에서만 세게 쓴다 — 체크박스·라디오에는 얹지 않는다.
+  입력칸은 globals.css의 `.input`·`.textarea`를 그대로 쓴다(참가 신청과 같은 규약).
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding-block: var(--s-10) var(--s-14);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.headTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.stage {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.04em;
+}
+
+.title {
+  /* 읽기 폭은 텍스트에만(§6). 한글이라 ch를 쓰지 않는다 */
+  max-width: 24em;
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.purpose {
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+  line-height: 1.7;
+}
+
+.locked {
+  max-width: 34em;
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-lg);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+/* ── 폼 ────────────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  /* 칸이 많아 간격을 넉넉히 준다 — 붙으면 어느 안내가 어느 칸의 것인지 흐려진다 */
+  gap: var(--s-7);
+  max-width: 44em;
+}
+
+.formError {
+  margin: 0;
+  color: var(--c-danger);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+.saved {
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+}
+
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* 한마디 컨셉 틀 — 따라 쓰는 형식이라 본문과 다른 글씨로 둔다 */
+.template {
+  display: block;
+  margin-top: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  border-left: 2px solid var(--c-line-3);
+  color: var(--c-text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  line-height: 1.7;
+}
+
+/* ── 선택 · 체크 ───────────────────────────────────────────── */
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.choice,
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding-block: var(--s-2);
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.choice input,
+.check input {
+  margin-top: 3px;
+  accent-color: var(--c-lime);
+}
+
+.choiceBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.choiceLabel {
+  color: var(--c-text-strong);
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+.choiceDesc {
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding-top: var(--s-2);
+}
+
+@media (max-width: 640px) {
+  .headTop {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s-2);
+  }
+
+  .title {
+    font-size: var(--fs-2xl);
+  }
+}

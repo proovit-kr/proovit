@@ -144,6 +144,8 @@ export type ViewerState = {
     roles: string[];
   } | null;
   season: {
+    /** 시즌 종속 조회(스테이지·제출)가 이 값을 쓴다 */
+    id: string;
     slug: string;
     title: string;
     phase: SeasonPhase;
@@ -183,6 +185,7 @@ export const loadViewerState = cache(
 
     const seasonState = season
       ? {
+          id: season.id,
           slug: season.slug,
           title: season.title,
           phase: season.phase,

@@ -197,11 +197,14 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
     leaderOnly: true,
   },
   /** 스테이지 제출. 스테이지별 개별 조건은 canSubmitStage가 따로 본다 */
+  /*
+    ⚠️ 팀 관리와 같은 이유로 leaderOnly를 걸지 않는다 — 걸면 팀원이 **자기 팀이 무엇을
+    냈는지도 못 본다.** 제출 버튼은 팀장만이라는 규칙은 `canSubmitStage()`가 지킨다.
+  */
   dashboardSubmit: {
     auth: "onboarded",
     entry: true,
     write: true,
-    leaderOnly: true,
     hideWhenEliminated: true,
   },
   /** 본인 지표. 배포 전에는 집계 자체가 없다(API v0.2 §10) */
@@ -426,6 +429,18 @@ export function canSubmitStage(
   if (!base.ok) return base;
   if (!ctx.entry || !ctx.season) {
     return { ok: false, code: "NOT_FOUND", message: "참가 기록이 없습니다." };
+  }
+
+  /*
+    제출은 팀 단위 쓰기라 팀장만 누른다(G5 · 스키마 `submissions.submitted_by` 주석).
+    화면은 팀원에게도 열려 있어서 이 판정이 라우트가 아니라 여기 있다.
+  */
+  if (!ctx.entry.isLeader) {
+    return {
+      ok: false,
+      code: "FORBIDDEN",
+      message: "제출은 팀장만 할 수 있습니다.",
+    };
   }
 
   /*

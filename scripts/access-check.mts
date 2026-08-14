@@ -303,6 +303,26 @@ check(
   ),
   "ALLOW",
 );
+/*
+  제출도 팀 관리와 같이 갈랐다(8/15) — 화면은 팀원도 보고 제출 버튼만 팀장이다.
+  팀원이 자기 팀이 무엇을 냈는지 못 보면 2인 팀에서 확인할 방법이 없다.
+*/
+check(
+  "팀원(비팀장) — 제출 화면은 보인다",
+  canAccess(
+    "dashboardSubmit",
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1, leader: false }),
+  ),
+  "ALLOW",
+);
+check(
+  "팀원(비팀장) — 제출은 403",
+  canSubmitStage(
+    EntryStage.s2,
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1, leader: false }),
+  ),
+  "FORBIDDEN",
+);
 check(
   "게이트 통과 후 — 다음 스테이지 열림",
   canSubmitStage(
