@@ -157,3 +157,15 @@
   line-height: 1.6;
   color: var(--c-text-muted);
 }
+
+/* 안내문 속 링크. 라임은 화면당 한 번(§7)이라 밑줄과 밝기로만 구분한다 */
+.noteLink {
+  color: var(--c-text-strong);
+  text-decoration: underline;
+  text-decoration-color: var(--c-line-strong);
+  text-underline-offset: 3px;
+}
+
+.noteLink:hover {
+  text-decoration-color: var(--c-text-strong);
+}

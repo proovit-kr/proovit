@@ -47,7 +47,7 @@ export type ApplyResult =
  * 하루면 역산된다. 소금이 없으면 해시를 만들지 않고 null로 남긴다.
  * 동의 사실 자체는 행의 존재와 createdAt으로 증명되고, ipHash는 보강 증거다.
  */
-function hashIp(ip: string | null): string | null {
+export function hashIp(ip: string | null): string | null {
   const salt = process.env.CONSENT_IP_SALT ?? process.env.AUTH_SECRET;
   if (!ip || ip === "unknown" || !salt) return null;
   return createHash("sha256").update(`${salt}:${ip}`).digest("hex");
@@ -72,6 +72,38 @@ export interface ApplyContext {
   userAgent: string | null;
 }
 
+/**
+ * 참가 동의 3종을 로그 행으로 바꾼다.
+ *
+ * 신청(팀장)과 합류(팀원)가 **같은 함수**를 쓴다. 합류하는 사람도 개인정보·약관·
+ * 지표 공개에 스스로 동의해야 한다 — 팀장의 동의가 팀원 것을 대신하지 못한다
+ * (운영규칙서 D2: 항목별·본인별 동의).
+ */
+export function applyConsentRows(args: {
+  userId: string;
+  entryId: string;
+  consent: Record<string, boolean>;
+  ipHash: string | null;
+  userAgent: string | null;
+}) {
+  return APPLY_CONSENTS.map((item) => ({
+    userId: args.userId,
+    entryId: args.entryId,
+    type: CONSENT_TYPES[item.key],
+    granted: Boolean(args.consent[item.key]),
+    version: CONSENT_VERSIONS[item.key],
+    ipHash: args.ipHash,
+    userAgent: args.userAgent,
+  }));
+}
+
+/** 필수 동의가 빠졌는지. 화면을 거치지 않은 호출도 여기서 막힌다 */
+export function missingRequiredConsents(
+  consent: Record<string, boolean>,
+): boolean {
+  return APPLY_CONSENTS.some((c) => c.required && !consent[c.key]);
+}
+
 export async function submitApplication(
   user: { id: string },
   raw: {
@@ -94,8 +126,7 @@ export async function submitApplication(
     ⚠️ 필수 동의는 화면이 아니라 여기서 막는다. 서버 액션은 폼을 거치지 않고
     직접 호출할 수 있으므로, 체크박스를 안 거친 요청이 그대로 들어올 수 있다.
   */
-  const missing = APPLY_CONSENTS.filter((c) => c.required && !consent[c.key]);
-  if (missing.length > 0) {
+  if (missingRequiredConsents(consent)) {
     return {
       ok: false,
       code: "CONSENT_REQUIRED",
@@ -169,15 +200,13 @@ export async function submitApplication(
         사라져 입증이 불가능해진다.
       */
       await tx.consent.createMany({
-        data: APPLY_CONSENTS.map((item) => ({
+        data: applyConsentRows({
           userId: user.id,
           entryId: entry.id,
-          type: CONSENT_TYPES[item.key],
-          granted: Boolean(consent[item.key]),
-          version: CONSENT_VERSIONS[item.key],
+          consent,
           ipHash,
           userAgent,
-        })),
+        }),
       });
 
       return entry.id;

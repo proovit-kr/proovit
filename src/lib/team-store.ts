@@ -6,11 +6,13 @@ import {
   Prisma,
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { applyConsentRows, hashIp } from "@/lib/apply-store";
 import {
   INVITE_ALPHABET,
   INVITE_CODE_LENGTH,
   INVITE_TTL_DAYS,
   MAX_TEAM_SIZE,
+  normalizeInviteCode,
   type TeamFailureCode,
 } from "@/lib/team";
 
@@ -241,6 +243,180 @@ export async function transferLeader(
     }),
   ]);
   return { ok: true };
+}
+
+// ═════════════════════════════════════════════════════════════
+// 합류 — 초대받은 쪽
+// ═════════════════════════════════════════════════════════════
+
+export type InviteLookup =
+  | {
+      ok: true;
+      teamName: string;
+      /** 합류하면 붙게 되는 참가작. 무엇에 합류하는지 보여줘야 한다 */
+      ideaTitle: string;
+      code: string;
+    }
+  | { ok: false; code: TeamFailureCode };
+
+/**
+ * 초대 코드 조회 — 화면이 「무엇에 합류하는지」를 보여주기 위한 읽기다.
+ *
+ * ⚠️ 이 결과를 권한으로 쓰지 않는다. 실제 합류는 `acceptInvite`가 같은 조건을
+ * **다시** 보고 트랜잭션 안에서 처리한다. 여기와 수락 사이에 정원이 찰 수 있다.
+ */
+export async function findInvite(
+  rawCode: string,
+  seasonId: string,
+): Promise<InviteLookup> {
+  const code = normalizeInviteCode(rawCode);
+  const invite = await prisma.teamInvitation.findUnique({
+    where: { inviteCode: code },
+    select: {
+      status: true,
+      expiresAt: true,
+      team: {
+        select: {
+          name: true,
+          _count: { select: { members: true } },
+          entries: {
+            where: { seasonId },
+            select: { ideaTitle: true },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
+
+  if (!invite) return { ok: false, code: "INVITE_NOT_FOUND" };
+  if (invite.status !== InvitationStatus.pending) {
+    return { ok: false, code: "INVITE_USED" };
+  }
+  if (invite.expiresAt <= new Date()) {
+    return { ok: false, code: "INVITE_EXPIRED" };
+  }
+  if (invite.team._count.members >= MAX_TEAM_SIZE) {
+    return { ok: false, code: "TEAM_FULL" };
+  }
+  /* 이번 시즌에 참가하지 않은 팀의 초대 — 붙을 참가가 없다 */
+  const entry = invite.team.entries[0];
+  if (!entry) return { ok: false, code: "INVITE_NOT_FOUND" };
+
+  return {
+    ok: true,
+    teamName: invite.team.name,
+    ideaTitle: entry.ideaTitle,
+    code,
+  };
+}
+
+/**
+ * 합류. 팀원 행을 만들고, 초대를 닫고, **그 사람의 동의 3종을 남긴다.**
+ *
+ * 셋이 한 트랜잭션인 이유는 동의다 — 팀원이 되고 동의 로그가 빠지면 「동의 없이
+ * 수집한 개인정보」가 되고 그 입증 책임이 우리에게 있다(apply-store와 같은 이유).
+ *
+ * 팀장의 동의가 팀원 것을 대신하지 못한다(D2). 그래서 합류 화면도 체크박스를 받는다.
+ */
+export async function acceptInvite(
+  user: { id: string },
+  rawCode: string,
+  seasonId: string,
+  consent: Record<string, boolean>,
+  context: { ip: string | null; userAgent: string | null },
+): Promise<TeamActionResult> {
+  const code = normalizeInviteCode(rawCode);
+  const ipHash = hashIp(context.ip);
+  const userAgent = context.userAgent?.slice(0, 500) ?? null;
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const invite = await tx.teamInvitation.findUnique({
+        where: { inviteCode: code },
+        select: {
+          id: true,
+          teamId: true,
+          status: true,
+          expiresAt: true,
+          team: {
+            select: {
+              members: { select: { userId: true } },
+              entries: { where: { seasonId }, select: { id: true }, take: 1 },
+            },
+          },
+        },
+      });
+
+      if (!invite) {
+        return { ok: false as const, code: "INVITE_NOT_FOUND" as const };
+      }
+      if (invite.status !== InvitationStatus.pending) {
+        return { ok: false as const, code: "INVITE_USED" as const };
+      }
+      if (invite.expiresAt <= new Date()) {
+        await tx.teamInvitation.update({
+          where: { id: invite.id },
+          data: { status: InvitationStatus.expired },
+        });
+        return { ok: false as const, code: "INVITE_EXPIRED" as const };
+      }
+      if (invite.team.members.some((m) => m.userId === user.id)) {
+        return { ok: false as const, code: "ALREADY_MEMBER" as const };
+      }
+      if (invite.team.members.length >= MAX_TEAM_SIZE) {
+        return { ok: false as const, code: "TEAM_FULL" as const };
+      }
+
+      const entry = invite.team.entries[0];
+      if (!entry) {
+        return { ok: false as const, code: "INVITE_NOT_FOUND" as const };
+      }
+
+      /*
+        ⚠️ 이번 시즌에 이미 다른 팀으로 참가한 사람은 합류할 수 없다.
+        한 사람이 두 팀에 있으면 상호 테스터 배정과 지표 제외가 무너지고,
+        같은 사람이 두 번 시상 대상이 된다.
+      */
+      const mine = await tx.entry.findFirst({
+        where: { seasonId, team: { members: { some: { userId: user.id } } } },
+        select: { id: true },
+      });
+      if (mine) return { ok: false as const, code: "ALREADY_APPLIED" as const };
+
+      await tx.teamMember.create({
+        data: {
+          teamId: invite.teamId,
+          userId: user.id,
+          role: MemberRole.member,
+        },
+      });
+      await tx.teamInvitation.update({
+        where: { id: invite.id },
+        data: { status: InvitationStatus.accepted },
+      });
+      await tx.consent.createMany({
+        data: applyConsentRows({
+          userId: user.id,
+          entryId: entry.id,
+          consent,
+          ipHash,
+          userAgent,
+        }),
+      });
+
+      return { ok: true as const };
+    });
+  } catch (error) {
+    /* @@unique([teamId, userId]) — 두 탭에서 동시에 눌렀을 때의 최종 방어선 */
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return { ok: false, code: "ALREADY_MEMBER" };
+    }
+    throw error;
+  }
 }
 
 /**

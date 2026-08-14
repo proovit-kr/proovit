@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { LinkButton } from "@/components/Button";
 import { Footer } from "@/components/Footer";
@@ -7,18 +8,25 @@ import { requireOnboardedUser } from "@/lib/access";
 import { findMyEntry } from "@/lib/apply-store";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
+import { TEAM_FAILURE_MESSAGE } from "@/lib/team";
+import { findInvite } from "@/lib/team-store";
 
 import { ApplyForm } from "./ApplyForm";
+import { JoinForm } from "./JoinForm";
 
 import styles from "./apply.module.css";
 
 /*
   참가 신청 — 회원이 참가자가 되는 자리다.
 
-  화면이 세 갈래다:
+  화면이 네 갈래다:
     ① 모집 기간이 아니다        → 로그인을 요구하기 전에 먼저 말한다
     ② 이미 신청했다             → 접수 내역을 보여준다
-    ③ 그 외                     → 신청 폼
+    ③ 초대 코드를 들고 왔다     → 합류 폼 (동의 3종만 받는다)
+    ④ 그 외                     → 신청 폼
+
+  ③이 여기 있는 이유: 초대받은 사람은 **참가 기록이 없어** 대시보드로 못 들어온다
+  (`canAccess`가 404를 낸다). 합류는 「참가의 한 형태」라 이 화면이 그 자리다.
 
   ①을 로그인 앞에 두는 이유: 모집도 안 하는데 로그인부터 시키면, 로그인을 마친
   사람이 "지금은 안 받습니다"를 보게 된다. 상태를 먼저 알리는 편이 맞다.
@@ -36,9 +44,10 @@ export const metadata: Metadata = {
 export default async function ApplyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ done?: string }>;
+  searchParams: Promise<{ done?: string; invite?: string }>;
 }) {
-  await searchParams;
+  const params = await searchParams;
+  const inviteCode = params.invite?.trim() ?? "";
 
   const season = await getCurrentSeason();
   const open = season !== null && resolveLandingCta(season).kind === "APPLY";
@@ -84,7 +93,10 @@ export default async function ApplyPage({
     );
   }
 
-  const user = await requireOnboardedUser("/apply");
+  /* 초대 코드는 로그인·온보딩을 거쳐 돌아올 때까지 들고 가야 한다 */
+  const user = await requireOnboardedUser(
+    inviteCode ? `/apply?invite=${encodeURIComponent(inviteCode)}` : "/apply",
+  );
 
   const existing = await findMyEntry(user.id, season.id);
   if (existing) {
@@ -95,6 +107,17 @@ export default async function ApplyPage({
             <Logo />
             <h1 className={styles.title}>참가 신청이 접수됐습니다</h1>
             <p className={styles.lead}>
+              {/*
+                초대 링크를 들고 왔는데 이미 참가 중인 경우다. 이 안내가 없으면
+                코드를 넣을 자리를 찾다가 "왜 합류가 안 되지"로 끝난다 —
+                한 사람이 두 팀에 있을 수 없는 것이 이유다(acceptInvite 주석).
+              */}
+              {inviteCode ? (
+                <span>
+                  이미 참가한 팀이 있어 다른 팀에 합류할 수 없습니다. 팀을
+                  옮기려면 지금 팀에서 나온 뒤 다시 초대를 받아 주세요.
+                </span>
+              ) : null}
               <span>시즌 시작에 맞춰 진행 안내를 보내드립니다.</span>
             </p>
           </div>
@@ -132,6 +155,57 @@ export default async function ApplyPage({
           <p className={styles.note}>
             팀 이름이나 참가작 정보를 고쳐야 하면 운영에 문의해 주세요.
             대시보드가 열리면 직접 수정할 수 있게 됩니다.
+          </p>
+        </div>
+        <Footer />
+      </main>
+    );
+  }
+
+  /*
+    ③ 초대 코드로 온 사람.
+
+    코드가 살아 있으면 무엇에 합류하는지(팀·참가작)를 보여주고 동의만 받는다.
+    죽은 코드면 사유를 말하고 **신청 폼으로 내려보낸다** — 코드가 만료됐다고
+    빈 화면을 주면 스스로 참가할 길까지 막힌다.
+  */
+  if (inviteCode) {
+    const invite = await findInvite(inviteCode, season.id);
+
+    return (
+      <main className={`page ${styles.page}`}>
+        <div className={`container container--narrow grow ${styles.wrap}`}>
+          <div className={styles.head}>
+            <Logo />
+            <h1 className={styles.title}>
+              {invite.ok ? `${invite.teamName}에 합류` : "팀에 합류하기"}
+            </h1>
+            <p className={styles.lead}>
+              {invite.ok ? (
+                <>
+                  <span>참가작 「{invite.ideaTitle}」의 팀원으로 들어갑니다.</span>
+                  <span>
+                    팀 이름과 참가작은 팀장이 이미 등록했습니다. 동의만 확인해
+                    주세요.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>{TEAM_FAILURE_MESSAGE[invite.code]}</span>
+                  <span>코드를 다시 확인하거나, 직접 참가 신청도 할 수 있습니다.</span>
+                </>
+              )}
+            </p>
+          </div>
+
+          <JoinForm defaultCode={inviteCode} />
+
+          <p className={styles.note}>
+            초대가 아니라 직접 참가하려면{" "}
+            <Link href="/apply" className={styles.noteLink}>
+              참가 신청 화면
+            </Link>
+            으로 가세요.
           </p>
         </div>
         <Footer />
