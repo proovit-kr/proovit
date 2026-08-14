@@ -1,0 +1,153 @@
+/*
+  참가작 상세. 공유 링크의 목적지라 첫 화면에 이름·한 줄 소개·서비스 링크가 다 들어온다.
+  지표는 아래로 내린다 — 처음 온 사람에게 필요한 것은 숫자가 아니라 "무엇을 만들었나"다.
+*/
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-10);
+  padding-block: var(--s-12) var(--s-18);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.meta {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.back {
+  color: var(--c-text-dim);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--c-text-strong);
+}
+
+.title {
+  /* 읽기 폭은 텍스트에만(§6) */
+  max-width: 20em;
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-4xl);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.team {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+}
+
+.summary {
+  max-width: 32em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+  line-height: 1.8;
+}
+
+.actions {
+  padding-top: var(--s-3);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.note {
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+/* ── 진행 ──────────────────────────────────────────────────── */
+
+.stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage,
+.stageDone {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-size: var(--fs-sm);
+}
+
+.stage {
+  color: var(--c-text-faint);
+}
+
+.stageDone {
+  color: var(--c-text-strong);
+}
+
+.stageKey {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+}
+
+/* ── 지표 ──────────────────────────────────────────────────── */
+
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  /* 균등 분할하지 않는다(§7) */
+  gap: var(--s-10);
+  margin: 0;
+  padding-top: var(--s-2);
+}
+
+.metrics dt {
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+}
+
+.metrics dd {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--fs-3xl);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .title {
+    font-size: var(--fs-3xl);
+  }
+}

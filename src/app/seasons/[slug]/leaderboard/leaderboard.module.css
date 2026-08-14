@@ -1,0 +1,175 @@
+/*
+  리더보드.
+
+  숫자 표라 정렬이 곧 읽기다 — 순위·수치는 고정폭, 이름은 왼쪽.
+  라임을 쓰지 않는다. 1위에 색을 얹고 싶어지지만 **채점식이 확정되기 전에는
+  우리가 먼저 판정하는 셈**이라 색으로 순위를 강조하지 않는다.
+*/
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding-block: var(--s-12) var(--s-18);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.season {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.seasonLink {
+  color: var(--c-text-dim);
+  text-decoration: none;
+}
+
+.seasonLink:hover {
+  color: var(--c-text-strong);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-4xl);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.lead {
+  /* 읽기 폭은 텍스트에만(§6) */
+  max-width: 32em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+  line-height: 1.7;
+}
+
+.asOf,
+.note,
+.footnote {
+  max-width: 34em;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.asOf {
+  color: var(--c-text-dim);
+}
+
+.note {
+  color: var(--c-text-dim);
+}
+
+.footnote {
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--c-line-2);
+  color: var(--c-text-faint);
+}
+
+/* ── 표 ────────────────────────────────────────────────────── */
+
+.scroller {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--s-4);
+  border-bottom: 1px solid var(--c-line-2);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table thead th {
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.table thead th:nth-child(2) {
+  text-align: left;
+}
+
+.table tbody td {
+  color: var(--c-text-strong);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.rankCol {
+  width: 4em;
+  text-align: right;
+}
+
+.rank {
+  color: var(--c-text-muted) !important;
+}
+
+.dash {
+  color: var(--c-text-faint);
+}
+
+.entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-3);
+  text-align: left;
+  white-space: normal;
+}
+
+.entryLink {
+  color: var(--c-text-strong);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.entryLink:hover {
+  color: var(--c-lime);
+}
+
+.team {
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  font-weight: 400;
+}
+
+.flag {
+  padding: 1px var(--s-2);
+  border: 1px solid var(--c-line-3);
+  border-radius: 999px;
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+  font-weight: 400;
+}
+
+.link {
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  border-bottom: 1px solid var(--c-line-3);
+}
+
+.link:hover {
+  color: var(--c-text-strong);
+}

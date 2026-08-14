@@ -35,6 +35,25 @@ export function resolveLandingCta(season: Season): LandingCta {
   return { kind: "PREREGISTER" };
 }
 
+/**
+ * 헤더(NavBar)의 주 버튼.
+ *
+ * 랜딩의 CTA와 **같은 판정**(resolveLandingCta)을 쓴다. 공개 화면마다 다른 문구가
+ * 걸리면 "지금 신청이 되는 건가"를 화면마다 다르게 답하는 셈이 된다.
+ * 랜딩만은 예외로 자기 폼으로 스크롤하는 onClick을 따로 넘긴다.
+ */
+export function resolveNavCta(season: Season): { href: string; label: string } {
+  const kind = resolveLandingCta(season).kind;
+  if (kind === "APPLY") return { href: "/apply", label: "참가 신청" };
+  if (kind === "LEADERBOARD") {
+    return { href: `/seasons/${season.slug}/leaderboard`, label: "리더보드" };
+  }
+  if (kind === "CLOSED") {
+    return { href: `/seasons/${season.slug}`, label: "시즌 보기" };
+  }
+  return { href: "/?preregister=1", label: "사전 신청" };
+}
+
 /*
   지금 노출할 시즌 1건.
   draft는 운영자만 보는 상태이므로 공개 조회에서 제외한다.

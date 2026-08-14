@@ -1,34 +1,146 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-import { Scaffold } from "@/components/Scaffold";
+import { Badge } from "@/components/Badge";
+import { LinkButton } from "@/components/Button";
+import { Footer } from "@/components/Footer";
+import { NavBar } from "@/components/NavBar";
+import { PHASE_LABEL } from "@/content/dashboard";
 import { guardPage } from "@/lib/access";
+import { loadPublicSeason } from "@/lib/public-read";
+import { getCurrentSeason, resolveNavCta } from "@/lib/season";
+
+import styles from "./season.module.css";
 
 /*
-  시즌 상세 — PLN3 화면정의서 2장 카탈로그.
+  시즌 상세 — PLN3 2장 「이번 시즌이 언제 무엇을 하는 시즌인지」.
 
-  아직 자리표시다. 라우트·접근 제어·동선을 먼저 깔아두면 화면을 채울 때
-  판정을 다시 짜지 않는다. 판정은 canAccess("seasonDetail") 하나가 한다.
+  공개 화면이다(auth: public). 로그인 없이 열리고, 관전자가 리더보드로 가기 전에
+  거치는 자리다.
+
+  ⚠️ **날짜를 지어내지 않는다.** 시즌1 캘린더가 잠정이라 `stages.opens_at`·
+  `closes_at`이 비어 있다. 비어 있으면 「일정 확정 전」으로 적는다 — 임의의 날짜를
+  넣으면 그걸 보고 참가자가 자기 일정을 잡는다.
 */
 
 export const metadata: Metadata = {
-  title: "시즌 상세",
+  title: "시즌",
 };
 
-export default async function Page() {
-  const { access } = await guardPage("seasonDetail", "/seasons");
+const DATE = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  month: "long",
+  day: "numeric",
+});
+
+/** 지금 페이즈에서 관전자·참가 희망자가 할 수 있는 일 */
+function cta(phase: string): { href: string; label: string } | null {
+  if (phase === "pre_apply") {
+    return { href: "/?preregister=1", label: "사전 신청하기" };
+  }
+  if (phase === "recruiting") return { href: "/apply", label: "참가 신청하기" };
+  return null;
+}
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const { access } = await guardPage("seasonDetail", `/seasons/${slug}`);
+  if (!access.ok) notFound();
+
+  const season = await loadPublicSeason(slug);
+  if (!season) notFound();
+
+  const action = cta(season.phase);
+  /* 헤더 버튼은 랜딩과 같은 판정을 쓴다(resolveNavCta) */
+  const current = await getCurrentSeason();
+  const scheduled = season.stages.some((stage) => stage.opensAt !== null);
 
   return (
-    <Scaffold
-      title="시즌 상세"
-      purpose="이번 시즌이 언제 무엇을 하는 시즌인지 보여준다."
-      locked={access.ok ? undefined : access.message}
-      elements={[
-        "스테이지 타임라인 — 각 단계가 열리고 닫히는 정확한 시각",
-        "참가 트랙",
-        "지금 어느 단계인지",
-        "참가 CTA",
-      ]}
-      blockedBy="시즌1 캘린더가 아직 잠정입니다. stages.opens_at·closes_at이 비어 있어 타임라인에 넣을 시각이 없습니다."
-    />
+    <main className={`page ${styles.page}`}>
+      <NavBar cta={current ? resolveNavCta(current) : { href: "/", label: "홈" }} />
+      <div className={`container grow ${styles.wrap}`}>
+        <header className={styles.head}>
+          <p className={styles.meta}>
+            <Badge tone="outline">{PHASE_LABEL[season.phase] ?? "진행"}</Badge>
+            {season.theme ? (
+              <span className={styles.theme}>{season.theme}</span>
+            ) : null}
+          </p>
+          <h1 className={styles.title}>{season.title}</h1>
+          <p className={styles.lead}>
+            5주 동안 다섯 번 제출하고 두 번 심사받습니다. 순위는 발표가 아니라
+            실제 이용자 지표로 갈립니다.
+          </p>
+          <div className={styles.actions}>
+            {action ? (
+              <LinkButton href={action.href} size="lg">
+                {action.label}
+              </LinkButton>
+            ) : null}
+            <LinkButton
+              href={`/seasons/${season.slug}/leaderboard`}
+              variant="ghost"
+              size="lg"
+            >
+              리더보드 보기
+            </LinkButton>
+          </div>
+        </header>
+
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>스테이지</h2>
+          {!scheduled ? (
+            <p className={styles.note}>
+              시즌 일정은 확정되는 대로 이 자리에 올립니다. 스테이지 순서와 심사
+              지점은 아래대로입니다.
+            </p>
+          ) : null}
+          <ol className={styles.stages}>
+            {season.stages.map((stage) => (
+              <li key={stage.stageKey} className={styles.stage}>
+                <span className={styles.stageKey}>
+                  {stage.stageKey.toUpperCase()}
+                </span>
+                <span className={styles.stageBody}>
+                  <span className={styles.stageName}>
+                    {stage.name}
+                    {stage.isGate ? <Badge tone="outline">심사</Badge> : null}
+                  </span>
+                  <span className={styles.stageWhen}>
+                    {stage.opensAt && stage.closesAt
+                      ? `${DATE.format(stage.opensAt)} ~ ${DATE.format(stage.closesAt)}`
+                      : "일정 확정 전"}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {/* 트랙은 시즌마다 다르고 시즌1은 비어 있을 수 있다 — 없으면 절을 통째로 뺀다 */}
+        {season.tracks.length > 0 ? (
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>트랙</h2>
+            <ul className={styles.tracks}>
+              {season.tracks.map((track) => (
+                <li key={track.name} className={styles.track}>
+                  <span className={styles.trackName}>{track.name}</span>
+                  {track.description ? (
+                    <span className={styles.trackDesc}>
+                      {track.description}
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </div>
+      <Footer />
+    </main>
   );
 }
