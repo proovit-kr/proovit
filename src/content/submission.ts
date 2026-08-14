@@ -80,19 +80,41 @@ export const S3_FIELDS = {
 } as const;
 
 /*
-  빌더 목록.
+  배포처·빌더 목록.
 
-  ⚠️ PLN6 4장은 「07 문서의 표준·허용 목록만, 금지 목록은 저장 거부」라고 적었는데
-  **그 목록이 노션 어디에도 없다**(8/14 확인). 문서에 근거가 있는 것은 「표준 빌더 =
-  Replit(제휴 1순위)」 한 줄뿐이고, Lovable·Cursor 등은 제휴 접촉 대상이지 허용
-  목록이 아니다.
+  **정본은 「참가작 배포처 조사 보고서」(동혁, 8/9) 5장 3단 구조다.** PLN6 4장이
+  말한 「07 문서의 표준·허용 목록」이 이것이었다 — 8/15에 노션을 뒤져 찾았다.
+  (8/14에 "그 목록이 노션 어디에도 없다"고 적었던 것은 내가 못 찾은 것이다.)
 
-  그래서 지금은 **막지 않는다.** 없는 규칙을 코드로 만들어 참가자의 제출을 거부하면,
-  규칙이 확정됐을 때 이미 거절당한 팀이 생긴다. 표준 빌더만 보기로 주고 나머지는
-  직접 적게 한다. 목록이 확정되면 이 상수와 스키마 한 곳만 고친다. 8/17 확인 대상.
+    표준 — Cloudflare Pages · Lovable  (우리가 연결을 책임진다)
+    허용 — Render(정적) · Netlify · Bolt.new · Cloud Run  (지원 없음)
+    금지 — Vercel · GitHub Pages  (약관상 상업 사용 금지 → 주소 등록에서 자동 차단)
+
+  금지 목록은 여기 없다. 고를 수 없게 하는 것이 아니라 **측정 주소 등록에서
+  막는다**(measurement.ts) — 실제로 배포한 곳이 걸리는 자리가 거기다.
+
+  ⚠️ **Replit이 문서 둘에서 서로 다르게 적혀 있다.** 가이드 문서 기획과 허브는
+  「표준 빌더 Replit(제휴 1순위)」인데, 같은 보고서 4.1은 **Replit 무료가 30일 뒤
+  자동 다운되어 5주 시즌을 못 버틴다**고 적었다. 참가자가 가이드대로 Replit을 쓰면
+  시즌 도중 참가작이 사라진다. 그래서 목록에는 두되 **경고를 붙였다.**
+  8/17 안건이다 — 정해지면 이 상수와 가이드가 함께 바뀐다.
 */
 export const BUILDERS = [
-  { value: "replit", label: "Replit", note: "시즌 표준 빌더" },
+  { value: "lovable", label: "Lovable", note: "표준 — AI로 만드는 팀" },
+  {
+    value: "cloudflare_pages",
+    label: "Cloudflare Pages",
+    note: "표준 — 코드로 만드는 팀",
+  },
+  { value: "bolt", label: "Bolt.new", note: "허용 — 트래픽 몰리면 한도 주의" },
+  { value: "netlify", label: "Netlify", note: "허용 — 한도 넘으면 사이트 정지" },
+  { value: "render", label: "Render (정적)", note: "허용" },
+  { value: "cloud_run", label: "Cloud Run", note: "허용" },
+  {
+    value: "replit",
+    label: "Replit",
+    note: "⚠️ 무료 플랜은 30일 뒤 앱이 내려갑니다 — 시즌(5주)을 못 버팁니다",
+  },
   { value: "other", label: "그 외", note: "무엇으로 만들었는지 적어 주세요" },
 ] as const;
 
