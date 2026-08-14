@@ -167,12 +167,13 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
   apply: { auth: "onboarded", phase: isRecruiting, write: true },
   /** 골든패스 진입점. 탈락·실격 팀도 들어와야 소명·테스터로 갈 수 있다 */
   dashboard: { auth: "onboarded", entry: true, allowInactive: true },
-  dashboardTeam: {
-    auth: "onboarded",
-    entry: true,
-    write: true,
-    leaderOnly: true,
-  },
+  /*
+    ⚠️ leaderOnly를 걸지 않는다. 걸면 FORBIDDEN → 404가 되어 **팀원이 자기 팀을
+    못 본다** — 팀원 목록도, 팀장이 누구인지도. PLN3이 정한 것은 「쓰기는 팀장만」이고
+    그 쓰기 판정은 아래 `canManageTeam()`이 한다(제출 잠금을 `canSubmitStage`로
+    가른 것과 같은 형태다).
+  */
+  dashboardTeam: { auth: "onboarded", entry: true, write: true },
   dashboardDeposit: {
     auth: "onboarded",
     entry: true,
@@ -469,6 +470,53 @@ export function canSubmitStage(
     };
   }
 
+  return ALLOW;
+}
+
+/**
+ * 팀 관리 **쓰기** 가능 여부 — 초대 발급·취소, 팀장 이양, 강퇴.
+ *
+ * 화면 보기와 쓰기를 가른 이유는 팀원이다. 라우트 정책에 `leaderOnly`를 걸면
+ * FORBIDDEN이 404로 덮여 팀원이 자기 팀조차 못 본다. PLN3이 정한 것은
+ * 「쓰기는 팀장만」(G5)이지 「화면은 팀장만」이 아니다.
+ *
+ * 화면은 이 판정으로 폼을 그릴지 정하고, **서버 액션은 같은 함수를 다시 부른다** —
+ * 액션은 폼을 거치지 않고 직접 호출할 수 있는 엔드포인트다.
+ *
+ * 본인 탈퇴는 여기 걸리지 않는다(팀원이 하는 일이다). 그건 `canLeaveTeam`이 본다.
+ */
+export function canManageTeam(ctx: AccessContext): AccessResult {
+  const base = canAccess("dashboardTeam", ctx);
+  if (!base.ok) return base;
+  if (!ctx.entry) {
+    return { ok: false, code: "NOT_FOUND", message: "참가 기록이 없습니다." };
+  }
+  if (!ctx.entry.isLeader) {
+    return { ok: false, code: "FORBIDDEN", message: "팀장만 할 수 있습니다." };
+  }
+  return ALLOW;
+}
+
+/**
+ * 팀에서 나갈 수 있는가.
+ *
+ * **팀장은 못 나간다** — 나가면 그 팀의 쓰기 주체가 사라져 제출도 초대도 막힌다
+ * (`team_members_one_leader` 부분 유니크 인덱스가 팀장 없는 상태를 허용한다).
+ * 먼저 이양하게 한다.
+ */
+export function canLeaveTeam(ctx: AccessContext): AccessResult {
+  const base = canAccess("dashboardTeam", ctx);
+  if (!base.ok) return base;
+  if (!ctx.entry) {
+    return { ok: false, code: "NOT_FOUND", message: "참가 기록이 없습니다." };
+  }
+  if (ctx.entry.isLeader) {
+    return {
+      ok: false,
+      code: "FORBIDDEN",
+      message: "팀장은 먼저 팀장을 넘겨야 나갈 수 있습니다.",
+    };
+  }
   return ALLOW;
 }
 

@@ -18,6 +18,8 @@
 import { EntryStage, EntryStatus, SeasonPhase } from "@/generated/prisma/enums";
 import {
   canAccess,
+  canLeaveTeam,
+  canManageTeam,
   canSubmitStage,
   type AccessContext,
 } from "@/lib/access-policy";
@@ -191,13 +193,47 @@ check(
   canAccess("dashboard", ctx({ phase: SeasonPhase.racing })),
   "NOT_FOUND",
 );
+/*
+  ⚠️ 8/15에 뒤집혔다. 라우트에 leaderOnly를 걸어 팀원에게 403(→404)을 주고 있었는데
+  그러면 **팀원이 자기 팀도 못 본다.** PLN3이 정한 것은 「쓰기는 팀장만」이라
+  화면은 열고 쓰기만 canManageTeam으로 막는다.
+*/
 check(
-  "팀원(비팀장) — 팀 관리 쓰기 403",
+  "팀원(비팀장) — 팀 관리 화면은 보인다",
   canAccess(
     "dashboardTeam",
     ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1, leader: false }),
   ),
+  "ALLOW",
+);
+check(
+  "팀원(비팀장) — 팀 관리 쓰기 403",
+  canManageTeam(
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1, leader: false }),
+  ),
   "FORBIDDEN",
+);
+check(
+  "팀장 — 팀 관리 쓰기 허용",
+  canManageTeam(ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1 })),
+  "ALLOW",
+);
+check(
+  "팀장 — 팀에서 나가기는 막힌다(먼저 이양)",
+  canLeaveTeam(ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1 })),
+  "FORBIDDEN",
+);
+check(
+  "팀원 — 팀에서 나가기 허용",
+  canLeaveTeam(
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1, leader: false }),
+  ),
+  "ALLOW",
+);
+check(
+  "종료된 시즌 — 팀 관리 쓰기 잠김",
+  canManageTeam(ctx({ phase: SeasonPhase.archived, stage: EntryStage.s5 })),
+  "STAGE_LOCKED",
 );
 check(
   "플래그 off — 크레딧 404",
