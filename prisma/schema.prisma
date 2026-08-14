@@ -45,15 +45,17 @@ datasource db {
 /// 시즌 타임라인. 전환 주체는 season_schedules다 (ADR-010).
 /// pre_apply = 사전신청만 받는 구간. 이 값이 생기면서 랜딩 CTA를 recruit_start_at
 /// 비교로 우회하던 것이 사라진다 — phase 하나로 갈린다.
+///
+/// 2026-08-14: 10값 → 6값. `w1_demand · gate1_review · w2_build · race · gate2_review`
+/// 다섯이 `racing` 하나로 통합됐다(동혁 종결본 수정, 8/13 스크럼 회신).
+/// 그 다섯은 4주·게이트 2회 시절의 값이라 5스테이지 모델과 맞지 않았다.
+/// **스테이지별 제출 창은 stages.opens_at/closes_at이 단독 근거이고, 게이트 심사
+/// 대기는 phase가 아니라 entry.stage(s2·s5)로 판정한다** — access-policy.ts 참조.
 enum SeasonPhase {
   draft
   pre_apply
   recruiting
-  w1_demand
-  gate1_review
-  w2_build
-  race
-  gate2_review
+  racing
   awarded
   archived
 }

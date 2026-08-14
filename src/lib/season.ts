@@ -25,7 +25,7 @@ export type LandingCta =
 
 export function resolveLandingCta(season: Season): LandingCta {
   if (season.phase === SeasonPhase.archived) return { kind: "CLOSED" };
-  if (phaseAtLeast(season.phase, SeasonPhase.w1_demand)) {
+  if (phaseAtLeast(season.phase, SeasonPhase.racing)) {
     return { kind: "LEADERBOARD" };
   }
   if (season.phase === SeasonPhase.recruiting) return { kind: "APPLY" };

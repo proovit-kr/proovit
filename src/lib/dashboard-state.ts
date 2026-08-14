@@ -21,7 +21,6 @@ import type { FeatureFlags } from "@/lib/feature-flags";
 import {
   isArchived,
   isAwarded,
-  isGateReview,
   isPreApply,
   isRacing,
   isRecruiting,
@@ -163,13 +162,13 @@ export function resolveDashboardState(input: DashboardInput): DashboardState {
     };
   }
 
-  // ── 게이트 심사 중이면 제출이 잠긴다 ───────────────────────
-  if (isGateReview(phase)) {
-    // PLN3 3.1 4·7행 — "심사 대기 안내 / CTA 없음(잠김)"
-    return { nextAction: null, blockedReasons: ["gate_review"] };
-  }
+  /*
+    ── 진도별 다음 제출 — PLN3 3.1 2·3·5·6행 ─────────────────
 
-  // ── 진도별 다음 제출 — PLN3 3.1 2·3·5·6행 ─────────────────
+    8/14까지 이 위에 `isGateReview(phase)` 분기가 한 겹 더 있었다. phase가 6값으로
+    합쳐져 그 구간이 없어졌지만 **잃은 판정은 없다** — 심사 대기는 아래 표에서
+    s2·s5가 `null`을 내는 것으로 이미 표현되고(3.1 4·7행), 그게 팀별로도 맞다.
+  */
   const byStage: Record<EntryStage, NextAction | null> = {
     /* 온보딩을 마쳤으면 s1이 다음이다(3.1 2행) */
     applied: { key: "submit_s1", label: "등록 정보 제출하기", href: "/dashboard/submit/s1" },

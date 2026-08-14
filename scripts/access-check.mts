@@ -67,10 +67,10 @@ function check(
 
 // ── PLN3 3.2 예외 조합 ────────────────────────────────────────
 check(
-  "지각 참가 — racing(s1 구간) × applied → 대시보드 허용",
+  "지각 참가 — racing × applied → 대시보드 허용",
   canAccess(
     "dashboard",
-    ctx({ phase: SeasonPhase.w1_demand, stage: EntryStage.applied }),
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.applied }),
   ),
   "ALLOW",
 );
@@ -79,7 +79,7 @@ check(
   canAccess(
     "dashboard",
     ctx({
-      phase: SeasonPhase.race,
+      phase: SeasonPhase.racing,
       stage: EntryStage.s2,
       status: EntryStatus.eliminated,
     }),
@@ -91,7 +91,7 @@ check(
   canAccess(
     "dashboardMetrics",
     ctx({
-      phase: SeasonPhase.race,
+      phase: SeasonPhase.racing,
       stage: EntryStage.s3,
       status: EntryStatus.eliminated,
     }),
@@ -103,7 +103,7 @@ check(
   canAccess(
     "dashboardSubmit",
     ctx({
-      phase: SeasonPhase.race,
+      phase: SeasonPhase.racing,
       stage: EntryStage.s3,
       status: EntryStatus.eliminated,
     }),
@@ -115,7 +115,7 @@ check(
   canAccess(
     "dashboardTester",
     ctx({
-      phase: SeasonPhase.race,
+      phase: SeasonPhase.racing,
       stage: EntryStage.s2,
       status: EntryStatus.eliminated,
       flags: testerOn,
@@ -128,7 +128,7 @@ check(
   canAccess(
     "dashboardAppeal",
     ctx({
-      phase: SeasonPhase.race,
+      phase: SeasonPhase.racing,
       stage: EntryStage.s4,
       status: EntryStatus.disqualified,
     }),
@@ -140,7 +140,7 @@ check(
   canAccess(
     "dashboardTeam",
     ctx({
-      phase: SeasonPhase.race,
+      phase: SeasonPhase.racing,
       stage: EntryStage.s4,
       status: EntryStatus.disqualified,
     }),
@@ -151,7 +151,7 @@ check(
   "미배포로 레이스 진입 — s3 상태로 대시보드 허용",
   canAccess(
     "dashboard",
-    ctx({ phase: SeasonPhase.race, stage: EntryStage.s3 }),
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s3 }),
   ),
   "ALLOW",
 );
@@ -175,27 +175,27 @@ check(
 // ── 기본 규약 ────────────────────────────────────────────────
 check(
   "비로그인 — 대시보드 401",
-  canAccess("dashboard", ctx({ phase: SeasonPhase.race, anon: true })),
+  canAccess("dashboard", ctx({ phase: SeasonPhase.racing, anon: true })),
   "UNAUTHENTICATED",
 );
 check(
   "온보딩 미완 — 403",
   canAccess(
     "dashboard",
-    ctx({ phase: SeasonPhase.race, stage: EntryStage.s1, onboarded: false }),
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1, onboarded: false }),
   ),
   "FORBIDDEN",
 );
 check(
   "참가 기록 없음 — 404",
-  canAccess("dashboard", ctx({ phase: SeasonPhase.race })),
+  canAccess("dashboard", ctx({ phase: SeasonPhase.racing })),
   "NOT_FOUND",
 );
 check(
   "팀원(비팀장) — 팀 관리 쓰기 403",
   canAccess(
     "dashboardTeam",
-    ctx({ phase: SeasonPhase.race, stage: EntryStage.s1, leader: false }),
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1, leader: false }),
   ),
   "FORBIDDEN",
 );
@@ -203,7 +203,7 @@ check(
   "플래그 off — 크레딧 404",
   canAccess(
     "dashboardCredits",
-    ctx({ phase: SeasonPhase.race, stage: EntryStage.s1 }),
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1 }),
   ),
   "NOT_FOUND",
 );
@@ -211,18 +211,18 @@ check(
   "진도 미달 — 지표 409",
   canAccess(
     "dashboardMetrics",
-    ctx({ phase: SeasonPhase.race, stage: EntryStage.s2 }),
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s2 }),
   ),
   "STAGE_LOCKED",
 );
 check(
   "운영자 아님 — /admin 403",
-  canAccess("admin", ctx({ phase: SeasonPhase.race, stage: EntryStage.s1 })),
+  canAccess("admin", ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1 })),
   "FORBIDDEN",
 );
 check(
   "운영자 — /admin 허용",
-  canAccess("admin", ctx({ phase: SeasonPhase.race, admin: true })),
+  canAccess("admin", ctx({ phase: SeasonPhase.racing, admin: true })),
   "ALLOW",
 );
 check(
@@ -232,7 +232,7 @@ check(
 );
 check(
   "레이스 — 리더보드 공개",
-  canAccess("leaderboard", ctx({ phase: SeasonPhase.race, anon: true })),
+  canAccess("leaderboard", ctx({ phase: SeasonPhase.racing, anon: true })),
   "ALLOW",
 );
 check(
@@ -247,13 +247,33 @@ check(
 );
 
 // ── 제출 ─────────────────────────────────────────────────────
+/*
+  게이트 판정 대기 — 8/14에 phase(`gate1_review`)에서 팀별 stage로 옮긴 규칙이다.
+  s2에 멈춘 팀은 다음(s3)이 잠기지만 s2 자신의 보완 재제출은 열려 있어야 한다.
+*/
 check(
-  "게이트 심사 중 — 제출 잠김",
+  "게이트 판정 대기 — 다음 스테이지 잠김",
   canSubmitStage(
-    EntryStage.s2,
-    ctx({ phase: SeasonPhase.gate1_review, stage: EntryStage.s2 }),
+    EntryStage.s3,
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s2 }),
   ),
   "STAGE_LOCKED",
+);
+check(
+  "게이트 판정 대기 — 그 스테이지 재제출은 허용",
+  canSubmitStage(
+    EntryStage.s2,
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s2 }),
+  ),
+  "ALLOW",
+);
+check(
+  "게이트 통과 후 — 다음 스테이지 열림",
+  canSubmitStage(
+    EntryStage.s3,
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s3 }),
+  ),
+  "ALLOW",
 );
 /*
   entry.stage는 "마지막으로 완료한 단계"다(API v0.2 §8 게이트 열).
@@ -279,15 +299,21 @@ check(
   "두 단계 앞선 스테이지 — 제출 불가",
   canSubmitStage(
     EntryStage.s4,
-    ctx({ phase: SeasonPhase.race, stage: EntryStage.s1 }),
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1 }),
   ),
   "STAGE_LOCKED",
 );
+/*
+  ⚠️ 이 케이스는 8/14에 뒤집혔다. 원래 `stage=s2 → s3 제출 가능`으로 적어놨는데,
+  s2는 게이트라 그 값에 멈춘 팀은 **판정 대기**다(스키마 주석: "값이 s3이면 s2
+  게이트를 통과했다는 뜻"). 통과하면 stage가 s3으로 전진하므로 대기 중 s3을
+  열어주면 안 된다. 게이트 없는 경계로 바꿔 잡는다 — s3 → s4.
+*/
 check(
-  "바로 다음 스테이지 — 제출 가능",
+  "바로 다음 스테이지 — 제출 가능(게이트 없는 경계)",
   canSubmitStage(
-    EntryStage.s3,
-    ctx({ phase: SeasonPhase.race, stage: EntryStage.s2 }),
+    EntryStage.s4,
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s3 }),
   ),
   "ALLOW",
 );
@@ -295,7 +321,7 @@ check(
   "지난 스테이지 — 재제출 가능",
   canSubmitStage(
     EntryStage.s1,
-    ctx({ phase: SeasonPhase.race, stage: EntryStage.s3 }),
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s3 }),
   ),
   "ALLOW",
 );
@@ -370,27 +396,27 @@ checkAction(
 );
 checkAction(
   "3.1 3행 — s1 완료 → s2 제출",
-  state({ phase: SeasonPhase.race, stage: EntryStage.s1 }),
+  state({ phase: SeasonPhase.racing, stage: EntryStage.s1 }),
   "submit_s2",
 );
 checkAction(
   "3.1 4행 — s2 완료 → 1차 심사 대기(CTA 없음)",
-  state({ phase: SeasonPhase.race, stage: EntryStage.s2 }),
+  state({ phase: SeasonPhase.racing, stage: EntryStage.s2 }),
   null,
 );
 checkAction(
   "3.1 5행 — s2 통과(s3) → 제품 배포하기",
-  state({ phase: SeasonPhase.race, stage: EntryStage.s3 }),
+  state({ phase: SeasonPhase.racing, stage: EntryStage.s3 }),
   "submit_s3",
 );
 checkAction(
   "3.1 6행 — s4 → 주간 활동 제출",
-  state({ phase: SeasonPhase.race, stage: EntryStage.s4 }),
+  state({ phase: SeasonPhase.racing, stage: EntryStage.s4 }),
   "submit_s4",
 );
 checkAction(
   "3.1 7행 — s5 완료 → 최종 심사 대기(CTA 없음)",
-  state({ phase: SeasonPhase.race, stage: EntryStage.s5 }),
+  state({ phase: SeasonPhase.racing, stage: EntryStage.s5 }),
   null,
 );
 checkAction(
@@ -408,7 +434,7 @@ checkAction(
 checkAction(
   "3.2 — 실격 팀은 소명으로 보낸다",
   state({
-    phase: SeasonPhase.race,
+    phase: SeasonPhase.racing,
     stage: EntryStage.s4,
     status: EntryStatus.disqualified,
   }),
@@ -417,7 +443,7 @@ checkAction(
 checkAction(
   "3.2 — 탈락 팀 × 테스터 켬 → 테스터로 유도",
   state({
-    phase: SeasonPhase.race,
+    phase: SeasonPhase.racing,
     stage: EntryStage.s2,
     status: EntryStatus.eliminated,
     flags: testerOn,
@@ -427,21 +453,21 @@ checkAction(
 checkAction(
   "3.2 — 탈락 팀 × 테스터 끔 → 소명으로 유도(빈손 방지)",
   state({
-    phase: SeasonPhase.race,
+    phase: SeasonPhase.racing,
     stage: EntryStage.s2,
     status: EntryStatus.eliminated,
   }),
   "appeal",
 );
 checkAction(
-  "게이트 심사 중 → CTA 없음",
-  state({ phase: SeasonPhase.gate1_review, stage: EntryStage.s2 }),
+  "게이트 판정 대기(s2) → CTA 없음",
+  state({ phase: SeasonPhase.racing, stage: EntryStage.s2 }),
   null,
 );
 
 // blockedReasons
 const late = state({
-  phase: SeasonPhase.race,
+  phase: SeasonPhase.racing,
   stage: EntryStage.s3,
   onboarding: { ...READY, measurementReady: false },
 });

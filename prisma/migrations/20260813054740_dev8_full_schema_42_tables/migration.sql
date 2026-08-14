@@ -2,7 +2,7 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- CreateEnum
-CREATE TYPE "SeasonPhase" AS ENUM ('draft', 'pre_apply', 'recruiting', 'w1_demand', 'gate1_review', 'w2_build', 'race', 'gate2_review', 'awarded', 'archived');
+CREATE TYPE "SeasonPhase" AS ENUM ('draft', 'pre_apply', 'recruiting', 'racing', 'awarded', 'archived');
 
 -- CreateEnum
 CREATE TYPE "HostnameType" AS ENUM ('proovit_sub', 'custom');
@@ -125,17 +125,21 @@ ALTER TABLE "seasons" RENAME COLUMN "name" TO "title";
 ALTER TABLE "seasons" RENAME COLUMN "start_at" TO "starts_at";
 ALTER TABLE "seasons" RENAME COLUMN "end_at" TO "ends_at";
 
--- phase: 대문자 9값(season_phase) → 소문자 10값(SeasonPhase).
+-- phase: 대문자 9값(season_phase) → 소문자 6값(SeasonPhase).
 -- ⚠️ RECRUITING의 행선지가 둘이다. 옛 모델에는 '사전신청만 받는 구간'이 없어
 --    phase=RECRUITING + recruit_start_at 비교로 갈랐는데, 새 모델은 pre_apply가
 --    그 구간을 이름으로 갖는다. 모집 시작 전이면 pre_apply, 이미 시작했으면 recruiting.
 --    이 판정이 recruit_start_at을 지우기 전에 끝나야 해서 순서가 여기다.
 --    그냥 lower()로 옮기면 시즌1이 곧바로 recruiting이 되어 /apply가 열린다.
+-- ⚠️ 레이스 구간 다섯 값(W1_DEMAND~GATE2_REVIEW)은 새 모델에 대응 값이 없다
+--    (2026-08-14 종결본에서 racing 하나로 통합). lower()로 넘기면 22P02로 죽는다.
 ALTER TABLE "seasons" ADD COLUMN "phase_new" "SeasonPhase" NOT NULL DEFAULT 'draft';
 UPDATE "seasons" SET "phase_new" = (
   CASE
     WHEN "phase"::text = 'RECRUITING'
      AND ("recruit_start_at" IS NULL OR "recruit_start_at" > now()) THEN 'pre_apply'
+    WHEN "phase"::text IN
+      ('W1_DEMAND', 'GATE1_REVIEW', 'W2_BUILD', 'RACE', 'GATE2_REVIEW') THEN 'racing'
     ELSE lower("phase"::text)
   END
 )::"SeasonPhase";

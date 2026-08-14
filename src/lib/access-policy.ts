@@ -19,12 +19,7 @@ import {
 } from "@/generated/prisma/client";
 import type { ApiErrorCode } from "@/lib/api";
 import type { FeatureFlagKey, FeatureFlags } from "@/lib/feature-flags";
-import {
-  isArchived,
-  isGateReview,
-  isRacing,
-  isRecruiting,
-} from "@/lib/season-phase";
+import { isArchived, isRacing, isRecruiting } from "@/lib/season-phase";
 
 // ═════════════════════════════════════════════════════════════
 // canAccess — 시즌 페이즈 × 참가 진도 × 생존 상태 × 기능 플래그
@@ -62,6 +57,30 @@ const SUBMIT_PREREQUISITE: Record<EntryStage, EntryStage> = {
   s5: EntryStage.s4,
   completed: EntryStage.completed,
 };
+
+/*
+  게이트 스테이지 — 제출 뒤에 판정이 붙는 단계. 시즌1은 s2·s5 두 번이다(PLN6 1장).
+
+  ⚠️ 정본은 `stages.is_gate` 컬럼이다. 여기 상수를 두는 이유는 이 파일이 DB를
+  못 읽는 순수 판정이기 때문이다. 시즌마다 게이트 위치가 달라지면 ctx로 받는다.
+*/
+const GATE_STAGES: readonly EntryStage[] = [EntryStage.s2, EntryStage.s5];
+
+/**
+ * 게이트 판정을 기다리는 중인가.
+ *
+ * **2026-08-14에 `isGateReview(phase)`를 대체했다.** phase가 6값으로 합쳐지면서
+ * `gate1_review`·`gate2_review` 구간이 없어졌는데, 애초에 심사 대기는 시즌 전체가
+ * 아니라 팀별 상태다 — 같은 시각에 통과한 팀은 다음 단계를 만들고 있다.
+ *
+ * `entry.stage`는 "마지막으로 완료한 단계"이고 게이트를 통과하면 다음 값으로
+ * 전진한다(스키마 주석: "값이 s3이면 s2 게이트를 통과했다는 뜻"). 그래서
+ * 게이트 스테이지에 멈춘 팀이 곧 판정 대기다. 탈락은 stage가 아니라
+ * `status`(eliminated)로 나타나므로 여기서 보지 않는다.
+ */
+export function isAwaitingGate(stage: EntryStage): boolean {
+  return GATE_STAGES.includes(stage);
+}
 
 /** PLN3 2장 카탈로그의 화면 하나에 대응한다. 라우트 문자열을 키로 쓰지 않는 이유는 오타가 조용히 통과하기 때문이다. */
 export type RouteKey =
@@ -409,14 +428,21 @@ export function canSubmitStage(
   }
 
   /*
-    게이트 심사 중에는 제출이 잠긴다(06 §4.2 · PLN3 3.1 「심사 대기 안내 — 없음(잠김)」).
-    10값 모델에만 있는 구간이라 6값으로 합쳐지면 이 분기는 저절로 죽는다.
+    게이트 판정을 기다리는 동안은 **다음** 스테이지가 잠긴다
+    (06 §4.2 · PLN3 3.1 「심사 대기 안내 — 없음(잠김)」).
+
+    8/14까지는 phase(`gate1_review`)로 봤는데 6값으로 합쳐지며 그 구간이 없어졌다.
+    팀별로 봐야 맞기도 하다 — 같은 시각에 통과한 팀은 이미 다음을 만들고 있다.
+
+    잠그는 것은 다음 스테이지뿐이고 **게이트 스테이지 자신의 재제출은 열어둔다**
+    (보완 재제출이 정상 경로다 · `revision_due_at`이 마감을 따로 본다).
   */
-  if (isGateReview(ctx.season.phase)) {
+  const prerequisite = SUBMIT_PREREQUISITE[stageKey];
+  if (isAwaitingGate(prerequisite) && ctx.entry.stage === prerequisite) {
     return {
       ok: false,
       code: "STAGE_LOCKED",
-      message: "심사 중에는 제출할 수 없습니다.",
+      message: "심사 결과가 나온 뒤에 제출할 수 있습니다.",
       details: { currentStage: ctx.entry.stage, requiredStage: stageKey },
     };
   }
@@ -434,13 +460,12 @@ export function canSubmitStage(
     같거나 지난 것은 열어둔다 — 재제출이 정상 경로다(PLN3 2장 「재제출」).
     마감 이후 잠금은 `stages.closes_at`·`revision_due_at`이 따로 판정한다.
   */
-  const required = SUBMIT_PREREQUISITE[stageKey];
-  if (!stageAtLeast(ctx.entry.stage, required)) {
+  if (!stageAtLeast(ctx.entry.stage, prerequisite)) {
     return {
       ok: false,
       code: "STAGE_LOCKED",
       message: `${stageKey} 제출은 이전 단계를 마친 팀만 할 수 있습니다.`,
-      details: { currentStage: ctx.entry.stage, requiredStage: required },
+      details: { currentStage: ctx.entry.stage, requiredStage: prerequisite },
     };
   }
 
