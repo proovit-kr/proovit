@@ -1,0 +1,163 @@
+/*
+  측정 연동.
+
+  주소가 주인공이라 고정폭으로 크게 둔다 — 참가자가 이 문자열을 다른 화면
+  (빌더 설정·결제 복귀 주소)에 옮겨 적는다. 라임은 「등록하기」 하나에만(§7).
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding-block: var(--s-10) var(--s-14);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.headTop {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.purpose {
+  /* 읽기 폭은 텍스트에만(§6) */
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+  line-height: 1.7;
+}
+
+.locked {
+  max-width: 34em;
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-lg);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+/* ── 지금 등록된 것 ────────────────────────────────────────── */
+
+.current {
+  display: flex;
+  flex-wrap: wrap;
+  /* 균등 분할하지 않는다(§7) */
+  gap: var(--s-6) var(--s-10);
+  margin: 0;
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.current dt {
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+}
+
+.current dd {
+  margin: var(--s-1) 0 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-base);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm) !important;
+  word-break: break-all;
+}
+
+/* ── 폼 ────────────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-6);
+  max-width: 36em;
+}
+
+.formError {
+  margin: 0;
+  color: var(--c-danger);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+.saved {
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+}
+
+.hostRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+}
+
+.rootDomain {
+  color: var(--c-text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.note {
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: var(--fs-sm);
+}
+
+/* ── 진행 상태 ─────────────────────────────────────────────── */
+
+.pending {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.pendingTitle {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-width: 34em;
+  margin: 0;
+  padding-left: var(--s-5);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.step {
+  color: var(--c-text-dim);
+}
+
+.stepDone {
+  color: var(--c-text-muted);
+}
