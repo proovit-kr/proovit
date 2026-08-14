@@ -1,0 +1,151 @@
+/*
+  결제 연동. 측정 연동과 같은 골격을 쓴다 — 둘 다 「등록하고 확인을 기다리는」 화면이라
+  참가자가 같은 모양으로 읽게 두는 편이 낫다. 라임은 등록 버튼 하나에만(§7).
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding-block: var(--s-10) var(--s-14);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.headTop {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.purpose {
+  /* 읽기 폭은 텍스트에만(§6) */
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+  line-height: 1.7;
+}
+
+.note {
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.locked {
+  max-width: 34em;
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-lg);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+/* ── 폼 ────────────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-6);
+  max-width: 36em;
+}
+
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-5);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--c-text-muted);
+  font-size: var(--fs-base);
+  cursor: pointer;
+}
+
+.choice input {
+  accent-color: var(--c-lime);
+}
+
+.formError {
+  margin: 0;
+  color: var(--c-danger);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+.saved {
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+}
+
+/* ── 아직 안 되는 것 ───────────────────────────────────────── */
+
+.pendingBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.pendingTitle {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-width: 34em;
+  margin: 0;
+  padding-left: var(--s-5);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.link {
+  color: var(--c-text-muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--c-line-3);
+}
+
+.link:hover {
+  color: var(--c-text-strong);
+}
