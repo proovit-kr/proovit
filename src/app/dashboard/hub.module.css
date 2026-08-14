@@ -1,0 +1,267 @@
+/*
+  대시보드 허브.
+
+  상자를 쓰지 않는다 — 괘선과 여백으로만 나눈다(CLAUDE.md §7). 참가자가 이 화면에서
+  찾는 건 "지금 무엇을 하나" 하나뿐이라, 그 문장을 제일 크게 두고 나머지는 눌러둔다.
+  라임은 CTA 버튼 한 곳에서만 세게 쓴다(§7) — 체크·배지에는 쓰지 않는다.
+
+  밀도를 일부러 다르게 준다: 머리(할 일)는 넓게, 아래 목록들은 좁게.
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-10);
+  padding-block: var(--s-10) var(--s-14);
+}
+
+/* ── 머리 — 지금 할 일 ─────────────────────────────────────── */
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.headTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.season {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.seasonLink {
+  color: var(--c-text-muted);
+  text-decoration: none;
+}
+
+.seasonLink:hover {
+  color: var(--c-text-strong);
+}
+
+.team {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+}
+
+.title {
+  /* 읽기 폭은 텍스트에만. 한글이라 ch를 쓰지 않는다(CLAUDE.md §6) */
+  max-width: 24em;
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-4xl);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.lead {
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+  line-height: 1.7;
+}
+
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  padding-top: var(--s-2);
+}
+
+.ctaNote {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+}
+
+/* ── 스테이지 진행 ─────────────────────────────────────────── */
+
+.stages {
+  padding-block: var(--s-6);
+  border-block: 1px solid var(--c-line-2);
+}
+
+/* ── 목록 블록 공통 ────────────────────────────────────────── */
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.blockTitle {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.checklist,
+.reasons,
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ── 온보딩 체크리스트 ─────────────────────────────────────── */
+
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+  padding-block: var(--s-4);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.itemDone {
+  composes: item;
+  color: var(--c-text-faint);
+}
+
+/*
+  원형 체크 불릿을 쓰지 않는다(§7). 완료는 글자로 적고 색만 눌러 구분한다 —
+  화면을 읽어주는 도구에서도 같은 정보가 나간다.
+*/
+.mark {
+  flex: 0 0 auto;
+  min-width: 2.5em;
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.06em;
+}
+
+.itemDone .mark {
+  color: var(--c-text-dim);
+}
+
+.itemBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.itemLabel {
+  color: var(--c-text-strong);
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+.itemDone .itemLabel {
+  color: var(--c-text-muted);
+  font-weight: 400;
+}
+
+.itemHint {
+  max-width: 34em;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.itemDone .itemHint {
+  color: var(--c-text-faint);
+}
+
+.itemLink {
+  flex: 0 0 auto;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  border-bottom: 1px solid var(--c-line-3);
+}
+
+.itemLink:hover {
+  color: var(--c-text-strong);
+  border-bottom-color: var(--c-line-strong);
+}
+
+/* ── 막고 있는 것 · 알아두실 것 ────────────────────────────── */
+
+.reason {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-4);
+  padding-block: var(--s-4);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.reasonTitle {
+  color: var(--c-text-strong);
+  font-size: var(--fs-base);
+}
+
+.reasonHint {
+  flex: 1 1 20em;
+  max-width: 34em;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+/* ── 바로가기 ──────────────────────────────────────────────── */
+
+.link {
+  display: flex;
+  align-items: baseline;
+  /* 균등 분할하지 않는다(§7) — 이름은 좁게 두고 설명이 남는 폭을 먹는다 */
+  gap: var(--s-4);
+  padding-block: var(--s-4);
+  border-top: 1px solid var(--c-line-2);
+  text-decoration: none;
+}
+
+.link:hover .linkLabel {
+  color: var(--c-lime);
+}
+
+.linkLabel {
+  flex: 0 0 7em;
+  color: var(--c-text-strong);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  transition: color var(--t-fast);
+}
+
+.linkDesc {
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 640px) {
+  .headTop {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s-2);
+  }
+
+  .title {
+    font-size: var(--fs-3xl);
+  }
+
+  .link {
+    flex-direction: column;
+    gap: var(--s-1);
+  }
+
+  .linkLabel {
+    flex: 0 0 auto;
+  }
+}
