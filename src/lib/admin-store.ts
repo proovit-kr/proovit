@@ -1,4 +1,9 @@
-import { EntryStatus, SeasonPhase, Prisma } from "@/generated/prisma/client";
+import {
+  AbuseStatus,
+  EntryStatus,
+  SeasonPhase,
+  Prisma,
+} from "@/generated/prisma/client";
 import { REASON_MIN } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 
@@ -134,6 +139,63 @@ export async function setSeasonPhase(args: {
       targetId: seasonId,
       reason: reason.trim(),
       meta: { from: season.phase, to: phase },
+    });
+  });
+
+  return { ok: true };
+}
+
+/**
+ * 어뷰징 플래그 판정 — 확정(upheld) / 취소(overturned).
+ *
+ * ⚠️ **지표를 여기서 고치지 않는다.** 확정된 플래그가 집계에서 무엇을 빼는지는
+ * 채점 시점에 `abuse_flags`를 조인해 정한다(종결본 주석: 캐시 컬럼을 두지 않는다).
+ * 판정할 때 metric_daily를 손대면 두 값이 어긋나고, 나중에 소명이 인용됐을 때
+ * 되돌릴 근거가 사라진다.
+ *
+ * `resolution_note`는 스키마가 「운영자 처리 사유(필수 기록)」로 잡아둔 칸이라
+ * 감사 로그의 reason과 같은 값을 넣는다 — 표를 옮겨 다니지 않고도 읽히게.
+ */
+export async function resolveAbuseFlag(args: {
+  flagId: string;
+  status: AbuseStatus;
+  reason: string;
+  actorId: string;
+  /** 확정 시 조정한 유효 방문 수. 비우면 조정 없음 */
+  adjustedVisitors?: number | null;
+}): Promise<AdminActionResult> {
+  const { flagId, status, reason, actorId, adjustedVisitors } = args;
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+  if (status !== AbuseStatus.upheld && status !== AbuseStatus.overturned) {
+    return { ok: false, message: "확정 또는 취소만 할 수 있습니다." };
+  }
+
+  const flag = await prisma.abuseFlag.findUnique({
+    where: { id: flagId },
+    select: { status: true, entryId: true },
+  });
+  if (!flag) return { ok: false, message: "플래그를 찾을 수 없습니다." };
+  if (flag.status === status) return { ok: false, message: "이미 그 상태입니다." };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.abuseFlag.update({
+      where: { id: flagId },
+      data: {
+        status,
+        resolutionNote: reason.trim(),
+        reviewedBy: actorId,
+        ...(adjustedVisitors === undefined ? {} : { adjustedVisitors }),
+      },
+    });
+    await writeAudit(tx, {
+      actorId,
+      action: `abuse_flag:${status}`,
+      targetType: "abuse_flag",
+      targetId: flagId,
+      reason: reason.trim(),
+      meta: { from: flag.status, to: status, entryId: flag.entryId },
     });
   });
 

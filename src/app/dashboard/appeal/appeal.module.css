@@ -1,0 +1,208 @@
+/*
+  소명·이의신청.
+
+  다투는 자리라 화면이 차분해야 한다 — 경고색을 쓰지 않는다. 실격 팀이 여는
+  화면인데 붉은 화면을 주면 "이미 끝났다"로 읽힌다. 라임은 접수 버튼 하나에만(§7).
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding-block: var(--s-10) var(--s-14);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.purpose {
+  /* 읽기 폭은 텍스트에만(§6) */
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+  line-height: 1.7;
+}
+
+.locked {
+  max-width: 34em;
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-lg);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+/* ── 폼 ────────────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-6);
+  max-width: 40em;
+}
+
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.targets {
+  display: flex;
+  flex-direction: column;
+}
+
+.target,
+.targetDone {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding-block: var(--s-3);
+  border-top: 1px solid var(--c-line-2);
+  cursor: pointer;
+}
+
+.targetDone {
+  color: var(--c-text-faint);
+  cursor: default;
+}
+
+.target input,
+.targetDone input {
+  margin-top: 4px;
+  accent-color: var(--c-lime);
+}
+
+.targetBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.targetLabel {
+  color: var(--c-text-strong);
+  font-size: var(--fs-base);
+}
+
+.targetDone .targetLabel {
+  color: var(--c-text-muted);
+}
+
+.targetWhen {
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+}
+
+.count {
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+}
+
+.formError {
+  margin: 0;
+  color: var(--c-danger);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+.saved,
+.note,
+.none {
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+/* ── 지난 신청 ─────────────────────────────────────────────── */
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.historyTitle {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-block: var(--s-4);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.itemHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.when {
+  color: var(--c-text-muted);
+}
+
+.due {
+  color: var(--c-text-dim);
+}
+
+.answered {
+  color: var(--c-text-strong);
+}
+
+.reason,
+.response {
+  max-width: 34em;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.reason {
+  color: var(--c-text-muted);
+}
+
+/* 운영 답변은 참가자 글과 구분되게 — 괘선 하나로 충분하다 */
+.response {
+  padding-left: var(--s-4);
+  border-left: 2px solid var(--c-line-3);
+  color: var(--c-text-strong);
+}
