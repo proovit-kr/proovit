@@ -1,0 +1,170 @@
+/*
+  참가팀 관리.
+
+  운영 화면이라 밀도를 참가자 화면보다 높인다 — 한 화면에 많이 보여야 비교가 된다.
+  상태 색은 세 가지만 쓴다: 진행 중은 색 없음, 탈락은 눌러서, 실격은 경고색.
+  실격에만 색을 주는 이유는 그것만이 되돌리기 어려운 상태이기 때문이다.
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding-block: var(--s-8) var(--s-14);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+}
+
+.sub {
+  /* 읽기 폭은 텍스트에만(§6) */
+  max-width: 40em;
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-block: var(--s-5);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.main {
+  display: flex;
+  flex: 1 1 24em;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.team {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+.members {
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+  font-weight: 400;
+}
+
+.status {
+  padding: 1px var(--s-2);
+  border: 1px solid var(--c-line-3);
+  border-radius: 999px;
+  color: var(--c-text-dim);
+  font-size: var(--fs-2xs);
+  font-weight: 400;
+}
+
+.status[data-status="disqualified"] {
+  border-color: var(--c-warn-35);
+  color: var(--c-warn);
+}
+
+.status[data-status="eliminated"] {
+  color: var(--c-text-faint);
+}
+
+.idea {
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+}
+
+.link {
+  color: var(--c-text-dim);
+  text-decoration: none;
+  border-bottom: 1px solid var(--c-line-3);
+}
+
+.link:hover {
+  color: var(--c-text-strong);
+}
+
+/* ── 상태 변경 ─────────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  flex: 0 1 22em;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.reasonForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.reasonLabel {
+  color: var(--c-text-dim);
+  font-size: var(--fs-2xs);
+}
+
+.reason {
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-md);
+  background: var(--c-field);
+  color: var(--c-text-strong);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  outline: none;
+  resize: vertical;
+}
+
+.reason:focus {
+  border-color: var(--c-line-strong);
+}
+
+.error {
+  margin: 0;
+  color: var(--c-danger);
+  font-size: var(--fs-2xs);
+}

@@ -1,0 +1,79 @@
+/*
+  사전신청 목록. 이메일이 보이는 화면이라 밀도를 낮추지 않는다 —
+  한 화면에 많이 보여야 중복·이상 유입이 눈에 띈다.
+  색은 「미동의·거부」에만 눌러서 쓴다. 발송 대상을 고를 때 그 칸만 보면 되게.
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding-block: var(--s-8) var(--s-14);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+}
+
+.sub {
+  /* 읽기 폭은 텍스트에만(§6) */
+  max-width: 44em;
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.scroller {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--c-line-2);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table thead th {
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.table tbody td {
+  color: var(--c-text-muted);
+}
+
+.email {
+  color: var(--c-text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+.off {
+  color: var(--c-text-faint);
+}
+
+.source,
+.when {
+  color: var(--c-text-faint) !important;
+  font-size: var(--fs-xs);
+}

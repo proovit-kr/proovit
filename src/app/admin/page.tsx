@@ -1,34 +1,103 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
-import { Scaffold } from "@/components/Scaffold";
 import { guardPage } from "@/lib/access";
+import { loadAdminSummary } from "@/lib/admin-read";
+
+import styles from "./admin.module.css";
 
 /*
-  운영 대시보드 — PLN3 화면정의서 2장 카탈로그.
+  운영자 홈 — PLN3 2장 「지금 운영이 해야 할 일이 무엇인지」.
 
-  아직 자리표시다. 라우트·접근 제어·동선을 먼저 깔아두면 화면을 채울 때
-  판정을 다시 짜지 않는다. 판정은 canAccess("admin") 하나가 한다.
+  숫자만 보여주고 판단은 각 화면에서 한다. 여기서 실격·판정 버튼을 달지 않는 이유는
+  **한 화면에서 목록을 안 보고 처리하면 근거를 안 보고 누르게 되기 때문**이다.
+
+  ⚠️ 0을 숨기지 않는다. 「심사 대기 0」과 「심사 화면을 안 만들었다」는 다른 상태이고,
+  운영자는 그 둘을 구분해야 한다.
 */
 
 export const metadata: Metadata = {
-  title: "운영 대시보드",
+  title: "운영 홈",
   robots: { index: false, follow: false },
 };
 
+const NUM = new Intl.NumberFormat("ko-KR");
+
 export default async function Page() {
-  const { access } = await guardPage("admin", "/admin");
+  await guardPage("admin", "/admin");
+  const summary = await loadAdminSummary();
 
   return (
-    <Scaffold
-      title="운영 대시보드"
-      purpose="시즌이 지금 어떻게 굴러가고 있는지 한 화면에서 본다."
-      locked={access.ok ? undefined : access.message}
-      elements={[
-        "시즌 KPI 4종 — 참가팀·배포수·참가작 총유저·성공사례",
-        "우리 퍼널 — 방문 → 리드 → 가입 → 참가 → 제출 → 완주",
-        "감사 로그 바로가기",
-      ]}
-      blockedBy="측정을 파는 서비스가 자기 퍼널을 측정하지 않으면 안 됩니다. 집계가 붙는 대로 채웁니다."
-    />
+    <section className={styles.root}>
+      <header className={styles.head}>
+        <h1 className={styles.title}>운영 홈</h1>
+        {summary.season ? (
+          <p className={styles.sub}>
+            {summary.season.title} · 페이즈 {summary.season.phase}
+          </p>
+        ) : (
+          <p className={styles.sub}>시즌이 아직 없습니다.</p>
+        )}
+      </header>
+
+      <dl className={styles.stats}>
+        <Stat label="참가팀" value={NUM.format(summary.entries.total)} />
+        <Stat label="진행 중" value={NUM.format(summary.entries.active)} />
+        <Stat label="탈락" value={NUM.format(summary.entries.eliminated)} />
+        <Stat label="실격" value={NUM.format(summary.entries.disqualified)} />
+        <Stat
+          label="심사 대기"
+          value={NUM.format(summary.pendingJudgments)}
+          href="/admin/judging"
+        />
+        <Stat
+          label="어뷰징 미처리"
+          value={NUM.format(summary.openAbuseFlags)}
+          href="/admin/abuse"
+        />
+        <Stat
+          label="사전신청"
+          value={NUM.format(summary.leads.total)}
+          href="/admin/leads"
+        />
+        <Stat label="수신거부" value={NUM.format(summary.leads.unsubscribed)} />
+      </dl>
+
+      <nav className={styles.links} aria-label="바로가기">
+        <Link href="/admin/entries">참가팀 관리</Link>
+        <Link href="/admin/seasons">시즌·페이즈</Link>
+        <Link href="/admin/leads">사전신청 목록</Link>
+        <Link href="/admin/audit-logs">감사 로그</Link>
+      </nav>
+
+      <p className={styles.note}>
+        참가 상태 변경과 페이즈 전환은 사유를 남겨야 처리됩니다. 모든 변경은 감사
+        로그에 기록됩니다.
+      </p>
+    </section>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: string;
+  href?: string;
+}) {
+  const body = (
+    <>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </>
+  );
+  return href ? (
+    <Link href={href} className={styles.statLink}>
+      {body}
+    </Link>
+  ) : (
+    <div className={styles.stat}>{body}</div>
   );
 }
