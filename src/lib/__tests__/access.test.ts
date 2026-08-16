@@ -2,19 +2,21 @@
   접근 판정·대시보드 분기 검증 — PLN3 화면정의서를 그대로 돌린다.
     3.1 「정상 흐름」 9행    → nextAction
     3.2 「예외 조합」        → canAccess
-  여기에 기본 규약(401·403·404·409)과 제출 진도 조건을 더해 43케이스다.
+  여기에 기본 규약(401·403·404·409)과 제출 진도 조건을 더해 52케이스다.
 
-  돌리는 법:  npx tsx scripts/access-check.mts
+  돌리는 법:  npm test
   DB를 건드리지 않는다 — 판정이 순수 함수라 환경변수도 필요 없다.
-
-  ⚠️ **임시 자리다.** 레포에 테스트 러너가 없어(package.json에 test 스크립트가 없다)
-  스크립트로 두었다. **DEV14(QA)에서 vitest를 붙일 때 이 파일을 테스트로 옮긴다** —
-  PLN9 QA 시나리오 설계서와 겹치는 부분이다.
 
   판정표(access-policy.ts)나 분기표(dashboard-state.ts)를 고치면 여기부터 돌린다.
   8/14에 이 케이스가 `canSubmitStage`의 한 칸 오차를 잡았다 — 그대로 뒀으면
   신청만 한 팀이 s1을 못 내 첫 제출이 통째로 막혔을 것이다.
+
+  ⚠️ `check`/`checkAction`은 인자를 **수집 시점에 미리 계산한다.** 8/14 스크립트를
+  형태 그대로 옮긴 것이라 그렇다. 판정이 순수 함수라 지금은 문제가 없지만, 예외가
+  나면 케이스 하나가 아니라 파일 전체가 수집 단계에서 죽는다는 것만 알아둘 것.
 */
+import { expect, it } from "vitest";
+
 import { EntryStage, EntryStatus, SeasonPhase } from "@/generated/prisma/enums";
 import {
   canAccess,
@@ -54,17 +56,15 @@ function ctx(o: {
   };
 }
 
-let pass = 0;
-const fails: string[] = [];
-
 function check(
   label: string,
   got: { ok: boolean; code?: string },
   want: string,
 ) {
-  const actual = got.ok ? "ALLOW" : (got as { code: string }).code;
-  if (actual === want) pass++;
-  else fails.push(`${label}\n    기대 ${want} · 실제 ${actual}`);
+  it(label, () => {
+    const actual = got.ok ? "ALLOW" : (got as { code: string }).code;
+    expect(actual).toBe(want);
+  });
 }
 
 // ── PLN3 3.2 예외 조합 ────────────────────────────────────────
@@ -420,9 +420,9 @@ function checkAction(
   got: { nextAction: { key: string } | null },
   want: string | null,
 ) {
-  const actual = got.nextAction?.key ?? "null";
-  if (actual === (want ?? "null")) pass++;
-  else fails.push(`${label}\n    기대 ${want ?? "null"} · 실제 ${actual}`);
+  it(label, () => {
+    expect(got.nextAction?.key ?? "null").toBe(want ?? "null");
+  });
 }
 
 checkAction(
@@ -532,10 +532,3 @@ check(
   { ok: late.blockedReasons.includes("hostname_not_verified") },
   "ALLOW",
 );
-
-console.log(`통과 ${pass} / ${pass + fails.length}`);
-if (fails.length) {
-  console.log("\n실패:");
-  for (const f of fails) console.log(`  ✗ ${f}`);
-  process.exit(1);
-}
