@@ -46,3 +46,6 @@ next-env.d.ts
 
 .open-next/
 .wrangler/
+
+# 노션 훑기 커서 (에이전트 작업용, 팀 공유 문서가 아니다)
+.notion-sweep
