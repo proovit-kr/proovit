@@ -17,11 +17,12 @@ import type { PolicyArticle, PolicyTable } from "@/content/privacy";
  * 「이용약관 및 시즌 운영규칙 동의」라서 **동의할 대상이 화면에 없으면 그 동의가
  * 성립하지 않는다.** 제3조 ①도 "웹사이트 게시로 효력을 가짐"이라고 정한다.
  *
- * ## ⚠️ 팀장 확정 대기 — 시행일 하나
+ * ## 시행일
  *
- * 원본 첫 줄이 `**시행일** [YYYY. MM. DD.]`로 비어 있다. 날짜를 개발이 지어낼 수
- * 없어서 `effectiveDate`를 `null`로 두고, 화면은 그 자리에 「시즌1 개시 공고와 함께
- * 확정」이라고 적는다. **값이 오면 이 파일 한 줄만 채우면 된다.**
+ * 원본 첫 줄이 `[YYYY. MM. DD.]`로 비어 있던 동안은 `effectiveDate`를 `null`로 두고
+ * 화면이 「시즌1 개시 공고와 함께 확정」이라고 밝혔다. 2026-08-17 갱신본에서
+ * **2026. 08. 31.** 로 채워져 그대로 옮겼다. privacy.ts와 같이 **원본 표기를
+ * 그대로** 쓴다 — 화면에 이 문자열이 그대로 찍힌다.
  */
 
 export interface RuleChapter {
@@ -50,7 +51,7 @@ export interface SeasonRules {
 }
 
 export const SEASON_RULES: SeasonRules = {
-  effectiveDate: null,
+  effectiveDate: "2026. 08. 31.",
   preamble:
     "본 규칙은 이용약관·개인정보처리방침과 함께 적용되며, 시즌의 참가·심사·시상에 관하여는 본 규칙이 이용약관에 우선함.",
 
