@@ -49,3 +49,6 @@ next-env.d.ts
 
 # 노션 훑기 커서 (에이전트 작업용, 팀 공유 문서가 아니다)
 .notion-sweep
+
+# Claude Code 개인 로컬 설정 (팀 공유 대상이 아니다)
+.claude/settings.local.json
