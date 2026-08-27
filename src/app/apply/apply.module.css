@@ -61,6 +61,22 @@
   color: var(--c-text-faint);
 }
 
+/*
+  신청 완료 화면의 다음 걸음. .cta와 달리 옆에 한 줄이 붙어서 따로 둔다 —
+  버튼만 있으면 눌렀을 때 무엇이 기다리는지 모른 채 넘어간다.
+*/
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3) var(--s-4);
+}
+
+.actionsNote {
+  color: var(--c-text-faint);
+  font-size: var(--fs-sm);
+}
+
 .form {
   display: flex;
   flex-direction: column;

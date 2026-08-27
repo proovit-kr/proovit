@@ -134,6 +134,22 @@ function StageRow({ stage }: { stage: StageJudgment }) {
               채점식 {judgment.formulaVersion} 기준으로 판정했습니다.
             </p>
           ) : null}
+
+          {/*
+            떨어진 판정에는 소명 통로를 붙인다. 규칙 제6조가 5영업일 안에
+            접수하라고 정해 두었는데, 그 화면을 스스로 찾아가게 하면
+            기한을 놓치는 팀이 생긴다 — 기한이 곧 권리다.
+          */}
+          {judgment.result === JudgmentResult.fail ? (
+            <p className={styles.appeal}>
+              <Link href="/dashboard/appeal" className={styles.appealLink}>
+                이 판정에 소명하기
+              </Link>
+              <span className={styles.appealNote}>
+                통지 후 5영업일 안에 접수할 수 있습니다.
+              </span>
+            </p>
+          ) : null}
         </div>
       ) : null}
     </li>

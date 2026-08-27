@@ -49,6 +49,16 @@ export default async function Page() {
       ])
     : [null, null];
 
+  /*
+    추세는 최근 14일만 본다. 30일을 다 그리면 막대가 손톱만 해져 모양이 안 읽히고,
+    "이번 주에 늘었나"가 참가자가 이 화면에서 묻는 질문이다.
+    daily는 최신순이라 뒤집어서 왼쪽이 과거가 되게 한다.
+  */
+  const trend = metrics ? [...metrics.daily].slice(0, 14).reverse() : [];
+  const trendMax = trend.reduce((max, d) => Math.max(max, d.validVisitors), 0);
+  const channelTotal =
+    metrics?.channels.reduce((sum, c) => sum + c.visitors, 0) ?? 0;
+
   return (
     <section className={styles.root}>
       <header className={styles.head}>
@@ -95,6 +105,67 @@ export default async function Page() {
             </div>
           </dl>
           <p className={styles.note}>최근 30일 합계입니다.</p>
+
+          {/*
+            추세 띠. 표만 있으면 "늘고 있나"를 사람이 눈으로 세야 한다.
+            막대 하나가 하루고, 높이는 그 기간 최댓값에 대한 비율이다 —
+            절대 눈금을 그리지 않는 이유는 이 그림이 값이 아니라 **모양**을
+            읽는 자리이기 때문이다. 정확한 값은 바로 아래 표에 있다.
+          */}
+          <section className={styles.trend}>
+            <h2 className={styles.trendTitle}>최근 {trend.length}일 유효 방문</h2>
+            <ol className={styles.bars}>
+              {trend.map((day) => (
+                <li key={day.date.toISOString()} className={styles.bar}>
+                  <span
+                    className={styles.barFill}
+                    style={{
+                      height: `${trendMax === 0 ? 0 : Math.round((day.validVisitors / trendMax) * 100)}%`,
+                    }}
+                  />
+                  <span className={styles.barLabel}>
+                    {DATE.format(day.date)} {NUM.format(day.validVisitors)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <p className={styles.note}>
+              가장 높은 날 {NUM.format(trendMax)}회를 기준으로 그렸습니다.
+            </p>
+          </section>
+
+          {/*
+            유입 채널. 채널명은 참가자가 정한 UTM 값을 그대로 쓴다 —
+            우리가 아는 이름으로 묶으면 그 순간 집계가 우리 해석이 된다.
+          */}
+          {metrics.channels.length > 0 ? (
+            <section className={styles.channels}>
+              <h2 className={styles.trendTitle}>유입 채널</h2>
+              <ol className={styles.channelList}>
+                {metrics.channels.slice(0, 5).map((row) => (
+                  <li key={row.channel} className={styles.channel}>
+                    <span className={styles.channelName}>{row.channel}</span>
+                    <span className={styles.channelTrack}>
+                      <i
+                        style={{
+                          width: `${channelTotal === 0 ? 0 : Math.round((row.visitors / channelTotal) * 100)}%`,
+                        }}
+                      />
+                    </span>
+                    <span className={styles.channelPct}>
+                      {channelTotal === 0
+                        ? "—"
+                        : `${Math.round((row.visitors / channelTotal) * 100)}%`}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <p className={styles.note}>
+                채널이 붙지 않은 방문은 집계에 잡히지만 이 목록에는 안 나옵니다.
+                합계는 위 유효 방문과 다를 수 있습니다.
+              </p>
+            </section>
+          ) : null}
 
           {/* 표는 좁은 화면에서 가로로 넘긴다 — 숫자를 줄바꿈하면 자릿수가 깨진다 */}
           <div className={styles.scroller}>

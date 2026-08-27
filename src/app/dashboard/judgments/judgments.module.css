@@ -119,3 +119,32 @@
 .link:hover {
   color: var(--c-text-strong);
 }
+
+/*
+  소명 통로. 떨어진 판정에만 붙는다 — 규칙 제6조의 5영업일이 곧 권리라서
+  참가자가 이 화면을 떠나기 전에 보여야 한다.
+*/
+.appeal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-3);
+  margin: var(--s-2) 0 0;
+}
+
+.appealLink {
+  color: var(--c-text-strong);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid var(--c-line-3);
+}
+
+.appealLink:hover {
+  color: var(--c-lime);
+}
+
+.appealNote {
+  color: var(--c-text-faint);
+  font-size: var(--fs-xs);
+}

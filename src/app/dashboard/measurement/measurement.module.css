@@ -143,21 +143,133 @@
   letter-spacing: 0.06em;
 }
 
+/*
+  절차 띠. 세로 목록이 아니라 가로로 세우고 칸 사이를 선으로 잇는다 —
+  순서가 있는 절차라 "어디서 멈췄나"가 형태로 읽혀야 한다(시안 vsteps).
+  좁은 화면에서는 세로로 접힌다.
+*/
 .steps {
   display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  max-width: 34em;
+  flex-wrap: wrap;
+  gap: var(--s-5);
   margin: 0;
-  padding-left: var(--s-5);
+  padding: 0;
+  list-style: none;
+}
+
+.step,
+.stepDone,
+.stepNow,
+.stepFailed {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  max-width: 16em;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+/* 칸과 칸을 잇는 선. 마지막 칸 뒤에는 안 붙인다 */
+.steps > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 13px;
+  right: calc(var(--s-5) * -1);
+  width: var(--s-5);
+  height: 1.5px;
+  background: var(--c-line-3);
+}
+
+.dot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  border: 1.5px solid var(--c-line-4);
+  border-radius: var(--r-pill);
+  color: var(--c-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+}
+
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stepLabel {
+  font-weight: 600;
+}
+
+.stepNote {
+  color: var(--c-text-faint);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+/* 아직 오지 않은 칸 */
+.step {
+  color: var(--c-text-faint);
+}
+
+/* 지나온 칸 — 틸은 「우리가 확인한 것」이다 */
+.stepDone {
+  color: var(--c-text-muted);
+}
+
+.stepDone .dot {
+  border-color: var(--c-teal-45);
+  background: var(--c-teal-13);
+  color: var(--c-teal);
+}
+
+/* 지금 여기 — 라임은 「지금 할 일」에만 */
+.stepNow {
+  color: var(--c-text-strong);
+  font-weight: 600;
+}
+
+.stepNow .dot {
+  border-color: var(--c-lime);
+  background: var(--c-lime);
+  color: var(--c-bg);
+}
+
+.stepFailed {
+  color: var(--c-danger);
+  font-weight: 600;
+}
+
+.stepFailed .dot {
+  border-color: rgba(255, 107, 107, 0.5);
+  background: rgba(255, 107, 107, 0.12);
+  color: var(--c-danger);
+}
+
+.failed {
+  max-width: 40em;
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  border-radius: var(--r-lg);
+  color: var(--c-text-muted);
   font-size: var(--fs-sm);
   line-height: 1.7;
 }
 
-.step {
-  color: var(--c-text-dim);
-}
+@media (max-width: 640px) {
+  .steps {
+    flex-direction: column;
+    gap: var(--s-3);
+  }
 
-.stepDone {
-  color: var(--c-text-muted);
+  /* 세로로 접히면 가로선이 엉뚱한 자리에 남는다 */
+  .steps > li:not(:last-child)::after {
+    display: none;
+  }
 }

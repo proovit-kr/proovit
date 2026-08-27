@@ -100,6 +100,36 @@
   border-top: 1px solid var(--c-line-2);
 }
 
+/*
+  게이트 띠. 스테이지 행과 같은 목록 안에 있지만 생김새를 완전히 다르게 준다 —
+  「제출하는 칸」과 「판정받는 지점」은 다른 종류의 사건이다.
+  바이올렛은 잠금·게이트에 고정된 색이다(globals.css 「보조 팔레트」).
+*/
+.gate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px dashed var(--c-violet-40);
+  border-radius: var(--r-lg);
+  margin-block: var(--s-2);
+  background: var(--c-violet-13);
+}
+
+.gateNo {
+  color: var(--c-violet);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.gateText {
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+}
+
 .stageKey {
   flex: 0 0 3em;
   color: var(--c-text-faint);

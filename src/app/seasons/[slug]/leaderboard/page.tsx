@@ -67,7 +67,21 @@ export default async function Page({
               {season.title}
             </Link>
           </p>
-          <h1 className={styles.title}>리더보드</h1>
+          <div className={styles.titleRow}>
+            <h1 className={styles.title}>리더보드</h1>
+            {/*
+              집계가 살아 있다는 표시. 「최종 확정」과 「집계 중」은 관전자에게
+              다른 말이라 자리를 같이 둔다.
+            */}
+            {board?.isFinal ? (
+              <span className={styles.final}>최종 확정</span>
+            ) : ranked ? (
+              <span className={styles.live}>
+                <i aria-hidden />
+                집계 중
+              </span>
+            ) : null}
+          </div>
           <p className={styles.lead}>
             발표가 아니라 실제 이용자 지표로 겨룹니다. 숫자는 참가작에 붙은 측정
             프록시가 직접 집계합니다.
@@ -76,6 +90,27 @@ export default async function Page({
             <p className={styles.asOf}>
               {DATE.format(board.snapshotDate)} 집계 기준입니다.
             </p>
+          ) : null}
+
+          {/*
+            스테이지 띠. 순위표만 보면 이 숫자가 시즌 어디쯤의 것인지 알 수 없다.
+            게이트는 따로 표시한다 — 거기서 팀이 갈린다.
+          */}
+          {season.stages.length > 0 ? (
+            <ol className={styles.track}>
+              {season.stages.map((stage) => (
+                <li
+                  key={stage.stageKey}
+                  className={stage.isGate ? styles.trackGate : styles.trackItem}
+                >
+                  <span className={styles.trackKey}>{stage.stageKey}</span>
+                  {stage.name}
+                  {stage.isGate ? (
+                    <span className={styles.trackTag}>심사</span>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
           ) : null}
         </header>
 
@@ -105,6 +140,13 @@ export default async function Page({
           </p>
         ) : null}
 
+        {board?.isFinal ? (
+          <p className={styles.finalBanner}>
+            최종 순위가 확정됐습니다. 2차 심사(실행) 결과까지 반영된 값이라 이
+            뒤로는 바뀌지 않습니다.
+          </p>
+        ) : null}
+
         {board && board.rows.length > 0 ? (
           <div className={styles.scroller}>
             <table className={styles.table}>
@@ -114,7 +156,9 @@ export default async function Page({
                     순위
                   </th>
                   <th scope="col">팀 · 참가작</th>
+                  <th scope="col">서비스</th>
                   <th scope="col">유효 방문</th>
+                  <th scope="col">전일 대비</th>
                   <th scope="col">매출</th>
                 </tr>
               </thead>
@@ -143,7 +187,42 @@ export default async function Page({
                         <span className={styles.flag}>시상 제외</span>
                       ) : null}
                     </th>
+                    <td className={styles.service}>
+                      {row.serviceUrl && !row.notDeployed ? (
+                        /*
+                          남의 서비스로 나가는 링크다. noopener 없이 열면
+                          그 창이 이 페이지를 조작할 수 있다.
+                        */
+                        <a
+                          href={row.serviceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          className={styles.serviceLink}
+                        >
+                          열기 ↗
+                        </a>
+                      ) : (
+                        <span className={styles.dash}>—</span>
+                      )}
+                    </td>
                     <td>{NUM.format(row.validVisitors)}</td>
+                    <td>
+                      {row.deltaVisitors === null ? (
+                        /* 앞 집계가 없으면 증감이 성립하지 않는다 */
+                        <span className={styles.dash}>—</span>
+                      ) : row.deltaVisitors === 0 ? (
+                        <span className={styles.dash}>0</span>
+                      ) : (
+                        <span
+                          className={
+                            row.deltaVisitors > 0 ? styles.up : styles.down
+                          }
+                        >
+                          {row.deltaVisitors > 0 ? "+" : "−"}
+                          {NUM.format(Math.abs(row.deltaVisitors))}
+                        </span>
+                      )}
+                    </td>
                     <td>{NUM.format(Number(row.revenue))}</td>
                   </tr>
                 ))}

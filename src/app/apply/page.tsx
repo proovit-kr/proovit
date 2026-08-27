@@ -149,12 +149,28 @@ export default async function ApplyPage({
           </dl>
 
           {/*
-            내용을 고치는 자리는 아직 없다 — 대시보드(DEV4)의 팀 관리 화면이
-            그 자리다. 없는 링크를 걸어두면 404가 되므로 문장으로만 안내한다.
+            신청을 마친 사람이 다음에 갈 곳은 대시보드다. 여기서 잇지 않으면
+            주소를 외우지 않는 한 자기 진도로 돌아올 길이 없다 — 헤더에도
+            푸터에도 대시보드 링크가 없기 때문이다.
+
+            8/13에는 "없는 링크를 걸면 404가 되므로 문장으로만 안내한다"고
+            적혀 있었다. 그때는 대시보드가 없었고, DEV4에서 들어왔다.
           */}
+          <div className={styles.actions}>
+            <LinkButton href="/dashboard" size="lg">
+              대시보드로 이동
+            </LinkButton>
+            <span className={styles.actionsNote}>
+              팀 구성과 측정 연동부터 하면 됩니다.
+            </span>
+          </div>
+
           <p className={styles.note}>
-            팀 이름이나 참가작 정보를 고쳐야 하면 운영에 문의해 주세요.
-            대시보드가 열리면 직접 수정할 수 있게 됩니다.
+            참가작 정보를 고쳐야 하면 운영에 문의해 주세요. 팀 이름과 팀원은{" "}
+            <Link href="/dashboard/team" className={styles.noteLink}>
+              팀 관리
+            </Link>
+            에서 직접 바꿀 수 있습니다.
           </p>
         </div>
         <Footer />

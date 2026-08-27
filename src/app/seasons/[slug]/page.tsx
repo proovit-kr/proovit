@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Fragment } from "react";
 
 import { Badge } from "@/components/Badge";
 import { LinkButton } from "@/components/Button";
@@ -40,6 +41,27 @@ function cta(phase: string): { href: string; label: string } | null {
   }
   if (phase === "recruiting") return { href: "/apply", label: "참가 신청하기" };
   return null;
+}
+
+/** 앞에서 몇 번째 게이트인가. 시즌마다 게이트 수가 달라 세어서 붙인다 */
+function gateNumber(
+  stages: { isGate: boolean }[],
+  index: number,
+): number {
+  return stages.slice(0, index + 1).filter((s) => s.isGate).length;
+}
+
+/*
+  게이트 이름. 시즌1은 둘뿐이고 이름이 규칙 문서에 박혀 있다(16 운영규칙 제9조).
+  셋 이상인 시즌이 오면 그때는 stages에 이름 칸이 생겨야 한다 — 여기서 지어내지 않는다.
+*/
+const GATE_LABEL: Record<number, string> = {
+  1: "1차 심사 — 사업성",
+  2: "최종 심사 — 실행",
+};
+
+function gateLabel(no: number): string {
+  return GATE_LABEL[no] ?? "심사";
 }
 
 export default async function Page({
@@ -99,24 +121,38 @@ export default async function Page({
               지점은 아래대로입니다.
             </p>
           ) : null}
+          {/*
+            게이트를 스테이지 안의 작은 뱃지가 아니라 **사이에 놓인 띠**로 그린다.
+            게이트는 스테이지의 속성이 아니라 스테이지와 스테이지 사이에서
+            팀이 갈리는 지점이고, 참가자가 일정을 볼 때 가장 먼저 찾는 것이 그 자리다.
+          */}
           <ol className={styles.stages}>
-            {season.stages.map((stage) => (
-              <li key={stage.stageKey} className={styles.stage}>
-                <span className={styles.stageKey}>
-                  {stage.stageKey.toUpperCase()}
-                </span>
-                <span className={styles.stageBody}>
-                  <span className={styles.stageName}>
-                    {stage.name}
-                    {stage.isGate ? <Badge tone="outline">심사</Badge> : null}
+            {season.stages.map((stage, i) => (
+              <Fragment key={stage.stageKey}>
+                <li className={styles.stage}>
+                  <span className={styles.stageKey}>
+                    {stage.stageKey.toUpperCase()}
                   </span>
-                  <span className={styles.stageWhen}>
-                    {stage.opensAt && stage.closesAt
-                      ? `${DATE.format(stage.opensAt)} ~ ${DATE.format(stage.closesAt)}`
-                      : "일정 확정 전"}
+                  <span className={styles.stageBody}>
+                    <span className={styles.stageName}>{stage.name}</span>
+                    <span className={styles.stageWhen}>
+                      {stage.opensAt && stage.closesAt
+                        ? `${DATE.format(stage.opensAt)} ~ ${DATE.format(stage.closesAt)}`
+                        : "일정 확정 전"}
+                    </span>
                   </span>
-                </span>
-              </li>
+                </li>
+                {stage.isGate ? (
+                  <li className={styles.gate} aria-label="심사 게이트">
+                    <span className={styles.gateNo}>
+                      GATE {gateNumber(season.stages, i)}
+                    </span>
+                    <span className={styles.gateText}>
+                      {gateLabel(gateNumber(season.stages, i))}
+                    </span>
+                  </li>
+                ) : null}
+              </Fragment>
             ))}
           </ol>
         </section>
