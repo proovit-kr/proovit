@@ -142,7 +142,22 @@ export async function loadSandboxState(): Promise<SandboxState> {
     prisma.season.findFirst({
       where: { phase: { not: SeasonPhase.draft } },
       orderBy: { createdAt: "desc" },
-      select: { id: true, slug: true, phase: true, featureFlags: true },
+      select: {
+        id: true,
+        slug: true,
+        phase: true,
+        featureFlags: true,
+        /*
+          집계 상태를 여기서 같이 읽는다. findFirst를 따로 부르면 페이지를 그릴
+          때마다 왕복이 한 번 더 는다 — 이 바는 **모든 화면**에 붙어 있다.
+          최신 스냅샷 한 장만 있으면 되므로 orderBy + take 1이다.
+        */
+        snapshots: {
+          orderBy: { snapshotDate: "desc" },
+          take: 1,
+          select: { isFinal: true },
+        },
+      },
     }),
   ]);
 
@@ -170,7 +185,11 @@ export async function loadSandboxState(): Promise<SandboxState> {
           slug: season.slug,
           phase: season.phase,
           flags: (season.featureFlags ?? {}) as Record<string, boolean>,
-          metrics: await readMetricsFixture(season.id),
+          metrics: !season.snapshots[0]
+            ? "none"
+            : season.snapshots[0].isFinal
+              ? "final"
+              : "race",
         }
       : null,
   };
@@ -371,55 +390,43 @@ export async function setMetricsFixture(args: {
   assertSandbox();
   const { seasonId, kind } = args;
 
+  /*
+    ⚠️ **왕복 횟수가 곧 체감 속도다.** Neon이 싱가포르에 있어 한 번 오가는 데
+    80ms 안팎이다. 처음에는 조회·삭제·삽입을 순서대로 await 했더니 일곱 번을
+    오가며 2.2초가 걸렸다. 지금은 조회 한 번, 쓰기 한 번이다.
+
+    팀장을 entries 조회에 같이 담는 것도 같은 이유다 — team_members를 따로
+    읽으면 그만큼 왕복이 는다.
+  */
   const entries = await prisma.entry.findMany({
     where: { seasonId, status: EntryStatus.active },
     orderBy: { createdAt: "asc" },
-    select: { id: true },
-  });
-
-  /* 언제나 먼저 비운다. 덧쌓으면 「집계 전 → 운영중」을 두 번 눌렀을 때 값이 배가 된다 */
-  await prisma.$transaction([
-    prisma.leaderboardSnapshot.deleteMany({ where: { seasonId } }),
-    prisma.metricDaily.deleteMany({
-      where: { entryId: { in: entries.map((e) => e.id) } },
-    }),
-  ]);
-
-  if (kind === "none" || entries.length === 0) return;
-
-  /*
-    지표 공개 동의를 붙인다. 참가작 상세가 이 동의가 없으면 숫자를 통째로 가려서
-    (public-read.ts) 순위 카드도 7일 추세도 안 보인다.
-
-    ⚠️ 동의는 append-only 로그다 — 기존 행을 고치거나 지우지 않고 새 행을 쌓는다.
-    화면은 가장 최근 행을 최종 상태로 읽는다(스키마 consents 주석).
-  */
-  const leaders = await prisma.teamMember.findMany({
-    where: {
-      role: MemberRole.leader,
-      team: { entries: { some: { id: { in: entries.map((e) => e.id) } } } },
-    },
     select: {
-      userId: true,
-      team: { select: { entries: { select: { id: true }, take: 1 } } },
+      id: true,
+      team: {
+        select: {
+          members: {
+            where: { role: MemberRole.leader },
+            take: 1,
+            select: { userId: true },
+          },
+        },
+      },
     },
   });
-  await prisma.consent.createMany({
-    data: leaders.flatMap((m) => {
-      const entryId = m.team.entries[0]?.id;
-      return entryId
-        ? [
-            {
-              userId: m.userId,
-              entryId,
-              type: ConsentType.metrics_public,
-              granted: true,
-              version: "[개발용]",
-            },
-          ]
-        : [];
-    }),
-  });
+
+  const entryIds = entries.map((e) => e.id);
+
+  /* 언제나 먼저 비운다. 덧쌓으면 같은 버튼을 두 번 눌렀을 때 값이 배가 된다 */
+  const clear = [
+    prisma.leaderboardSnapshot.deleteMany({ where: { seasonId } }),
+    prisma.metricDaily.deleteMany({ where: { entryId: { in: entryIds } } }),
+  ];
+
+  if (kind === "none" || entries.length === 0) {
+    await prisma.$transaction(clear);
+    return;
+  }
 
   /* 오늘은 빼고 어제까지 14일. 화면이 전일까지만 공개하기 때문이다 */
   const today = new Date();
@@ -442,18 +449,17 @@ export async function setMetricsFixture(args: {
       };
     }),
   );
-  await prisma.metricDaily.createMany({ data: daily, skipDuplicates: true });
 
   /*
     스냅샷은 **이틀치**를 만든다. 하루만 만들면 전일 대비 열이 전부 「—」다 —
     앞 집계가 없으면 증감이 성립하지 않기 때문이고, 그 칸도 검토 대상이다.
   */
-  for (const back of [1, 0]) {
+  const snapshots = [1, 0].flatMap((back) => {
     const snapshotDate = new Date(today);
     snapshotDate.setUTCDate(snapshotDate.getUTCDate() - 1 - back);
     const isLatest = back === 0;
 
-    const rows = entries.map((entry, index) => {
+    return entries.map((entry, index) => {
       const total = Array.from({ length: 14 - back }, (_, day) =>
         fixtureVisitors(index, day),
       ).reduce((sum, v) => sum + v, 0);
@@ -470,24 +476,39 @@ export async function setMetricsFixture(args: {
         isAwardEligible: index < entries.length - 1,
       };
     });
-    await prisma.leaderboardSnapshot.createMany({
-      data: rows,
-      skipDuplicates: true,
-    });
-  }
-}
-
-/** 지금 어느 상태인가. 바가 눌린 자리를 표시하려면 필요하다 */
-export async function readMetricsFixture(
-  seasonId: string,
-): Promise<MetricsFixture> {
-  const latest = await prisma.leaderboardSnapshot.findFirst({
-    where: { seasonId },
-    orderBy: { snapshotDate: "desc" },
-    select: { isFinal: true },
   });
-  if (!latest) return "none";
-  return latest.isFinal ? "final" : "race";
+
+  /*
+    지표 공개 동의. 참가작 상세가 이 동의가 없으면 숫자를 통째로 가려서
+    (public-read.ts) 순위 카드도 7일 추세도 안 보인다.
+
+    ⚠️ 동의는 append-only 로그다 — 기존 행을 고치거나 지우지 않고 새 행을 쌓는다.
+    화면은 가장 최근 행을 최종 상태로 읽는다(스키마 consents 주석).
+  */
+  const consents = entries.flatMap((entry) => {
+    const userId = entry.team.members[0]?.userId;
+    return userId
+      ? [
+          {
+            userId,
+            entryId: entry.id,
+            type: ConsentType.metrics_public,
+            granted: true,
+            version: "[개발용]",
+          },
+        ]
+      : [];
+  });
+
+  await prisma.$transaction([
+    ...clear,
+    prisma.metricDaily.createMany({ data: daily, skipDuplicates: true }),
+    prisma.leaderboardSnapshot.createMany({
+      data: snapshots,
+      skipDuplicates: true,
+    }),
+    prisma.consent.createMany({ data: consents }),
+  ]);
 }
 
 // ═════════════════════════════════════════════════════════════
