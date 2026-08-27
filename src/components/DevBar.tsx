@@ -49,6 +49,13 @@ const PHASES: { value: SeasonPhase; label: string }[] = [
   { value: SeasonPhase.archived, label: "종료" },
 ];
 
+/* 시안 리더보드의 STATE 셋과 같은 이름을 쓴다 — 대조할 때 헷갈리지 않게 */
+const METRICS: { value: string; label: string }[] = [
+  { value: "none", label: "집계 전" },
+  { value: "race", label: "레이스 운영중" },
+  { value: "final", label: "시즌 종료" },
+];
+
 const FLAG_LABEL: Record<string, string> = {
   leaderboard: "리더보드",
   notifications: "알림",
@@ -85,6 +92,7 @@ export async function DevBar() {
       stages={STAGES}
       statuses={STATUSES}
       phases={PHASES}
+      metrics={METRICS}
       flags={Object.keys(featureFlagsSchema.shape).map((key) => ({
         key,
         label: FLAG_LABEL[key] ?? key,

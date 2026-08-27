@@ -71,3 +71,17 @@ export function isAwarded(phase: SeasonPhase): boolean {
 export function isArchived(phase: SeasonPhase): boolean {
   return phase === SeasonPhase.archived;
 }
+
+/**
+ * 레이스가 시작된 뒤로는 계속 참인가 — 레이스·시상·아카이브.
+ *
+ * `isRacing`과 갈라 쓰는 자리가 **공개 조회 화면**이다. 리더보드와 참가작
+ * 페이지를 `isRacing`으로 막아 두면 시상 발표와 동시에 닫힌다. 관전 트래픽이
+ * 가장 몰리는 때가 바로 그때고, 시즌이 끝난 뒤에 남는 것이 순위와 참가작이라
+ * 이 리그가 다음 시즌 모집에 쓸 유일한 증거이기도 하다.
+ *
+ * 쓰기는 이 술어를 쓰지 않는다 — 아카이브 잠금(G4)은 canAccess가 따로 본다.
+ */
+export function isRacingOrLater(phase: SeasonPhase): boolean {
+  return phaseAtLeast(phase, SeasonPhase.racing);
+}

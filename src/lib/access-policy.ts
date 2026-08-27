@@ -19,7 +19,11 @@ import {
 } from "@/generated/prisma/client";
 import type { ApiErrorCode } from "@/lib/api";
 import type { FeatureFlagKey, FeatureFlags } from "@/lib/feature-flags";
-import { isArchived, isRacing, isRecruiting } from "@/lib/season-phase";
+import {
+  isArchived,
+  isRacingOrLater,
+  isRecruiting,
+} from "@/lib/season-phase";
 
 // ═════════════════════════════════════════════════════════════
 // canAccess — 시즌 페이즈 × 참가 진도 × 생존 상태 × 기능 플래그
@@ -159,10 +163,16 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
   landing: { auth: "public" },
   seasonDetail: { auth: "public" },
   rules: { auth: "public" },
-  /** 관전 트래픽의 목적지. 레이스에 들어가야 숫자가 생긴다 */
-  leaderboard: { auth: "public", flag: "leaderboard", phase: isRacing },
-  /** 참가작 공개 페이지. 레이스 전에는 보여줄 것이 없다 */
-  projectDetail: { auth: "public", phase: isRacing },
+  /*
+    관전 트래픽의 목적지. 레이스에 들어가야 숫자가 생긴다.
+
+    ⚠️ 끝나면 닫지 **않는다**. 2026-08-27까지 `isRacing`이라 시상 발표와 동시에
+    잠겼는데, 관전이 가장 몰리는 때가 그때다. 시안의 리더보드 세 번째 상태
+    (시즌 종료, FINAL 배너)도 이 화면이 시즌 뒤에 살아 있다는 전제다.
+  */
+  leaderboard: { auth: "public", flag: "leaderboard", phase: isRacingOrLater },
+  /** 참가작 공개 페이지. 레이스 전에는 보여줄 것이 없다. 끝난 뒤에는 남는다 */
+  projectDetail: { auth: "public", phase: isRacingOrLater },
   seasonArchive: { auth: "public", flag: "archive" },
 
   // ── 참가자 ────────────────────────────────────────────────
