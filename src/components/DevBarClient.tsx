@@ -48,20 +48,26 @@ type Props = {
   flags?: { key: string; label: string; on: boolean }[];
 };
 
-/** 값 하나를 실어 보내는 버튼 한 개 = 폼 한 개 */
+/*
+  값 하나를 실어 보내는 버튼 한 개 = 폼 한 개.
+
+  ⚠️ 액션 타입을 `(formData) => Promise<void>`로 **정확히** 적는다. 캐스팅으로
+  얼버무리면 시그니처가 어긋나도 컴파일이 통과한다 — 처음에 (prev, formData)
+  두 인자짜리를 그대로 걸었다가 버튼마다 formData가 undefined로 들어와 터졌다.
+*/
 function PickButton({
   action,
   fields,
   active,
   children,
 }: {
-  action: (prev: { message?: string }, formData: FormData) => Promise<{ message?: string }>;
+  action: (formData: FormData) => Promise<void>;
   fields: Record<string, string>;
   active?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <form action={action as unknown as (formData: FormData) => void}>
+    <form action={action}>
       {Object.entries(fields).map(([name, value]) => (
         <input key={name} type="hidden" name={name} value={value} />
       ))}
@@ -137,7 +143,7 @@ export function DevBarClient({
                   <em className={styles.sub}>{team.stage}</em>
                 </PickButton>
               ))}
-              <form action={devSignOut as unknown as () => void}>
+              <form action={devSignOut}>
                 <button type="submit" className={styles.pickQuiet}>
                   로그아웃
                 </button>

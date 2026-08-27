@@ -30,9 +30,15 @@ import { prisma } from "@/lib/prisma";
   ⚠️ 여기 있는 것은 **권한 판정이 아니다.** 운영자 권한을 확인하지 않는 이유는
   이 도구가 애초에 운영 DB에서 안 열리기 때문이고, dev에서는 아무나 아무 팀으로
   갈아탈 수 있는 것이 목적이다.
-*/
 
-export type DevActionState = { message?: string; done?: string };
+  ⚠️ 인자가 **FormData 하나**다. `<form action={fn}>`은 fn을 formData 한 개로
+  부른다 — useActionState에 물릴 때만 (prevState, formData) 두 개가 된다.
+  처음에 두 개로 써놓고 폼에 직접 걸었더니 formData가 undefined로 들어와
+  버튼을 누를 때마다 터졌다. 이 도구는 상태 메시지를 안 쓰므로 한 개가 맞다.
+
+  실패는 던진다. dev 전용이라 오버레이가 이유를 그대로 보여주는 편이,
+  아무 일도 안 일어난 것처럼 보이는 것보다 낫다.
+*/
 
 /** 화면에서 온 문자열을 enum으로. 목록에 없으면 null */
 function toEnum<T extends Record<string, string>>(
@@ -45,9 +51,9 @@ function toEnum<T extends Record<string, string>>(
     : null;
 }
 
-function guard(): { ok: true } | { ok: false; message: string } {
+function guard(): void {
   const check = checkDevSandbox();
-  return check.ok ? { ok: true } : { ok: false, message: check.reason };
+  if (!check.ok) throw new Error(`[dev] ${check.reason}`);
 }
 
 /*
@@ -59,21 +65,17 @@ function refresh(): void {
 }
 
 /** 이 팀 팀장으로 갈아탄다 */
-export async function devImpersonate(
-  _prev: DevActionState,
-  formData: FormData,
-): Promise<DevActionState> {
-  const gate = guard();
-  if (!gate.ok) return { message: gate.message };
+export async function devImpersonate(formData: FormData): Promise<void> {
+  guard();
 
   const userId = String(formData.get("userId") ?? "");
-  if (!userId) return { message: "어느 계정인지 알 수 없습니다." };
+  if (!userId) throw new Error("[dev] userId가 없습니다.");
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, nickname: true },
   });
-  if (!user) return { message: "그 계정이 없습니다." };
+  if (!user) throw new Error("[dev] 그 계정이 없습니다.");
 
   const { token, expires } = await impersonate(user.id);
   const jar = await cookies();
@@ -85,13 +87,11 @@ export async function devImpersonate(
   });
 
   refresh();
-  return { done: `${user.nickname} 계정으로 바꿨습니다.` };
 }
 
 /** 로그아웃. 갈아탄 세션을 버린다 */
-export async function devSignOut(): Promise<DevActionState> {
-  const gate = guard();
-  if (!gate.ok) return { message: gate.message };
+export async function devSignOut(): Promise<void> {
+  guard();
 
   const jar = await cookies();
   const token = jar.get(DEV_SESSION_COOKIE)?.value;
@@ -102,19 +102,14 @@ export async function devSignOut(): Promise<DevActionState> {
   }
 
   refresh();
-  return { done: "로그아웃했습니다." };
 }
 
-export async function devSetStage(
-  _prev: DevActionState,
-  formData: FormData,
-): Promise<DevActionState> {
-  const gate = guard();
-  if (!gate.ok) return { message: gate.message };
+export async function devSetStage(formData: FormData): Promise<void> {
+  guard();
 
   const entryId = String(formData.get("entryId") ?? "");
   const stage = toEnum(EntryStage, formData.get("stage"));
-  if (!entryId || !stage) return { message: "잘못된 요청입니다." };
+  if (!entryId || !stage) throw new Error("[dev] entryId·stage가 잘못됐습니다.");
 
   /*
     제출물을 만들 때 `submitted_by`에 넣을 사람이 필요하다. 지금 로그인한
@@ -132,51 +127,36 @@ export async function devSetStage(
     },
   });
   const leaderId = leader?.team.members[0]?.userId;
-  if (!leaderId) return { message: "그 팀에 팀장이 없습니다." };
+  if (!leaderId) throw new Error("[dev] 그 팀에 팀장이 없습니다.");
 
   await setSandboxStage({ entryId, stage, userId: leaderId });
   refresh();
-  return { done: `진도를 ${stage}로 바꿨습니다.` };
 }
 
-export async function devSetStatus(
-  _prev: DevActionState,
-  formData: FormData,
-): Promise<DevActionState> {
-  const gate = guard();
-  if (!gate.ok) return { message: gate.message };
+export async function devSetStatus(formData: FormData): Promise<void> {
+  guard();
 
   const entryId = String(formData.get("entryId") ?? "");
   const status = toEnum(EntryStatus, formData.get("status"));
-  if (!entryId || !status) return { message: "잘못된 요청입니다." };
+  if (!entryId || !status) throw new Error("[dev] entryId·status가 잘못됐습니다.");
 
   await setSandboxStatus({ entryId, status });
   refresh();
-  return { done: `상태를 ${status}로 바꿨습니다.` };
 }
 
-export async function devSetPhase(
-  _prev: DevActionState,
-  formData: FormData,
-): Promise<DevActionState> {
-  const gate = guard();
-  if (!gate.ok) return { message: gate.message };
+export async function devSetPhase(formData: FormData): Promise<void> {
+  guard();
 
   const seasonId = String(formData.get("seasonId") ?? "");
   const phase = toEnum(SeasonPhase, formData.get("phase"));
-  if (!seasonId || !phase) return { message: "잘못된 요청입니다." };
+  if (!seasonId || !phase) throw new Error("[dev] seasonId·phase가 잘못됐습니다.");
 
   await setSandboxPhase({ seasonId, phase });
   refresh();
-  return { done: `페이즈를 ${phase}로 바꿨습니다.` };
 }
 
-export async function devToggleFlag(
-  _prev: DevActionState,
-  formData: FormData,
-): Promise<DevActionState> {
-  const gate = guard();
-  if (!gate.ok) return { message: gate.message };
+export async function devToggleFlag(formData: FormData): Promise<void> {
+  guard();
 
   const seasonId = String(formData.get("seasonId") ?? "");
   const raw = String(formData.get("flag") ?? "");
@@ -185,7 +165,7 @@ export async function devToggleFlag(
   /* 플래그 이름은 스키마에 있는 것만 받는다 — 오타가 조용히 JSONB에 남지 않게 */
   const known = Object.keys(featureFlagsSchema.shape);
   if (!seasonId || !known.includes(raw)) {
-    return { message: "잘못된 요청입니다." };
+    throw new Error("[dev] seasonId·flag가 잘못됐습니다.");
   }
 
   await toggleSandboxFlag({
@@ -194,5 +174,4 @@ export async function devToggleFlag(
     value,
   });
   refresh();
-  return { done: `${raw} ${value ? "켬" : "끔"}` };
 }
