@@ -1,5 +1,11 @@
 import {
   AbuseStatus,
+  CreditClaimStatus,
+  CreditDelivery,
+  CreditDeliveredVia,
+  CreditKind,
+  CreditOfferStatus,
+  CreditUnlockEvent,
   EntryStatus,
   SeasonPhase,
   Prisma,
@@ -196,6 +202,198 @@ export async function resolveAbuseFlag(args: {
       targetId: flagId,
       reason: reason.trim(),
       meta: { from: flag.status, to: status, entryId: flag.entryId },
+    });
+  });
+
+  return { ok: true };
+}
+
+// ═════════════════════════════════════════════════════════════
+// 스폰서 크레딧 — 13 크레딧 센터 설계서 v0.1 7장 「관리 콘솔 P0」
+// ═════════════════════════════════════════════════════════════
+
+/*
+  혜택 카드 등록·수정, 코드 풀 업로드, 수동 발급.
+
+  ⚠️ 코드 풀 업로드가 여기 있는 이유는 감사 로그다. 스폰서가 준 코드 80개를 누가
+  언제 몇 개 올렸는지가 남아야, 나중에 "코드가 모자란다"는 말이 나왔을 때
+  우리가 흘린 것인지 스폰서가 덜 준 것인지 가릴 수 있다.
+
+  ⚠️ 수동 발급은 되돌리지 않는다(설계서 4장). 잘못 눌러도 코드는 나간 것으로
+  본다 — 되돌릴 수 있게 만들면 "일단 눌러보고 아니면 취소"가 되고, 그 사이
+  참가자는 이미 코드를 봤다.
+*/
+
+export async function saveCreditOffer(args: {
+  seasonId: string;
+  kind: CreditKind;
+  status: CreditOfferStatus;
+  sponsorId: string | null;
+  unlockEvent: CreditUnlockEvent;
+  deliveryMethod: CreditDelivery;
+  releaseDate: Date | null;
+  validUntil: Date | null;
+  inviteUrl: string | null;
+  description: string | null;
+  value: string | null;
+  fallbackUrl: string | null;
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { seasonId, kind, reason, actorId, ...rest } = args;
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+
+  /*
+    활성으로 올리면서 스폰서를 안 붙이면 참가자 화면에 「스폰서 미정」인 채로
+    클레임 버튼이 선다. 누르면 줄 것이 없다.
+  */
+  if (rest.status === CreditOfferStatus.active && !rest.sponsorId) {
+    return {
+      ok: false,
+      message: "활성으로 바꾸려면 스폰서를 먼저 지정해 주세요.",
+    };
+  }
+  if (
+    rest.status === CreditOfferStatus.active &&
+    rest.deliveryMethod === CreditDelivery.invite_link &&
+    !rest.inviteUrl
+  ) {
+    return { ok: false, message: "초대 링크 방식은 링크가 있어야 합니다." };
+  }
+
+  const before = await prisma.creditOffer.findUnique({
+    where: { seasonId_kind: { seasonId, kind } },
+    select: { id: true, status: true },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    const saved = await tx.creditOffer.upsert({
+      where: { seasonId_kind: { seasonId, kind } },
+      create: { seasonId, kind, ...rest },
+      update: rest,
+      select: { id: true },
+    });
+    await writeAudit(tx, {
+      actorId,
+      action: before ? "credit_offer:update" : "credit_offer:create",
+      targetType: "credit_offer",
+      targetId: saved.id,
+      reason: reason.trim(),
+      meta: { kind, from: before?.status ?? null, to: rest.status },
+    });
+  });
+
+  return { ok: true };
+}
+
+/**
+ * 코드 풀 업로드.
+ *
+ * 중복은 건너뛴다(`skipDuplicates`). 스폰서가 같은 CSV를 두 번 보내는 일이 잦고,
+ * 그때 실패로 되돌리면 새로 온 코드까지 같이 날아간다 — 몇 개가 들어갔는지를
+ * 감사 로그에 적는 편이 낫다.
+ */
+export async function uploadCreditCodes(args: {
+  offerId: string;
+  codes: string[];
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult & { added?: number }> {
+  const { offerId, codes, reason, actorId } = args;
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+
+  const clean = [...new Set(codes.map((c) => c.trim()).filter(Boolean))];
+  if (clean.length === 0) {
+    return { ok: false, message: "올릴 코드가 없습니다." };
+  }
+  if (clean.some((c) => c.length > 120)) {
+    return { ok: false, message: "코드 하나가 120자를 넘습니다." };
+  }
+
+  const offer = await prisma.creditOffer.findUnique({
+    where: { id: offerId },
+    select: { id: true },
+  });
+  if (!offer) return { ok: false, message: "혜택을 찾을 수 없습니다." };
+
+  const result = await prisma.$transaction(async (tx) => {
+    const created = await tx.creditCode.createMany({
+      data: clean.map((code) => ({ offerId, code })),
+      skipDuplicates: true,
+    });
+    await writeAudit(tx, {
+      actorId,
+      action: "credit_codes:upload",
+      targetType: "credit_offer",
+      targetId: offerId,
+      reason: reason.trim(),
+      meta: { submitted: clean.length, added: created.count },
+    });
+    return created.count;
+  });
+
+  return { ok: true, added: result };
+}
+
+/**
+ * 수동 발급 — 시즌1의 정상 경로다.
+ *
+ * 자동 발송은 P1이고, 그전까지는 운영자가 코드를 직접 보내고 여기서 상태를
+ * 옮긴다(설계서 5장 「시즌 1 수동 대체 경로」). 참가자 화면은 자동일 때와
+ * 똑같이 보인다 — 그게 이 경로가 성립하는 조건이다.
+ */
+export async function deliverCreditManually(args: {
+  offerId: string;
+  entryId: string;
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { offerId, entryId, reason, actorId } = args;
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+
+  const claim = await prisma.creditClaim.findUnique({
+    where: { offerId_entryId: { offerId, entryId } },
+    select: { status: true },
+  });
+  if (
+    claim &&
+    claim.status !== CreditClaimStatus.available &&
+    claim.status !== CreditClaimStatus.scheduled
+  ) {
+    return { ok: false, message: "이미 발급된 팀입니다." };
+  }
+
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.creditClaim.upsert({
+      where: { offerId_entryId: { offerId, entryId } },
+      create: {
+        offerId,
+        entryId,
+        status: CreditClaimStatus.delivered,
+        claimedAt: now,
+        deliveredAt: now,
+        deliveredVia: CreditDeliveredVia.manual,
+      },
+      update: {
+        status: CreditClaimStatus.delivered,
+        deliveredAt: now,
+        deliveredVia: CreditDeliveredVia.manual,
+      },
+    });
+    await writeAudit(tx, {
+      actorId,
+      action: "credit_claim:deliver_manual",
+      targetType: "credit_claim",
+      targetId: `${offerId}:${entryId}`,
+      reason: reason.trim(),
+      meta: { offerId, entryId, from: claim?.status ?? null },
     });
   });
 

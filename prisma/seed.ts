@@ -65,7 +65,42 @@ async function main() {
     });
   }
 
-  console.log(`시즌 시드 완료: ${season.slug} (${season.phase}) · 스테이지 ${stages.length}개`);
+  /*
+    혜택 카드 4장. 13 크레딧 센터 설계서 v0.1 3장이 고정한 구조다.
+
+    **전부 협의 중으로 만든다.** 스폰서·금액·유효기간·코드 방식은 9/14 제휴
+    go/no-go 뒤에야 정해진다(설계서 9장 미결). 그럴듯한 값을 채워 두면 그게
+    스크린샷으로 돌아다니고, 우리가 아직 못 받은 제휴를 받은 것처럼 보인다.
+
+    그래도 행을 만들어 두는 이유는 제휴가 0건이어도 혜택 탭이 열려야 하기
+    때문이다(설계서 2장 「폴백 필수 출시」). 협의 중 카드는 폴백 가이드를 보여준다.
+    폴백 목록은 운영자가 화면에서 채운다 — 무료 티어 구성도 확정 전이다.
+  */
+  const offers = [
+    { kind: "c1", unlockEvent: "s1_submitted" },
+    { kind: "c2", unlockEvent: "gate1_passed" },
+    { kind: "c3", unlockEvent: "deploy_verified" },
+    { kind: "c4", unlockEvent: "final_confirmed" },
+  ] as const;
+
+  for (const offer of offers) {
+    await prisma.creditOffer.upsert({
+      where: { seasonId_kind: { seasonId: season.id, kind: offer.kind } },
+      /* 이미 있으면 손대지 않는다 — 운영자가 채운 값을 시드가 덮으면 안 된다 */
+      update: {},
+      create: {
+        seasonId: season.id,
+        kind: offer.kind,
+        unlockEvent: offer.unlockEvent,
+        status: "negotiating",
+        deliveryMethod: "manual",
+      },
+    });
+  }
+
+  console.log(
+    `시즌 시드 완료: ${season.slug} (${season.phase}) · 스테이지 ${stages.length}개 · 혜택 카드 ${offers.length}장(협의 중)`,
+  );
 }
 
 main()

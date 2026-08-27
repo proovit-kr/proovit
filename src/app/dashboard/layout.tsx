@@ -44,7 +44,9 @@ export default async function DashboardLayout({
     ...(flags?.testerAssignments
       ? [{ href: "/dashboard/tester", label: "상호 테스터" }]
       : []),
-    ...(flags?.credits ? [{ href: "/dashboard/credits", label: "혜택" }] : []),
+    ...(flags?.credits
+      ? [{ href: "/dashboard/credits", label: "혜택과 크레딧" }]
+      : []),
     { href: "/dashboard/appeal", label: "소명" },
   ];
 

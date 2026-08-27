@@ -8,19 +8,30 @@ export type BadgeTone =
   | 'warn'
   | 'danger'
   | 'neutral'
-  | 'outline';
+  | 'outline'
+  | 'violet'
+  | 'teal'
+  | 'blue';
 
 interface Props {
   tone?: BadgeTone;
   pill?: boolean;
+  /** 점선 테두리 — 「아직 확정 아님」. 협의 중·발급 예정에 쓴다 */
+  dashed?: boolean;
   children: ReactNode;
   className?: string;
 }
 
-export function Badge({ tone = 'lime', pill, children, className }: Props) {
+export function Badge({ tone = 'lime', pill, dashed, children, className }: Props) {
   return (
     <span
-      className={[styles.badge, styles[tone], pill ? styles.pill : '', className ?? '']
+      className={[
+        styles.badge,
+        styles[tone],
+        pill ? styles.pill : '',
+        dashed ? styles.dashed : '',
+        className ?? '',
+      ]
         .filter(Boolean)
         .join(' ')}
     >
