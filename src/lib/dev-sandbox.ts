@@ -1,7 +1,10 @@
 import type { Prisma } from "@/generated/prisma/client";
 import {
+  ConsentType,
   EntryStage,
   EntryStatus,
+  MemberRole,
+  MetricSource,
   SeasonPhase,
   StageKey,
   SubmissionStatus,
@@ -102,6 +105,8 @@ export type SandboxState = {
     slug: string;
     phase: SeasonPhase;
     flags: Record<string, boolean>;
+    /** 리더보드가 지금 어느 상태로 보이는가 */
+    metrics: MetricsFixture;
   } | null;
 };
 
@@ -165,6 +170,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
           slug: season.slug,
           phase: season.phase,
           flags: (season.featureFlags ?? {}) as Record<string, boolean>,
+          metrics: await readMetricsFixture(season.id),
         }
       : null,
   };
@@ -327,6 +333,161 @@ export async function toggleSandboxFlag(args: {
     where: { id: args.seasonId },
     data: { featureFlags: { ...flags, [args.flag]: args.value } },
   });
+}
+
+// ═════════════════════════════════════════════════════════════
+// 집계 데이터 — 리더보드 세 상태를 만든다
+// ═════════════════════════════════════════════════════════════
+
+/*
+  시안 리더보드의 STATE 셋이다.
+
+    none  집계 전     스냅샷도 일별 지표도 없음. 표는 뜨되 순위 칸이 비어 있다
+    race  레이스 운영중 이틀치 스냅샷 + 14일 일별 지표. 순위와 전일 대비가 산다
+    final 시즌 종료   위와 같고 마지막 스냅샷이 is_final. FINAL 배너가 뜬다
+
+  ⚠️ **여기서 만드는 숫자는 가짜다.** 이 제품이 파는 것이 「조작 불가능한 지표」라
+  가짜 지표를 만드는 함수는 그 자체로 위험하다. dev 전용이라 허용하되 셋을 지킨다.
+
+    ① assertSandbox가 맨 위에 있다 — 운영 DB에서는 아예 안 돈다
+    ② 값을 팀 순서로 **결정적으로** 만든다. 난수를 쓰면 새로 고칠 때마다 숫자가
+       흔들려 화면을 비교할 수 없다
+    ③ metric_daily.source를 manual로 남긴다. 화면이 「운영자 보정」으로 표시하므로
+       스크린샷에 자동 집계인 것처럼 찍히지 않는다
+*/
+export type MetricsFixture = "none" | "race" | "final";
+
+/** 팀 순서로 정해지는 값. 앞 팀일수록 많다 — 순위가 눈에 보이게 */
+function fixtureVisitors(index: number, day: number): number {
+  const base = 320 - index * 38;
+  /* 뒤로 갈수록 늘어나는 완만한 곡선. day는 0(가장 옛날)부터 */
+  return Math.max(4, Math.round(base * (0.45 + day * 0.045)));
+}
+
+export async function setMetricsFixture(args: {
+  seasonId: string;
+  kind: MetricsFixture;
+}): Promise<void> {
+  assertSandbox();
+  const { seasonId, kind } = args;
+
+  const entries = await prisma.entry.findMany({
+    where: { seasonId, status: EntryStatus.active },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+
+  /* 언제나 먼저 비운다. 덧쌓으면 「집계 전 → 운영중」을 두 번 눌렀을 때 값이 배가 된다 */
+  await prisma.$transaction([
+    prisma.leaderboardSnapshot.deleteMany({ where: { seasonId } }),
+    prisma.metricDaily.deleteMany({
+      where: { entryId: { in: entries.map((e) => e.id) } },
+    }),
+  ]);
+
+  if (kind === "none" || entries.length === 0) return;
+
+  /*
+    지표 공개 동의를 붙인다. 참가작 상세가 이 동의가 없으면 숫자를 통째로 가려서
+    (public-read.ts) 순위 카드도 7일 추세도 안 보인다.
+
+    ⚠️ 동의는 append-only 로그다 — 기존 행을 고치거나 지우지 않고 새 행을 쌓는다.
+    화면은 가장 최근 행을 최종 상태로 읽는다(스키마 consents 주석).
+  */
+  const leaders = await prisma.teamMember.findMany({
+    where: {
+      role: MemberRole.leader,
+      team: { entries: { some: { id: { in: entries.map((e) => e.id) } } } },
+    },
+    select: {
+      userId: true,
+      team: { select: { entries: { select: { id: true }, take: 1 } } },
+    },
+  });
+  await prisma.consent.createMany({
+    data: leaders.flatMap((m) => {
+      const entryId = m.team.entries[0]?.id;
+      return entryId
+        ? [
+            {
+              userId: m.userId,
+              entryId,
+              type: ConsentType.metrics_public,
+              granted: true,
+              version: "[개발용]",
+            },
+          ]
+        : [];
+    }),
+  });
+
+  /* 오늘은 빼고 어제까지 14일. 화면이 전일까지만 공개하기 때문이다 */
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const daily = entries.flatMap((entry, index) =>
+    Array.from({ length: 14 }, (_, day) => {
+      const date = new Date(today);
+      date.setUTCDate(date.getUTCDate() - 14 + day);
+      const visitors = fixtureVisitors(index, day);
+      return {
+        entryId: entry.id,
+        metricDate: date,
+        validVisitors: visitors,
+        signups: Math.round(visitors * 0.16),
+        revenue: BigInt(index === 0 ? visitors * 900 : 0),
+        /* 「운영자 보정」으로 표시된다 — 자동 집계인 척하지 않는다 */
+        source: MetricSource.manual,
+        manualReviewPassed: true,
+      };
+    }),
+  );
+  await prisma.metricDaily.createMany({ data: daily, skipDuplicates: true });
+
+  /*
+    스냅샷은 **이틀치**를 만든다. 하루만 만들면 전일 대비 열이 전부 「—」다 —
+    앞 집계가 없으면 증감이 성립하지 않기 때문이고, 그 칸도 검토 대상이다.
+  */
+  for (const back of [1, 0]) {
+    const snapshotDate = new Date(today);
+    snapshotDate.setUTCDate(snapshotDate.getUTCDate() - 1 - back);
+    const isLatest = back === 0;
+
+    const rows = entries.map((entry, index) => {
+      const total = Array.from({ length: 14 - back }, (_, day) =>
+        fixtureVisitors(index, day),
+      ).reduce((sum, v) => sum + v, 0);
+      return {
+        seasonId,
+        entryId: entry.id,
+        snapshotDate,
+        rank: index + 1,
+        score: total,
+        validVisitorsTotal: total,
+        revenueTotal: BigInt(index === 0 ? total * 900 : 0),
+        isFinal: isLatest && kind === "final",
+        /* 하위 팀은 축 하한 미달로 시상 제외 — 그 표시도 화면에 있다 */
+        isAwardEligible: index < entries.length - 1,
+      };
+    });
+    await prisma.leaderboardSnapshot.createMany({
+      data: rows,
+      skipDuplicates: true,
+    });
+  }
+}
+
+/** 지금 어느 상태인가. 바가 눌린 자리를 표시하려면 필요하다 */
+export async function readMetricsFixture(
+  seasonId: string,
+): Promise<MetricsFixture> {
+  const latest = await prisma.leaderboardSnapshot.findFirst({
+    where: { seasonId },
+    orderBy: { snapshotDate: "desc" },
+    select: { isFinal: true },
+  });
+  if (!latest) return "none";
+  return latest.isFinal ? "final" : "race";
 }
 
 // ═════════════════════════════════════════════════════════════

@@ -2,7 +2,7 @@
   접근 판정·대시보드 분기 검증 — PLN3 화면정의서를 그대로 돌린다.
     3.1 「정상 흐름」 9행    → nextAction
     3.2 「예외 조합」        → canAccess
-  여기에 기본 규약(401·403·404·409)과 제출 진도 조건을 더해 52케이스다.
+  여기에 기본 규약(401·403·404·409)과 제출 진도 조건을 더해 56케이스다.
 
   돌리는 법:  npm test
   DB를 건드리지 않는다 — 판정이 순수 함수라 환경변수도 필요 없다.
@@ -270,6 +270,31 @@ check(
   "레이스 — 리더보드 공개",
   canAccess("leaderboard", ctx({ phase: SeasonPhase.racing, anon: true })),
   "ALLOW",
+);
+/*
+  시상·아카이브에서도 열려 있어야 한다. 8/27까지 isRacing이라 시상 발표와 동시에
+  잠겼는데, 관전이 가장 몰리는 때가 그때다. 시안 리더보드의 세 번째 상태
+  「시즌 종료」가 도달 불가였다.
+*/
+check(
+  "시상 발표 — 리더보드 계속 공개",
+  canAccess("leaderboard", ctx({ phase: SeasonPhase.awarded, anon: true })),
+  "ALLOW",
+);
+check(
+  "아카이브 — 리더보드 계속 공개",
+  canAccess("leaderboard", ctx({ phase: SeasonPhase.archived, anon: true })),
+  "ALLOW",
+);
+check(
+  "아카이브 — 참가작 페이지 계속 공개",
+  canAccess("projectDetail", ctx({ phase: SeasonPhase.archived, anon: true })),
+  "ALLOW",
+);
+check(
+  "모집 전 — 참가작 페이지 잠김",
+  canAccess("projectDetail", ctx({ phase: SeasonPhase.pre_apply, anon: true })),
+  "STAGE_LOCKED",
 );
 check(
   "사전신청 구간 — /apply 잠김",

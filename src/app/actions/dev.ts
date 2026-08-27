@@ -15,7 +15,9 @@ import {
   setSandboxPhase,
   setSandboxStage,
   setSandboxStatus,
+  setMetricsFixture,
   toggleSandboxFlag,
+  type MetricsFixture,
 } from "@/lib/dev-sandbox";
 import { featureFlagsSchema, type FeatureFlagKey } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
@@ -152,6 +154,24 @@ export async function devSetPhase(formData: FormData): Promise<void> {
   if (!seasonId || !phase) throw new Error("[dev] seasonId·phase가 잘못됐습니다.");
 
   await setSandboxPhase({ seasonId, phase });
+  refresh();
+}
+
+/*
+  리더보드 세 상태를 만든다 — 집계 전 / 레이스 운영중 / 시즌 종료.
+  참가작 상세의 순위·7일 추세, 내 지표의 14일 차트도 같은 데이터를 본다.
+*/
+export async function devSetMetrics(formData: FormData): Promise<void> {
+  guard();
+
+  const seasonId = String(formData.get("seasonId") ?? "");
+  const raw = String(formData.get("kind") ?? "");
+  const kinds: MetricsFixture[] = ["none", "race", "final"];
+  if (!seasonId || !kinds.includes(raw as MetricsFixture)) {
+    throw new Error("[dev] seasonId·kind가 잘못됐습니다.");
+  }
+
+  await setMetricsFixture({ seasonId, kind: raw as MetricsFixture });
   refresh();
 }
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import {
   devImpersonate,
+  devSetMetrics,
   devSetPhase,
   devSetStage,
   devSetStatus,
@@ -41,10 +42,16 @@ type Props = {
   me?: { nickname: string; onboarded: boolean } | null;
   teams?: Team[];
   current?: Team | null;
-  season?: { id: string; slug: string; phase: string } | null;
+  season?: {
+    id: string;
+    slug: string;
+    phase: string;
+    metrics: string;
+  } | null;
   stages?: Option<string>[];
   statuses?: Option<string>[];
   phases?: Option<string>[];
+  metrics?: Option<string>[];
   flags?: { key: string; label: string; on: boolean }[];
 };
 
@@ -91,6 +98,7 @@ export function DevBarClient({
   stages = [],
   statuses = [],
   phases = [],
+  metrics = [],
   flags = [],
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -217,6 +225,30 @@ export function DevBarClient({
             </div>
           </div>
 
+          {/* ── 집계 데이터 ─────────────────────────────────── */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              집계
+              <em className={styles.hint}>리더보드 세 상태</em>
+            </span>
+            <div className={styles.picks}>
+              {season ? (
+                metrics.map((kind) => (
+                  <PickButton
+                    key={kind.value}
+                    action={devSetMetrics}
+                    fields={{ seasonId: season.id, kind: kind.value }}
+                    active={season.metrics === kind.value}
+                  >
+                    {kind.label}
+                  </PickButton>
+                ))
+              ) : (
+                <span className={styles.empty}>시즌이 없습니다</span>
+              )}
+            </div>
+          </div>
+
           {/* ── 기능 플래그 ─────────────────────────────────── */}
           <div className={styles.row}>
             <span className={styles.label}>
@@ -246,8 +278,9 @@ export function DevBarClient({
           </div>
 
           <p className={styles.foot}>
-            dev DB에만 붙습니다. 여기서 만든 제출물은 전부 「[개발용]」으로
-            표시돼요.
+            dev DB에만 붙습니다. 여기서 만든 제출물은 「[개발용]」으로, 지표는
+            「운영자 보정」으로 표시돼요. 리더보드를 보려면 페이즈가 레이스
+            이상이어야 해요.
           </p>
         </div>
       ) : null}
