@@ -1,3 +1,11 @@
+"use client";
+
+/*
+  ⚠️ 클라이언트 컴포넌트다. `useReducedMotion`이 matchMedia를 보기 때문이고,
+  그 값 없이는 애니메이션을 끌 수 없다. 서버 컴포넌트인 참가작 상세가 이걸
+  그대로 부를 수 있게 여기서 경계를 긋는다.
+*/
+
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 interface Props {

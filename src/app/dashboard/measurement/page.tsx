@@ -34,6 +34,45 @@ const STATUS_LABEL: Record<string, string> = {
   [DeployStatus.disabled]: "측정 종료",
 };
 
+/*
+  절차 세 칸. 문구가 화면 안에 흩어져 있으면 상태를 하나 추가할 때 한 군데를
+  빠뜨린다.
+*/
+const STEPS = [
+  {
+    label: "주소 등록",
+    failedLabel: "주소 등록",
+    note: "측정 주소와 실제 배포 주소를 잇습니다",
+  },
+  {
+    label: "소유 확인",
+    failedLabel: "연결 실패",
+    note: "측정 경로가 확정되면 자동으로 진행됩니다",
+  },
+  {
+    label: "집계 시작",
+    failedLabel: "집계 시작",
+    note: "소유 확인이 끝난 다음 날부터 쌓입니다",
+  },
+] as const;
+
+type StepState = "stepDone" | "stepNow" | "stepFailed" | "step";
+
+/** 세 칸 중 어디에 서 있나. 실패는 두 번째 칸에서만 난다 */
+function stepState(
+  index: number,
+  view: { hostname: string | null; verifiedAt: Date | null },
+  failed: boolean,
+): StepState {
+  if (index === 0) return view.hostname ? "stepDone" : "stepNow";
+  if (index === 1) {
+    if (failed) return "stepFailed";
+    if (view.verifiedAt) return "stepDone";
+    return view.hostname ? "stepNow" : "step";
+  }
+  return view.verifiedAt ? "stepNow" : "step";
+}
+
 export default async function Page() {
   const { viewer, access } = await guardPage(
     "dashboardMeasurement",
@@ -43,6 +82,7 @@ export default async function Page() {
 
   const view = await loadMeasurement(viewer.entry.id);
   const canWrite = access.ok && viewer.team.isLeader;
+  const failed = view.deployStatus === DeployStatus.failed;
 
   return (
     <section className={styles.root}>
@@ -102,20 +142,48 @@ export default async function Page() {
       {/*
         지금 안 되는 것을 숨기지 않는다. "등록했는데 왜 0인가"를 여기서 답해두지
         않으면 그 질문이 전부 문의로 온다.
+
+        세 칸을 세로 목록이 아니라 가로 띠로 그린다 — 이건 순서가 있는 절차라
+        "어디서 멈춰 있나"가 한눈에 보여야 한다(시안 vsteps).
       */}
       <section className={styles.pending}>
         <h2 className={styles.pendingTitle}>지금 어디까지 됐나</h2>
-        <ul className={styles.steps}>
-          <li className={view.hostname ? styles.stepDone : styles.step}>
-            주소 등록 {view.hostname ? "— 완료" : "— 아직"}
-          </li>
-          <li className={view.verifiedAt ? styles.stepDone : styles.step}>
-            소유 확인 — 측정 경로가 확정되면 자동으로 진행됩니다
-          </li>
-          <li className={styles.step}>
-            집계 시작 — 소유 확인이 끝난 다음 날부터 쌓입니다
-          </li>
-        </ul>
+
+        <ol className={styles.steps}>
+          {STEPS.map((step, i) => {
+            const state = stepState(i, view, failed);
+            return (
+              <li key={step.label} className={styles[state]}>
+                <span className={styles.dot} aria-hidden>
+                  {state === "stepDone"
+                    ? "✓"
+                    : state === "stepFailed"
+                      ? "✕"
+                      : i + 1}
+                </span>
+                <span className={styles.stepBody}>
+                  <span className={styles.stepLabel}>
+                    {state === "stepFailed" ? step.failedLabel : step.label}
+                  </span>
+                  <span className={styles.stepNote}>{step.note}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+
+        {failed ? (
+          /*
+            ⚠️ 실패 원인을 지어내지 않는다. `hostnames`에 사유 칸이 없어서
+            "DNS가 전파되지 않았어요" 같은 구체적인 진단을 여기서 만들면
+            그게 틀렸을 때 참가자가 엉뚱한 곳을 고친다.
+          */
+          <p className={styles.failed}>
+            연결 확인에 실패했습니다. 배포 주소가 살아 있는지 확인하고 다시
+            등록해 주세요. 원인을 알기 어려우면 운영에 알려 주시면 같이
+            확인하겠습니다.
+          </p>
+        ) : null}
       </section>
     </section>
   );

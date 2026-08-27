@@ -78,11 +78,21 @@ export type LeaderboardRow = {
   notDeployed: boolean;
   /** 축 하한 미달로 종합 시상에서 빠지는 팀. 순위표에는 남는다 */
   awardIneligible: boolean;
+  /** 참가작 주소. 관전자가 순위표에서 바로 서비스로 건너뛴다 */
+  serviceUrl: string | null;
+  /**
+   * 직전 집계 대비 유효 방문 증감.
+   * 앞 스냅샷이 없으면 null이다 — 첫 집계에 "+1,102"를 찍으면 하루 만에
+   * 그만큼 늘어난 것으로 읽힌다.
+   */
+  deltaVisitors: number | null;
 };
 
 export type Leaderboard = {
   /** 이 순위가 언제 것인가. 스냅샷이 없으면 null */
   snapshotDate: Date | null;
+  /** 최종 확정 순위인가. 확정되면 더 안 바뀐다는 사실 자체가 정보다 */
+  isFinal: boolean;
   rows: LeaderboardRow[];
 };
 
@@ -104,10 +114,13 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
       id: true,
       ideaTitle: true,
       team: { select: { name: true } },
+      serviceUrl: true,
       hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
     },
   });
-  if (entries.length === 0) return { snapshotDate: null, rows: [] };
+  if (entries.length === 0) {
+    return { snapshotDate: null, isFinal: false, rows: [] };
+  }
 
   /* 가장 최근 집계일 하나를 잡고 그날 것만 읽는다 — 날짜가 섞이면 순위가 섞인다 */
   const latest = await prisma.leaderboardSnapshot.findFirst({
@@ -126,11 +139,34 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
           validVisitorsTotal: true,
           revenueTotal: true,
           isAwardEligible: true,
+          isFinal: true,
         },
       })
     : [];
 
+  /*
+    전일 대비를 내려면 **직전 집계일**이 필요하다. 어제 날짜로 찾지 않는 이유는
+    롤업이 하루 걸러 돌 수도 있어서다 — 그때 어제로 찾으면 증감이 통째로 빈다.
+  */
+  const previous = latest
+    ? await prisma.leaderboardSnapshot.findFirst({
+        where: { seasonId, snapshotDate: { lt: latest.snapshotDate } },
+        orderBy: { snapshotDate: "desc" },
+        select: { snapshotDate: true },
+      })
+    : null;
+
+  const previousRows = previous
+    ? await prisma.leaderboardSnapshot.findMany({
+        where: { seasonId, snapshotDate: previous.snapshotDate },
+        select: { entryId: true, validVisitorsTotal: true },
+      })
+    : [];
+
   const byEntry = new Map(snapshots.map((s) => [s.entryId, s]));
+  const beforeByEntry = new Map(
+    previousRows.map((s) => [s.entryId, s.validVisitorsTotal]),
+  );
 
   const rows: LeaderboardRow[] = entries.map((entry) => {
     const snapshot = byEntry.get(entry.id);
@@ -146,6 +182,11 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
         entry.hostname?.deployStatus !== DeployStatus.active ||
         entry.hostname.ownershipVerifiedAt === null,
       awardIneligible: snapshot ? !snapshot.isAwardEligible : false,
+      serviceUrl: entry.serviceUrl,
+      deltaVisitors:
+        snapshot && beforeByEntry.has(entry.id)
+          ? snapshot.validVisitorsTotal - (beforeByEntry.get(entry.id) ?? 0)
+          : null,
     };
   });
 
@@ -157,7 +198,12 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
     return a.rank - b.rank;
   });
 
-  return { snapshotDate: latest?.snapshotDate ?? null, rows };
+  return {
+    snapshotDate: latest?.snapshotDate ?? null,
+    /* 한 장이라도 최종이면 그 집계가 최종이다 — 롤업이 통째로 찍는 값이다 */
+    isFinal: snapshots.some((s) => s.isFinal),
+    rows,
+  };
 }
 
 export type PublicEntry = {
@@ -172,6 +218,17 @@ export type PublicEntry = {
   /** 지표 공개에 동의한 팀만 숫자를 노출한다 */
   metricsPublic: boolean;
   metrics: { validVisitors: number; signups: number; asOf: Date } | null;
+  /**
+   * 최근 순위. 정본은 `leaderboard_snapshots`고 여기서 계산하지 않는다 —
+   * 화면마다 다르게 매기면 그게 곧 분쟁이다(리더보드 화면 주석과 같은 규칙).
+   * 스냅샷이 없거나 이 팀이 그 안에 없으면 null이다.
+   */
+  rank: { position: number; of: number } | null;
+  /**
+   * 최근 7일 유효 방문. 합계가 아니라 **모양**을 보여주려는 값이라 배열이다.
+   * 값이 없는 날은 0으로 채운다 — 빠진 날을 이어 그리면 없던 추세가 생긴다.
+   */
+  recentVisitors: number[];
 };
 
 /**
@@ -215,9 +272,56 @@ export async function loadPublicEntry(
   const daily = metricsPublic
     ? await prisma.metricDaily.findMany({
         where: { entryId, metricDate: { lt: today } },
+        orderBy: { metricDate: "asc" },
         select: { metricDate: true, validVisitors: true, signups: true },
       })
     : [];
+
+  /*
+    최근 순위. 가장 최근 스냅샷 한 장을 보고 그 안에서 이 팀의 자리를 읽는다.
+    분모(`of`)는 같은 스냅샷의 행 수다 — "12팀 중 2위"의 12를 다른 데서 세면
+    실격 처리된 팀이 끼거나 빠져 숫자가 안 맞는다.
+  */
+  const latest = metricsPublic
+    ? await prisma.leaderboardSnapshot.findFirst({
+        where: { seasonId },
+        orderBy: { snapshotDate: "desc" },
+        select: { snapshotDate: true },
+      })
+    : null;
+
+  const snapshotRows = latest
+    ? await prisma.leaderboardSnapshot.findMany({
+        where: {
+          seasonId,
+          snapshotDate: latest.snapshotDate,
+          /*
+            ⚠️ 생존 팀만 센다. 리더보드가 실격·자진포기 팀을 빼고 그리므로
+            분모를 전체로 잡으면 "12팀 중 2위"의 12가 리더보드와 안 맞는다.
+          */
+          entry: { status: EntryStatus.active },
+        },
+        select: { entryId: true, rank: true },
+      })
+    : [];
+
+  const mine = snapshotRows.find((row) => row.entryId === entryId);
+  const rank = mine ? { position: mine.rank, of: snapshotRows.length } : null;
+
+  /*
+    최근 7일. 마지막 날부터 거꾸로 7칸을 만들고 있는 날만 채운다.
+    행이 없는 날을 건너뛰면 선이 이어지면서 그 구간에 없던 추세가 생긴다.
+  */
+  const byDay = new Map(
+    daily.map((row) => [row.metricDate.toISOString().slice(0, 10), row]),
+  );
+  const recentVisitors: number[] = [];
+  for (let back = 6; back >= 0; back -= 1) {
+    const day = new Date(today);
+    day.setUTCDate(day.getUTCDate() - 1 - back);
+    const key = day.toISOString().slice(0, 10);
+    recentVisitors.push(byDay.get(key)?.validVisitors ?? 0);
+  }
 
   const asOf = daily.reduce<Date | null>(
     (latest, row) =>
@@ -245,5 +349,8 @@ export async function loadPublicEntry(
             signups: daily.reduce((sum, r) => sum + r.signups, 0),
             asOf,
           },
+    rank,
+    /* 집계가 하나도 없으면 평평한 선 대신 아무것도 안 그린다 */
+    recentVisitors: recentVisitors.some((v) => v > 0) ? recentVisitors : [],
   };
 }

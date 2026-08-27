@@ -151,3 +151,133 @@
 .link:hover {
   color: var(--c-text-strong);
 }
+
+/* ── 추세 띠 ───────────────────────────────────────────────── */
+
+/*
+  값이 아니라 **모양**을 읽는 자리다. 그래서 눈금도 축도 없다 — 정확한 숫자는
+  바로 아래 표에 있고, 여기서 눈금을 그리면 두 곳이 같은 말을 두 번 하게 된다.
+*/
+.trend,
+.channels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.trendTitle {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 96px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bar {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  height: 100%;
+  /* 값이 0인 날도 자리를 지킨다 — 빠진 날과 0인 날은 다르다 */
+  background: linear-gradient(
+    to top,
+    var(--c-line),
+    var(--c-line) 1.5px,
+    transparent 1.5px
+  );
+}
+
+.barFill {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--c-blue);
+}
+
+/* 날짜와 값은 호버로만 — 14개를 상시로 찍으면 글자가 겹친다 */
+.barLabel {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 1;
+  padding: 3px 8px;
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-xs);
+  background: var(--c-surface-flat);
+  color: var(--c-text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+  transition: opacity var(--t-fast);
+}
+
+.bar:hover .barLabel,
+.bar:focus-within .barLabel {
+  opacity: 1;
+}
+
+/* ── 유입 채널 ─────────────────────────────────────────────── */
+
+.channelList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  max-width: 34em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.channel {
+  display: grid;
+  grid-template-columns: minmax(6em, 10em) 1fr 3em;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-sm);
+}
+
+.channelName {
+  overflow: hidden;
+  color: var(--c-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channelTrack {
+  overflow: hidden;
+  height: 8px;
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.channelTrack i {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--c-blue);
+}
+
+.channelPct {
+  color: var(--c-text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

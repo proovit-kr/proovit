@@ -173,3 +173,149 @@
 .link:hover {
   color: var(--c-text-strong);
 }
+
+/* ── 살아 있음 · 확정 ──────────────────────────────────────── */
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+/*
+  점 하나만 깜빡인다. 「LIVE」라고 크게 쓰고 싶어지지만 숫자가 15분마다 갱신되는
+  것이지 실시간이 아니라서, 실제보다 빠르게 읽히는 표현을 쓰지 않는다.
+*/
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--c-text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.live i {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--c-lime);
+  animation: lbPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes lbPulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live i {
+    animation: none;
+  }
+}
+
+.final {
+  padding: 3px 10px;
+  border: 1px solid var(--c-lime-35);
+  border-radius: var(--r-pill);
+  color: var(--c-lime);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.finalBanner {
+  max-width: 44em;
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-lime-35);
+  border-radius: var(--r-lg);
+  background: var(--c-lime-08);
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+/* ── 스테이지 띠 ───────────────────────────────────────────── */
+
+.track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trackItem,
+.trackGate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 5px 12px;
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-pill);
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+}
+
+/* 게이트만 색을 쓴다 — 거기서 팀이 갈린다 */
+.trackGate {
+  border-color: var(--c-violet-40);
+  color: var(--c-violet);
+}
+
+.trackKey {
+  color: var(--c-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+}
+
+.trackGate .trackKey {
+  color: inherit;
+}
+
+.trackTag {
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+}
+
+.trackGate .trackTag {
+  color: inherit;
+  opacity: 0.75;
+}
+
+/* ── 서비스 열기 · 전일 대비 ───────────────────────────────── */
+
+.service {
+  white-space: nowrap;
+}
+
+.serviceLink {
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  border-bottom: 1px solid var(--c-line-3);
+}
+
+.serviceLink:hover {
+  color: var(--c-text-strong);
+}
+
+/*
+  증감에만 색을 쓴다. 순위 자체에는 안 쓴다 — 채점식이 확정되기 전에 1위를
+  강조하면 우리가 먼저 판정하는 셈이다(이 파일 머리 주석).
+*/
+.up {
+  color: var(--c-lime);
+  font-variant-numeric: tabular-nums;
+}
+
+.down {
+  color: var(--c-text-dim);
+  font-variant-numeric: tabular-nums;
+}

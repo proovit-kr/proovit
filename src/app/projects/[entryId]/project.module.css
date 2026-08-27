@@ -89,37 +89,7 @@
   line-height: 1.7;
 }
 
-/* ── 진행 ──────────────────────────────────────────────────── */
-
-.stages {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2) var(--s-5);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.stage,
-.stageDone {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-2);
-  font-size: var(--fs-sm);
-}
-
-.stage {
-  color: var(--c-text-faint);
-}
-
-.stageDone {
-  color: var(--c-text-strong);
-}
-
-.stageKey {
-  font-family: var(--font-mono);
-  font-size: var(--fs-2xs);
-}
+/* 진행 단계는 JourneyTrack(StageProgress.module.css)이 그린다 */
 
 /* ── 지표 ──────────────────────────────────────────────────── */
 
@@ -146,8 +116,29 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* "02 / 12"의 분모. 순위 숫자보다 눌러야 자릿수가 먼저 읽힌다 */
+.rankOf {
+  color: var(--c-text-faint);
+  font-size: var(--fs-base);
+}
+
+.dash {
+  color: var(--c-text-faint);
+}
+
+/* 스파크라인은 값이 아니라 모양이라 숫자 크기를 따르지 않는다 */
+.spark {
+  display: flex;
+  align-items: center;
+  min-height: 2.2em;
+}
+
 @media (max-width: 640px) {
   .title {
     font-size: var(--fs-3xl);
+  }
+
+  .metrics {
+    gap: var(--s-6);
   }
 }

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/Badge";
+import { Sparkline } from "@/components/Sparkline";
+import { JourneyTrack } from "@/components/StageProgress";
 import { AnchorButton } from "@/components/Button";
 import { Footer } from "@/components/Footer";
 import { NavBar } from "@/components/NavBar";
@@ -27,6 +29,19 @@ import styles from "./project.module.css";
 */
 
 const NUM = new Intl.NumberFormat("ko-KR");
+
+/*
+  Sparkline은 「작을수록 위」인 y좌표 배열을 받는다(컴포넌트 주석, 기준 높이 18).
+  방문 수는 반대로 클수록 위라 뒤집어서 넘긴다. 최댓값이 0이면 호출하지 않으므로
+  (화면에서 걸러진다) 여기서 0으로 나누는 일은 없다.
+*/
+const SPARK_BASE = 18;
+
+function toSparkValues(series: number[]): number[] {
+  const max = Math.max(...series);
+  if (max === 0) return series.map(() => SPARK_BASE);
+  return series.map((v) => SPARK_BASE - (v / max) * SPARK_BASE);
+}
 const DATE = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul",
   month: "long",
@@ -117,18 +132,19 @@ export default async function Page({
         </header>
 
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>진행</h2>
-          <ol className={styles.stages}>
-            {SEASON_STAGES.map((stage, i) => (
-              <li
-                key={stage.key}
-                className={i <= stageIndex ? styles.stageDone : styles.stage}
-              >
-                <span className={styles.stageKey}>{stage.key}</span>
-                <span>{stage.label}</span>
-              </li>
-            ))}
-          </ol>
+          <h2 className={styles.sectionTitle}>시즌 여정</h2>
+          {/*
+            프로토타입이 이 화면을 위해 만들어 둔 트랙을 그대로 쓴다
+            (components/StageProgress.tsx의 JourneyTrack). 목록으로 늘어놓으면
+            어디까지 왔는지가 안 보이는데, 관전자가 궁금한 것이 그것이다.
+          */}
+          <JourneyTrack
+            steps={SEASON_STAGES.map((stage, i) => ({
+              label: stage.label,
+              sub: stage.gate ? `${stage.week} · ${stage.gate}` : stage.week,
+              done: i <= stageIndex,
+            }))}
+          />
         </section>
 
         <section className={styles.section}>
@@ -145,6 +161,10 @@ export default async function Page({
             </p>
           ) : (
             <>
+              {/*
+                시안의 카드 셋 — 유효 이용자 · 현재 순위 · 최근 7일.
+                순위와 추세는 관전자가 이 화면에 오는 이유라 합계 옆에 같이 둔다.
+              */}
               <dl className={styles.metrics}>
                 <div>
                   <dt>유효 방문</dt>
@@ -154,6 +174,35 @@ export default async function Page({
                   <dt>가입</dt>
                   <dd>{NUM.format(entry.metrics.signups)}</dd>
                 </div>
+                <div>
+                  <dt>현재 순위</dt>
+                  <dd>
+                    {entry.rank ? (
+                      <>
+                        {String(entry.rank.position).padStart(2, "0")}
+                        <span className={styles.rankOf}>
+                          {" "}
+                          / {entry.rank.of}
+                        </span>
+                      </>
+                    ) : (
+                      /* 순위는 스냅샷이 정본이다. 없으면 비운다 */
+                      <span className={styles.dash}>—</span>
+                    )}
+                  </dd>
+                </div>
+                {entry.recentVisitors.length > 0 ? (
+                  <div>
+                    <dt>최근 7일</dt>
+                    <dd className={styles.spark}>
+                      <Sparkline
+                        values={toSparkValues(entry.recentVisitors)}
+                        width={92}
+                        height={26}
+                      />
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
               <p className={styles.note}>
                 {DATE.format(entry.metrics.asOf)}까지 집계된 값입니다. 실시간이

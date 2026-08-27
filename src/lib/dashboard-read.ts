@@ -106,6 +106,12 @@ export type MetricsView = {
   totals: { validVisitors: number; signups: number; revenue: bigint };
   /** 참고 지표(채점 축이 아닌 것)가 하나라도 있는가 */
   hasExtra: boolean;
+  /**
+   * 유입 채널. 기간 합계를 방문 많은 순으로 준다.
+   * ⚠️ 비율은 여기서 내지 않는다 — 화면이 자기 분모로 나눈다. 「상위 3」만 보여줄
+   * 때와 전체를 보여줄 때 분모가 다르고, 그걸 여기서 정하면 화면이 못 바꾼다.
+   */
+  channels: { channel: string; visitors: number }[];
 };
 
 /**
@@ -138,7 +144,20 @@ export async function loadMetrics(
     },
   });
 
-  const extra = await prisma.metricExtraDaily.count({ where: { entryId } });
+  const [extra, channels] = await Promise.all([
+    prisma.metricExtraDaily.count({ where: { entryId } }),
+    /*
+      채널은 하루 × 채널로 쌓여 있어 기간 합계를 DB에서 접는다.
+      채널명은 참가자가 정하는 UTM 값이라 열려 있다(스키마 주석) — 여기서
+      아는 이름으로 묶거나 이름을 바꾸지 않는다.
+    */
+    prisma.metricChannelDaily.groupBy({
+      by: ["channel"],
+      where: { entryId, metricDate: { gte: since } },
+      _sum: { visitors: true },
+      orderBy: { _sum: { visitors: "desc" } },
+    }),
+  ]);
 
   return {
     daily: rows.map((row) => ({
@@ -156,5 +175,9 @@ export async function loadMetrics(
       revenue: rows.reduce((sum, r) => sum + r.revenue, BigInt(0)),
     },
     hasExtra: extra > 0,
+    channels: channels.map((row) => ({
+      channel: row.channel,
+      visitors: row._sum.visitors ?? 0,
+    })),
   };
 }
