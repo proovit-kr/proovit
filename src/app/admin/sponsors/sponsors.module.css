@@ -1,0 +1,424 @@
+/*
+  스폰서 크레딧 콘솔.
+
+  참가자 화면(credits.module.css)과 같은 사실을 다른 밀도로 그린다. 저쪽은
+  카드 넉 장을 레일에 걸어 흐름을 보여주고, 여기는 표로 눌러 담아 한눈에
+  비교하게 한다 — 운영자가 하는 일이 「어느 팀이 안 받았나」를 훑는 것이다.
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding-block: var(--s-8) var(--s-14);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+}
+
+.sub {
+  max-width: 40em;
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+/* 플래그가 꺼져 있다는 사실은 경고다 — 등록해도 아무에게도 안 보인다 */
+.warnStrip {
+  max-width: 44em;
+  margin: var(--s-1) 0 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-warn-35);
+  border-radius: var(--r-lg);
+  background: var(--c-warn-10);
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+/* ── KPI ───────────────────────────────────────────────────── */
+
+.kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--s-3);
+}
+
+.kpi > div {
+  padding: var(--s-4);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-lg);
+  background: var(--c-surface);
+}
+
+.kpiLabel {
+  margin: 0 0 var(--s-1);
+  color: var(--c-text-dim);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+}
+
+.kpiValue {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--fs-4xl);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.kpiValue span {
+  color: var(--c-text-faint);
+  font-size: var(--fs-sm);
+}
+
+/* ── 단 ────────────────────────────────────────────────────── */
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.blockTitle {
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+.note {
+  max-width: 52em;
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: var(--fs-xs);
+  line-height: 1.8;
+}
+
+.hint {
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+  line-height: 1.6;
+}
+
+/* ── 표 ────────────────────────────────────────────────────── */
+
+/* 표는 자기 안에서 가로 스크롤한다 — 페이지가 옆으로 흐르면 안 된다 */
+.scroller {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--s-3) var(--s-3);
+  border-bottom: 1px solid var(--c-line-2);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.table thead th {
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.rowEmpty td {
+  opacity: 0.6;
+}
+
+.rowEmpty td:first-child {
+  opacity: 1;
+}
+
+.mono {
+  color: var(--c-text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.cellSub {
+  display: block;
+  margin-top: 2px;
+  color: var(--c-text-faint);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+.teamCell {
+  color: var(--c-text-strong);
+  font-weight: 700;
+}
+
+.dim {
+  color: var(--c-text-faint);
+}
+
+.consentOk {
+  color: var(--c-teal);
+  font-weight: 700;
+}
+
+/* 언락 이벤트는 내부 값 그대로 — 운영자는 DB 값으로 대조한다 */
+.event {
+  display: inline-block;
+  padding: 2px 7px;
+  border: 1px solid var(--c-violet-40);
+  border-radius: var(--r-xs);
+  color: var(--c-violet);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+}
+
+/* ── 폼 ────────────────────────────────────────────────────── */
+
+.editors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: var(--s-4);
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-lg);
+  background: var(--c-surface);
+}
+
+.form,
+.poolForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.formHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3);
+  color: var(--c-text-strong);
+  font-size: var(--fs-base);
+}
+
+.formHint {
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.field > span {
+  color: var(--c-text-dim);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+}
+
+.field small {
+  margin-left: var(--s-1);
+  color: var(--c-text-faint);
+  font-weight: 400;
+}
+
+.input {
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-sm);
+  background: var(--c-field);
+  color: var(--c-text);
+  font-size: var(--fs-sm);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--c-lime);
+  outline-offset: 1px;
+}
+
+.formFoot {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.warn {
+  margin: 0;
+  color: var(--c-warn);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+.error {
+  margin: 0;
+  color: var(--c-danger);
+  font-size: var(--fs-sm);
+}
+
+.ok {
+  margin: 0;
+  color: var(--c-teal);
+  font-size: var(--fs-sm);
+}
+
+/* ── 코드 풀 ───────────────────────────────────────────────── */
+
+.pool {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-lg);
+  background: var(--c-surface-2);
+}
+
+.poolCount {
+  color: var(--c-lime);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+}
+
+.poolCount i {
+  color: var(--c-text-faint);
+  font-size: var(--fs-xs);
+  font-style: normal;
+}
+
+.poolBar {
+  flex: 1;
+  overflow: hidden;
+  height: 8px;
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.poolBar i {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--c-lime);
+}
+
+.poolNote {
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+}
+
+/* ── 행 안의 작은 동작 ─────────────────────────────────────── */
+
+.rowAction {
+  padding: 4px 8px;
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--c-text-muted);
+  font-size: var(--fs-2xs);
+  cursor: pointer;
+}
+
+.rowAction:hover {
+  color: var(--c-text-strong);
+}
+
+.rowForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 18em;
+  white-space: normal;
+}
+
+/* ── 발송 이력 ─────────────────────────────────────────────── */
+
+.log {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.log li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+  padding-block: var(--s-3);
+  border-top: 1px solid var(--c-line-2);
+  font-size: var(--fs-sm);
+}
+
+.logWhen {
+  color: var(--c-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.logAction {
+  color: var(--c-violet);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.logActor {
+  color: var(--c-text-muted);
+  font-weight: 700;
+}
+
+.logReason {
+  flex-basis: 100%;
+  color: var(--c-text-dim);
+  line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .editors {
+    grid-template-columns: 1fr;
+  }
+}

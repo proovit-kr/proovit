@@ -18,6 +18,11 @@ import styles from "./admin.module.css";
   나중에 추가되는 라우트가 조용히 열린다.
 */
 
+/*
+  ⚠️ 플래그로 가리는 항목이 하나 있다. 참가자 레이아웃과 같은 규칙이다 —
+  꺼진 기능은 링크를 아예 만들지 않는다(06 §4.4). 직접 주소를 치면
+  `canAccess("adminSponsors")`가 404를 낸다.
+*/
 const ITEMS = [
   { href: "/admin", label: "홈" },
   { href: "/admin/seasons", label: "시즌" },
@@ -38,6 +43,10 @@ export default async function AdminLayout({
 }) {
   const viewer = await loadViewerState();
 
+  const items = viewer.season?.flags.sponsors
+    ? [...ITEMS, { href: "/admin/sponsors", label: "스폰서 크레딧" }]
+    : ITEMS;
+
   return (
     <div className={`page page--ops ${styles.page}`}>
       <header className={styles.head}>
@@ -57,7 +66,7 @@ export default async function AdminLayout({
           className={`container container--ops ${styles.nav}`}
           aria-label="운영자 콘솔"
         >
-          {ITEMS.map((item) => (
+          {items.map((item) => (
             <Link key={item.href} href={item.href} className={styles.navLink}>
               {item.label}
             </Link>

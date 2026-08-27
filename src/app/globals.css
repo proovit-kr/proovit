@@ -52,6 +52,24 @@
   --c-gold: #ffc24d;
   --c-gold-10: rgba(255, 194, 77, 0.1);
 
+  /* ---- 색: 보조 팔레트 ----
+     시안 v0.5가 라임 하나로 다 말하려던 것을 셋으로 갈랐다. 역할이 고정이라
+     장식으로 쓰지 않는다(13 크레딧 센터 설계서 7장 「색 규칙」).
+       바이올렛 = 게이트·잠금 조건    (아직 안 열린 것)
+       틸       = 시스템 검증·확인 완료 (우리가 확인한 것)
+       블루     = 정보 안내           (읽고 넘어가는 것)
+     라임은 그대로 지표와 CTA에만 남는다. */
+  --c-violet: #a78bfa;
+  --c-violet-13: rgba(167, 139, 250, 0.13);
+  --c-violet-40: rgba(167, 139, 250, 0.4);
+  --c-violet-55: rgba(167, 139, 250, 0.55);
+  --c-teal: #45d6be;
+  --c-teal-13: rgba(69, 214, 190, 0.13);
+  --c-teal-45: rgba(69, 214, 190, 0.45);
+  --c-blue: #6fb3ff;
+  --c-blue-12: rgba(111, 179, 255, 0.12);
+  --c-blue-40: rgba(111, 179, 255, 0.4);
+
   /* ---- 색: 선 ---- */
   --c-line: rgba(255, 255, 255, 0.07);
   --c-line-2: rgba(255, 255, 255, 0.09);
@@ -162,6 +180,9 @@
   --color-lime-hover: var(--c-lime-hover);
   --color-warn: var(--c-warn);
   --color-danger: var(--c-danger);
+  --color-violet: var(--c-violet);
+  --color-teal: var(--c-teal);
+  --color-blue: var(--c-blue);
   --color-gold: var(--c-gold);
   --color-line: var(--c-line-2);
 

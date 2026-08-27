@@ -1,0 +1,627 @@
+/*
+  혜택과 크레딧 — 언락 레일.
+
+  카드를 그리드가 아니라 **세로 레일**에 거는 것이 이 화면의 전부다. C1이 열리고
+  C2가 열리는 순서가 눈에 보여야 "스테이지를 통과하면 열린다"는 규칙이 설명 없이
+  읽힌다. 격자에 넉 장을 늘어놓으면 넷이 동시에 존재하는 것처럼 보인다.
+
+  색은 역할로 고른다(globals.css 「보조 팔레트」).
+    라임    지금 받을 수 있는 것, CTA
+    바이올렛 아직 안 열린 조건
+    틸      우리가 확인한 것
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding-block: var(--s-10) var(--s-14);
+}
+
+/* ── 머리 ──────────────────────────────────────────────────── */
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.lead {
+  max-width: 34em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+  line-height: 1.7;
+}
+
+.locked,
+.noteWarn,
+.noteInfo {
+  max-width: 44em;
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-line-3);
+  border-radius: var(--r-lg);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.noteWarn {
+  border-color: var(--c-warn-35);
+  background: var(--c-warn-10);
+  color: var(--c-text-muted);
+}
+
+.noteInfo {
+  border-color: var(--c-blue-40);
+  background: var(--c-blue-12);
+  color: var(--c-text-muted);
+}
+
+/* ── 요약 3칸 ──────────────────────────────────────────────── */
+
+.summary {
+  display: grid;
+  grid-template-columns: 0.9fr 0.9fr 1.6fr;
+  gap: var(--s-4);
+}
+
+.tile {
+  position: relative;
+  overflow: hidden;
+  padding: var(--s-5);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-xl);
+  background: var(--c-card);
+}
+
+/* 상단 2px 그라디언트가 칸마다 역할색을 한 번씩 쓴다 */
+.tile::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, var(--tint), transparent 75%);
+}
+.tileLime {
+  --tint: var(--c-lime);
+}
+.tileBlue {
+  --tint: var(--c-blue);
+}
+.tileViolet {
+  --tint: var(--c-violet);
+}
+
+.tileLabel {
+  margin: 0 0 var(--s-2);
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.tileValue {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--fs-5xl);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.tileOf {
+  margin-left: var(--s-1);
+  color: var(--c-text-faint);
+  font-size: var(--fs-base);
+}
+
+.tileNone {
+  color: var(--c-text-faint);
+  font-family: var(--font-sans);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.tileNext {
+  margin: 0;
+  color: var(--c-text);
+  font-size: var(--fs-base);
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.nextCond {
+  color: var(--c-violet);
+}
+
+/* ── 레일 ──────────────────────────────────────────────────── */
+
+/*
+  세로선은 ::before 하나로 그린다. 카드마다 선 조각을 두면 카드 높이가 달라질 때
+  마디가 어긋난다. 첫 노드 중심에서 시작해 마지막 노드 중심에서 끝내려고
+  위아래를 노드 반지름(18px)만큼 물린다.
+*/
+.rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin: 0;
+  padding: 0 0 0 52px;
+  list-style: none;
+}
+
+.rail::before {
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 38px;
+  bottom: 38px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--c-line-4);
+}
+
+.railItem {
+  position: relative;
+}
+
+.node {
+  position: absolute;
+  left: -52px;
+  top: var(--s-5);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid var(--c-line-strong);
+  border-radius: var(--r-pill);
+  background: var(--c-surface-flat);
+  color: var(--c-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  /* 배경색 링으로 세로선을 끊어 노드가 선 위에 얹힌 것처럼 보이게 한다 */
+  box-shadow: 0 0 0 5px var(--c-bg);
+}
+
+/* ── 카드 ──────────────────────────────────────────────────── */
+
+.card {
+  padding: var(--s-5) var(--s-6);
+  border: 1.5px solid var(--c-line-2);
+  border-radius: var(--r-xl);
+  background: var(--c-card);
+  transition:
+    border-color var(--t-base),
+    box-shadow var(--t-base),
+    opacity var(--t-base);
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-2);
+}
+
+.kind {
+  color: var(--c-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.cardTitle {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.sponsor {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-left: auto;
+  color: var(--c-text);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.sponsorMark,
+.sponsorMarkNone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-xs);
+  font-size: var(--fs-2xs);
+  font-weight: 900;
+}
+
+.sponsorMark {
+  background: var(--c-text);
+  color: var(--c-bg);
+}
+
+.sponsorMarkNone {
+  border: 1px dashed var(--c-line-strong);
+  background: var(--c-surface);
+  color: var(--c-text-faint);
+}
+
+.desc {
+  max-width: 44em;
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+/* 조건 알약 — 바이올렛(안 열림) → 틸(채움) */
+.cond,
+.condMet {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 0;
+  padding: 5px 11px;
+  border: 1px solid var(--c-violet-40);
+  border-radius: var(--r-pill);
+  background: var(--c-violet-13);
+  color: var(--c-violet);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.condMet {
+  border-color: var(--c-teal-45);
+  background: var(--c-teal-13);
+  color: var(--c-teal);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-7);
+  margin: var(--s-4) 0 0;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--c-line-2);
+}
+
+.meta dt {
+  margin-bottom: 3px;
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+}
+
+.meta dd {
+  margin: 0;
+  color: var(--c-text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.metaLime {
+  color: var(--c-lime);
+}
+
+/* ── 카드 본문 ─────────────────────────────────────────────── */
+
+.hint {
+  max-width: 44em;
+  margin: var(--s-4) 0 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.scheduled {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-4) 0 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px dashed var(--c-lime-45);
+  border-radius: var(--r-lg);
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.scheduled strong {
+  color: var(--c-lime);
+  font-family: var(--font-mono);
+}
+
+.codeBox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: 1.5px solid var(--c-lime-35);
+  border-radius: var(--r-lg);
+  /* 안쪽 그림자로 "박혀 있는 값"처럼 보이게 한다 — 복사해 가는 자리다 */
+  background: rgba(8, 13, 24, 0.72);
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.38);
+}
+
+.codeValue {
+  color: var(--c-lime);
+  font-family: var(--font-mono);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  /* 긴 초대 링크가 칸을 넘치지 않게 */
+  overflow-wrap: anywhere;
+}
+
+.codeSent {
+  margin-left: auto;
+  color: var(--c-text-faint);
+  font-size: var(--fs-2xs);
+}
+
+.inlineForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+
+.actionError {
+  color: var(--c-danger);
+  font-size: var(--fs-sm);
+}
+
+.appliedForm {
+  margin-top: var(--s-3);
+}
+
+.applied,
+.appliedOn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.appliedOn {
+  color: var(--c-teal);
+  font-weight: 700;
+}
+
+.appliedBox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--c-line-strong);
+  border-radius: var(--r-xs);
+  font-size: var(--fs-xs);
+  transition: var(--t-fast);
+}
+
+.appliedOn .appliedBox {
+  border-color: var(--c-teal);
+  background: var(--c-teal-13);
+  color: var(--c-teal);
+}
+
+/* ── 폴백, 0원 스타트 스택 ─────────────────────────────────── */
+
+.fallback {
+  margin-top: var(--s-4);
+  padding: var(--s-3) var(--s-4) var(--s-4);
+  border: 1px dashed var(--c-line-3);
+  border-radius: var(--r-lg);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.fallbackTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-3);
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.mono {
+  color: var(--c-lime);
+  font-family: var(--font-mono);
+}
+
+.fallbackSub {
+  color: var(--c-text-faint);
+  font-weight: 400;
+}
+
+.fallbackList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-3);
+  padding: 0;
+  list-style: none;
+}
+
+.fallbackList li {
+  padding: 5px 10px;
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-sm);
+  background: var(--c-surface-2);
+  color: var(--c-text);
+  font-size: var(--fs-xs);
+}
+
+.fallbackNote {
+  margin-left: var(--s-2);
+  color: var(--c-text-faint);
+}
+
+/* ── 상태별 표정 ───────────────────────────────────────────── */
+
+.stPending .node {
+  border-style: dashed;
+}
+.stPending .cardTitle {
+  color: var(--c-text-muted);
+}
+
+.stLocked .cardTitle {
+  color: var(--c-text-muted);
+}
+.stLocked .desc {
+  color: var(--c-text-faint);
+}
+.stLocked .node {
+  border-color: var(--c-violet-55);
+  background: var(--c-violet-13);
+}
+
+/*
+  받을 수 있는 카드 하나만 빛난다. 넷이 다 강조되면 어디를 눌러야 하는지
+  사라진다 — 라임은 「지금 할 일」에만 쓴다(§7).
+*/
+.stReady {
+  border-color: var(--c-lime-45);
+  box-shadow: var(--sh-lime-glow);
+}
+.stReady .node {
+  border-color: var(--c-lime);
+  background: var(--c-lime-12);
+  color: var(--c-lime);
+}
+
+.stScheduled .node {
+  border-color: var(--c-lime-45);
+  color: var(--c-lime);
+}
+
+.stDelivered .node {
+  border-color: var(--c-lime);
+  background: var(--c-lime);
+  color: var(--c-bg);
+}
+
+.stConfirmed {
+  border-color: var(--c-teal-45);
+}
+.stConfirmed .node {
+  border-color: var(--c-teal);
+  background: var(--c-teal-13);
+  color: var(--c-teal);
+}
+
+.stExpired {
+  opacity: 0.62;
+}
+.stExpired .node {
+  border-style: dashed;
+}
+
+.stAwarded {
+  border-color: var(--c-lime-45);
+  background: linear-gradient(
+      180deg,
+      rgba(200, 255, 61, 0.05),
+      transparent 60%
+    ),
+    var(--c-card);
+}
+.stAwarded .node {
+  border-color: var(--c-lime-45);
+  background: var(--c-lime-12);
+}
+
+/* ── 꼬리말 ────────────────────────────────────────────────── */
+
+.foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-width: 52em;
+  padding-left: 52px;
+  color: var(--c-text-faint);
+  font-size: var(--fs-xs);
+  line-height: 1.8;
+}
+
+.foot p {
+  margin: 0;
+}
+
+.foot strong {
+  color: var(--c-text-dim);
+  font-weight: 600;
+}
+
+.footLink {
+  color: var(--c-text-muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--c-line-3);
+}
+
+.footLink:hover {
+  color: var(--c-text-strong);
+}
+
+/* ── 좁은 화면 ─────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  .summary {
+    grid-template-columns: 1fr;
+  }
+
+  /* 노드를 카드 안으로 들여 레일 들여쓰기를 없앤다 */
+  .rail,
+  .foot {
+    padding-left: 0;
+  }
+  .rail::before {
+    display: none;
+  }
+  .node {
+    position: static;
+    margin-bottom: var(--s-3);
+    box-shadow: none;
+  }
+  .sponsor {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}

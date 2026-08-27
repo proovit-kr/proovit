@@ -98,6 +98,11 @@ enum ConsentType {
   evidence
   /// 상호 테스터 참여 동의
   tester
+  /// 스폰서 크레딧 발급을 위한 정보 제공 동의(선택).
+  /// 넘기는 것은 성명과 이메일뿐이고 스폰서는 발급·확인 목적으로만 쓴다
+  /// (13 크레딧 센터 설계서 8장 · 광고용역 계약서 · 개인정보처리방침의 스폰서 표).
+  /// 없으면 이메일 명단 방식의 지급 대상에서 뺀다.
+  sponsor_share
 }
 
 enum NotifChannel {
@@ -262,10 +267,58 @@ enum IntegrationStatus {
   disabled
 }
 
+/// 코드 풀 한 줄의 상태. issued = 아직 아무도 안 가져간 것
 enum CreditStatus {
   issued
   claimed
   expired
+}
+
+/// 혜택 카드 4종(13 크레딧 센터 설계서 3장).
+/// c4는 상금 규정이 적용되는 부상이라 클레임 흐름을 타지 않는다.
+enum CreditKind {
+  c1
+  c2
+  c3
+  c4
+}
+
+/// 카드 상태. negotiating이면 언락이 일어나도 폴백 가이드만 보여준다
+enum CreditOfferStatus {
+  negotiating
+  active
+  ended
+}
+
+/// 카드를 여는 사건. 참가 등록은 여기 없다 — 파밍 차단
+enum CreditUnlockEvent {
+  s1_submitted
+  gate1_passed
+  deploy_verified
+  final_confirmed
+}
+
+/// 코드가 참가자에게 닿는 방식
+enum CreditDelivery {
+  code_pool
+  invite_link
+  email_list
+  manual
+}
+
+/// 팀별 발급 상태 6종(13 설계서 4장). 「잠금」은 행 없음으로 표현한다.
+/// 되돌림이 없어 값의 순서가 곧 진행이다.
+enum CreditClaimStatus {
+  available
+  scheduled
+  delivered
+  confirmed
+  expired
+}
+
+enum CreditDeliveredVia {
+  email
+  manual
 }
 
 enum LeadStatus {
@@ -577,7 +630,7 @@ model Season {
   snapshots   LeaderboardSnapshot[]
   testers     TesterAssignment[]
   awards      Award[]
-  creditCodes CreditCode[]
+  creditOffers CreditOffer[]
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -710,7 +763,7 @@ model Entry {
   violations    ComplianceViolation[]
   sanctions     Sanction[]
   appeals       Appeal[]
-  creditIssues  CreditIssuance[]
+  creditClaims  CreditClaim[]
   awards        Award[]
   consents      Consent[]
   testerOf      TesterAssignment[]    @relation("TesterEntry")
@@ -1162,14 +1215,17 @@ model TesterFeedback {
 // H. 혜택 · 스폰서
 // ═════════════════════════════════════════════════════════════
 
+/// 스폰서. 크레딧을 만들고 발급하는 주체다.
+/// PROOVIT은 코드를 만들지 않고 전달과 확인만 한다(13 크레딧 센터 설계서 2장).
 model Sponsor {
   id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String  @db.VarChar(80)
+  /// 카드에 붙일 로고. 광고용역 계약 범위 안에서만 노출한다(13 설계서 8장)
+  logoUrl     String? @map("logo_url")
   benefitDesc String? @map("benefit_desc")
   websiteUrl  String? @map("website_url")
 
-  creditCodes CreditCode[]
-  issuances   CreditIssuance[]
+  offers CreditOffer[]
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1177,43 +1233,109 @@ model Sponsor {
   @@map("sponsors")
 }
 
-model CreditCode {
+/// 혜택 카드 한 장. 시즌 × 종류로 하나다(13 설계서 3장 표).
+///
+/// 카드가 팀별 발급(credit_claims)과 갈라져 있는 이유는 「협의 중」 때문이다.
+/// 스폰서가 안 붙어도 카드는 서 있고 폴백(0원 스타트 스택)을 보여준다 —
+/// 제휴 0건이어도 혜택 탭은 연다는 것이 13 설계서 2장의 전제다.
+model CreditOffer {
   id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sponsorId String  @map("sponsor_id") @db.Uuid
-  seasonId  String? @map("season_id") @db.Uuid
+  seasonId  String  @map("season_id") @db.Uuid
+  /// 협의 중이면 null이다. 그때 화면은 스폰서명 대신 「스폰서 미정」을 쓴다
+  sponsorId String? @map("sponsor_id") @db.Uuid
 
-  /// 언락 조건. 이 진도에 도달하면 발급한다. 스폰서마다 다를 수 있다.
-  /// 스테이지 언락형이라 파밍이 차단되고, 이중 발급은 DB 유니크가 막는다.
-  unlockStage EntryStage   @map("unlock_stage")
-  code        String       @unique @db.VarChar(120)
-  status      CreditStatus @default(issued)
+  kind   CreditKind
+  status CreditOfferStatus @default(negotiating)
 
-  sponsor  Sponsor         @relation(fields: [sponsorId], references: [id])
-  season   Season?         @relation(fields: [seasonId], references: [id])
-  issuance CreditIssuance?
+  /// 이 사건이 일어나면 팀의 발급 상태가 「잠금」에서 「발급 가능」으로 간다.
+  /// 참가 등록만으로는 아무것도 열리지 않는다 — 파밍 차단(13 설계서 2장)
+  unlockEvent    CreditUnlockEvent @map("unlock_event")
+  deliveryMethod CreditDelivery    @default(manual) @map("delivery_method")
+
+  /// 코드 배포 예정일. C1은 빌드 스테이지 개시일이다 —
+  /// 크레딧 유효기간이 지급 시점부터 도므로 제출 즉시 주면 참가자가 손해를 본다
+  /// (광고용역 계약서 별지 2 기산점).
+  releaseDate DateTime? @map("release_date") @db.Timestamptz(6)
+  validUntil  DateTime? @map("valid_until") @db.Timestamptz(6)
+
+  /// INVITE_LINK일 때 쓴다. CODE_POOL이면 credit_codes를 본다
+  inviteUrl String? @map("invite_url")
+
+  /// 카드 본문과 예상 가치 표기("$75 상당"). 금액이 아니라 문자열인 이유는
+  /// 통화·표기가 스폰서마다 다르고 계산에 쓰지 않기 때문이다
+  description String?
+  value       String? @db.VarChar(60)
+
+  /// 0원 스타트 스택. 스폰서가 없을 때 같은 루트를 무료 티어로 가는 안내다.
+  /// 노션 링크 하나 + 항목 목록(JSONB, [{name, note}])
+  fallbackUrl   String? @map("fallback_url")
+  fallbackItems Json    @default("[]") @map("fallback_items")
+
+  season  Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  sponsor Sponsor? @relation(fields: [sponsorId], references: [id])
+
+  codes  CreditCode[]
+  claims CreditClaim[]
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@index([sponsorId, status])
+  /// 시즌 안에서 카드 종류는 한 장뿐이다
+  @@unique([seasonId, kind])
+  @@index([seasonId, status])
+  @@map("credit_offers")
+}
+
+/// 코드 풀 한 줄. **스폰서가 만들어 준 것을 올려둔 것**이라 우리가 생성하지 않는다.
+/// 소비는 되돌리지 않는다(13 설계서 4장 전이 규칙).
+model CreditCode {
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  offerId String @map("offer_id") @db.Uuid
+
+  code   String       @unique @db.VarChar(120)
+  status CreditStatus @default(issued)
+
+  offer CreditOffer  @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  claim CreditClaim?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([offerId, status])
   @@map("credit_codes")
 }
 
-model CreditIssuance {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  creditCodeId String   @unique @map("credit_code_id") @db.Uuid
-  entryId      String   @map("entry_id") @db.Uuid
-  sponsorId    String   @map("sponsor_id") @db.Uuid
-  issuedAt     DateTime @default(now()) @map("issued_at") @db.Timestamptz(6)
+/// 팀 하나가 카드 하나에 대해 갖는 상태. 발급 단위는 **팀**이다 —
+/// 팀원 수와 무관하게 카드당 1건(13 설계서 2장 「팀당 1회」).
+///
+/// 「잠금」은 행이 없는 것으로 표현한다. 언락 이벤트가 일어나야 행이 생긴다.
+model CreditClaim {
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  offerId String @map("offer_id") @db.Uuid
+  entryId String @map("entry_id") @db.Uuid
 
-  creditCode CreditCode @relation(fields: [creditCodeId], references: [id])
-  entry      Entry      @relation(fields: [entryId], references: [id])
-  sponsor    Sponsor    @relation(fields: [sponsorId], references: [id])
+  status CreditClaimStatus @default(available)
+
+  unlockedAt  DateTime  @default(now()) @map("unlocked_at") @db.Timestamptz(6)
+  claimedAt   DateTime? @map("claimed_at") @db.Timestamptz(6)
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
+  confirmedAt DateTime? @map("confirmed_at") @db.Timestamptz(6)
+
+  /// 소비한 코드. CODE_POOL일 때만 붙는다. 링크형·수동형은 null이다
+  creditCodeId String? @unique @map("credit_code_id") @db.Uuid
+  deliveredVia CreditDeliveredVia? @map("delivered_via")
+
+  offer      CreditOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  entry      Entry       @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  creditCode CreditCode? @relation(fields: [creditCodeId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@unique([entryId, sponsorId])
-  @@map("credit_issuances")
+  /// 팀당 1회. 이중 발급의 최종 방어선이다
+  @@unique([offerId, entryId])
+  @@index([entryId])
+  @@map("credit_claims")
 }
 
 // ═════════════════════════════════════════════════════════════
