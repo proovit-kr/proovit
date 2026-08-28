@@ -58,6 +58,33 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className="h-full antialiased">
+      <head>
+        {/*
+          JetBrains Mono — 시안의 `--mono`다. 지표·순위·코드값이 전부 이걸로
+          그려지고 weight 800까지 쓴다(`.score`, `.hb-cd`, `.rm-node`).
+          없으면 SF Mono로 떨어지면서 자폭이 달라지고 800은 합성 볼드가 된다.
+
+          next/font/google을 쓰지 않는 이유는 빌드 시점에 폰트를 받아오기
+          때문이다 — 네트워크가 막힌 CI에서 빌드가 통째로 실패한다.
+          시안과 같은 방식(preconnect + 스타일시트)으로 둔다.
+        */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin=""
+        />
+        {/*
+          아래 규칙(no-page-custom-font)은 Pages Router 전제다 — 거기서는
+          페이지에 넣은 link가 그 페이지에만 붙어서 경고가 맞다. App Router의
+          루트 레이아웃은 모든 라우트를 감싸므로 해당하지 않는다.
+        */}
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         {children}
         {/*

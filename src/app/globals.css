@@ -3,97 +3,149 @@
 @import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 
 /*
+  ═══════════════════════════════════════════════════════════════
   PROOVIT 디자인 토큰
 
-  출처: legacy/vite-prototype/src/styles/tokens.css (2026-07-22 프로토타입).
-  값을 여기서 임의로 바꾸지 않는다 — 시안(design-reference/*.dc.html)에서 뽑은 것이고,
-  이식할 페이지의 CSS Module들이 이 변수명을 그대로 참조한다.
+  **정본은 시안이다** — `proovit_디자인시안_ver2.html` (v2.1, 2026-08-27).
+  아래 값은 전부 그 파일에서 그대로 옮긴 것이고, 여기서 새로 짓지 않는다.
+
+  ⚠️ 시안 CSS는 v0.1 → v2.1 패스가 **누적 오버라이드**로 쌓여 있다.
+  같은 토큰이 여러 `:root` 블록에서 최대 네 번 덮인다. 값을 옮길 때는 항상
+  마지막 승자를 봐야 한다. 예: `--muted`는 #8A93A6(v0.1) → #9AA4BA(v0.4)
+  → #9AA6BE(v1.1) → **#A7B1C6(v2.0)** 순이다.
+  ═══════════════════════════════════════════════════════════════
 */
 :root {
-  /* ---- 색: 배경 ---- */
-  --c-bg: #0b1220;
-  --c-bg-mid: #0d1526;
-  --c-bg-end: #14181f;
-  --c-bg-page: linear-gradient(180deg, #0b1220 0%, #0d1526 45%, #14181f 100%);
-  --c-bg-ops: #0d1119; /* 운영자 콘솔 배경 */
-  --c-surface-ops: #10151f;
-  --c-surface: rgba(255, 255, 255, 0.03);
-  --c-surface-2: rgba(255, 255, 255, 0.05);
-  --c-surface-flat: #0e1626;
-  --c-card: linear-gradient(160deg, #10192c, #0c1322);
-  --c-chip: #131c2f;
-  --c-nav: rgba(11, 18, 32, 0.72);
-  --c-overlay: rgba(5, 9, 18, 0.7);
+  /* ---- 표면 (v1.1 CRAFT가 최종) ---- */
+  --bg: #0a101c;
+  --surface: #131c31;
+  --surface-2: #0d1526;
 
-  /* ---- 색: 텍스트 ---- */
-  --c-text: #f4f6fa;
-  --c-text-ops: #e8ecf3;
-  --c-text-strong: #ffffff;
-  --c-text-muted: #b7bfcc;
-  --c-text-dim: #8a93a6;
-  --c-text-faint: #626c7f;
-  --c-text-ghost: #4a5468;
+  /* ---- 선 (v1.1이 최종. v0.5에서 한 번 강해졌다) ---- */
+  --line: rgba(226, 232, 244, 0.11);
+  --line-strong: rgba(226, 232, 244, 0.22);
 
-  /* ---- 색: 포인트 ---- */
-  --c-lime: #c8ff3d;
-  --c-lime-hover: #dcff7a;
-  --c-lime-deep: #4a7a00; /* 아바타 그라디언트의 끝색. 라임의 어두운 짝이다 */
+  /* ---- 글자 (v2.0 READABLE이 회색 두 톤을 밝혔다) ---- */
+  --text: #eaeef6;
+  --muted: #a7b1c6;
+  --faint: #7d88a3;
+
+  /* ---- 포인트 ---- */
+  --accent: #c8ff3d;
+  --accent-ink: #0b1220;
+  --accent-dim: rgba(200, 255, 61, 0.12);
+  --danger: #ff5d5d;
+  --warn: #ffb74d;
+  --ok: #c8ff3d;
+
+  /*
+    ---- 보조 팔레트 (v0.5) ----
+    역할이 고정이라 장식으로 쓰지 않는다.
+      바이올렛 = 게이트·잠금 조건      (아직 안 열린 것)
+      틸       = 시스템 검증·확인 완료 (우리가 확인한 것)
+      블루     = 정보 안내             (읽고 넘어가는 것)
+    라임은 지표와 CTA에만 남는다.
+  */
+  --blue: #6fb3ff;
+  --blue-dim: rgba(111, 179, 255, 0.12);
+  --violet: #a78bfa;
+  --violet-dim: rgba(167, 139, 250, 0.13);
+  --teal: #45d6be;
+  --teal-dim: rgba(69, 214, 190, 0.13);
+
+  /* ---- 라운드 ---- 시안은 세 단계뿐이다. 나머지는 요소마다 직접 쓴다 */
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 16px;
+
+  /* ---- 폰트 ---- */
+  --font: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
+}
+
+/*
+  ───────────────────────────────────────────────────────────────
+  ⚠️ 임시 별칭 — 시안 이식이 끝나면 통째로 지운다.
+
+  기존 CSS Module 약 5,700줄이 `--c-*` 이름을 참조한다. 지금 한 번에 끊으면
+  아직 안 옮긴 화면이 전부 무색으로 렌더돼, 화면을 눈과 computed style로
+  대조하는 검증 자체가 불가능해진다.
+
+  그래서 이름만 남기고 **값은 전부 위 시안 토큰을 가리키게** 했다.
+  화면을 한 섹션씩 옮길 때마다 그 모듈에서 `--c-*`가 사라지고,
+  마지막 참조가 없어지면 이 블록도 없어진다.
+
+  진행 상황: `grep -rl 'var(--c-' src` 가 비면 삭제 가능.
+
+  시안에 대응물이 없어 접은 것 셋 —
+    ① 글자 5단계(text/muted/dim/faint/ghost) → 시안의 3단계로 접었다.
+    ② 운영자 전용 배경(--c-bg-ops 등) → 시안은 운영자 화면에 별도 배경을
+       두지 않는다. `.adm`은 활성 항목만 바이올렛으로 바꾼다.
+    ③ 크기·간격 스케일(--fs-*, --s-*, --rhythm-*) → 시안에는 스케일이
+       없고 요소마다 px를 직접 쓴다. 아직 참조하는 모듈이 있어 남겨 둔다.
+  ───────────────────────────────────────────────────────────────
+*/
+:root {
+  --c-bg: var(--bg);
+  --c-bg-mid: var(--surface-2);
+  --c-bg-end: var(--bg);
+  --c-bg-page: var(--bg);
+  --c-bg-ops: var(--bg);
+  --c-surface-ops: var(--surface);
+  --c-surface: var(--surface);
+  --c-surface-2: var(--surface-2);
+  --c-surface-flat: var(--surface-2);
+  --c-card: var(--surface);
+  --c-chip: var(--surface);
+  --c-nav: rgba(12, 19, 34, 0.78);
+  --c-overlay: rgba(4, 8, 16, 0.62);
+
+  --c-text: var(--text);
+  --c-text-ops: var(--text);
+  --c-text-strong: var(--text);
+  --c-text-muted: var(--muted);
+  --c-text-dim: var(--muted);
+  --c-text-faint: var(--faint);
+  --c-text-ghost: var(--faint);
+
+  --c-lime: var(--accent);
+  --c-lime-hover: #e2ff8e;
+  --c-lime-deep: #4a7a00;
   --c-lime-08: rgba(200, 255, 61, 0.08);
   --c-lime-10: rgba(200, 255, 61, 0.1);
-  --c-lime-12: rgba(200, 255, 61, 0.12);
+  --c-lime-12: var(--accent-dim);
   --c-lime-20: rgba(200, 255, 61, 0.2);
   --c-lime-25: rgba(200, 255, 61, 0.25);
   --c-lime-35: rgba(200, 255, 61, 0.35);
   --c-lime-45: rgba(200, 255, 61, 0.45);
-  --c-warn: #ff9f6b;
-  --c-warn-10: rgba(255, 159, 107, 0.1);
-  --c-warn-35: rgba(255, 159, 107, 0.35);
-  --c-danger: #ff6b6b;
-  --c-gold: #ffc24d;
-  --c-gold-10: rgba(255, 194, 77, 0.1);
+  --c-warn: var(--warn);
+  --c-warn-10: rgba(255, 183, 77, 0.1);
+  --c-warn-35: rgba(255, 183, 77, 0.35);
+  --c-danger: var(--danger);
+  --c-gold: var(--warn);
+  --c-gold-10: rgba(255, 183, 77, 0.1);
 
-  /* ---- 색: 보조 팔레트 ----
-     시안 v0.5가 라임 하나로 다 말하려던 것을 셋으로 갈랐다. 역할이 고정이라
-     장식으로 쓰지 않는다(13 크레딧 센터 설계서 7장 「색 규칙」).
-       바이올렛 = 게이트·잠금 조건    (아직 안 열린 것)
-       틸       = 시스템 검증·확인 완료 (우리가 확인한 것)
-       블루     = 정보 안내           (읽고 넘어가는 것)
-     라임은 그대로 지표와 CTA에만 남는다. */
-  --c-violet: #a78bfa;
-  --c-violet-13: rgba(167, 139, 250, 0.13);
+  --c-violet: var(--violet);
+  --c-violet-13: var(--violet-dim);
   --c-violet-40: rgba(167, 139, 250, 0.4);
   --c-violet-55: rgba(167, 139, 250, 0.55);
-  --c-teal: #45d6be;
-  --c-teal-13: rgba(69, 214, 190, 0.13);
+  --c-teal: var(--teal);
+  --c-teal-13: var(--teal-dim);
   --c-teal-45: rgba(69, 214, 190, 0.45);
-  --c-blue: #6fb3ff;
-  --c-blue-12: rgba(111, 179, 255, 0.12);
+  --c-blue: var(--blue);
+  --c-blue-12: var(--blue-dim);
   --c-blue-40: rgba(111, 179, 255, 0.4);
 
-  /* ---- 색: 선 ---- */
-  --c-line: rgba(255, 255, 255, 0.07);
-  --c-line-2: rgba(255, 255, 255, 0.09);
-  --c-line-3: rgba(255, 255, 255, 0.14);
-  /* 미완료 단계 원의 테두리. dotSm 0.16 / dotLg 0.2로 갈라져 있던 것을 합쳤다 */
-  --c-line-4: rgba(255, 255, 255, 0.18);
-  --c-line-strong: rgba(255, 255, 255, 0.25);
+  --c-line: var(--line);
+  --c-line-2: var(--line);
+  --c-line-3: var(--line-strong);
+  --c-line-4: var(--line-strong);
+  --c-line-strong: var(--line-strong);
+  --c-field: rgba(8, 13, 24, 0.72);
 
-  /* ---- 색: 역할 ----
-     흰색 알파를 모듈마다 새로 지어 쓰던 것을 이름으로 묶는다.
-     같은 역할에 0.06·0.1·0.12가 제각각 쓰이고 있었다. */
-  --c-field: rgba(255, 255, 255, 0.06); /* 입력칸·보조 버튼 바탕 */
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
 
-  /* ---- 폰트 ---- */
-  --font-sans:
-    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
-    system-ui, "Malgun Gothic", sans-serif;
-  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
-
-  /* ---- 글자 크기 ----
-     원래 토큰이 없어서 모듈들이 px를 직접 박았고, 그 결과 10~32px 사이에
-     15종이 흩어져 있었다(13px 25회, 12px 18회 …). 실제로 쓰이던 값을 그대로
-     단계로 세우고, 한두 번만 등장하던 표류값(10·17·19)은 인접 단계로 붙였다.
-     값을 새로 지어내지 않았으므로 대부분의 화면은 픽셀 단위로 동일하다. */
   --fs-2xs: 11px;
   --fs-xs: 12px;
   --fs-sm: 13px;
@@ -107,18 +159,16 @@
   --fs-5xl: 28px;
   --fs-6xl: 32px;
 
-  /* ---- 라운드 ---- */
   --r-xs: 6px;
-  --r-sm: 8px;
+  --r-sm: var(--r-s);
   --r-md: 10px;
-  --r-lg: 12px;
+  --r-lg: var(--r-m);
   --r-xl: 14px;
-  --r-2xl: 18px;
-  --r-3xl: 20px;
-  --r-4xl: 22px;
+  --r-2xl: var(--r-l);
+  --r-3xl: var(--r-l);
+  --r-4xl: var(--r-l);
   --r-pill: 999px;
 
-  /* ---- 간격 ---- */
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
@@ -133,31 +183,26 @@
   --s-18: 72px;
   --s-22: 88px;
 
-  /* ---- 섹션 리듬 ----
-     §7이 "섹션마다 밀도를 다르게 준다"고 요구한다. 원래 48/72/88px은 서로
-     가까워서 그 의도가 눈에 잘 안 드러났다. 폭을 벌려 대비를 만든다.
-     톤이 답답하면 여기 세 값만 되돌리면 된다 — 다른 곳은 이 토큰만 참조한다. */
   --rhythm-tight: 64px;
-  --rhythm: 96px;
-  --rhythm-wide: 128px;
+  --rhythm: 76px;
+  --rhythm-wide: 84px;
 
-  /* ---- 레이아웃 ---- */
-  --w-page: 1160px;
-  --w-ops: 1240px;
-  --w-narrow: 800px;
-  --w-form: 640px;
-  --pad-x: 32px;
+  --w-page: 1120px;
+  --w-ops: 1120px;
+  --w-narrow: 940px;
+  --w-form: 700px;
+  --pad-x: 40px;
 
-  /* ---- 그림자 ---- */
-  --sh-card: 0 24px 60px rgba(0, 0, 0, 0.45);
-  --sh-modal: 0 32px 80px rgba(0, 0, 0, 0.6);
-  --sh-toast: 0 12px 32px rgba(0, 0, 0, 0.5);
-  --sh-lime-glow:
-    0 0 40px rgba(200, 255, 61, 0.07), 0 24px 60px rgba(0, 0, 0, 0.45);
-  --sh-ring: 0 0 0 5px rgba(200, 255, 61, 0.12);
+  /* 시안 v1.1의 카드 그림자를 v1.7 COMFORT가 한 번 눅였다. 그 최종값이다 */
+  --sh-card:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 1px 2px rgba(0, 0, 0, 0.32),
+    0 16px 40px -28px rgba(0, 0, 0, 0.45);
+  --sh-modal: var(--sh-card);
+  --sh-toast: var(--sh-card);
+  --sh-lime-glow: var(--sh-card);
+  --sh-ring: 0 0 0 4px rgba(200, 255, 61, 0.12);
 
-  /* ---- 모션 ---- */
-  --t-fast: 0.15s ease;
+  --t-fast: 0.15s;
   --t-base: 0.22s ease;
   --t-slow: 0.6s ease;
 }
@@ -168,92 +213,254 @@
   둘이 같은 값을 가리켜야 색이 어긋나지 않는다.
 */
 @theme inline {
-  --color-bg: var(--c-bg);
-  --color-surface: var(--c-surface-flat);
-  --color-chip: var(--c-chip);
-  --color-fg: var(--c-text);
-  --color-fg-strong: var(--c-text-strong);
-  --color-fg-muted: var(--c-text-muted);
-  --color-fg-dim: var(--c-text-dim);
-  --color-fg-faint: var(--c-text-faint);
-  --color-lime: var(--c-lime);
-  --color-lime-hover: var(--c-lime-hover);
-  --color-warn: var(--c-warn);
-  --color-danger: var(--c-danger);
-  --color-violet: var(--c-violet);
-  --color-teal: var(--c-teal);
-  --color-blue: var(--c-blue);
-  --color-gold: var(--c-gold);
-  --color-line: var(--c-line-2);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-chip: var(--surface);
+  --color-fg: var(--text);
+  --color-fg-strong: var(--text);
+  --color-fg-muted: var(--muted);
+  --color-fg-dim: var(--muted);
+  --color-fg-faint: var(--faint);
+  --color-lime: var(--accent);
+  --color-lime-ink: var(--accent-ink);
+  --color-lime-dim: var(--accent-dim);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-violet: var(--violet);
+  --color-teal: var(--teal);
+  --color-blue: var(--blue);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
 
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
 }
 
-/* ---------- base ---------- */
+/* ═══════════════════ 리셋과 기본 ═══════════════════ */
+
+/*
+  시안의 `*{box-sizing:border-box;margin:0;padding:0}`이다.
+  Tailwind preflight가 margin/padding은 이미 0으로 두지만 box-sizing만
+  믿고 생략하지 않는다 — 시안이 정본이고, 여기가 그 한 줄의 자리다.
+*/
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
 html {
   color-scheme: dark;
   scroll-behavior: smooth;
 }
 
+/*
+  body — 시안의 네 겹을 합친 최종값이다.
+    font-size   15px(v0.1) → 15.5px(v1.7) → 16px(v2.0)
+    line-height 1.6(v0.1)  → 1.65(v1.7)
+    letter-spacing -.011em(v0.4) → -.005em(v1.7)
+
+  word-break: keep-all —
+  한글은 기본값에서 **음절 단위로 아무 데나** 끊긴다. "표시됩니다"가
+  "표시됩" / "니다"로 갈라지는 게 그래서다. keep-all은 어절(공백) 단위로만
+  끊게 한다. 다만 공백 없는 긴 토큰(URL·영문 식별자)을 절대 안 끊어서 칸을
+  넘치게 만들고, overflow-wrap이 그때만 개입한다. 둘은 같이 써야 한다.
+*/
 body {
-  background: var(--c-bg);
-  color: var(--c-text);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-
-  /*
-    ⚠️ 한글은 기본값(word-break: normal)에서 **음절 단위로 아무 데나** 끊긴다.
-    "표시됩니다"가 "표시됩" / "니다"로 갈라지는 게 그래서다. 영문은 단어 사이에서만
-    끊기는데 한글만 이 대접을 받는 이유는, 브라우저가 CJK를 각 글자가 독립적인
-    문자로 보기 때문이다.
-
-    keep-all은 어절(공백) 단위로만 끊게 한다. 한국어는 어절 사이에 공백이 있어
-    이 규칙이 그대로 통한다.
-
-    다만 keep-all은 공백 없는 긴 토큰(URL·영문 식별자)을 절대 안 끊어서 칸을
-    넘치게 만든다 — overflow-wrap이 그때만 개입한다. 둘은 같이 써야 한다.
-  */
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.65;
+  letter-spacing: -0.005em;
   word-break: keep-all;
   overflow-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+  배경 오로라. 단색 배경 위에 라임과 블루를 아주 옅게 얹어 화면 위쪽에
+  깊이를 만든다(v1.1 CRAFT). v1.3에서 26초 주기로 아주 느리게 흐른다.
+*/
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      1000px 520px at 72% -12%,
+      rgba(111, 179, 255, 0.055),
+      transparent 62%
+    ),
+    radial-gradient(
+      760px 460px at 4% -8%,
+      rgba(200, 255, 61, 0.045),
+      transparent 60%
+    );
+  animation: aur 26s ease-in-out infinite alternate;
+}
+
+@keyframes aur {
+  to {
+    transform: translate3d(-2%, 1.5%, 0) scale(1.04);
+  }
+}
+
+/*
+  필름 그레인. 넓은 단색 면에서 생기는 그라디언트 띠(banding)를 덮는다.
+  opacity는 v1.1의 .014를 v1.7 COMFORT가 .009로 낮춘 값이다.
+*/
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  opacity: 0.009;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 
 a {
-  color: var(--c-lime);
+  color: inherit;
   text-decoration: none;
 }
-a:hover {
-  color: var(--c-lime-hover);
-}
 
-h1,
-h2,
-h3 {
-  letter-spacing: -0.01em;
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: 0;
+  background: none;
+  color: inherit;
 }
 
 input,
 textarea,
-button,
 select {
   font-family: inherit;
 }
 
-/* ---------- 공통 유틸 ----------
-   프로토타입의 global.css에서 가져왔다. 이식하는 페이지의 CSS Module들이
-   이 클래스명을 전제하므로 이름을 바꾸지 않는다. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/*
+  ⚠️ Tailwind preflight가 h1~h6의 font-size·font-weight를 `inherit`으로 리셋한다.
+  시안에는 그런 리셋이 없어서, 크기나 굵기를 따로 주지 않은 제목은 브라우저
+  기본값으로 그려진다. 실제로 시안 제목 116개 중 **6개가 기본 굵기(bold)에
+  기대고 있다** — 랜딩 `.ld-3 h4`(「스텝별 골든패스 가이드」 등)는 font-size만
+  준다. 리셋을 그대로 두면 그 여섯이 400으로 얇아진다.
+
+  그래서 브라우저 기본값을 되돌려 놓는다. 새로 지어낸 값이 아니라 시안이
+  실제로 그려지는 값이다.
+*/
+h1 {
+  font-size: 2em;
+}
+h2 {
+  font-size: 1.5em;
+}
+h3 {
+  font-size: 1.17em;
+}
+h4 {
+  font-size: 1em;
+}
+h5 {
+  font-size: 0.83em;
+}
+h6 {
+  font-size: 0.67em;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: bold;
+}
+
+/* 제목은 줄바꿈을 고르게 나누고 자간을 더 좁힌다 (v0.4) */
+h1,
+h2,
+h3,
+h4,
+.hb-h1 {
+  text-wrap: balance;
+  letter-spacing: -0.02em;
+}
+
 .mono {
-  font-family: var(--font-mono);
+  font-family: var(--mono);
 }
 
 /* 숫자가 흔들리지 않게. 리더보드 순위·지표에서 특히 중요하다 */
-.tabular {
+.score,
+.mono,
+.tabular,
+.hb-cd,
+.rkv,
+.cnt,
+.frm-meta {
   font-variant-numeric: tabular-nums;
 }
 
+.score {
+  font-family: var(--mono);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #232d46;
+  border-radius: 99px;
+  border: 3px solid var(--bg);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 화면 진입 스태거 (v1.2). 요소가 아래에서 9px 올라오며 나타난다 */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-in {
+  animation: fadeUp 0.55s cubic-bezier(0.22, 0.75, 0.25, 1) both;
+}
+
+/* ═══════════════════ 이식 중인 화면이 쓰는 유틸 ═══════════════════
+   위 별칭 블록과 같은 운명이다 — 시안 이식이 끝나면 함께 정리된다. */
+
 .page {
   min-height: 100vh;
-  background: var(--c-bg-page);
+  background: var(--bg);
   /*
     hidden이 아니라 clip이어야 한다.
     overflow-x: hidden은 명세상 overflow-y를 auto로 끌어올려 .page를 스크롤
@@ -267,8 +474,8 @@ select {
 }
 
 .page--ops {
-  background: var(--c-bg-ops);
-  color: var(--c-text-ops);
+  background: var(--bg);
+  color: var(--text);
 }
 
 .container {
@@ -281,8 +488,6 @@ select {
 
 .container--ops {
   max-width: var(--w-ops);
-  padding-left: 28px;
-  padding-right: 28px;
 }
 
 .container--narrow {
@@ -291,8 +496,6 @@ select {
 
 .container--form {
   max-width: var(--w-form);
-  padding-left: var(--s-6);
-  padding-right: var(--s-6);
 }
 
 .grow {
@@ -301,105 +504,104 @@ select {
 
 .sectionTitle {
   margin: 0 0 var(--s-3);
-  font-size: var(--fs-6xl);
+  font-size: 29px;
   font-weight: 800;
-  color: var(--c-text-strong);
+  letter-spacing: -0.01em;
 }
 
 .sectionLead {
-  margin: 0 0 var(--s-10);
-  font-size: var(--fs-lg);
-  color: var(--c-text-dim);
+  margin: 0 0 var(--s-7);
+  font-size: 16px;
+  color: var(--muted);
 }
 
 .card {
-  background: var(--c-surface);
-  border: 1px solid var(--c-line-2);
-  border-radius: var(--r-2xl);
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-l);
   padding: var(--s-6);
 }
 
 .cardRaised {
-  background: var(--c-card);
-  border: 1px solid var(--c-line-2);
-  border-radius: var(--r-3xl);
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-l);
   box-shadow: var(--sh-card);
-  padding: var(--s-7);
+  padding: var(--s-6);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: 7px;
+  margin-bottom: 22px;
 }
 
 .label {
-  font-size: var(--fs-sm);
+  font-size: 15px;
   font-weight: 700;
-  color: var(--c-text-muted);
+  color: var(--text);
 }
 
 .input,
 .textarea {
   width: 100%;
-  background: var(--c-field);
-  border: 1px solid var(--c-line-3);
-  border-radius: var(--r-lg);
-  padding: 13px 16px;
-  font-size: var(--fs-md);
-  color: var(--c-text-strong);
+  background: rgba(8, 13, 24, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 13px 15px;
+  font-size: 15.5px;
+  font-family: inherit;
+  color: var(--text);
   outline: none;
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.38);
   transition: border-color var(--t-fast);
 }
 .textarea {
-  line-height: 1.6;
+  min-height: 110px;
+  line-height: 1.55;
   resize: vertical;
 }
 .input:focus,
 .textarea:focus {
-  border-color: var(--c-lime);
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 1.5px 3px rgba(0, 0, 0, 0.38),
+    0 0 0 3px rgba(200, 255, 61, 0.15);
 }
 .input::placeholder,
 .textarea::placeholder {
-  color: var(--c-text-faint);
+  color: var(--faint);
 }
 .input--mono {
-  font-family: var(--font-mono);
+  font-family: var(--mono);
   font-weight: 700;
 }
 
-.helpText {
-  font-size: var(--fs-xs);
-  color: var(--c-text-faint);
-}
-
+.helpText,
 .hint {
   margin: 0;
+  font-size: 13.5px;
+  color: var(--faint);
+}
+.hint {
   text-align: center;
-  font-size: var(--fs-sm);
-  color: var(--c-text-faint);
 }
 
 .backLink {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  font-size: var(--fs-base);
-  font-weight: 700;
-  color: var(--c-text-dim);
+  font-size: 14px;
+  color: var(--faint);
 }
 .backLink:hover {
-  color: var(--c-lime);
+  color: var(--accent);
 }
 
-/* ---------- 애니메이션 ---------- */
 @keyframes blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
   50% {
-    opacity: 0.35;
+    opacity: 0;
   }
 }
 @keyframes drawLine {
@@ -408,9 +610,6 @@ select {
   }
 }
 @keyframes tickerMove {
-  from {
-    transform: translateX(0);
-  }
   to {
     transform: translateX(-50%);
   }
@@ -452,21 +651,28 @@ select {
 .dot {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
-  background: var(--c-lime);
-  animation: blink 1.6s infinite;
+  border-radius: 99px;
+  background: var(--accent);
+  animation: pul 1.6s infinite;
   flex-shrink: 0;
 }
-
-@media (max-width: 720px) {
-  :root {
-    --pad-x: 20px;
-  }
-  .sectionTitle {
-    font-size: var(--fs-4xl);
+/* 시안의 라이브 점멸. .lb-head .upd i 와 같은 규칙이다 */
+@keyframes pul {
+  50% {
+    opacity: 0.3;
   }
 }
 
+@media (max-width: 1024px) {
+  :root {
+    --pad-x: 22px;
+  }
+}
+
+/*
+  모션 감축. 시안은 기능마다 `animation:none!important`를 따로 걸지만,
+  결과가 같고 새 애니메이션을 추가할 때 빠뜨리지 않는 쪽을 택했다.
+*/
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
