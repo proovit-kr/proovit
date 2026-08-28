@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 
 import styles from "./Button.module.css";
 
@@ -9,12 +9,7 @@ import styles from "./Button.module.css";
 */
 
 type SpecVariant =
-  | "primary"
-  | "outline"
-  | "ghost"
-  | "danger"
-  | "kakao"
-  | "google";
+  "primary" | "outline" | "ghost" | "danger" | "kakao" | "google";
 
 /*
   ⚠️ 임시 별칭 — 시안 이식이 끝나면 지운다.
@@ -53,6 +48,12 @@ interface BaseProps {
   block?: boolean;
   children: ReactNode;
   className?: string;
+  /*
+    시안은 크기 변형을 두지 않고 쓰는 자리마다 인라인으로 padding·font-size를
+    준다(예: 파이널 CTA `padding:14px 30px;font-size:15px`). 그 값을 그대로
+    옮길 수 있어야 해서 열어 둔다.
+  */
+  style?: CSSProperties;
 }
 
 const classes = ({
@@ -98,10 +99,15 @@ export function LinkButton({
   size,
   block,
   className,
+  style,
   children,
 }: LinkButtonProps) {
   return (
-    <Link href={href} className={classes({ variant, size, block, className })}>
+    <Link
+      href={href}
+      className={classes({ variant, size, block, className })}
+      style={style}
+    >
       {children}
     </Link>
   );
