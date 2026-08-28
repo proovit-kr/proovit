@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Button, LinkButton } from "./Button";
+import { glitchClass, useGlitchTick } from "./Glitch";
 import styles from "./NavBar.module.css";
 
 /*
@@ -24,10 +25,35 @@ import styles from "./NavBar.module.css";
   내보내느니 빼는 쪽을 골랐다.
 */
 
-/** 대시보드·운영자 레이아웃도 쓰는 워드마크 */
-export function Logo({ className }: { className?: string }) {
+/**
+ * 대시보드·운영자 레이아웃도 쓰는 워드마크.
+ *
+ * ⚠️ `glitch`는 **랜딩에서만** 켠다. 시안의 공개 헤더 중 워드마크에
+ * `.glitch`가 붙은 것은 `#scr-landing` 하나뿐이고, 리더보드·참가작·시즌
+ * 상세·규칙은 평범한 `<span class="wm">`이다.
+ *
+ * 켜면 히어로 제목·파이널 문구와 **같은 순간에** 떨린다 — 시안이 인터벌
+ * 하나로 `.glitch` 전부를 터뜨리기 때문이다(Glitch.tsx의 공용 티커).
+ */
+export function Logo({
+  className,
+  glitch,
+}: {
+  className?: string;
+  glitch?: boolean;
+}) {
+  const tick = useGlitchTick();
   return (
-    <Link href="/" className={[styles.wm, className ?? ""].join(" ")}>
+    <Link
+      href="/"
+      className={
+        glitch
+          ? glitchClass(tick, [styles.wm, className].filter(Boolean).join(" "))
+          : [styles.wm, className ?? ""].join(" ")
+      }
+      /* 의사요소가 읽는 글자. 보이는 ✓는 라임이지만 겹치는 층은 평문이다 */
+      data-text={glitch ? "PROO✓IT" : undefined}
+    >
       PROO<em className={styles.wmCheck}>✓</em>IT
     </Link>
   );
@@ -42,6 +68,8 @@ export interface NavBarProps {
    * 그 값은 서버만 안다. 시즌이 없으면 메뉴에서 아예 빠진다.
    */
   leaderboardHref?: string;
+  /** 워드마크에 글리치를 건다. 시안에서는 랜딩만 그렇다 */
+  glitchLogo?: boolean;
   /** 우측 주 버튼. 시즌 상태에 따라 서버에서 정해 내려준다. */
   cta: {
     href: string;
@@ -55,7 +83,7 @@ export interface NavBarProps {
   };
 }
 
-export function NavBar({ cta, leaderboardHref }: NavBarProps) {
+export function NavBar({ cta, leaderboardHref, glitchLogo }: NavBarProps) {
   const pathname = usePathname();
   const menu = leaderboardHref
     ? [HOME, { href: leaderboardHref, label: "리더보드" }]
@@ -63,7 +91,7 @@ export function NavBar({ cta, leaderboardHref }: NavBarProps) {
 
   return (
     <header className={styles.head}>
-      <Logo />
+      <Logo glitch={glitchLogo} />
       <nav className={styles.nav}>
         {menu.map((item) => {
           const on =

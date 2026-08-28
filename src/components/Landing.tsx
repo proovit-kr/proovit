@@ -14,6 +14,7 @@ import ConsentFields, {
 } from "./ConsentFields";
 import { Input } from "./Field";
 import { Footer } from "./Footer";
+import { Glitch } from "./Glitch";
 import { NavBar } from "./NavBar";
 import { Toast, useToast } from "./Toast";
 import Turnstile, { turnstileEnabled } from "./Turnstile";
@@ -82,28 +83,6 @@ const ctaHref = (kind: LandingCta["kind"], slug: string): string =>
 
 const cx = (...v: (string | undefined | false)[]) =>
   v.filter(Boolean).join(" ");
-
-/*
-  글리치. 시안은 3.6초마다 `.on`을 460ms 붙였다 뗀다(첫 발화는 900ms 뒤).
-  제목에 마우스를 올려도 한 번 터진다.
-*/
-function useGlitch() {
-  const [on, setOn] = useState(false);
-  const fire = () => {
-    setOn(true);
-    window.setTimeout(() => setOn(false), 460);
-  };
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const first = window.setTimeout(fire, 900);
-    const timer = window.setInterval(fire, 3600);
-    return () => {
-      window.clearTimeout(first);
-      window.clearInterval(timer);
-    };
-  }, []);
-  return { on, fire };
-}
 
 /**
  * 스크롤 리빌. 요소가 뷰포트에 들어오면 `.in`을 붙이고 관찰을 끊는다.
@@ -212,7 +191,6 @@ export function Landing({
   preRegisterCount,
 }: LandingProps) {
   const { message, show } = useToast();
-  const glitch = useGlitch();
 
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState<ConsentState>(EMPTY_CONSENT);
@@ -371,6 +349,7 @@ export function Landing({
   return (
     <div className="page">
       <NavBar
+        glitchLogo
         leaderboardHref={`/seasons/${seasonSlug}/leaderboard`}
         cta={{
           href: heroCtaHref,
@@ -390,15 +369,10 @@ export function Landing({
               </Badge>
             </Reveal>
             <Reveal index={1} step={70}>
-              <h1 className={styles.title} onMouseEnter={glitch.fire}>
+              <h1 className={styles.title}>
                 말이 아니라,
                 <br />
-                <span
-                  className={cx(styles.glitch, glitch.on && styles.on)}
-                  data-text="지표로 증명하라"
-                >
-                  지표로 증명하라
-                </span>
+                <Glitch text="지표로 증명하라" />
               </h1>
             </Reveal>
             <Reveal index={2} step={70}>
@@ -701,15 +675,10 @@ export function Landing({
         {/* ═══════ 파이널 ═══════ */}
         <div className={styles.fin}>
           <Reveal>
-            <h2 className={styles.finTitle} onMouseEnter={glitch.fire}>
+            <h2 className={styles.finTitle}>
               우리는 지식을 팔지 않습니다.
               <br />
-              <span
-                className={cx(styles.glitch, glitch.on && styles.on)}
-                data-text="증명의 무대를 팝니다."
-              >
-                증명의 무대를 팝니다.
-              </span>
+              <Glitch text="증명의 무대를 팝니다." />
             </h2>
           </Reveal>
           <Reveal index={1} step={90}>

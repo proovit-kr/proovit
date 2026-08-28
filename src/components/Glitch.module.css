@@ -1,0 +1,74 @@
+/*
+  글리치 — 시안 v1.3. 값은 그대로 옮겼다.
+  NavBar(랜딩 헤더 워드마크)와 Landing(제목·파이널)이 함께 쓰므로
+  Landing.module.css가 아니라 전용 모듈에 둔다.
+*/
+.glitch {
+  position: relative;
+  display: inline-block;
+}
+.glitch::before,
+.glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+.glitch::before {
+  color: var(--accent);
+  z-index: -1;
+}
+.glitch::after {
+  color: var(--blue);
+  z-index: -2;
+}
+.glitch.on::before {
+  animation: gA 0.42s steps(2, end) both;
+}
+.glitch.on::after {
+  animation: gB 0.42s steps(2, end) both;
+}
+@keyframes gA {
+  0% {
+    opacity: 0.9;
+    transform: translate(3px, -2px);
+    clip-path: inset(8% 0 62% 0);
+  }
+  30% {
+    transform: translate(-3px, 1px);
+    clip-path: inset(58% 0 12% 0);
+  }
+  60% {
+    transform: translate(2px, 2px);
+    clip-path: inset(28% 0 48% 0);
+  }
+  100% {
+    opacity: 0;
+    transform: none;
+    clip-path: inset(0);
+  }
+}
+@keyframes gB {
+  0% {
+    opacity: 0.9;
+    transform: translate(-3px, 2px);
+    clip-path: inset(52% 0 20% 0);
+  }
+  30% {
+    transform: translate(3px, -1px);
+    clip-path: inset(10% 0 70% 0);
+  }
+  60% {
+    transform: translate(-2px, -2px);
+    clip-path: inset(70% 0 6% 0);
+  }
+  100% {
+    opacity: 0;
+    transform: none;
+    clip-path: inset(0);
+  }
+}
+

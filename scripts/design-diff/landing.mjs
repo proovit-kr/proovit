@@ -87,7 +87,9 @@ const PAIRS = [
   ["faq a", S + ".ld-faq .a", "a"],
   ["fin", S + ".ld-fin", "fin"],
   ["fin h2", S + ".ld-fin h2", "finTitle"],
-  ["glitch", S + ".ld-hero h1 .glitch", "glitch"],
+  ["glitch h1", S + ".ld-hero h1 .glitch", "#hero h1 span[data-text]"],
+  /* 랜딩 헤더의 워드마크에도 글리치가 붙는다 — 시안 공개 화면 중 여기만 그렇다 */
+  ["glitch wm", S + ".pub-head .wm.glitch", "header > a:first-child"],
 ];
 
 const probe = (pairs) => `(() => {
