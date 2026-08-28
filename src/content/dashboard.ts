@@ -34,12 +34,6 @@ export const BLOCKED_COPY: Record<BlockedReason, BlockedCopy> = {
     href: "/dashboard/measurement",
     actionable: true,
   },
-  deposit_unpaid: {
-    title: "보증금 결제가 남았어요",
-    hint: "완주하면 전액 환불됩니다.",
-    href: "/dashboard/deposit",
-    actionable: true,
-  },
   gate_review: {
     title: "심사 결과를 기다리는 중이에요",
     hint: "결과가 나오면 알림으로 알려드립니다.",
@@ -87,14 +81,11 @@ export const BLOCKED_COPY: Record<BlockedReason, BlockedCopy> = {
 export const HEADLINE: Record<string, string> = {
   onboarding_team: "팀 구성부터 시작해요",
   onboarding_measurement: "배포 주소를 연결할 차례예요",
-  onboarding_deposit: "보증금 결제가 남았어요",
   submit_s1: "등록 정보를 제출할 차례예요",
   submit_s2: "랜딩을 만들어 수요를 확인할 차례예요",
   submit_s3: "서비스를 배포할 차례예요",
   submit_s4: "이번 주 활동을 기록할 차례예요",
   result: "시즌 결과가 나왔어요",
-  refund: "보증금을 환불받을 수 있어요",
-  tester: "다른 팀의 서비스를 테스트해 주세요",
   appeal: "결과에 이의를 제기할 수 있어요",
 };
 
@@ -110,7 +101,10 @@ export const PHASE_LABEL: Record<string, string> = {
 
 /*
   온보딩 체크리스트 — PLN3 3.1 1행. 순서가 곧 CTA 순서다.
-  보증금은 `deposit` 플래그가 켜졌을 때만 붙는다(시즌1 도입 여부 미정).
+
+  ⚠️ 세 번째 「보증금」 항목을 뺐다. 시안 v2.1이 보증금을 보류(도입 미정)로 두어
+  `/dashboard/deposit`을 지웠고, 시안 허브 h1(「온보딩을 시작해요」)도
+  팀 구성 → 측정 연동 **두 단계**만 그린다.
 */
 export const ONBOARDING_STEPS = [
   {
@@ -126,13 +120,6 @@ export const ONBOARDING_STEPS = [
     done: "배포 주소가 확인됐어요",
     todo: "배포 주소를 등록하고 소유 확인을 받아 주세요",
     href: "/dashboard/measurement",
-  },
-  {
-    key: "depositReady" as const,
-    label: "보증금",
-    done: "결제가 확인됐어요",
-    todo: "완주 시 전액 환불됩니다",
-    href: "/dashboard/deposit",
   },
 ];
 

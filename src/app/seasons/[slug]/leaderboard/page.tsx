@@ -59,7 +59,12 @@ export default async function Page({
 
   return (
     <main className={`page ${styles.page}`}>
-      <NavBar cta={current ? resolveNavCta(current) : { href: "/", label: "홈" }} />
+      <NavBar
+        leaderboardHref={
+          current ? `/seasons/${current.slug}/leaderboard` : undefined
+        }
+        cta={current ? resolveNavCta(current) : { href: "/", label: "홈" }}
+      />
       <div className={`container grow ${styles.wrap}`}>
         <header className={styles.head}>
           <p className={styles.season}>

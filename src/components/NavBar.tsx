@@ -45,12 +45,13 @@ function AuthSlot({ me }: { me: Me }) {
   }
 
   /*
-    온보딩을 안 마친 사람은 이름이 임시값(이메일 아이디)이다. 그걸 헤더에
-    그대로 걸면 자기 이름이 잘못 나온 것처럼 보이므로, 이름 대신 마저 하라고 부른다.
+    소셜 가입 직후에는 이름이 임시값(이메일 아이디)이다. 그걸 헤더에 그대로
+    걸면 자기 이름이 잘못 나온 것처럼 보이므로, 이름 대신 고치러 가라고 부른다.
+    행선지는 /settings다 — 시안에 온보딩 화면이 없어 그 자리가 유일하다.
   */
   if (!me.onboarded) {
     return (
-      <Link href="/onboarding" className={styles.signIn}>
+      <Link href="/settings" className={styles.signIn}>
         이름 설정
       </Link>
     );
@@ -187,13 +188,21 @@ export function Logo({ className }: { className?: string }) {
   );
 }
 
-const MENU = [
-  { href: "/", label: "리그 소개" },
-  { href: "/leaderboard", label: "리더보드" },
-  { href: "/seasons", label: "시즌 아카이브" },
-];
+/*
+  ⚠️ 「시즌 아카이브」가 빠져 있다. 시안 v2.1의 화면 레지스트리에서 `/seasons`가
+  **보류(P2)** 라 화면이 없다 — 라우트를 지우면서 메뉴도 같이 뺐다.
+  시안이 공개 헤더에서 이 항목을 되살리는 방식(비활성 + 사유 표기)은
+  pub-head 섹션에서 함께 옮긴다.
+*/
+const HOME = { href: "/", label: "리그 소개" };
 
 export interface NavBarProps {
+  /**
+   * 리더보드 정본 주소(`/seasons/:slug/leaderboard`).
+   * 시즌마다 따로 남아야 아카이브가 성립하므로 슬러그가 필요하고,
+   * 그 값은 서버만 안다. 시즌이 없으면 메뉴에서 아예 빠진다.
+   */
+  leaderboardHref?: string;
   /** 우측 주 버튼. 시즌 상태에 따라 서버에서 정해 내려준다. */
   cta: {
     href: string;
@@ -207,8 +216,11 @@ export interface NavBarProps {
   };
 }
 
-export function NavBar({ cta }: NavBarProps) {
+export function NavBar({ cta, leaderboardHref }: NavBarProps) {
   const pathname = usePathname();
+  const menu = leaderboardHref
+    ? [HOME, { href: leaderboardHref, label: "리더보드" }]
+    : [HOME];
 
   // 헤더가 콘텐츠 위로 떠올랐는지. 경계선을 그때만 긋는다.
   const [scrolled, setScrolled] = useState(false);
@@ -258,7 +270,7 @@ export function NavBar({ cta }: NavBarProps) {
     <nav className={scrolled ? `${styles.nav} ${styles.navScrolled}` : styles.nav}>
       <Logo />
       <div className={styles.menu}>
-        {MENU.map((item) => {
+        {menu.map((item) => {
           const isActive =
             item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           return (

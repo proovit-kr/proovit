@@ -77,6 +77,9 @@ export default async function Page() {
   return (
     <main className={`page ${styles.page}`}>
       <NavBar
+        leaderboardHref={
+          season ? `/seasons/${season.slug}/leaderboard` : undefined
+        }
         cta={season ? resolveNavCta(season) : { href: "/", label: "홈" }}
       />
       <div className={`container container--narrow grow ${styles.wrap}`}>

@@ -97,19 +97,16 @@ export type RouteKey =
   | "rules"
   | "leaderboard"
   | "projectDetail"
-  | "seasonArchive"
   // 참가자
   | "apply"
   | "dashboard"
   | "dashboardTeam"
-  | "dashboardDeposit"
   | "dashboardMeasurement"
   | "dashboardPayment"
   | "dashboardSubmit"
   | "dashboardMetrics"
   | "dashboardJudgments"
   | "dashboardAppeal"
-  | "dashboardTester"
   | "dashboardCredits"
   | "notifications"
   | "settings"
@@ -127,8 +124,15 @@ export type RouteKey =
   | "adminSponsors";
 
 type RoutePolicy = {
-  /** 누가 들어올 수 있나. onboarded = 로그인 + 온보딩 완료 */
-  auth: "public" | "user" | "onboarded" | "admin";
+  /*
+    누가 들어올 수 있나.
+
+    ⚠️ 8/28까지 `"onboarded"`(로그인 + 이름 입력 완료)가 한 단계 더 있었다.
+    시안 v2.1 화면 레지스트리에 온보딩 화면이 없어 `/onboarding`을 지웠고,
+    그러면 `onboardedAt`을 채울 자리가 사라져 전 참가자가 영구 403이 된다.
+    단계를 없애는 대신 이름은 `/settings`에서 고친다.
+  */
+  auth: "public" | "user" | "admin";
   /** 이 플래그가 꺼져 있으면 404. 있다는 사실 자체를 숨긴다 */
   flag?: FeatureFlagKey;
   /** 참가 기록이 있어야 열린다. 없으면 404 */
@@ -173,37 +177,29 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
   leaderboard: { auth: "public", flag: "leaderboard", phase: isRacingOrLater },
   /** 참가작 공개 페이지. 레이스 전에는 보여줄 것이 없다. 끝난 뒤에는 남는다 */
   projectDetail: { auth: "public", phase: isRacingOrLater },
-  seasonArchive: { auth: "public", flag: "archive" },
 
   // ── 참가자 ────────────────────────────────────────────────
   /** 참가 신청. 모집 구간에만 열린다 */
-  apply: { auth: "onboarded", phase: isRecruiting, write: true },
+  apply: { auth: "user", phase: isRecruiting, write: true },
   /** 골든패스 진입점. 탈락·실격 팀도 들어와야 소명·테스터로 갈 수 있다 */
-  dashboard: { auth: "onboarded", entry: true, allowInactive: true },
+  dashboard: { auth: "user", entry: true, allowInactive: true },
   /*
     ⚠️ leaderOnly를 걸지 않는다. 걸면 FORBIDDEN → 404가 되어 **팀원이 자기 팀을
     못 본다** — 팀원 목록도, 팀장이 누구인지도. PLN3이 정한 것은 「쓰기는 팀장만」이고
     그 쓰기 판정은 아래 `canManageTeam()`이 한다(제출 잠금을 `canSubmitStage`로
     가른 것과 같은 형태다).
   */
-  dashboardTeam: { auth: "onboarded", entry: true, write: true },
-  dashboardDeposit: {
-    auth: "onboarded",
-    entry: true,
-    flag: "deposit",
-    write: true,
-    leaderOnly: true,
-  },
+  dashboardTeam: { auth: "user", entry: true, write: true },
   /** 측정 연동은 온보딩의 절반이라 진도 조건을 걸지 않는다 */
   dashboardMeasurement: {
-    auth: "onboarded",
+    auth: "user",
     entry: true,
     write: true,
     leaderOnly: true,
   },
   /** PG 조회키 등록. 배포(s3) 후부터 의미가 있다(API v0.2 §7) */
   dashboardPayment: {
-    auth: "onboarded",
+    auth: "user",
     entry: true,
     minStage: EntryStage.s3,
     write: true,
@@ -215,49 +211,42 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
     냈는지도 못 본다.** 제출 버튼은 팀장만이라는 규칙은 `canSubmitStage()`가 지킨다.
   */
   dashboardSubmit: {
-    auth: "onboarded",
+    auth: "user",
     entry: true,
     write: true,
     hideWhenEliminated: true,
   },
   /** 본인 지표. 배포 전에는 집계 자체가 없다(API v0.2 §10) */
   dashboardMetrics: {
-    auth: "onboarded",
+    auth: "user",
     entry: true,
     minStage: EntryStage.s3,
     hideWhenEliminated: true,
   },
   /** 심사 결과. 첫 게이트(s2)를 지나야 판정이 생긴다(API v0.2 §9.1) */
   dashboardJudgments: {
-    auth: "onboarded",
+    auth: "user",
     entry: true,
     minStage: EntryStage.s2,
     allowInactive: true,
   },
   /** 소명. 실격 팀에게 열려 있어야 하는 유일한 쓰기 화면이다 */
   dashboardAppeal: {
-    auth: "onboarded",
+    auth: "user",
     entry: true,
     write: true,
     leaderOnly: true,
     allowInactive: true,
   },
-  /** 상호 테스터. 탈락 팀이 오는 자리라 hideWhenEliminated를 걸지 않는다 */
-  dashboardTester: {
-    auth: "onboarded",
-    entry: true,
-    flag: "testerAssignments",
-    allowInactive: true,
-  },
   dashboardCredits: {
-    auth: "onboarded",
+    auth: "user",
     entry: true,
     flag: "credits",
     minStage: EntryStage.s1,
   },
   notifications: { auth: "user", flag: "notifications" },
   /** 계정 설정. 참가하지 않은 회원도 쓴다 */
-  settings: { auth: "onboarded" },
+  settings: { auth: "user" },
 
   // ── 운영자 ────────────────────────────────────────────────
   admin: { auth: "admin" },
@@ -321,13 +310,6 @@ export function canAccess(route: RouteKey, ctx: AccessContext): AccessResult {
         ok: false,
         code: "UNAUTHENTICATED",
         message: "로그인이 필요합니다.",
-      };
-    }
-    if (policy.auth === "onboarded" && !ctx.user.onboarded) {
-      return {
-        ok: false,
-        code: "FORBIDDEN",
-        message: "추가 정보를 입력해야 이용할 수 있습니다.",
       };
     }
     if (policy.auth === "admin" && !ctx.user.isAdmin) {

@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { PREREGISTER_CONSENTS, type ConsentItem } from "@/content/consent";
-import { PRIVACY_POLICY } from "@/content/privacy";
 import styles from "./ConsentFields.module.css";
 
 /**
@@ -190,23 +188,13 @@ export default function ConsentFields({
       ) : null}
 
       {/*
-        문안 A의 마지막 문장("자세한 내용은 [개인정보처리방침]에서 확인할 수
-        있어요")이 전제하는 링크.
+        ⚠️ 문안 A의 마지막 문장("자세한 내용은 [개인정보처리방침]에서 확인할 수
+        있어요")이 전제하는 링크가 빠져 있다. `/privacy`가 시안 v2.1 화면
+        레지스트리에 없어 라우트를 지웠기 때문이다.
 
-        방침 본문이 확정되기 전에는 렌더하지 않는다 — 빈칸이 남은 방침은 게재
-        안 한 것보다 나쁘다(content/privacy.ts 주석). 동의 자체는 고지 4요소
-        (목적·항목·기간·거부권)를 이 화면에서 전부 보여주므로 링크 없이도 유효하다.
+        동의 자체는 고지 4요소(목적·항목·기간·거부권)를 이 화면에서 전부
+        보여주므로 링크 없이도 유효하다. 시안에 방침 화면이 추가되면 되살린다.
       */}
-      {PRIVACY_POLICY ? (
-        <p className={styles.policyLink}>
-          자세한 내용은{" "}
-          {/* 새 탭으로 연다 — 같은 탭에서 이동하면 채우던 폼이 날아간다 */}
-          <Link href="/privacy" target="_blank" rel="noopener">
-            개인정보처리방침
-          </Link>
-          에서 확인할 수 있어요.
-        </p>
-      ) : null}
     </div>
   );
 }

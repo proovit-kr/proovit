@@ -1,7 +1,3 @@
-import Link from 'next/link';
-
-import { PRIVACY_POLICY } from '@/content/privacy';
-
 import styles from './Footer.module.css';
 
 export function Footer() {
@@ -15,17 +11,12 @@ export function Footer() {
         <a href="#valid-users">유효 이용자 기준</a>
         <a href="#sponsor">스폰서 문의</a>
         {/*
-          시행령 제31조 제2항이 요구하는 "첫 화면과의 연결화면" 링크.
-          법정 게재 문서라 다른 링크와 구분되게 굵게 둔다(표준 처리방침 작성지침).
-
-          본문이 없으면 /privacy가 404라서 링크도 걸지 않는다 —
-          이유는 content/privacy.ts 주석 참조.
+          ⚠️ 개인정보처리방침 링크가 빠져 있다. 시행령 제31조 제2항이 요구하는
+          "첫 화면과의 연결화면"인데, `/privacy` 라우트가 시안 v2.1 화면
+          레지스트리에 없어 함께 지웠다. 방침 본문(content/privacy.ts)은
+          아직 null이라 지금 당장 게재 의무가 걸리지는 않지만,
+          **본문이 확정되기 전에 시안에 방침 화면을 넣어야 한다.**
         */}
-        {PRIVACY_POLICY ? (
-          <Link href="/privacy" className={styles.legal}>
-            개인정보처리방침
-          </Link>
-        ) : null}
       </div>
       <div className={styles.social}>
         <a href="#x">X</a>

@@ -221,6 +221,8 @@ function BoardPlaceholder() {
 
 export interface LandingProps {
   seasonName: string;
+  /** 시즌 슬러그. 리더보드·시즌 상세 주소가 전부 여기서 나온다. */
+  seasonSlug: string;
   seasonTheme: string | null;
   /** 킥오프 시각(ISO). 미정이면 null이고 카운트다운을 숨긴다. */
   startAt: string | null;
@@ -236,15 +238,23 @@ const CTA_LABEL: Record<LandingCta["kind"], string> = {
   CLOSED: "지난 시즌 보기",
 };
 
-const CTA_HREF: Record<LandingCta["kind"], string> = {
-  PREREGISTER: "#hero",
-  APPLY: "/apply",
-  LEADERBOARD: "/leaderboard",
-  CLOSED: "/seasons",
-};
+/*
+  짧은 주소(`/leaderboard`·`/seasons`)를 쓰지 않는다 — 시안 v2.1의 화면
+  레지스트리에 그 둘이 없다. 리더보드의 정본은 `/seasons/:slug/leaderboard`고,
+  시즌 아카이브는 보류(P2)라 시즌 상세로 대신 보낸다. season.ts resolveNavCta와
+  같은 규칙이다.
+*/
+const ctaHref = (kind: LandingCta["kind"], slug: string): string =>
+  ({
+    PREREGISTER: "#hero",
+    APPLY: "/apply",
+    LEADERBOARD: `/seasons/${slug}/leaderboard`,
+    CLOSED: `/seasons/${slug}`,
+  })[kind];
 
 export function Landing({
   seasonName,
+  seasonSlug,
   seasonTheme,
   startAt,
   cta,
@@ -454,8 +464,9 @@ export function Landing({
   return (
     <div className="page">
       <NavBar
+        leaderboardHref={`/seasons/${seasonSlug}/leaderboard`}
         cta={{
-          href: CTA_HREF[cta.kind],
+          href: ctaHref(cta.kind, seasonSlug),
           label: ctaLabel,
           // 사전신청은 이 페이지 안에서 처리한다. 나머지는 실제 라우트 이동이다.
           onClick: isScrollCta ? runCta : undefined,
@@ -488,7 +499,7 @@ export function Landing({
                 {ctaLabel}
               </Button>
             ) : (
-              <LinkButton size="lg" href={CTA_HREF[cta.kind]}>
+              <LinkButton size="lg" href={ctaHref(cta.kind, seasonSlug)}>
                 {ctaLabel}
               </LinkButton>
             )}
@@ -716,7 +727,7 @@ export function Landing({
               {ctaLabel}
             </Button>
           ) : (
-            <LinkButton size="lg" href={CTA_HREF[cta.kind]}>
+            <LinkButton size="lg" href={ctaHref(cta.kind, seasonSlug)}>
               {ctaLabel}
             </LinkButton>
           )}

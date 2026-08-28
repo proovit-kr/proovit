@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { Footer } from "@/components/Footer";
 import { Logo } from "@/components/NavBar";
-import { requireOnboardedUser } from "@/lib/access";
+import { requireUser } from "@/lib/access";
 import { hasAnyEntry } from "@/lib/apply-store";
 
 import { SettingsForm } from "./SettingsForm";
@@ -20,9 +20,8 @@ import styles from "./settings.module.css";
   일부러 뺐다 — 알림톡은 발신프로필 심사(윤서)가 선행이고 전화번호는 /apply에서
   받기로 한 값이라, 여기 먼저 놓으면 끌 수만 있고 켤 수 없는 스위치가 된다.
 
-  requireOnboardedUser를 쓴다. 온보딩을 안 마친 사람이 여기부터 열면
-  이름 두 칸이 임시값(이메일 아이디)인 채로 보여서 무엇을 고치는 화면인지
-  알 수 없다 — 온보딩으로 먼저 보낸다.
+  requireUser만 쓴다. 소셜 가입 직후에는 이름 두 칸이 임시값(이메일 아이디)인데,
+  그 값을 진짜 이름으로 바꾸는 자리가 여기다 — 막으면 바꿀 데가 없어진다.
 
   실명 칸은 참가 신청이 확정되면 읽기 전용이 된다(DEV3에서 구현). 근거는
   profile-store.ts 머리 주석에 있다 — 상금 지급 때 예금주와 대조하는 값이라
@@ -35,7 +34,7 @@ export const metadata: Metadata = {
 };
 
 export default async function SettingsPage() {
-  const user = await requireOnboardedUser("/settings");
+  const user = await requireUser("/settings");
   const nameLocked = await hasAnyEntry(user.id);
 
   return (

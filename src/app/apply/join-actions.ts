@@ -42,9 +42,6 @@ export async function joinTeam(
   if (!user) {
     return { message: "로그인이 풀렸습니다. 다시 로그인해 주세요.", code: raw };
   }
-  if (!user.onboardedAt) {
-    redirect(`/onboarding?next=${encodeURIComponent(`/apply?invite=${raw}`)}`);
-  }
 
   const parsed = InviteCodeSchema.safeParse(raw);
   if (!parsed.success) {

@@ -28,15 +28,11 @@ export async function submitApply(
 ): Promise<ApplyState> {
   /*
     ⚠️ 화면이 로그인 뒤에 있다고 액션의 인증을 생략하지 않는다.
-    서버 액션은 그 자체로 호출 가능한 엔드포인트다(onboarding/actions.ts와 같은 이유).
+    서버 액션은 그 자체로 호출 가능한 엔드포인트다.
   */
   const user = await getSessionUser();
   if (!user) {
     return { message: "로그인이 풀렸습니다. 다시 로그인해 주세요." };
-  }
-  if (!user.onboardedAt) {
-    // 온보딩을 건너뛴 채로 액션만 부른 경우. 이름 없이 참가팀을 만들 수 없다.
-    redirect("/onboarding?next=%2Fapply");
   }
 
   const values = {

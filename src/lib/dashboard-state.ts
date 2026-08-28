@@ -42,8 +42,6 @@ export type BlockedReason =
   | "team_not_ready"
   /** 측정 연동이 검증되지 않았다. 배포 완료의 조건이다 */
   | "hostname_not_verified"
-  /** 보증금 미결제. deposit 플래그가 켜졌을 때만 나온다 */
-  | "deposit_unpaid"
   /** 게이트 심사 중이라 제출이 잠겼다 */
   | "gate_review"
   /** 게이트 미통과 */
@@ -76,7 +74,12 @@ export type DashboardState = {
   (PLN3 3.1 각주 · PLN2 9장 FR-S3). 계산이 싸고, 저장하면 두 값이 어긋난다.
 */
 export function resolveDashboardState(input: DashboardInput): DashboardState {
-  const { phase, flags, entry, onboarding, onboardingComplete } = input;
+  /*
+    `flags`는 아직 안 읽는다. 보증금·테스터 분기가 빠지면서 유일한 독자가
+    없어졌는데, 입력에서는 지우지 않았다 — 시안 허브 17상태에는 크레딧 센터
+    플래그로 갈리는 자리가 남아 있어 허브를 옮길 때 다시 쓴다.
+  */
+  const { phase, entry, onboarding, onboardingComplete } = input;
   const blocked: BlockedReason[] = [];
 
   // 참가 기록이 없다 — 대시보드에 올 일이 없지만 방어한다
@@ -99,14 +102,18 @@ export function resolveDashboardState(input: DashboardInput): DashboardState {
   if (entry.status === EntryStatus.eliminated) {
     blocked.push("entry_eliminated");
     /*
-      PLN3 3.2 「탈락팀 접근」 — 대시보드를 막지 않고 테스터 화면으로 유도한다.
-      ⚠️ 테스터를 시즌1에 켤지가 미결이라(PLN3 미결 3번) 플래그가 꺼져 있으면
-      보낼 곳이 없다. 그때는 소명으로 보낸다 — 빈손으로 두는 것보다 낫다.
+      PLN3 3.2 「탈락팀 접근」 — 대시보드를 막지 않는다.
+
+      ⚠️ 상호 테스터로 유도하던 분기를 뺐다. 시안 v2.1이 테스터를 **보류(시즌2+)**
+      로 두고 화면을 만들지 않아 `/dashboard/tester`를 지웠다. 시안의 대응 상태
+      (허브 h12 「1차 심사 결과, 미통과」)도 소명·다음 시즌만 보여준다.
     */
     return {
-      nextAction: flags.testerAssignments
-        ? { key: "tester", label: "상호 테스터 참여하기", href: "/dashboard/tester" }
-        : { key: "appeal", label: "결과에 이의 제기하기", href: "/dashboard/appeal" },
+      nextAction: {
+        key: "appeal",
+        label: "결과에 이의 제기하기",
+        href: "/dashboard/appeal",
+      },
       blockedReasons: blocked,
     };
   }
@@ -117,11 +124,19 @@ export function resolveDashboardState(input: DashboardInput): DashboardState {
     return { nextAction: null, blockedReasons: ["season_archived"] };
   }
   if (isAwarded(phase)) {
-    // PLN3 3.1 8행 — 결과·수상 내역. 보증금을 켰을 때만 환불 신청이 붙는다
+    /*
+      PLN3 3.1 8행 — 결과·수상 내역.
+
+      ⚠️ 보증금 환불 신청 분기를 뺐다. 시안 v2.1이 보증금을 **보류(도입 미정)** 로
+      두고 화면을 만들지 않아 `/dashboard/deposit`을 지웠다. 시안의 대응 상태
+      (허브 h8 「시즌 1 결과」)는 환불 항목을 「⚠️ 도입 미정」 배지로만 남긴다.
+    */
     return {
-      nextAction: flags.deposit
-        ? { key: "refund", label: "보증금 환불 신청", href: "/dashboard/deposit" }
-        : { key: "result", label: "결과 보기", href: "/dashboard/judgments" },
+      nextAction: {
+        key: "result",
+        label: "결과 보기",
+        href: "/dashboard/judgments",
+      },
       blockedReasons: blocked,
     };
   }
@@ -138,7 +153,6 @@ export function resolveDashboardState(input: DashboardInput): DashboardState {
     */
     if (!onboarding.teamReady) blocked.push("team_not_ready");
     if (!onboarding.measurementReady) blocked.push("hostname_not_verified");
-    if (flags.deposit && !onboarding.depositReady) blocked.push("deposit_unpaid");
 
     if (!onboarding.teamReady) {
       return {
@@ -146,18 +160,17 @@ export function resolveDashboardState(input: DashboardInput): DashboardState {
         blockedReasons: blocked,
       };
     }
-    if (!onboarding.measurementReady) {
-      return {
-        nextAction: {
-          key: "onboarding_measurement",
-          label: "측정 연동하기",
-          href: "/dashboard/measurement",
-        },
-        blockedReasons: blocked,
-      };
-    }
+    /*
+      뒤에 「보증금 결제하기」 분기가 하나 더 있었다. 보증금이 보류라 화면을
+      지웠고, 애초에 `ONBOARDING_REQUIRES_DEPOSIT`이 false여서 이 자리까지
+      내려오지 못하는 죽은 가지였다. 온보딩은 시안(허브 h1)대로 두 단계다.
+    */
     return {
-      nextAction: { key: "onboarding_deposit", label: "보증금 결제하기", href: "/dashboard/deposit" },
+      nextAction: {
+        key: "onboarding_measurement",
+        label: "측정 연동하기",
+        href: "/dashboard/measurement",
+      },
       blockedReasons: blocked,
     };
   }

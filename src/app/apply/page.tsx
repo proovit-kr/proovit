@@ -4,7 +4,7 @@ import Link from "next/link";
 import { LinkButton } from "@/components/Button";
 import { Footer } from "@/components/Footer";
 import { Logo } from "@/components/NavBar";
-import { requireOnboardedUser } from "@/lib/access";
+import { requireUser } from "@/lib/access";
 import { findMyEntry } from "@/lib/apply-store";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
@@ -93,8 +93,8 @@ export default async function ApplyPage({
     );
   }
 
-  /* 초대 코드는 로그인·온보딩을 거쳐 돌아올 때까지 들고 가야 한다 */
-  const user = await requireOnboardedUser(
+  /* 초대 코드는 로그인을 거쳐 돌아올 때까지 들고 가야 한다 */
+  const user = await requireUser(
     inviteCode ? `/apply?invite=${encodeURIComponent(inviteCode)}` : "/apply",
   );
 

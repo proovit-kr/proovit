@@ -55,11 +55,8 @@ export default async function LoginPage({
   const next = safeNext(callbackUrl) ?? "/";
 
   const session = await auth();
-  /*
-    이미 로그인한 사람에게 로그인 화면을 보여줄 이유가 없다.
-    온보딩을 마쳤으면 /onboarding이 곧바로 next로 흘려보낸다.
-  */
-  if (session?.user) redirect(`/onboarding?next=${encodeURIComponent(next)}`);
+  /* 이미 로그인한 사람에게 로그인 화면을 보여줄 이유가 없다. */
+  if (session?.user) redirect(next);
 
   const errorMessage = error
     ? (ERROR_MESSAGES[error] ?? "로그인에 실패했습니다. 다시 시도해 주세요.")
@@ -90,14 +87,14 @@ export default async function LoginPage({
                 action={async () => {
                   "use server";
                   /*
-                    로그인 후 목적지로 곧장 가지 않고 /onboarding을 거친다.
-                    소셜 가입은 이름을 이메일 아이디로 갈음해두기 때문에
-                    (auth-adapter.ts) 그 자리를 지나야 실제 이름이 채워진다.
-                    이미 마친 사람에게는 서버 리다이렉트 한 번이라 티가 안 난다.
+                    로그인 후 목적지로 곧장 간다.
+
+                    ⚠️ 소셜 가입은 이름을 이메일 아이디로 갈음해둔다
+                    (auth-adapter.ts). 그 임시값을 진짜 이름으로 바꾸는 자리는
+                    이제 /settings뿐이고, 가입 직후 강제로 거치는 자리는 없다.
+                    시안(v2.1)에 온보딩 화면이 없어서다.
                   */
-                  await signIn(provider.id, {
-                    redirectTo: `/onboarding?next=${encodeURIComponent(next)}`,
-                  });
+                  await signIn(provider.id, { redirectTo: next });
                 }}
               >
                 <Button

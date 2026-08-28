@@ -112,19 +112,11 @@ check(
   ),
   "NOT_FOUND",
 );
-check(
-  "탈락팀 — 테스터 화면은 열린다(플래그 켠 경우)",
-  canAccess(
-    "dashboardTester",
-    ctx({
-      phase: SeasonPhase.racing,
-      stage: EntryStage.s2,
-      status: EntryStatus.eliminated,
-      flags: testerOn,
-    }),
-  ),
-  "ALLOW",
-);
+/*
+  「탈락팀 — 테스터 화면은 열린다」 케이스가 여기 있었다. 시안 v2.1이 상호
+  테스터를 보류(시즌2+)로 두고 화면을 만들지 않아 `/dashboard/tester`와 그
+  라우트 정책을 지웠다. 시안에 화면이 생기면 이 케이스도 함께 되살린다.
+*/
 check(
   "레이스 중 실격 — 소명 화면은 열린다",
   canAccess(
@@ -180,13 +172,19 @@ check(
   canAccess("dashboard", ctx({ phase: SeasonPhase.racing, anon: true })),
   "UNAUTHENTICATED",
 );
+/*
+  「온보딩 미완 — 403」이었다. 이름 입력 단계(`auth: "onboarded"`)를 없애면서
+  판정이 뒤집혔다 — 시안 v2.1에 온보딩 화면이 없어 `/onboarding`을 지웠고,
+  그러면 `onboardedAt`을 채울 자리가 없어 이 403이 영구 잠금이 된다.
+  이름은 `/settings`에서 고친다. 시안에 온보딩 화면이 생기면 되돌린다.
+*/
 check(
-  "온보딩 미완 — 403",
+  "이름 미입력이어도 대시보드는 열린다",
   canAccess(
     "dashboard",
     ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1, onboarded: false }),
   ),
-  "FORBIDDEN",
+  "ALLOW",
 );
 check(
   "참가 기록 없음 — 404",
@@ -521,22 +519,14 @@ checkAction(
   }),
   "appeal",
 );
+/* 테스터 플래그와 무관하게 소명으로 간다 — 테스터 화면이 보류라 지웠다 */
 checkAction(
-  "3.2 — 탈락 팀 × 테스터 켬 → 테스터로 유도",
+  "3.2 — 탈락 팀 → 소명으로 유도",
   state({
     phase: SeasonPhase.racing,
     stage: EntryStage.s2,
     status: EntryStatus.eliminated,
     flags: testerOn,
-  }),
-  "tester",
-);
-checkAction(
-  "3.2 — 탈락 팀 × 테스터 끔 → 소명으로 유도(빈손 방지)",
-  state({
-    phase: SeasonPhase.racing,
-    stage: EntryStage.s2,
-    status: EntryStatus.eliminated,
   }),
   "appeal",
 );

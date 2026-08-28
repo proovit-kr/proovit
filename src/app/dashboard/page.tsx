@@ -109,9 +109,11 @@ export default async function Page() {
     ? BLOCKED_COPY[headlineReason].hint
     : null;
 
-  const steps = ONBOARDING_STEPS.filter(
-    (step) => step.key !== "depositReady" || season.flags.deposit,
-  );
+  /*
+    보증금 항목을 걸러내던 필터가 여기 있었다. 시안 v2.1이 보증금을
+    보류(도입 미정)로 두어 `ONBOARDING_STEPS`에서 항목 자체가 빠졌다.
+  */
+  const steps = ONBOARDING_STEPS;
 
   return (
     <section className={styles.root}>

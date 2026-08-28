@@ -93,7 +93,10 @@ export default async function Page({
 
   return (
     <main className={`page ${styles.page}`}>
-      <NavBar cta={resolveNavCta(season)} />
+      <NavBar
+        leaderboardHref={`/seasons/${season.slug}/leaderboard`}
+        cta={resolveNavCta(season)}
+      />
       <div className={`container container--narrow grow ${styles.wrap}`}>
         <header className={styles.head}>
           <p className={styles.meta}>

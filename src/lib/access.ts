@@ -36,7 +36,7 @@ export * from "@/lib/access-policy";
   흩뿌리면 미통과 팀에게 화면이 순간 노출된다.
 
   두 층이다.
-  ① 세션 관문(`requireUser`·`requireOnboardedUser`) — 로그인·온보딩. 리다이렉트한다.
+  ① 세션 관문(`requireUser`) — 로그인. 리다이렉트한다.
   ② `canAccess()` — 시즌 페이즈 × 참가 진도 × 생존 상태 × 기능 플래그 4축 판정.
      순수 함수라 던지지도 리다이렉트하지도 않고 판정만 돌려준다.
 
@@ -109,20 +109,6 @@ export async function requireUser(next?: string): Promise<GateUser> {
   const target = safeNext(next);
   redirect(
     target ? `/login?callbackUrl=${encodeURIComponent(target)}` : "/login",
-  );
-}
-
-/**
- * 로그인 + 온보딩 완료 필수.
- * 참가 신청·대시보드·심사 콘솔처럼 사람 이름이 드러나는 화면은 전부 이걸 쓴다.
- */
-export async function requireOnboardedUser(next?: string): Promise<GateUser> {
-  const user = await requireUser(next);
-  if (user.onboardedAt) return user;
-
-  const target = safeNext(next);
-  redirect(
-    target ? `/onboarding?next=${encodeURIComponent(target)}` : "/onboarding",
   );
 }
 

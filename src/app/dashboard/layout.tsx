@@ -17,6 +17,11 @@ import styles from "./dashboard.module.css";
   나가는데(canAccess), 링크만 남겨두면 눌러서 404를 보는 사람이 생긴다.
   "있는데 못 쓴다"와 "없다" 중 우리가 고른 것은 후자다.
 
+  ⚠️ 보증금·상호 테스터는 아예 빠져 있다. 시안 v2.1이 둘을 **보류**로 두고
+  (각각 「도입 미정」·「시즌2+」) 화면을 만들지 않았기 때문에 라우트도 지웠다.
+  시안은 이 둘을 사이드바에 비활성 항목(`.db-it.hold`)으로 남기는데, 그 표기는
+  db-side를 시안대로 옮길 때 함께 붙인다.
+
   `loadViewerState`가 React cache로 감싸여 있어 레이아웃과 페이지가 각각 불러도
   요청당 DB는 한 번만 읽는다.
 */
@@ -34,16 +39,10 @@ export default async function DashboardLayout({
   const items: NavItem[] = [
     { href: "/dashboard", label: "홈" },
     { href: "/dashboard/team", label: "팀" },
-    ...(flags?.deposit
-      ? [{ href: "/dashboard/deposit", label: "보증금" }]
-      : []),
     { href: "/dashboard/measurement", label: "측정 연동" },
     { href: "/dashboard/payment", label: "결제 연동" },
     { href: "/dashboard/metrics", label: "내 지표" },
     { href: "/dashboard/judgments", label: "심사 결과" },
-    ...(flags?.testerAssignments
-      ? [{ href: "/dashboard/tester", label: "상호 테스터" }]
-      : []),
     ...(flags?.credits
       ? [{ href: "/dashboard/credits", label: "혜택과 크레딧" }]
       : []),
