@@ -127,6 +127,32 @@ export async function withPage(fn) {
       return result.value;
     },
 
+    /**
+     * 시안 문서에서 **뷰어 크롬을 걷어낸다.** 반드시 resize 전에 부른다.
+     *
+     * 시안은 `#nav`(264px, ≤1024에서 212px) + `#topbar`(52px) + `.state-bar`(41px)
+     * 안에 화면을 담은 뷰어다. 그 사이드바가 콘텐츠 폭을 먹어서, 창을 390으로
+     * 맞춰도 화면이 실제로 받는 폭은 178px이 된다 — 제품에는 없는 조건이다.
+     * 그대로 재면 줄바꿈·플렉스 여백이 전부 어긋난다.
+     *
+     * `@media`는 창 폭을 보므로 여기서 건드리지 않는다. 시안 작성자도 제품
+     * 뷰포트를 기준으로 브레이크포인트를 적었다고 보는 것이 맞다.
+     */
+    async stripViewerShell() {
+      await this.eval(`(() => {
+        for (const sel of ["#nav", "#topbar", ".state-bar"]) {
+          document.querySelectorAll(sel).forEach(el => { el.style.display = "none" });
+        }
+        /* #app은 height:100vh + overflow:hidden이고 #stage가 안에서 스크롤한다.
+           문서 스크롤로 바꿔야 우리 화면과 같은 조건이 된다 */
+        const app = document.getElementById("app");
+        if (app) { app.style.height = "auto"; app.style.overflow = "visible" }
+        const stage = document.getElementById("stage");
+        if (stage) { stage.style.overflow = "visible" }
+        return 1;
+      })()`);
+    },
+
     /** ⚠️ 반드시 측정을 끝낸 뒤에 부른다 (함정 ①) */
     async shot(path) {
       const { data } = await this.send("Page.captureScreenshot", {

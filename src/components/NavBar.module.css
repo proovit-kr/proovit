@@ -1,267 +1,61 @@
-.nav {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
-  padding: 14px var(--pad-x);
-  background: var(--c-nav);
-  backdrop-filter: blur(12px);
-  /*
-    최상단에서는 선을 긋지 않는다. 헤더가 히어로와 같은 면에 있는 상태라
-    나눌 것이 없는데 선만 남아 촌스럽다 — 콘텐츠 위로 떠올랐을 때만 경계를 만든다.
-    자리를 미리 잡아두려고 투명 테두리로 둔다. 그래야 나타날 때 1px이 밀리지 않는다.
-  */
-  border-bottom: 1px solid transparent;
-  transition: border-color var(--t-fast);
-}
-.navScrolled {
-  border-bottom-color: var(--c-line);
-}
-
-.logo {
-  font-weight: 800;
-  font-size: var(--fs-2xl);
-  letter-spacing: 0.06em;
-  color: var(--c-text-strong);
-}
-.logo:hover {
-  color: var(--c-text-strong);
-}
-.logoCheck {
-  color: var(--c-lime);
-  font-weight: 900;
-}
-
-.menu {
-  display: flex;
-  gap: var(--s-8);
-  font-size: var(--fs-base);
-  font-weight: 600;
-}
-
-.menuLink {
-  color: var(--c-text-muted);
-}
-.menuLink:hover {
-  color: var(--c-text-strong);
-}
-
-.menuActive {
-  color: var(--c-lime);
-  border-bottom: 2px solid var(--c-lime);
-  padding-bottom: 2px;
-}
-.menuActive:hover {
-  color: var(--c-lime);
-}
-
-.right {
-  display: flex;
-  align-items: center;
-  /*
-    12px면 텍스트 링크와 채운 버튼이 한 덩어리로 붙어 보인다 — 무게가 다른
-    두 요소라 같은 간격으로 두면 CTA가 링크에 딸린 것처럼 읽힌다.
-    메뉴 항목 사이(32px)보다는 좁게, 붙지는 않게 24px.
-  */
-  gap: var(--s-6);
-  /* 헤더는 어떤 경우에도 두 줄이 되지 않는다 */
-  flex-wrap: nowrap;
-}
-
 /*
-  로그인 상태가 정해지기 전 빈 자리를 미리 잡아둔다.
-  min-width는 "로그인" 링크의 폭(14px·3글자)에서 왔다 — 방문자 대부분이
-  비로그인이라 그쪽에서 흔들림이 0이 되는 값을 고른다.
+  공개 헤더 — 시안 `.pub-head`.
+
+  ⚠️ 마지막 승자를 썼다.
+    nav gap        22px(v0.1) → 24px(v0.4)
+    nav font-size  14px       → 14.5px(v2.0)
+    background     rgba(11,18,32,.9)  → rgba(12,19,34,.78)(v1.1)
+    backdrop       blur(10px)         → blur(12px) saturate(1.25)(v1.1)
+
+  `position:sticky; top:41px`의 41px은 **시안 뷰어의 상태 바 높이**다.
+  제품에는 그 바가 없으므로 0으로 둔다. 시안도 랜딩·규칙에서는
+  `style="top:0"`을 인라인으로 덮고 있다.
 */
-.authSlot {
-  display: flex;
-  justify-content: flex-end;
-  min-width: 44px;
-  white-space: nowrap;
-}
-
-.signIn {
-  font-size: var(--fs-base);
-  color: var(--c-text-muted);
-  font-weight: 600;
-}
-.signIn:hover {
-  color: var(--c-text-strong);
-}
-
-.userChip {
+.head {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
-  background: var(--c-surface-2);
-  border: 1px solid var(--c-line-2);
-  border-radius: var(--r-pill);
-  padding: 5px 14px 5px 5px;
-  cursor: pointer;
-  color: var(--c-text);
-  transition: border-color var(--t-fast);
-}
-.userChip:hover {
-  border-color: var(--c-lime-35);
-  color: var(--c-text);
-}
-
-.avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--c-lime), var(--c-lime-deep));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: var(--fs-sm);
-  color: var(--c-bg);
-  flex-shrink: 0;
-}
-
-
-/* 드롭다운이 이 칸을 기준으로 선다 */
-.account {
-  position: relative;
-}
-
-/*
-  메뉴가 열린다는 표시. 이름과 붙지 않게 살짝 띄우고, 이름보다 약하게 둔다 —
-  읽는 것은 이름이고 이건 안내다.
-*/
-.caret {
-  color: var(--c-text-dim);
-  margin-left: -2px;
-  flex-shrink: 0;
-  transition: transform var(--t-fast);
-}
-/* 열리면 뒤집어 "지금 열려 있다"를 모양으로도 알린다 */
-.caretOpen {
-  transform: rotate(180deg);
-}
-@media (prefers-reduced-motion: reduce) {
-  .caret {
-    transition: none;
-  }
-}
-
-/*
-  닉네임은 20자까지 들어온다. 그대로 두면 긴 이름 하나가 헤더를 밀어낸다.
-  ch가 아니라 rem으로 자르는 이유 — 1ch는 숫자 0의 폭이라 한글에서는
-  의도한 글자 수의 절반쯤에서 끊긴다.
-*/
-.userName {
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  max-width: 8rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.accountMenu {
-  position: absolute;
-  top: calc(100% + var(--s-2));
-  right: 0;
-  z-index: 60; /* .nav가 50이다 */
-  min-width: 140px;
-  display: flex;
-  flex-direction: column;
-  padding: var(--s-1);
-  background: var(--c-surface-2);
-  border: 1px solid var(--c-line-2);
-  border-radius: var(--r-lg);
-  /*
-    드롭다운은 실제로 떠 있는 요소다 — §7이 금지한 건 "안 떠 있는 것에
-    상자를 두르는 것"이지 이건 해당하지 않는다.
-  */
-  box-shadow: var(--sh-card);
-}
-
-.accountItem {
-  display: block;
-  width: 100%;
-  /* form 안의 button과 a가 같은 모양이어야 한다 */
-  box-sizing: border-box;
-  text-align: left;
-  background: none;
-  border: 0;
-  cursor: pointer;
-  padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-md);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  /* 13px는 WCAG 대형 텍스트가 아니라 4.5:1이 필요하다 → --c-text-dim(5.28:1) */
-  color: var(--c-text-dim);
-  transition:
-    background var(--t-fast),
-    color var(--t-fast);
-}
-.accountItem:hover {
-  background: var(--c-chip);
-  color: var(--c-text-strong);
-}
-
-/* ---- 운영자 콘솔 ---- */
-.opsNav {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: 36px;
-  padding: 12px 28px;
-  background: var(--c-surface-ops);
-  border-bottom: 1px solid var(--c-line-2);
-}
-
-.opsLogo {
-  font-weight: 800;
-  font-size: var(--fs-lg);
-  letter-spacing: 0.06em;
-  color: var(--c-text-strong);
-}
-.opsTag {
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  color: var(--c-text-faint);
-  font-weight: 700;
-}
-
-.opsMenu {
-  display: flex;
   gap: 26px;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  flex-wrap: wrap;
-}
-.opsLink {
-  color: var(--c-text-dim);
-}
-.opsLink:hover {
-  color: var(--c-text-strong);
-}
-.opsActive {
-  color: var(--c-text-strong);
-  border-bottom: 2px solid var(--c-lime);
-  padding-bottom: 3px;
-}
-.opsActive:hover {
-  color: var(--c-text-strong);
+  padding: 0 40px;
+  height: 64px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: rgba(12, 19, 34, 0.78);
+  backdrop-filter: blur(12px) saturate(1.25);
+  z-index: 30;
 }
 
-.opsExit {
+/* 워드마크. 체크 표시만 라임이다 */
+.wm {
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.06em;
+}
+.wmCheck {
+  color: var(--accent);
+  font-style: normal;
+}
+
+.nav {
+  display: flex;
+  gap: 24px;
+  font-size: 14.5px;
+  color: var(--muted);
+}
+.nav a:hover {
+  color: var(--text);
+}
+/* 지금 보고 있는 항목. 시안은 인라인 `style="color:var(--text)"`로 표시한다 */
+.navOn {
+  color: var(--text);
+}
+
+.cta {
   margin-left: auto;
-  font-size: var(--fs-xs);
-  color: var(--c-text-faint);
 }
 
-@media (max-width: 720px) {
-  .menu {
-    display: none;
+@media (max-width: 1024px) {
+  .head {
+    padding: 0 22px;
   }
 }

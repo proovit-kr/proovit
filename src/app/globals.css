@@ -250,11 +250,17 @@
   padding: 0;
 }
 
-html,
-body {
-  height: 100%;
-}
+/*
+  ⚠️ 시안의 `html,body{height:100%}`를 옮기지 않았다.
 
+  그 줄은 시안 **뷰어 셸**을 위한 것이다 — `#app{display:flex;height:100vh;
+  overflow:hidden}`이 화면을 꽉 채우고 `#stage`가 안에서 따로 스크롤한다.
+  우리 화면은 문서 자체가 스크롤한다.
+
+  그대로 두면 body가 뷰포트 높이로 고정되고, 그 안의 `.page`(플렉스 컬럼)가
+  눌리면서 자식이 전부 축소된다. 실제로 `.pub-head`가 64px이 아니라 35px로
+  그려졌다 — 콘텐츠 높이까지 찌그러진 값이다.
+*/
 html {
   color-scheme: dark;
   scroll-behavior: smooth;

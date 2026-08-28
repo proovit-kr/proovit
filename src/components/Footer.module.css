@@ -1,58 +1,30 @@
-.footer {
-  border-top: 1px solid var(--c-line);
-  padding: 36px var(--pad-x);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-5);
-  max-width: var(--w-page);
-  margin: 0 auto;
-  width: 100%;
-}
-
-.brand {
-  font-weight: 800;
-  font-size: var(--fs-lg);
-  letter-spacing: 0.06em;
-  color: var(--c-text-strong);
-}
-.check {
-  color: var(--c-lime);
-}
-
-.links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-6);
-  font-size: var(--fs-sm);
-}
-.links a {
-  color: var(--c-text-dim);
-}
-.links a:hover {
-  color: var(--c-lime);
-}
-
 /*
-  개인정보처리방침은 다른 링크와 구분되게 표시한다 — 표준 개인정보 처리방침
-  작성지침의 권고이자, 급할 때 찾는 사람이 실제로 눈으로 훑어 찾는 항목이다.
-  라임을 쓰지 않는 이유는 §7 — 라임은 한 화면에 한 번만 세게 쓴다.
+  공개 푸터 — 시안 `.pub-foot`.
+  한 줄에 워드마크 · 링크 셋 · 오른쪽 끝 SNS. 좁아지면 접힌다.
 */
-.legal {
-  color: var(--c-text-muted);
-  font-weight: 600;
+.foot {
+  border-top: 1px solid var(--line);
+  padding: 34px 40px;
+  display: flex;
+  gap: 22px;
+  color: var(--faint);
+  font-size: 13px;
+  flex-wrap: wrap;
 }
 
-.social {
+/* 푸터의 워드마크는 헤더보다 한 톤 낮다 — 여기선 상표가 아니라 서명이다 */
+.wm {
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.wmCheck {
+  color: var(--accent);
+  font-style: normal;
+}
+
+.sns {
+  margin-left: auto;
   display: flex;
-  gap: var(--s-4);
-  font-size: var(--fs-sm);
-  font-family: var(--font-mono);
-}
-.social a {
-  color: var(--c-text-dim);
-}
-.social a:hover {
-  color: var(--c-lime);
+  gap: 14px;
 }
