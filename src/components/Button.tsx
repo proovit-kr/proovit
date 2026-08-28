@@ -4,12 +4,47 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import styles from "./Button.module.css";
 
 /*
-  프로토타입의 Button을 Next로 옮긴 것.
-  변경점은 react-router `<Link to>` → `next/link` `<Link href>` 하나다.
-  스타일과 variant는 그대로 둔다.
+  버튼 — 시안 `.btn`의 변형을 그대로 쓴다.
+  primary / outline / ghost / danger / kakao / google 여섯이 시안의 전부다.
 */
 
-type Variant = "primary" | "ghost" | "soft" | "quiet";
+type SpecVariant =
+  | "primary"
+  | "outline"
+  | "ghost"
+  | "danger"
+  | "kakao"
+  | "google";
+
+/*
+  ⚠️ 임시 별칭 — 시안 이식이 끝나면 지운다.
+
+  기존 호출부 26개 파일이 옛 이름을 쓴다. 지금 한 번에 끊으면 아직 옮기지 않은
+  화면을 손대야 해서, 시안의 가장 가까운 변형으로 이어 둔다. 화면을 옮길 때
+  그 파일의 호출부를 시안 이름으로 고치고, 마지막 하나가 없어지면 이 표도
+  같이 없앤다.
+
+    soft   라임 틴트 + 라임 테두리   → outline (같은 역할)
+    quiet  테두리 없는 낮은 대비      → ghost   (시안 `.btn-ghost`가 이것이다)
+
+  ⚠️ 옛 `ghost`(주 CTA 옆의 보조 버튼)는 별칭으로 두지 않고 호출부 두 곳을
+  `outline`으로 고쳤다. 시안에도 `ghost`라는 변형이 있는데 뜻이 정반대라
+  (테두리 없는 낮은 대비) 별칭이 진짜 이름을 가로채기 때문이다.
+
+  진행 상황: `grep -rE 'variant="(soft|quiet)"' src` 가 비면 삭제 가능.
+*/
+const LEGACY: Record<string, SpecVariant> = {
+  soft: "outline",
+  quiet: "ghost",
+};
+
+type Variant = SpecVariant | "soft" | "quiet";
+
+/*
+  ⚠️ 크기도 시안에는 없다 — 쓰는 자리마다 인라인으로 붙인다.
+  Button.module.css의 sm·lg는 시안이 실제로 쓰는 두 조합을 옮겨 둔 것이고,
+  md는 `.btn` 기본값이라 클래스가 없다.
+*/
 type Size = "sm" | "md" | "lg";
 
 interface BaseProps {
@@ -28,8 +63,8 @@ const classes = ({
 }: Omit<BaseProps, "children">): string =>
   [
     styles.btn,
-    styles[variant],
-    styles[size],
+    styles[LEGACY[variant] ?? variant],
+    size === "md" ? "" : styles[size],
     block ? styles.block : "",
     className ?? "",
   ]

@@ -503,7 +503,7 @@ export function Landing({
                 {ctaLabel}
               </LinkButton>
             )}
-            <Button size="lg" variant="ghost" onClick={() => scrollTo("how")}>
+            <Button size="lg" variant="outline" onClick={() => scrollTo("how")}>
               작동 방식 보기
             </Button>
           </div>

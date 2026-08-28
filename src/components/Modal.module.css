@@ -1,0 +1,59 @@
+/*
+  확인 모달 — 시안 `.mdl-ov` / `.mdl`.
+
+  ⚠️ 마지막 승자.
+    .mdl width   400px(v1.1) → 416px(v1.8)
+    .mdl padding 26px        → 28px(v1.8)
+    .mdl h3      17px        → 18px(v1.8)
+    .mdl p       13.5px      → 14px(v1.8) → 14.5px(v2.0)
+*/
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 8, 16, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(3px);
+  /* 시안 `.mdl-ov`는 기본이 display:none이고 `.on`일 때만 flex다.
+     우리는 열렸을 때만 렌더하므로 그 토글이 필요 없다. */
+}
+
+.mdl {
+  width: 416px;
+  max-width: 92%;
+  background: var(--surface);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.026),
+    rgba(255, 255, 255, 0) 46%
+  );
+  border: 1.5px solid var(--line-strong);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 16px 40px -28px rgba(0, 0, 0, 0.45);
+}
+
+.mdl h3 {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.mdl p {
+  font-size: 14.5px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+/* 버튼은 오른쪽으로 몰린다. 취소가 왼쪽, 실행이 오른쪽 */
+.foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}

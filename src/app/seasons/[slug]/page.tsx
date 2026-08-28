@@ -110,7 +110,7 @@ export default async function Page({
             ) : null}
             <LinkButton
               href={`/seasons/${season.slug}/leaderboard`}
-              variant="ghost"
+              variant="outline"
               size="lg"
             >
               리더보드 보기

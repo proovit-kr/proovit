@@ -1,0 +1,165 @@
+/*
+  입력 — 시안 `.inp`, `.fld`, `.sw`.
+
+  ⚠️ 마지막 승자를 썼다.
+    .inp font-size  14px(v0.1) → 14.5px(v0.4) → 15px(v1.8) → 15.5px(v2.0)
+    .inp padding    12px 14px  → 13px 15px(v1.8)
+    .fld>label      13px → 14px(v0.4) → 14.5px(v1.8) → 15px(v2.0)
+    .fld .hint      12px → 12.5px → 13px(v1.7) → 13.5px(v2.0)
+    .fld margin-bottom 18px → 22px(v1.8)
+    textarea min-height 96px → 110px(v1.8)
+
+  배경은 v1.1이 「리세스」로 바꿨다. 표면보다 어두운 판에 안쪽 그림자를 넣어
+  글자가 들어가는 홈처럼 보이게 한다 — 카드가 떠 있는 것과 짝이다.
+*/
+.inp {
+  width: 100%;
+  background: rgba(8, 13, 24, 0.72);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 13px 15px;
+  font-size: 15.5px;
+  font-family: inherit;
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.38);
+  /*
+    ⚠️ 아래 두 줄은 시안에 없다. 브라우저 기본 스타일시트가 폼 컨트롤에
+    `line-height: normal; letter-spacing: normal`을 주고 시안은 그대로 쓰는데,
+    Tailwind preflight의 `font: inherit`이 그걸 덮어 body 값(1.65 / -.005em)이
+    들어온다. 그러면 입력칸이 높아지고 자간이 좁아진다. 기본값을 되돌린다.
+  */
+  line-height: normal;
+  letter-spacing: normal;
+}
+.inp:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 1.5px 3px rgba(0, 0, 0, 0.38),
+    0 0 0 3px rgba(200, 255, 61, 0.15);
+}
+.inp::placeholder {
+  color: var(--faint);
+}
+
+textarea.inp {
+  resize: vertical;
+  min-height: 110px;
+  line-height: 1.55;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+/* 라벨 + 입력 + 힌트 한 묶음 */
+.fld {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 22px;
+}
+.label {
+  font-size: 15px;
+  font-weight: 700;
+}
+/* 라벨 옆의 부연("최대 120자", "선택") — 모노스페이스로 낮춘다 */
+.label small {
+  color: var(--faint);
+  font-weight: 400;
+  margin-left: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.hint {
+  font-size: 13.5px;
+  /* v0.4가 준 line-height다. 그 뒤 패스들이 font-size만 올려서 살아남았다 */
+  line-height: 1.6;
+  color: var(--faint);
+}
+/* 글자 수 카운터. 라벨 오른쪽 끝으로 민다 */
+.cnt {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+  font-weight: 400;
+}
+
+/*
+  토글 — 시안 `.sw`. 체크박스를 투명하게 덮어두고 `<i>`를 그린다.
+  켜지면 손잡이가 2px에서 21px로 간다(42 - 17 - 2 - 2).
+*/
+.sw {
+  position: relative;
+  width: 42px;
+  height: 23px;
+  flex: none;
+}
+.sw input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  cursor: pointer;
+  margin: 0;
+}
+.sw i {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  transition: 0.15s;
+}
+.sw i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 99px;
+  background: var(--muted);
+  transition: 0.15s;
+}
+.sw input:checked + i {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.sw input:checked + i::after {
+  left: 21px;
+  background: var(--accent-ink);
+}
+
+/* 토글이 붙는 줄 — 시안 `.row-sw`. 카드와 같은 표면 처리를 받는다 */
+.rowSw {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 18px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.026),
+    rgba(255, 255, 255, 0) 46%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 16px 40px -28px rgba(0, 0, 0, 0.45);
+}
+.rowSw b {
+  font-size: 15px;
+  display: block;
+}
+.rowSw small {
+  display: block;
+  color: var(--faint);
+  font-size: 13px;
+  margin-top: 2px;
+}
+.rowSw .sw {
+  margin-left: auto;
+}

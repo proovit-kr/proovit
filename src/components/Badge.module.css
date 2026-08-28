@@ -1,77 +1,69 @@
+/*
+  뱃지 — 시안 `.badge` + `.bd-*` 7종.
+
+  ⚠️ 값은 시안에서 그대로 옮겼다. 마지막 승자를 썼다.
+    font-size  11px(v0.1) → 10.5px(v1.1) → 11px(v1.7) → 11.5px(v2.0)
+    padding    3px 10px   → 3px 9px      → 3.5px 10px
+*/
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-1);
-  font-size: var(--fs-2xs);
+  gap: 5px;
+  font-size: 11.5px;
   font-weight: 700;
-  border-radius: var(--r-xs);
-  padding: 3px 8px;
-  white-space: nowrap;
+  border-radius: 99px;
+  padding: 3.5px 10px;
+  letter-spacing: 0.02em;
 }
 
-.pill {
-  border-radius: var(--r-pill);
-  padding: 5px 12px;
-  font-size: var(--fs-xs);
-  font-family: var(--font-mono);
-}
-
+/*
+  일곱 색은 장식이 아니라 역할이다(globals.css 「보조 팔레트」 주석).
+    lime   지표·통과        violet 게이트·잠금 조건
+    teal   시스템 검증 완료  blue   정보 안내
+    red    실격·미통과      warn   주의·미정      gray  중립·대기
+*/
 .lime {
-  color: var(--c-lime);
-  background: rgba(200, 255, 61, 0.09);
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid rgba(200, 255, 61, 0.35);
 }
-.limeOutline {
-  color: var(--c-lime);
-  background: var(--c-lime-10);
-  border: 1px solid var(--c-lime-35);
+.red {
+  background: rgba(255, 93, 93, 0.1);
+  color: var(--danger);
+  border: 1px solid rgba(255, 93, 93, 0.35);
 }
-.gold {
-  color: var(--c-gold);
-  background: var(--c-gold-10);
+.gray {
+  background: rgba(138, 147, 166, 0.1);
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
 }
 .warn {
-  color: var(--c-warn);
-  background: var(--c-warn-10);
-}
-.danger {
-  color: var(--c-danger);
-  background: rgba(255, 107, 107, 0.1);
-}
-.neutral {
-  color: var(--c-text-dim);
-  background: var(--c-field);
-}
-.outline {
-  color: var(--c-text-muted);
-  background: var(--c-surface-2);
-  border: 1px solid var(--c-line-2);
-}
-
-/*
-  보조 팔레트 3종. 역할이 고정이라 색을 고르는 것이 아니라 의미로 고른다
-  (globals.css 「보조 팔레트」 주석).
-*/
-.violet {
-  color: var(--c-violet);
-  background: var(--c-violet-13);
-  border: 1px solid var(--c-violet-40);
-}
-.teal {
-  color: var(--c-teal);
-  background: var(--c-teal-13);
-  border: 1px solid var(--c-teal-45);
+  background: rgba(255, 183, 77, 0.1);
+  color: var(--warn);
+  border: 1px solid rgba(255, 183, 77, 0.35);
 }
 .blue {
-  color: var(--c-blue);
-  background: var(--c-blue-12);
-  border: 1px solid var(--c-blue-40);
+  background: var(--blue-dim);
+  color: var(--blue);
+  border: 1px solid rgba(111, 179, 255, 0.4);
+}
+.violet {
+  background: var(--violet-dim);
+  color: var(--violet);
+  border: 1px solid rgba(167, 139, 250, 0.45);
+}
+.teal {
+  background: var(--teal-dim);
+  color: var(--teal);
+  border: 1px solid rgba(69, 214, 190, 0.45);
 }
 
 /*
-  점선 = 「아직 확정 아님」. 협의 중 카드와 발급 예정이 이걸 쓴다 —
-  같은 회색이라도 "닫혔다"와 "정해지지 않았다"는 다른 말이다.
+  시안 `.bd-dash` — 점선은 「아직 확정 아님」이다. 협의 중 카드와 발급 예정이
+  이걸 쓴다. 같은 회색이라도 "닫혔다"와 "정해지지 않았다"는 다른 말이다.
+  시안이 !important로 못박아 둔 것을 그대로 옮긴다.
 */
 .dashed {
-  border-style: dashed;
-  background: transparent;
+  border-style: dashed !important;
+  background: transparent !important;
 }

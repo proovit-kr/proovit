@@ -1,0 +1,24 @@
+/* 시안 `.ic` — 선 아이콘. 굵기 1.9는 Pretendard 700의 획과 맞춘 값이다 */
+.ic {
+  width: 1.05em;
+  height: 1.05em;
+  display: inline-block;
+  vertical-align: -0.15em;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+/*
+  경고줄과 안내줄에서는 글자를 따라가지 않고 17px로 고정한다(시안
+  `.wbar .ic, .info-strip .ic`). 그 두 줄은 글자가 작아도 아이콘이
+  먼저 눈에 들어와야 한다.
+*/
+.fixed {
+  width: 17px;
+  height: 17px;
+  vertical-align: -0.22em;
+}
