@@ -48,8 +48,9 @@ const PAIRS = [
   ["wm", S + ".pub-head .wm", "header > a:first-child"],
   ["wm em", S + ".pub-head .wm em", "header > a:first-child em"],
   ["nav", S + ".pub-head nav", "header nav"],
-  ["nav a(on)", S + ".pub-head nav a:nth-child(2)", "header nav a:first-child"],
-  ["nav a", S + ".pub-head nav a:first-child", "header nav a:nth-child(2)"],
+  /* 시안·구현 모두 리더보드 화면이라 활성 항목은 둘 다 두 번째다 */
+  ["nav a", S + ".pub-head nav a:first-child", "header nav a:first-child"],
+  ["nav a(on)", S + ".pub-head nav a:nth-child(2)", "header nav a:nth-child(2)"],
   ["cta", S + ".pub-head .cta", "header > :last-child", { flushRight: true }],
 
   ["pub-foot", S + ".pub-foot", "footer"],
@@ -99,7 +100,14 @@ for (const w of WIDTHS) {
     return r;
   });
   const impl = await withPage(async (p) => {
-    await p.goto(IMPL_URL);
+    /*
+      ⚠️ 랜딩(`/`)이 아니라 리더보드를 본다. 이유 둘 —
+      ① 랜딩 헤더의 워드마크에는 `.glitch`가 붙어(position:relative) 시안의
+         리더보드 헤더와 비교 대상이 아니다.
+      ② 시안 쪽이 리더보드 화면이라 메뉴의 **활성 항목**도 리더보드다.
+         다른 화면을 보면 활성 색(--text)이 안 맞는다.
+    */
+    await p.goto(IMPL_URL + "/seasons/season-1/leaderboard");
     await p.resize(w);
     const r = await p.eval(probe(PAIRS.map(([n, , i, o]) => [n, i, o])));
     await p.shot(`${OUT}/impl-${w}.png`);
