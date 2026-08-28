@@ -25,7 +25,7 @@
 import { MemberRole } from "../src/generated/prisma/enums";
 import { prisma } from "../src/lib/prisma";
 
-/* reset-onboarding.ts와 같은 가드다 — 브랜치 ID가 아니라 엔드포인트 호스트로 본다 */
+/* 브랜치 ID가 아니라 엔드포인트 호스트로 본다 — Neon은 둘을 다르게 부른다 */
 const DEV_ENDPOINT = "ep-floral-truth-azjbh0bs";
 const host = new URL(process.env.DATABASE_URL ?? "").host;
 if (!host.startsWith(DEV_ENDPOINT)) {

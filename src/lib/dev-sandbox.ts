@@ -37,7 +37,7 @@ import { prisma } from "@/lib/prisma";
   DATABASE_URL을 덮거나 그 파일을 지우면 그 순간 운영을 고치는 바가 뜬다.
   드문 경우를 막자고 두는 것이 가드다.
 
-  scripts/reset-onboarding.ts와 같은 방식으로 **엔드포인트 호스트**를 본다.
+  scripts/make-demo-account.ts와 같은 방식으로 **엔드포인트 호스트**를 본다.
   브랜치 ID가 아니다 — Neon은 둘을 다른 이름으로 부르고 접속 주소에 들어가는
   것은 엔드포인트 쪽이다.
 */
