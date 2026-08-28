@@ -466,7 +466,14 @@ h4,
 
 .page {
   min-height: 100vh;
-  background: var(--bg);
+  /*
+    ⚠️ 여기에 background를 주지 않는다.
+
+    `z-index:-1` 의사요소(히어로의 네온 격자와 글로우, body의 오로라)는
+    스태킹 컨텍스트의 배경 바로 위에 칠해지는데, 일반 블록 자손의 배경은
+    그보다 **나중에** 칠해진다. `.page`에 불투명 배경을 주면 그 셋을 통째로
+    덮는다. 시안에서 불투명 배경을 가진 조상은 body 하나뿐이다.
+  */
   /*
     hidden이 아니라 clip이어야 한다.
     overflow-x: hidden은 명세상 overflow-y를 auto로 끌어올려 .page를 스크롤
@@ -479,8 +486,8 @@ h4,
   flex-direction: column;
 }
 
+/* 시안은 운영자 화면에 별도 배경을 두지 않는다. 색만 물려받는다 */
 .page--ops {
-  background: var(--bg);
   color: var(--text);
 }
 
@@ -562,6 +569,14 @@ h4,
   outline: none;
   box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.38);
   transition: border-color var(--t-fast);
+  /*
+    ⚠️ 시안에는 없다. 브라우저 기본이 폼 컨트롤에 주는 값인데 Tailwind
+    preflight의 `font: inherit`이 덮어서 body의 1.65가 들어온다. 그러면
+    입력칸이 6.5px 높아진다 — 랜딩 히어로 높이가 그만큼 어긋나 있었다.
+    Field.module.css의 `.inp`와 같은 이유다.
+  */
+  line-height: normal;
+  letter-spacing: normal;
 }
 .textarea {
   min-height: 110px;

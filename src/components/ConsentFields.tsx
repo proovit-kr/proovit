@@ -109,6 +109,12 @@ function ConsentRow({
           ) : null}
           {rest}
         </label>
+        {/*
+          시안은 「보기」를 라벨 글자 바로 뒤에 인라인으로 붙인다.
+          `<label>` 안에 두면 버튼 클릭이 체크박스 토글로 새기 때문에
+          형제로 두되, `.label`의 `flex:1 1 auto`가 아니라 글자 뒤에
+          붙도록 라벨을 콘텐츠 폭으로 만든다(아래 .row 규칙).
+        */}
         {hasDetail ? (
           <button
             type="button"

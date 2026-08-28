@@ -57,7 +57,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className="h-full antialiased">
+    /*
+      ⚠️ html에 `h-full`(height:100%)을 주지 않는다. globals.css가 시안의
+      `html,body{height:100%}`를 왜 안 옮겼는지 적어 둔 그 이유가 여기에도
+      그대로 걸린다 — html이 높이를 가지면 body의 `min-height:100%`가
+      뷰포트 높이로 해석되고, Safari는 그 값을 플렉스 배치의 **확정 높이**로
+      써서 `.page`(플렉스 컬럼)의 자식을 짜낸다. 헤더가 height:64px 대신
+      min-content인 35px로 그려진 게 그거였다. Chrome은 min-height를
+      확정 높이로 안 봐서 멀쩡했고, 그래서 Chrome만 보면 안 잡힌다.
+
+      전체 화면 높이는 `.page`의 `min-height:100vh`가 이미 책임진다.
+    */
+    <html lang="ko" className="antialiased">
       <head>
         {/*
           JetBrains Mono — 시안의 `--mono`다. 지표·순위·코드값이 전부 이걸로
@@ -85,7 +96,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="flex flex-col">
         {children}
         {/*
           개발용 상태 토글 바. production 빌드에서는 아무것도 안 그리고,

@@ -2,6 +2,7 @@ import type {
   HTMLAttributes,
   InputHTMLAttributes,
   ReactNode,
+  Ref,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from "react";
@@ -54,11 +55,16 @@ export function Field({
   );
 }
 
-type InputProps = InputHTMLAttributes<HTMLInputElement> & { mono?: boolean };
+type InputProps = InputHTMLAttributes<HTMLInputElement> & {
+  mono?: boolean;
+  /* 랜딩이 사전신청 입력칸에 포커스를 옮겨야 해서 ref를 통과시킨다 */
+  ref?: Ref<HTMLInputElement>;
+};
 
-export function Input({ mono, className, ...rest }: InputProps) {
+export function Input({ mono, className, ref, ...rest }: InputProps) {
   return (
     <input
+      ref={ref}
       className={join(styles.inp, mono && styles.mono, className)}
       {...rest}
     />

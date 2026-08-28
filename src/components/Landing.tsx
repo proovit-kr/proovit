@@ -12,6 +12,7 @@ import ConsentFields, {
   isConsentComplete,
   type ConsentState,
 } from "./ConsentFields";
+import { Input } from "./Field";
 import { Footer } from "./Footer";
 import { NavBar } from "./NavBar";
 import { Toast, useToast } from "./Toast";
@@ -439,11 +440,10 @@ export function Landing({
               <form className={styles.form} onSubmit={onPreRegister} noValidate>
                 <div className={styles.formHead}>시즌 소식 받기</div>
                 <div className={styles.formRow}>
-                  <input
+                  <Input
                     ref={emailRef}
                     id="preregister"
                     type="email"
-                    className="input"
                     placeholder="이메일 주소"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

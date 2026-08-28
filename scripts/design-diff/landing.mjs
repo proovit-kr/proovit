@@ -93,6 +93,18 @@ const PAIRS = [
 const probe = (pairs) => `(() => {
   const CSS = ${JSON.stringify(CSS)};
   const out = {}, missing = [];
+
+  /*
+    글리치는 3.6초마다 460ms 동안 터진다. 재는 순간의 위상이 매번 달라
+    opacity·transform·animation-name이 그때그때 다르게 나온다. 재기 **직전에**
+    정지 상태로 맞춘다 — settle에서 지우면 시안의 인터벌이 다시 붙인다.
+    터질 때의 모습은 keyframes 값으로 이미 같다.
+  */
+  document.querySelectorAll("[class*=glitch]").forEach((e) =>
+    [...e.classList]
+      .filter((c) => c === "on" || c.endsWith("__on"))
+      .forEach((c) => e.classList.remove(c)));
+
   /* 구현본은 이름으로, 시안은 셀렉터로 집는다 */
   const byModuleName = (n) => [...document.querySelectorAll('[class*="__' + n + '"]')]
     .find(el => [...el.classList].some(c => c.endsWith("__" + n)));
@@ -104,6 +116,40 @@ const probe = (pairs) => `(() => {
           mode === "impl" ? sel.replace(/@([A-Za-z]+)/g, (_, n) => '[class*="__' + n + '"]') : sel,
         );
     if (!el) { missing.push(name + "  ← " + sel); continue; }
+    /*
+      ⚠️ 의사요소도 잰다. ::before / ::after 가 시안의 연출을 절반쯤 지고
+      있다 — 히어로의 네온 격자와 글로우, 전광판의 스캔라인과 스윕,
+      섹션 제목의 라임 밑줄, 커서, 글리치가 전부 의사요소다.
+      본체만 재면 그것들이 통째로 빠져도 「차이 없음」이 나온다(실제로 그랬다).
+    */
+    for (const pe of ["::before", "::after"]) {
+      const pcs = getComputedStyle(el, pe);
+      if (pcs.content === "none") continue;
+      for (const p of ["content","position","inset","width","height","z-index",
+                       "background-image","background-size","background-color",
+                       "opacity","mix-blend-mode","animation-name","animation-duration",
+                       "mask-image","transform","border-radius","margin-left","color"]) {
+        let v = pcs.getPropertyValue(p);
+        if (p === "animation-name") v = v.split(", ").map(n => n.replace(/^.*__/, "")).join(", ");
+        /* Lightning CSS가 그라디언트 위치의 0%를 0px로 줄인다. 같은 값이다 */
+        if (p.startsWith("background")) v = v.replace(/ 0%/g, " 0px");
+        out[name + pe + " " + p] = v;
+      }
+    }
+
+    /*
+      ⚠️ 칠하는 순서도 본다. z-index:-1 의사요소는 스태킹 컨텍스트의 배경
+      바로 위에 칠해지고, 그 위를 **일반 블록 자손의 배경**이 덮는다.
+      값이 전부 같아도 불투명한 조상이 하나 더 있으면 화면에서는 안 보인다.
+      실제로 .page 의 background가 히어로 격자와 body 오로라를 가리고 있었다.
+    */
+    let opaque = 0;
+    for (let n = el.parentElement; n && n !== document.documentElement; n = n.parentElement) {
+      const cs2 = getComputedStyle(n);
+      if (cs2.backgroundColor !== "rgba(0, 0, 0, 0)" || cs2.backgroundImage !== "none") opaque++;
+    }
+    out[name + " ▸불투명한 조상 수"] = String(opaque);
+
     const cs = getComputedStyle(el);
     for (const p of CSS.concat(extra || [])) {
       if ((skip || []).includes(p)) continue;

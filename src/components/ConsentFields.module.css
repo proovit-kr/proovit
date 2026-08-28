@@ -1,9 +1,17 @@
 /*
-  사전 신청 동의 블록.
+  동의 블록 — 시안 `.consents`.
 
-  §7("AI 티 피하기")을 따라 상자를 쓰지 않는다. 폼과의 경계는 괘선 하나로만 긋고,
-  나머지는 여백과 글자 크기로 나눈다. 라임은 히어로 CTA가 이미 쓰고 있으므로
-  여기서는 쓰지 않는다 — 한 화면에 한 번만.
+  값은 시안에서 그대로 옮겼다.
+    .consents        gap 9px / font-size 14px / line-height 1.7 / color muted
+    .consents label  display:flex / gap 9px / align-items:flex-start
+    .consents input  accent-color 라임 / margin-top 3px
+    .consents .req   라임 11px 700
+
+  ⚠️ **펼침 패널(.detail)은 시안에 없다.** 시안의 「보기」는 갈 곳 없는 링크지만
+  우리는 본문을 그 자리에서 펼쳐야 한다 — 전문을 항상 펼쳐두면 히어로가 약관
+  화면이 되고, 링크로만 빼면 「쉽게 읽고 이해할 수 있는」(D1 ③) 조건에서
+  멀어진다. 운영규칙서 D1~D9가 문구가 아니라 **받는 방식**을 요건으로 둔다.
+  그래서 시각 값은 시안에 맞추고 펼침 동작은 남긴다.
 */
 .root {
   /*
@@ -11,16 +19,20 @@
     같은 줄에 끼어 들어간다. 100%를 기준 폭으로 잡아 항상 제 줄을 차지하게 한다.
   */
   flex: 1 0 100%;
-  margin-top: var(--s-4);
+  margin-top: 14px;
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: 9px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted);
 }
 
 .row {
   display: flex;
   align-items: flex-start;
-  gap: var(--s-2);
+  gap: 9px;
+  flex-wrap: wrap;
 }
 
 /*
@@ -32,18 +44,18 @@
   flex: none;
   width: 16px;
   height: 16px;
-  margin-top: 2px;
-  accent-color: var(--c-lime);
+  margin-top: 3px;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
+/*
+  ⚠️ `flex: 1 1 auto`를 주지 않는다. 주면 라벨이 남는 폭을 다 먹어서
+  뒤따르는 「보기」가 줄 오른쪽 끝으로 밀린다. 시안은 글자 바로 뒤다.
+  대신 줄이 좁아지면 접히도록 `.row`에 flex-wrap을 준다.
+*/
 .label {
-  font-size: var(--fs-sm);
-  line-height: 1.5;
-  color: var(--c-text-muted);
   cursor: pointer;
-  /* 라벨과 펼침 버튼이 한 줄에 붙되, 좁아지면 자연스럽게 접히도록 */
-  flex: 1 1 auto;
 }
 
 /*
@@ -68,31 +80,38 @@
 
 /* [필수]/[선택] 앞머리. 필수를 눈에 띄게 해 선택과 구분한다(D4) */
 .tagRequired {
-  color: var(--c-text);
-  font-weight: 600;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
 }
+/* 시안은 [선택]에 인라인으로 faint 11px 700을 준다 */
 .tagOptional {
-  color: var(--c-text-dim);
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 700;
 }
 /* 앞머리 태그도 같이 물들여야 한 줄이 통째로 안내로 읽힌다 */
 .labelInvalid .tagRequired {
   color: var(--c-warn);
 }
 
+/*
+  시안은 「보기」를 라벨 글자 뒤에 **인라인으로** 붙인다
+  (`<a class="mono" style="color:var(--faint);font-size:11px">보기</a>`).
+  오른쪽 끝으로 밀지 않는다 — 어느 항목의 본문인지가 붙어 있어야 읽힌다.
+*/
 .toggle {
-  flex: none;
   background: none;
   border: none;
-  padding: 0 0 0 var(--s-1);
-  font: inherit;
-  font-size: var(--fs-xs);
-  color: var(--c-text-dim);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  padding: 0;
+  margin-left: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
   cursor: pointer;
 }
 .toggle:hover {
-  color: var(--c-text);
+  color: var(--text);
 }
 
 /* 펼친 본문. 체크박스 폭 + gap 만큼 들여써서 라벨과 세로선을 맞춘다 */
