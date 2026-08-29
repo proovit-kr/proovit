@@ -2,22 +2,27 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { EmptyState } from "@/components/EmptyState";
+import { Badge } from "@/components/Badge";
 import { Footer } from "@/components/Footer";
 import { NavBar } from "@/components/NavBar";
 import { guardPage } from "@/lib/access";
 import { loadLeaderboard, loadPublicSeason } from "@/lib/public-read";
+import type {
+  Leaderboard,
+  LeaderboardRow,
+  PublicSeason,
+} from "@/lib/public-read";
 import { getCurrentSeason, resolveNavCta } from "@/lib/season";
 
 import styles from "./leaderboard.module.css";
 
 /*
-  리더보드 — PLN3 2장 「서비스의 얼굴이자 관전 통로」.
+  리더보드 — 시안 `#scr-leaderboard`. PLN3 2장 「서비스의 얼굴이자 관전 통로」.
 
-  화면이 세 상태다.
-    ① 레이스 전       → 잠김. 열리는 시점을 말한다(canAccess가 409를 준다)
-    ② 레이스 중·집계 전 → 참가팀 목록만. 순위 자리를 비운다
-    ③ 집계 후          → 스냅샷 순위
+  시안이 그리는 상태는 셋이다.
+    ① 집계 전       `.lb-empty`  — 판은 켜졌고 숫자만 아직 없다
+    ② 레이스 운영중 `.lb-tbl`    — 순위·유효 이용자·전일 대비·상태
+    ③ 시즌 종료     배너 + 표     — 최종 유효 이용자·수상
 
   ⚠️ **순위를 이 화면에서 계산하지 않는다.** 정본은 `leaderboard_snapshots`이고
   산식이 미확정이다. 임의 정렬로 채우면 그게 곧 "우리가 매긴 순위"가 되고,
@@ -37,6 +42,197 @@ const DATE = new Intl.DateTimeFormat("ko-KR", {
   day: "numeric",
 });
 const NUM = new Intl.NumberFormat("ko-KR");
+
+/*
+  게이트 이름. 시즌1은 둘뿐이고 이름이 규칙 문서에 박혀 있다(16 운영규칙 제9조).
+  시즌 상세 화면과 같은 표를 쓴다 — 셋 이상인 시즌이 오면 그때 stages에
+  이름 칸이 생겨야 한다. 여기서 지어내지 않는다.
+
+  ⚠️ 시안이 스스로 어긋난 자리다. 이 화면의 배너만 「2차 심사(실행)」이라
+  적고(1431행), 같은 화면의 스테이지 트랙 생성기(2873행)를 비롯한 나머지 여섯
+  자리는 전부 「최종 심사(실행)」이다. 한 화면 안에서 같은 게이트를 두 이름으로
+  부를 수는 없어 다수 쪽을 따랐다 — 윤서에게 확인받을 것.
+*/
+const GATE_LABEL: Record<number, string> = {
+  1: "1차 심사(사업성)",
+  2: "최종 심사(실행)",
+};
+
+type Stage = PublicSeason["stages"][number];
+
+/**
+ * 지금이 몇 번째 스테이지인가. `closesAt`이 지난 마지막 단계의 다음이다.
+ * 일정이 아직 안 잡혔으면(-1) 아무것도 강조하지 않는다 —
+ * 임의로 s1을 켜면 그게 곧 「지금 s1이다」라는 잘못된 정보가 된다.
+ */
+function currentStageIndex(stages: Stage[], now: Date): number {
+  if (!stages.some((s) => s.closesAt)) return -1;
+  const passed = stages.filter((s) => s.closesAt && s.closesAt < now).length;
+  return Math.min(passed, stages.length - 1);
+}
+
+/* 시안 `.stg-track` — 스테이지 알약과 그 뒤에 붙는 게이트 */
+function StageTrack({
+  stages,
+  currentIndex,
+}: {
+  stages: Stage[];
+  currentIndex: number;
+}) {
+  let gateNo = 0;
+  return (
+    <ul className={styles.track}>
+      {stages.map((stage, i) => {
+        /* 지난 단계는 done, 지금이 now, 나머지는 기본 */
+        const state =
+          currentIndex < 0 || i > currentIndex
+            ? ""
+            : i < currentIndex
+              ? styles.done
+              : styles.now;
+        const gateLabel = stage.isGate
+          ? (GATE_LABEL[++gateNo] ?? "심사")
+          : null;
+        return (
+          <li key={stage.stageKey}>
+            <span className={`${styles.stg} ${state}`}>
+              <span className={styles.stgKey}>{stage.stageKey}</span>
+              {stage.name}
+            </span>
+            {gateLabel ? (
+              <span className={`${styles.stg} ${styles.gate}`}>
+                {/* 지난 게이트는 통과 표시가 붙는다 */}
+                {gateLabel}
+                {currentIndex > i ? " ✓" : ""}
+              </span>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/* 시안은 순위를 두 자리로 채운다 — 01, 02 … */
+const rankLabel = (rank: number | null) =>
+  rank === null ? "—" : String(rank).padStart(2, "0");
+
+function Row({
+  row,
+  index,
+  isFinal,
+}: {
+  row: LeaderboardRow;
+  index: number;
+  isFinal: boolean;
+}) {
+  return (
+    <tr className={index < 3 ? styles.top : undefined}>
+      <td className={styles.rank}>{rankLabel(row.rank)}</td>
+      <td className={styles.team}>
+        {row.teamName}
+        <small>{row.ideaTitle}</small>
+      </td>
+      <td className={styles.service}>
+        {row.serviceUrl && !row.notDeployed ? (
+          /*
+            남의 서비스로 나가는 링크다. noopener 없이 열면 그 창이 이 페이지를
+            조작할 수 있다.
+          */
+          <a
+            href={row.serviceUrl}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+          >
+            {new URL(row.serviceUrl).host} ↗
+          </a>
+        ) : (
+          <span className={styles.zr}>—</span>
+        )}
+      </td>
+      <td className={styles.usr}>
+        <span className="score">{NUM.format(row.validVisitors)}</span>
+        <small>{isFinal ? "FINAL" : "VALID USERS"}</small>
+      </td>
+      {isFinal ? null : (
+        <td className={styles.dt}>
+          {row.deltaVisitors === null || row.notDeployed ? (
+            /* 앞 집계가 없으면 증감이 성립하지 않는다 */
+            <span className={styles.zr}>-</span>
+          ) : row.deltaVisitors === 0 ? (
+            <span className={styles.zr}>0</span>
+          ) : (
+            <span className={row.deltaVisitors > 0 ? styles.up : styles.zr}>
+              {row.deltaVisitors > 0 ? "+" : "−"}
+              {NUM.format(Math.abs(row.deltaVisitors))}
+            </span>
+          )}
+        </td>
+      )}
+      <td className={styles.bd}>
+        {isFinal ? (
+          /* 시안의 「수상」 칸. 확정된 상이 있는 팀에만 붙는다 */
+          row.award ? (
+            <Badge tone="lime">{row.award.label}</Badge>
+          ) : null
+        ) : (
+          <>
+            {/*
+              미배포는 숨기지 않는다 — 지표가 0인 이유를 밝히는 것이 0을 그냥
+              보여주는 것보다 정확하다(PLN3 2장).
+            */}
+            {row.notDeployed ? <Badge tone="gray">미배포</Badge> : null}
+            {row.awardIneligible ? <Badge tone="warn">시상 제외</Badge> : null}
+          </>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+/*
+  ⚠️ 시즌 종료에서 미배포 팀을 빼지 않는다.
+
+  시안의 최종 표는 미배포 팀을 걸러내지만(`TEAMS.filter(t=>!t[5])`), 그건 손으로
+  적은 목업 배열의 사정이지 규칙으로 적힌 것이 아니다. 순위는 스냅샷이 정본이고
+  화면이 계산하지 않는다는 이 파일의 원칙상, 등수가 매겨진 팀을 화면에서 빼면
+  그게 곧 「우리가 뺀 순위」가 된다. 윤서에게 확인받을 것.
+*/
+function Table({ board }: { board: Leaderboard }) {
+  const isFinal = board.isFinal;
+  return (
+    /*
+      ⚠️ 가로 스크롤 상자를 두지 않는다. 시안은 좁아져도 표를 그대로 두고
+      열 폭을 눌러 담는다(넘치지 않는다). 스크롤 상자를 씌우면 ≤1024에서
+      열 폭이 시안과 달라진다.
+    */
+    <table className={styles.table}>
+      <thead>
+        <tr>
+          <th scope="col">RANK</th>
+          <th scope="col">TEAM</th>
+          <th scope="col">SERVICE</th>
+          <th scope="col" style={{ textAlign: "right" }}>
+            {isFinal ? "최종 유효 이용자" : "유효 이용자"}
+          </th>
+          {isFinal ? null : (
+            <th scope="col" style={{ textAlign: "right" }}>
+              전일 대비
+            </th>
+          )}
+          <th scope="col" style={{ textAlign: "right" }}>
+            {isFinal ? "수상" : "상태"}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {board.rows.map((row, i) => (
+          <Row key={row.entryId} row={row} index={i} isFinal={isFinal} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
 export default async function Page({
   params,
@@ -58,188 +254,72 @@ export default async function Page({
   const ranked = board?.rows.some((row) => row.rank !== null) ?? false;
 
   return (
-    <main className={`page ${styles.page}`}>
+    <main className="page">
       <NavBar
         leaderboardHref={
           current ? `/seasons/${current.slug}/leaderboard` : undefined
         }
         cta={current ? resolveNavCta(current) : { href: "/", label: "홈" }}
       />
-      <div className={`container grow ${styles.wrap}`}>
-        <header className={styles.head}>
-          <p className={styles.season}>
-            <Link href={`/seasons/${season.slug}`} className={styles.seasonLink}>
-              {season.title}
-            </Link>
-          </p>
-          <div className={styles.titleRow}>
-            <h1 className={styles.title}>리더보드</h1>
-            {/*
-              집계가 살아 있다는 표시. 「최종 확정」과 「집계 중」은 관전자에게
-              다른 말이라 자리를 같이 둔다.
-            */}
-            {board?.isFinal ? (
-              <span className={styles.final}>최종 확정</span>
-            ) : ranked ? (
-              <span className={styles.live}>
-                <i aria-hidden />
-                집계 중
-              </span>
-            ) : null}
-          </div>
-          <p className={styles.lead}>
-            발표가 아니라 실제 이용자 지표로 겨룹니다. 숫자는 참가작에 붙은 측정
-            프록시가 직접 집계합니다.
-          </p>
-          {board?.snapshotDate ? (
-            <p className={styles.asOf}>
-              {DATE.format(board.snapshotDate)} 집계 기준입니다.
-            </p>
-          ) : null}
+      <div className={`${styles.wrap} grow`}>
+        <div className={styles.eyebrow}>
+          <span className={styles.cur}>LIVE LEADERBOARD</span>
+        </div>
+        <div className={styles.head}>
+          <h1 className={styles.title}>{season.title} 리더보드</h1>
+          <span className={styles.upd}>
+            <i />
+            {board?.snapshotDate
+              ? `${DATE.format(board.snapshotDate)} 갱신, 롤업 주기 15분`
+              : "집계 대기, 롤업 주기 15분"}
+          </span>
+        </div>
 
-          {/*
-            스테이지 띠. 순위표만 보면 이 숫자가 시즌 어디쯤의 것인지 알 수 없다.
-            게이트는 따로 표시한다 — 거기서 팀이 갈린다.
-          */}
-          {season.stages.length > 0 ? (
-            <ol className={styles.track}>
-              {season.stages.map((stage) => (
-                <li
-                  key={stage.stageKey}
-                  className={stage.isGate ? styles.trackGate : styles.trackItem}
-                >
-                  <span className={styles.trackKey}>{stage.stageKey}</span>
-                  {stage.name}
-                  {stage.isGate ? (
-                    <span className={styles.trackTag}>심사</span>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-          ) : null}
-        </header>
+        <StageTrack
+          stages={season.stages}
+          currentIndex={currentStageIndex(season.stages, new Date())}
+        />
 
         {!access.ok ? (
-          <EmptyState
-            title="아직 순위가 열리지 않았습니다"
-            detail="시즌이 시작되고 참가팀이 서비스를 배포하면 이 자리에 순위가 올라옵니다."
-            action={
-              <Link href={`/seasons/${season.slug}`} className={styles.link}>
-                시즌 일정 보기
-              </Link>
-            }
-          />
-        ) : null}
-
-        {board && board.rows.length === 0 ? (
-          <EmptyState
-            title="아직 참가팀이 없습니다"
-            detail="참가 신청이 접수되면 이 자리에 팀이 올라옵니다."
-          />
-        ) : null}
-
-        {board && board.rows.length > 0 && !ranked ? (
-          <p className={styles.note}>
-            아직 집계된 순위가 없습니다. 참가팀이 서비스를 배포하고 방문이
-            쌓이면 순위가 매겨집니다.
-          </p>
-        ) : null}
-
-        {board?.isFinal ? (
-          <p className={styles.finalBanner}>
-            최종 순위가 확정됐습니다. 2차 심사(실행) 결과까지 반영된 값이라 이
-            뒤로는 바뀌지 않습니다.
-          </p>
-        ) : null}
-
-        {board && board.rows.length > 0 ? (
-          <div className={styles.scroller}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th scope="col" className={styles.rankCol}>
-                    순위
-                  </th>
-                  <th scope="col">팀 · 참가작</th>
-                  <th scope="col">서비스</th>
-                  <th scope="col">유효 방문</th>
-                  <th scope="col">전일 대비</th>
-                  <th scope="col">매출</th>
-                </tr>
-              </thead>
-              <tbody>
-                {board.rows.map((row) => (
-                  <tr key={row.entryId}>
-                    <td className={styles.rank}>
-                      {row.rank ?? <span className={styles.dash}>—</span>}
-                    </td>
-                    <th scope="row" className={styles.entry}>
-                      <Link
-                        href={`/projects/${row.entryId}`}
-                        className={styles.entryLink}
-                      >
-                        {row.ideaTitle}
-                      </Link>
-                      <span className={styles.team}>{row.teamName}</span>
-                      {/*
-                        미배포는 숨기지 않는다 — 지표가 0인 이유를 밝히는 것이
-                        0을 그냥 보여주는 것보다 정확하다(PLN3 2장).
-                      */}
-                      {row.notDeployed ? (
-                        <span className={styles.flag}>미배포</span>
-                      ) : null}
-                      {row.awardIneligible ? (
-                        <span className={styles.flag}>시상 제외</span>
-                      ) : null}
-                    </th>
-                    <td className={styles.service}>
-                      {row.serviceUrl && !row.notDeployed ? (
-                        /*
-                          남의 서비스로 나가는 링크다. noopener 없이 열면
-                          그 창이 이 페이지를 조작할 수 있다.
-                        */
-                        <a
-                          href={row.serviceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer nofollow"
-                          className={styles.serviceLink}
-                        >
-                          열기 ↗
-                        </a>
-                      ) : (
-                        <span className={styles.dash}>—</span>
-                      )}
-                    </td>
-                    <td>{NUM.format(row.validVisitors)}</td>
-                    <td>
-                      {row.deltaVisitors === null ? (
-                        /* 앞 집계가 없으면 증감이 성립하지 않는다 */
-                        <span className={styles.dash}>—</span>
-                      ) : row.deltaVisitors === 0 ? (
-                        <span className={styles.dash}>0</span>
-                      ) : (
-                        <span
-                          className={
-                            row.deltaVisitors > 0 ? styles.up : styles.down
-                          }
-                        >
-                          {row.deltaVisitors > 0 ? "+" : "−"}
-                          {NUM.format(Math.abs(row.deltaVisitors))}
-                        </span>
-                      )}
-                    </td>
-                    <td>{NUM.format(Number(row.revenue))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          /* ⚠️ 시안에 없는 상태. 레이스 전에는 canAccess가 409를 준다 */
+          <div className={styles.locked}>
+            리더보드는 레이스가 시작되면 열려요.
+            <br />
+            그때부터 참가팀의 유효 이용자 수가 여기에 실시간으로 표시돼요.
           </div>
-        ) : null}
-
-        <p className={styles.footnote}>
-          지표는 하루 단위로 집계하며 실시간이 아닙니다. 어뷰징으로 확인된 방문은
-          집계에서 제외되고, 실격·자진 포기한 팀은 순위에서 빠집니다.
-        </p>
+        ) : !board || !ranked ? (
+          /* ① 집계 전 */
+          <div className={styles.empty}>
+            <div className={`${styles.emptyBig} ${styles.cur}`}>
+              집계 시작됨, 첫 갱신을 기다려요
+            </div>
+            <p>참가팀의 유효 이용자 수가 여기에 실시간으로 표시돼요.</p>
+          </div>
+        ) : (
+          <>
+            {/* ③ 시즌 종료 */}
+            {board.isFinal ? (
+              <p className={styles.finalBanner}>
+                <Badge tone="lime" className={styles.bannerBadge}>
+                  FINAL
+                </Badge>
+                최종 순위 확정
+                {board.snapshotDate
+                  ? `, ${DATE.format(board.snapshotDate)}`
+                  : ""}
+                , 최종 심사(실행) 반영 완료
+              </p>
+            ) : null}
+            {/* ② 레이스 운영중 */}
+            <Table board={board} />
+            {board.isFinal ? null : (
+              <p className={styles.note}>
+                실격 처리된 팀은 목록에서 제외됨, 유효 이용자 기준은{" "}
+                <Link href="/rules">/rules</Link> 참조
+              </p>
+            )}
+          </>
+        )}
       </div>
       <Footer />
     </main>

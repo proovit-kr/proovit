@@ -1,4 +1,4 @@
-import { DeployStatus, EntryStatus } from "@/generated/prisma/enums";
+import { AwardType, DeployStatus, EntryStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -78,6 +78,15 @@ export type LeaderboardRow = {
   notDeployed: boolean;
   /** 축 하한 미달로 종합 시상에서 빠지는 팀. 순위표에는 남는다 */
   awardIneligible: boolean;
+  /**
+   * 확정된 종합 시상. 없으면 null이다.
+   *
+   * ⚠️ **순위에서 유추하지 않는다.** 순위를 이 화면에서 계산하지 않는 것과
+   * 같은 이유다 — 1·2·3위에 상을 붙이는 것은 운영이 `awards`에 남기는 결정이고,
+   * 화면이 대신 정하면 그게 곧 「우리가 준 상」이 된다. 부문상은 rank가 null이라
+   * 종합(overall)만 읽는다.
+   */
+  award: { rank: number | null; label: string } | null;
   /** 참가작 주소. 관전자가 순위표에서 바로 서비스로 건너뛴다 */
   serviceUrl: string | null;
   /**
@@ -106,6 +115,24 @@ export type Leaderboard = {
  * 스냅샷이 없으면 참가팀만 순위 없이 돌려준다. 「아직 집계 전」과 「참가팀이
  * 없다」는 다른 상태이고, 관전자에게는 둘을 구분해 보여줘야 한다.
  */
+/*
+  시상 라벨. 운영이 `prizeDesc`를 적었으면 그 문구가 정본이고, 안 적었으면
+  등수만 말한다. 시안은 1위에 트로피를 붙인다(「🏆 대상」).
+*/
+function awardOf(
+  award: { rank: number | null; prizeDesc: string | null } | undefined,
+): LeaderboardRow["award"] {
+  if (!award) return null;
+  const label =
+    award.prizeDesc ??
+    (award.rank === null
+      ? "수상"
+      : award.rank === 1
+        ? "🏆 대상"
+        : `${award.rank}위`);
+  return { rank: award.rank, label };
+}
+
 export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
   const entries = await prisma.entry.findMany({
     where: { seasonId, status: EntryStatus.active },
@@ -163,6 +190,16 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
       })
     : [];
 
+  /*
+    시상. 시즌 종료 화면의 「수상」 칸이 이걸 그린다.
+    awardedAt이 없으면 아직 발표 전이므로 화면에 내지 않는다.
+  */
+  const awards = await prisma.award.findMany({
+    where: { seasonId, awardType: AwardType.overall, awardedAt: { not: null } },
+    select: { entryId: true, rank: true, prizeDesc: true },
+  });
+  const awardByEntry = new Map(awards.map((a) => [a.entryId, a]));
+
   const byEntry = new Map(snapshots.map((s) => [s.entryId, s]));
   const beforeByEntry = new Map(
     previousRows.map((s) => [s.entryId, s.validVisitorsTotal]),
@@ -182,6 +219,7 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
         entry.hostname?.deployStatus !== DeployStatus.active ||
         entry.hostname.ownershipVerifiedAt === null,
       awardIneligible: snapshot ? !snapshot.isAwardEligible : false,
+      award: awardOf(awardByEntry.get(entry.id)),
       serviceUrl: entry.serviceUrl,
       deltaVisitors:
         snapshot && beforeByEntry.has(entry.id)
