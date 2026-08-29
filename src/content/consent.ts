@@ -42,6 +42,15 @@ export interface ConsentItem {
   label: string;
   /** 펼쳤을 때 보이는 본문 */
   body?: string;
+  /*
+    이 항목에 「보기」를 붙일지. 시안은 사전 신청 폼에서 **개인정보 수집·이용
+    하나에만** 붙인다(나머지 둘은 라벨 한 줄로 끝난다).
+
+    ⚠️ 마케팅 항목의 본문에는 정보통신망법이 요구하는 고지(목적·항목·기간·
+    철회 방법)가 들어 있다. 시안대로 「보기」를 빼면 그 고지에 닿을 길이
+    사전 신청 폼에서 사라진다 — 윤서 확인이 필요한 항목이다.
+  */
+  disclosure?: boolean;
   table?: ConsentTableRow[];
   /** 표 아래 덧붙는 문장들 */
   notes?: string[];
@@ -57,7 +66,9 @@ export const PREREGISTER_CONSENTS: ConsentItem[] = [
   {
     key: "privacy",
     required: true,
-    label: "[필수] 개인정보 수집·이용 동의",
+    /* 시안 표기를 따른다 — 「수집·이용」이 아니라 「수집과 이용」 */
+    label: "[필수] 개인정보 수집과 이용 동의",
+    disclosure: true,
     body: "PROOVIT 사전 신청 접수를 위해 아래와 같이 개인정보를 수집·이용해요.",
     table: [
       {

@@ -77,7 +77,8 @@ function ConsentRow({
   const [open, setOpen] = useState(false);
   const id = rowId(item.key);
   const detailId = `${id}-detail`;
-  const hasDetail = Boolean(item.body || item.table || item.notes);
+  /* 시안이 「보기」를 붙이라고 표시한 항목에만 펼침을 단다 */
+  const hasDetail = Boolean(item.disclosure && (item.body || item.table || item.notes));
 
   // "[필수] 개인정보 …" 에서 앞머리 태그만 떼어내 다르게 칠한다
   const match = /^\[(필수|선택)\]\s*(.*)$/.exec(item.label);
@@ -102,30 +103,48 @@ function ConsentRow({
           onChange={(e) => onChange(e.target.checked)}
         />
         <label htmlFor={id} className={`${styles.label} ${invalid ? styles.labelInvalid : ""}`}>
+          {/*
+            ⚠️ 공백을 태그 **밖**에 둔다. 안에 넣으면 11px 태그 크기로 그려져
+            뒤 글자가 1px쯤 당겨진다. 시안은 `<span class="req">[필수]</span> 개인…`
+            처럼 태그와 본문 사이에 공백 노드가 있다.
+          */}
           {tag ? (
-            <span className={item.required ? styles.tagRequired : styles.tagOptional}>
-              {tag}{" "}
-            </span>
+            <>
+              <span
+                className={
+                  item.required ? styles.tagRequired : styles.tagOptional
+                }
+              >
+                {tag}
+              </span>{" "}
+            </>
           ) : null}
           {rest}
+          {/*
+            시안은 「보기」를 라벨 글자 바로 뒤에 공백 하나 두고 붙인다
+            (`동의 <a class="mono">보기</a>`). 형제로 빼면 `.row`의 flex gap이
+            끼어서 간격이 벌어진다 — 그래서 라벨 **안**에 둔다.
+
+            대신 라벨 안의 클릭은 체크박스 토글로 새므로 preventDefault로 막는다.
+          */}
+          {hasDetail ? (
+            <>
+              {" "}
+              <button
+                type="button"
+                className={styles.toggle}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setOpen((v) => !v);
+                }}
+                aria-expanded={open}
+                aria-controls={detailId}
+              >
+                {open ? "접기" : "보기"}
+              </button>
+            </>
+          ) : null}
         </label>
-        {/*
-          시안은 「보기」를 라벨 글자 바로 뒤에 인라인으로 붙인다.
-          `<label>` 안에 두면 버튼 클릭이 체크박스 토글로 새기 때문에
-          형제로 두되, `.label`의 `flex:1 1 auto`가 아니라 글자 뒤에
-          붙도록 라벨을 콘텐츠 폭으로 만든다(아래 .row 규칙).
-        */}
-        {hasDetail ? (
-          <button
-            type="button"
-            className={styles.toggle}
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            aria-controls={detailId}
-          >
-            {open ? "접기" : "보기"}
-          </button>
-        ) : null}
       </div>
 
       {hasDetail && open ? (

@@ -42,18 +42,15 @@
 */
 .checkbox {
   flex: none;
-  width: 16px;
-  height: 16px;
+  /*
+    ⚠️ 크기를 주지 않는다. 시안은 브라우저 기본(13×13)을 그대로 쓴다.
+    누르는 면적은 라벨 전체가 이미 감당한다(`<label for>`).
+  */
   margin-top: 3px;
   accent-color: var(--accent);
   cursor: pointer;
 }
 
-/*
-  ⚠️ `flex: 1 1 auto`를 주지 않는다. 주면 라벨이 남는 폭을 다 먹어서
-  뒤따르는 「보기」가 줄 오른쪽 끝으로 밀린다. 시안은 글자 바로 뒤다.
-  대신 줄이 좁아지면 접히도록 `.row`에 flex-wrap을 준다.
-*/
 .label {
   cursor: pointer;
 }
@@ -104,7 +101,13 @@
   background: none;
   border: none;
   padding: 0;
-  margin-left: 6px;
+  /*
+    시안의 「보기」는 `<a>`라 인라인이다. 우리는 이동이 아니라 펼침이라
+    `<button>`을 쓰는데, 버튼의 기본값(inline-block·가운데 정렬)이 남으면
+    글자가 흐름에서 살짝 떠 보인다. 인라인으로 되돌린다.
+  */
+  display: inline;
+  text-align: start;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--faint);

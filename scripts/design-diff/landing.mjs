@@ -48,6 +48,22 @@ const PAIRS = [
   ["ctas", S + ".ld-ctas", "ctas"],
   ["form", S + ".ld-form", "form"],
   ["form fh", S + ".ld-form .fh", "formHead"],
+  /* 동의 블록. §4에서 빠뜨렸다가 17개 속성이 어긋난 채로 나갔다 */
+  ["consents", S + ".ld-form .consents", '[class*="ConsentFields-module"][class*="root"]'],
+  ["consent row", S + ".ld-form .consents label", '[class*="ConsentFields-module"][class*="row"]'],
+  ["consent box", S + ".ld-form .consents input", '[class*="ConsentFields-module"][class*="checkbox"]',
+    ["accent-color", "width", "height", "appearance"], ["font-size","line-height","color","letter-spacing"]],
+  ["consent req", S + ".ld-form .consents .req", '[class*="ConsentFields-module"][class*="tagRequired"]'],
+  /* 「보기」 — 시안은 첫 항목에만, 라벨 글자 뒤 공백 하나 */
+  /*
+    ⚠️ display는 비교하지 않는다. 시안의 「보기」는 `<a>`(inline)지만 우리는
+    이동이 아니라 펼침이라 `<button>`을 쓴다. Chrome은 버튼을 항상
+    inline-block으로 블록화해서 `display:inline`을 줘도 안 내려간다.
+    폭·가로 위치·세로 중심은 같고(18.88px / 0.95px / 0.35px 이내), 배경도
+    테두리도 없어 화면에 드러나지 않는다. 접근성을 값 하나와 바꾸지 않는다.
+  */
+  ["consent 보기", S + ".ld-form .consents a.mono", '[class*="ConsentFields-module"][class*="toggle"]',
+    ["font-family"], ["display", "text-align"]],
   ["live", S + ".ld-live", "live"],
   ["live cap", S + ".ld-live .cap", "liveCap"],
   ["slot", S + ".ld-live .slot", "slot"],
