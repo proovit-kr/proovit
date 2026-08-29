@@ -19,7 +19,8 @@
     같은 줄에 끼어 들어간다. 100%를 기준 폭으로 잡아 항상 제 줄을 차지하게 한다.
   */
   flex: 1 0 100%;
-  margin-top: 14px;
+  /* 시안 `.consents` 기본값. 랜딩만 인라인으로 14px로 덮는다 */
+  margin-top: 20px;
   display: flex;
   flex-direction: column;
   gap: 9px;

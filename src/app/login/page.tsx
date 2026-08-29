@@ -1,17 +1,15 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { Button } from "@/components/Button";
-import { Footer } from "@/components/Footer";
-import { Logo } from "@/components/NavBar";
 import { safeNext } from "@/lib/access";
 import { auth, signIn } from "@/lib/auth";
 import { AUTH_PROVIDERS } from "@/lib/auth-providers";
 
-import styles from "./login.module.css";
+import { AuthCard } from "./AuthCard";
 
 /*
-  로그인 화면.
+  로그인 화면 — 시안 `#scr-auth`의 login 상태.
+  회원가입(`/signup`)은 같은 카드의 signup 상태다.
 
   ⚠️ 라우트 이름이 문서마다 다르다 — 「필요 페이지 정리」(7/28)와 CLAUDE.md는
   `/signin`, 06 ARCHITECTURE 계열은 이 이름을 쓴다. 8/17 회의에서 정본을 정하고
@@ -58,77 +56,28 @@ export default async function LoginPage({
   /* 이미 로그인한 사람에게 로그인 화면을 보여줄 이유가 없다. */
   if (session?.user) redirect(next);
 
-  const errorMessage = error
-    ? (ERROR_MESSAGES[error] ?? "로그인에 실패했습니다. 다시 시도해 주세요.")
-    : null;
-
   return (
-    <main className={`page ${styles.page}`}>
-      <div className={`container container--narrow grow ${styles.wrap}`}>
-        <div className={styles.head}>
-          <Logo />
-          <h1 className={styles.title}>로그인</h1>
-          <p className={styles.lead}>
-            참가 신청과 스테이지 제출은 로그인 후에 진행됩니다.
-          </p>
-        </div>
+    <AuthCard
+      mode="login"
+      providers={AUTH_PROVIDERS}
+      errorMessage={
+        error
+          ? (ERROR_MESSAGES[error] ??
+            "로그인에 실패했습니다. 다시 시도해 주세요.")
+          : null
+      }
+      onSignIn={async (formData: FormData) => {
+        "use server";
+        const providerId = String(formData.get("provider") ?? "");
+        /*
+          로그인 후 목적지로 곧장 간다.
 
-        {errorMessage ? (
-          <p className={styles.error} role="alert">
-            {errorMessage}
-          </p>
-        ) : null}
-
-        {AUTH_PROVIDERS.length > 0 ? (
-          <div className={styles.providers}>
-            {AUTH_PROVIDERS.map((provider) => (
-              <form
-                key={provider.id}
-                action={async () => {
-                  "use server";
-                  /*
-                    로그인 후 목적지로 곧장 간다.
-
-                    ⚠️ 소셜 가입은 이름을 이메일 아이디로 갈음해둔다
-                    (auth-adapter.ts). 그 임시값을 진짜 이름으로 바꾸는 자리는
-                    이제 /settings뿐이고, 가입 직후 강제로 거치는 자리는 없다.
-                    시안(v2.1)에 온보딩 화면이 없어서다.
-                  */
-                  await signIn(provider.id, { redirectTo: next });
-                }}
-              >
-                <Button
-                  type="submit"
-                  variant={provider.id === "google" ? "primary" : "soft"}
-                  size="lg"
-                  block
-                >
-                  {provider.label}로 계속하기
-                </Button>
-              </form>
-            ))}
-          </div>
-        ) : (
-          /*
-            키가 하나도 없는 상태. 프리뷰 배포나 키 발급 전 로컬이 여기 걸린다.
-            버튼 없는 빈 화면을 두면 고장으로 보이므로 이유를 적는다.
-          */
-          <p className={styles.empty}>
-            로그인 수단이 아직 연결되지 않았습니다. 잠시 후 다시 시도해 주세요.
-          </p>
-        )}
-
-        <p className={styles.note}>
-          로그인하면 서비스 이용약관과 개인정보처리방침에 동의한 것으로 봅니다.
-          {/*
-            ⚠️ 이 문장은 이용약관에만 유효한 방식이다. 개인정보 수집·이용 동의는
-            개인정보보호법 제22조 제1항이 "동의 여부를 명확하게 표시할 수 있는 방법"을
-            요구하므로 간주 동의로 갈음할 수 없다 — 필수 동의 3종은 /apply에서
-            체크박스로 따로 받는다. 문안 확정은 윤서 몫이라 자리만 잡아둔다.
-          */}
-        </p>
-      </div>
-      <Footer />
-    </main>
+          ⚠️ 소셜 가입은 이름을 이메일 아이디로 갈음해둔다(auth-adapter.ts).
+          그 임시값을 진짜 이름으로 바꾸는 자리는 이제 /settings뿐이고,
+          가입 직후 강제로 거치는 자리는 없다. 시안(v2.1)에 온보딩 화면이 없어서다.
+        */
+        await signIn(providerId, { redirectTo: next });
+      }}
+    />
   );
 }

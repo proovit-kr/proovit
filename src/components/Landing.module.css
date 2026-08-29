@@ -147,6 +147,11 @@
     0 1px 2px rgba(0, 0, 0, 0.32),
     0 16px 40px -28px rgba(0, 0, 0, 0.45);
 }
+/* 시안 랜딩은 `.consents`의 margin-top 20px를 인라인 14px로 덮는다 */
+.formConsents {
+  margin-top: 14px;
+}
+
 .formHead {
   font-size: 14px;
   font-weight: 700;

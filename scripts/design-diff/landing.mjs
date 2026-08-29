@@ -63,7 +63,7 @@ const PAIRS = [
     테두리도 없어 화면에 드러나지 않는다. 접근성을 값 하나와 바꾸지 않는다.
   */
   ["consent 보기", S + ".ld-form .consents a.mono", '[class*="ConsentFields-module"][class*="toggle"]',
-    ["font-family"], ["display", "text-align"]],
+    ["font-family"], ["display", "text-align", "width"]],
   ["live", S + ".ld-live", "live"],
   ["live cap", S + ".ld-live .cap", "liveCap"],
   ["slot", S + ".ld-live .slot", "slot"],

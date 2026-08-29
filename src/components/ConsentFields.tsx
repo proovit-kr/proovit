@@ -78,7 +78,9 @@ function ConsentRow({
   const id = rowId(item.key);
   const detailId = `${id}-detail`;
   /* 시안이 「보기」를 붙이라고 표시한 항목에만 펼침을 단다 */
-  const hasDetail = Boolean(item.disclosure && (item.body || item.table || item.notes));
+  const hasDetail = Boolean(
+    item.disclosure && (item.body || item.table || item.notes),
+  );
 
   // "[필수] 개인정보 …" 에서 앞머리 태그만 떼어내 다르게 칠한다
   const match = /^\[(필수|선택)\]\s*(.*)$/.exec(item.label);
@@ -102,7 +104,10 @@ function ConsentRow({
           aria-invalid={invalid || undefined}
           onChange={(e) => onChange(e.target.checked)}
         />
-        <label htmlFor={id} className={`${styles.label} ${invalid ? styles.labelInvalid : ""}`}>
+        <label
+          htmlFor={id}
+          className={`${styles.label} ${invalid ? styles.labelInvalid : ""}`}
+        >
           {/*
             ⚠️ 공백을 태그 **밖**에 둔다. 안에 넣으면 11px 태그 크기로 그려져
             뒤 글자가 1px쯤 당겨진다. 시안은 `<span class="req">[필수]</span> 개인…`
@@ -163,7 +168,9 @@ function ConsentRow({
             </dl>
           ))}
 
-          {item.notes?.map((note) => <p key={note}>{note}</p>)}
+          {item.notes?.map((note) => (
+            <p key={note}>{note}</p>
+          ))}
         </div>
       ) : null}
     </div>
@@ -177,6 +184,7 @@ export default function ConsentFields({
   disabled = false,
   showMissing = false,
   missingMessage = "필수 항목에 동의해야 사전 신청을 접수할 수 있어요.",
+  className,
 }: {
   /** 표시할 동의 항목. 기본값은 사전 신청 폼이다. */
   items?: ConsentItem[];
@@ -192,9 +200,11 @@ export default function ConsentFields({
    * 지적하는 화면이 되기 때문이다. 제출을 눌러본 뒤에만 켠다.
    */
   showMissing?: boolean;
+  /** 쓰는 화면이 여백만 덮는 자리. 시안이 랜딩에서 인라인으로 하는 일이다 */
+  className?: string;
 }) {
   return (
-    <div className={styles.root}>
+    <div className={[styles.root, className].filter(Boolean).join(" ")}>
       {items.map((item) => (
         <ConsentRow
           key={item.key}

@@ -1,94 +1,139 @@
 /*
-  로그인 화면.
+  인증 — 시안 `#scr-auth`.
 
-  §7 "AI 티 피하기"에 따라 카드 상자를 쓰지 않는다. 화면에 요소가 몇 개
-  없어서 상자를 두르면 그 상자가 화면의 주인공이 된다 — 여백과 괘선으로 나눈다.
-  §6 폭 규칙: 박스는 폭을 다 쓰고 읽기 폭 제한은 텍스트에만 건다.
+  값은 `fold-spec.mjs '^\.auth-card|^\.sso'`가 뽑은 최종 승자 표에서 옮겼다.
+  v1.7 COMFORT가 카드 여백과 타깃 크기를 한 번씩 키웠다 —
+    .auth-card  width 400 → 424px / padding 38px 34px → 42px 38px
+    .wm         22 → 24px      h2  16 → 17.5px
+    .sso        gap 10 → 12px  .sso .btn padding 13 → 14px, 14.5 → 15px
+
+  ⚠️ 이 화면에는 **헤더도 푸터도 없다.** 시안 `#scr-auth`에 `.pub-head`와
+  `.pub-foot`가 아예 없다 — 카드 하나가 화면 가운데 놓인다.
 */
 
-.page {
-  /* 로그인은 스크롤될 내용이 없다. 화면 가운데에서 만나는 게 자연스럽다. */
-  justify-content: center;
-}
-
+/*
+  시안은 `calc(100vh - 52px - 41px)`인데 그 둘은 뷰어 크롬(#topbar·.state-bar)
+  높이다. 제품에는 없으므로 온전한 100vh를 쓴다.
+*/
 .wrap {
+  min-height: 100vh;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: var(--s-6);
-  padding-block: var(--s-10);
-  max-width: 420px;
-  /*
-    ⚠️ 이게 없으면 420px 칸이 800px 컨테이너의 왼쪽 끝에 붙어 오른쪽이 통째로
-    빈다 — 자세한 설명은 onboarding.module.css의 같은 자리에 있다.
-  */
-  margin-inline: auto;
+  padding: 40px 20px;
 }
 
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
+.card {
+  width: 424px;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-l);
+  padding: 42px 38px;
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.026),
+    rgba(255, 255, 255, 0) 46%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 16px 40px -28px rgba(0, 0, 0, 0.45);
+}
+
+.wm {
+  font-weight: 800;
+  font-size: 24px;
+  letter-spacing: 0.07em;
+  text-align: center;
+}
+.wmCheck {
+  color: var(--accent);
+  font-style: normal;
 }
 
 .title {
-  margin: var(--s-4) 0 0;
-  font-size: var(--fs-5xl);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--c-text-strong);
+  font-size: 17.5px;
+  font-weight: 700;
+  text-align: center;
+  margin: 12px 0 4px;
+}
+
+.sub {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 28px;
+}
+
+/* 소셜 버튼 묶음. 세로로 쌓이고 각 버튼이 폭을 다 쓴다 */
+.sso {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/*
+  ⚠️ `.sso .btn`으로 쓰면 안 된다. `.btn`은 Button.module.css의 해시 클래스라
+  이 모듈의 `.btn`과 다른 이름이 된다(`.stat .score`가 같은 이유로 안 먹었다).
+  `.sso` 안에는 소셜 버튼밖에 없으므로 요소로 집는다.
+*/
+.sso button {
+  width: 100%;
+  font-size: 15px;
+  padding: 14px;
 }
 
 /*
-  ⚠️ 읽기 폭을 ch로 걸지 않는다 — 1ch는 숫자 `0`의 폭이라 영문 단위다.
-  한글은 글자당 약 1em이라 34ch가 한글 18자쯤에서 끊겨, 420px 칸에서
-  오른쪽이 크게 빈다. 읽기 폭은 .wrap(420px)이 이미 잡고 있다.
-  (자세한 설명은 onboarding.module.css의 같은 자리에 있다)
+  제공자 머리글자. 시안은 `<span class="ic">K</span>`라 v1.1 아이콘 시스템의
+  `.ic` 규칙(1.05em 정사각형)까지 함께 받는다 — 글자를 아이콘 자리에 끼워
+  넣은 것이다. 그래서 그 클래스를 그대로 합성한다.
 */
-.lead {
-  margin: 0;
-  font-size: var(--fs-base);
-  line-height: 1.6;
-  color: var(--c-text-muted);
+.ssoMark {
+  composes: ic from "../../components/Icon.module.css";
+  font-weight: 800;
+  font-size: 15px;
 }
 
-.providers {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  /* 괘선 하나로 머리말과 행동을 가른다. 상자를 두르는 것보다 조용하다. */
-  padding-top: var(--s-6);
-  border-top: 1px solid var(--c-line);
+.terms {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--faint);
 }
 
+.swap {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+.swap a {
+  color: var(--accent);
+}
+
+/*
+  ⚠️ 시안에 없는 것. Auth.js가 `?error=`로 돌려보내는 실패를 적는 자리다.
+  시안은 정적 목업이라 실패 상태를 그리지 않았다 — 지우면 왜 로그인이 안 되는지
+  말해 줄 곳이 없어진다.
+*/
 .error {
-  margin: 0;
-  padding: var(--s-3) var(--s-4);
-  border-left: 2px solid var(--c-warn);
-  background: var(--c-surface);
-  border-radius: 0 var(--r-md) var(--r-md) 0;
-  font-size: var(--fs-sm);
+  margin: 0 0 18px;
+  padding: 11px 15px;
+  border-radius: 10px;
+  background: rgba(255, 93, 93, 0.1);
+  border: 1px solid rgba(255, 93, 93, 0.35);
+  color: var(--danger);
+  font-size: 13.5px;
   line-height: 1.6;
-  color: var(--c-text);
 }
 
+/*
+  ⚠️ 시안에 없는 것. 키가 하나도 없는 상태(프리뷰·키 발급 전 로컬)에서
+  버튼 없는 빈 카드를 두면 고장으로 보이므로 이유를 적는다.
+*/
 .empty {
-  margin: 0;
-  padding-top: var(--s-6);
-  border-top: 1px solid var(--c-line);
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-  color: var(--c-text-dim);
-}
-
-.note {
-  margin: 0;
-  font-size: var(--fs-xs);
+  text-align: center;
+  font-size: 14px;
+  color: var(--faint);
   line-height: 1.7;
-  /*
-    --c-text-faint는 이 배경에서 대비가 모자란다(3.08:1).
-    12px는 WCAG 대형 텍스트가 아니라 4.5:1이 필요하다 → --c-text-dim(5.28:1).
-  */
-  color: var(--c-text-dim);
-  /* 읽기 폭은 .wrap(420px)이 잡는다 — 위 .lead 주석 참조 */
 }

@@ -427,8 +427,9 @@ export function Landing({
                     {pending ? "보내는 중" : "신청"}
                   </Button>
                 </div>
-                <div style={{ marginTop: 14 }}>
+                <div>
                   <ConsentFields
+                    className={styles.formConsents}
                     value={consent}
                     onChange={setConsent}
                     disabled={pending}
