@@ -13,25 +13,32 @@ export interface AuthProviderInfo {
   label: string;
 }
 
+/*
+  ⚠️ **순서가 곧 화면 순서다.** 시안 `#scr-auth`는 카카오를 위에, Google을
+  아래에 둔다. 이 배열 순서가 그대로 버튼 순서가 되므로 바꾸지 않는다.
+
+  지금은 카카오 키가 없어 Google 하나만 보이지만, 키가 들어오는 순간
+  순서가 드러난다 — 그때 어긋나지 않게 미리 맞춰 둔다.
+*/
 const CANDIDATES: (AuthProviderInfo & { idEnv: string; secretEnv: string })[] =
   [
-    {
-      id: "google",
-      label: "Google",
-      idEnv: "AUTH_GOOGLE_ID",
-      secretEnv: "AUTH_GOOGLE_SECRET",
-    },
     /*
-    ⚠️ 카카오는 키를 넣어도 아직 쓸 수 없다 (2026-08-12).
-    「카카오계정(이메일)」 동의항목이 비즈 앱 전환 + 비즈니스 정보 심사를 통과해야
-    열리는데, users.email이 NOT NULL이라 이메일 없이는 가입이 성립하지 않는다.
-    심사가 끝나면 .env에 키 두 개를 넣는 것만으로 버튼이 생긴다.
-  */
+      ⚠️ 카카오는 키를 넣어도 아직 쓸 수 없다 (2026-08-12).
+      「카카오계정(이메일)」 동의항목이 비즈 앱 전환 + 비즈니스 정보 심사를
+      통과해야 열리는데, users.email이 NOT NULL이라 이메일 없이는 가입이
+      성립하지 않는다. 심사가 끝나면 .env에 키 두 개를 넣는 것만으로 버튼이 생긴다.
+    */
     {
       id: "kakao",
       label: "카카오",
       idEnv: "AUTH_KAKAO_ID",
       secretEnv: "AUTH_KAKAO_SECRET",
+    },
+    {
+      id: "google",
+      label: "Google",
+      idEnv: "AUTH_GOOGLE_ID",
+      secretEnv: "AUTH_GOOGLE_SECRET",
     },
   ];
 

@@ -9,6 +9,16 @@
   로 나온 것 중 뷰어 크롬(screen·state-bar·sb)을 뺀 전부가 아래에 있다.
 
     node scripts/design-diff/auth.mjs
+
+  ⚠️ **카카오 키가 있어야 두 버튼이 다 나온다.** 없으면 Google 하나만 그려져
+  버튼 순서와 자식 정렬을 대조할 수 없다(`auth-providers.ts`가 키 없는 제공자를
+  아예 뺀다). 실제 카카오 로그인은 비즈 앱 심사가 끝나야 되지만, 화면만
+  보려면 `.env.development.local`에 아무 값이나 넣어 두면 된다.
+
+      AUTH_KAKAO_ID=diff-only-placeholder
+      AUTH_KAKAO_SECRET=diff-only-placeholder
+
+  `.env*`는 gitignore라 각자 넣어야 한다.
 */
 import { withPage, diffTable, SPEC_URL, IMPL_URL, WIDTHS, shotDir } from "./cdp.mjs";
 
@@ -40,18 +50,16 @@ const pairs = (mode) => {
     ["wm em", S + ".auth-card .wm em", "wmCheck"],
     ["h2", S + ".auth-card h2" + only, "title"],
     ["sub", S + ".auth-card .sub" + only, "sub"],
+    ["sso", S + ".sso", "sso", [], []],
     /*
-      ⚠️ 자식 높이 비교를 뺀다. 시안은 버튼이 둘인데 dev에는 구글 키만 있어
-      하나다 — 제공자 수 차이지 정렬 문제가 아니다.
+      ⚠️ 제공자 클래스로 집는다. 카카오는 실제로 쓸 수 없지만
+      (비즈 앱 심사 대기 — auth-providers.ts) `.env.development.local`에
+      더미 키를 넣어 두면 버튼은 그려진다. **순서까지 대조하려면 둘 다 있어야 한다** —
+      시안은 카카오가 위다.
     */
-    ["sso", S + ".sso", "sso", [], ["▸자식 높이 같음"]],
-    /*
-      ⚠️ 제공자 클래스로 집는다. dev에는 구글 키만 있어 카카오 버튼이 없다
-      (auth-providers.ts — 카카오는 비즈 앱 심사 대기). 카카오 버튼의 값 자체는
-      §2 진열장에서 이미 대조했다.
-    */
-    ["sso btn", S + ".sso .btn-google", '[class*="Button-module"][class*="__google"]'],
-    ["sso ic", S + ".sso .btn-google .ic", '[class*="__ssoMark"]',
+    ["sso btn(kakao)", S + ".sso .btn-kakao", '[class*="Button-module"][class*="__kakao"]'],
+    ["sso btn(google)", S + ".sso .btn-google", '[class*="Button-module"][class*="__google"]'],
+    ["sso ic", S + ".sso .btn-kakao .ic", '[class*="__ssoMark"]',
       ["stroke-width", "height"]],
     ["terms", S + ".auth-card .terms", "terms"],
     ["swap", S + ".auth-card .swap" + only, "swap"],
@@ -100,7 +108,9 @@ const probe = () => `(() => {
     /* 그리드·플렉스면 자식 키가 서로 같은지 */
     const disp = cs.display;
     if (disp === "grid" || disp === "flex") {
-      const hs = [...el.children].map(c => Math.round(c.getBoundingClientRect().height));
+      /* display:none인 자식(숨은 input 등)은 상자를 만들지 않으므로 세지 않는다 */
+      const shown = [...el.children].filter(c => getComputedStyle(c).display !== "none");
+      const hs = shown.map(c => Math.round(c.getBoundingClientRect().height));
       if (!(skip || []).includes("▸자식 높이 같음"))
         out[name + " ▸자식 높이 같음"] = hs.length > 1 ? String(new Set(hs).size === 1) : "해당없음";
     }
@@ -113,6 +123,16 @@ const probe = () => `(() => {
     out[name + " ▸불투명한 조상 수"] = String(opaque);
     /* 넘침 — 콘텐츠가 상자를 벗어났는가 */
     out[name + " ▸가로 넘침"] = String(el.scrollWidth > el.clientWidth + 1);
+    /*
+      ⚠️ 소셜 버튼은 **순서**도 디자인이다. 시안은 카카오가 위다.
+      클래스 이름에서 제공자만 뽑아 순서를 그대로 비교한다.
+    */
+    if (name === "sso") {
+      out[name + " ▸제공자 순서"] = [...el.children]
+        .filter((c) => getComputedStyle(c).display !== "none")
+        .map((c) => (/kakao/.test(c.className) ? "kakao" : /google/.test(c.className) ? "google" : "?"))
+        .join(" → ");
+    }
   }
   return { out, missing };
 })()`.replace('${JSON.stringify("PAIRS")} === "x" ? [] : LIST', "LIST");

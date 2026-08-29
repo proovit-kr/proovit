@@ -102,24 +102,30 @@ export function AuthCard({
 
         {providers.length > 0 ? (
           /*
-            ⚠️ 폼 하나에 버튼 둘이다. 제공자마다 `<form>`으로 감싸면 `.sso`의
-            직계 자식이 폼이 되어, 시안에서 버튼이 받는 블록화(inline-flex →
-            flex)와 높이 정렬이 사라진다. 제출 대상은 `formAction`이 가른다.
+            ⚠️ 폼은 `.sso` **바깥**이다. 시안의 `.sso`는 버튼만 담은 `<div>`인데,
+            여기에 form을 겹치면 Next가 서버 액션용 숨은 input을 그 안에 심어서
+            자식이 넷 늘어난다(화면에는 안 보이지만 구조가 달라진다).
+
+            제공자마다 form을 두지도 않는다 — 그러면 `.sso`의 직계 자식이 폼이
+            되어 버튼이 받는 블록화와 높이 정렬이 사라진다.
+            어느 버튼을 눌렀는지는 `name="provider"`가 폼 데이터로 알려 준다.
           */
-          <form className={styles.sso} action={onSignIn}>
-            {providers.map((p) => (
-              <Button
-                key={p.id}
-                type="submit"
-                name="provider"
-                value={p.id}
-                variant={VARIANT[p.id]}
-                onClick={blockIfMissing}
-              >
-                <span className={styles.ssoMark}>{MARK[p.id]}</span>
-                {` ${p.label}로 계속하기`}
-              </Button>
-            ))}
+          <form action={onSignIn}>
+            <div className={styles.sso}>
+              {providers.map((p) => (
+                <Button
+                  key={p.id}
+                  type="submit"
+                  name="provider"
+                  value={p.id}
+                  variant={VARIANT[p.id]}
+                  onClick={blockIfMissing}
+                >
+                  <span className={styles.ssoMark}>{MARK[p.id]}</span>
+                  {` ${p.label}로 계속하기`}
+                </Button>
+              ))}
+            </div>
           </form>
         ) : (
           <p className={styles.empty}>
