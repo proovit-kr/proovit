@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import { Children, cloneElement, useEffect, useRef, useState } from "react";
+import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import { Badge } from "./Badge";
 import { Card } from "./Surface";
@@ -115,41 +115,40 @@ function useReveal<T extends HTMLElement>() {
   return { ref, shown };
 }
 
-/** 시안 RVMAP의 한 줄에 해당한다. 방향과 순번 지연을 쓰는 쪽이 정한다 */
+/**
+ * 시안 RVMAP의 한 줄에 해당한다. 방향과 순번 지연을 쓰는 쪽이 정한다.
+ *
+ * ⚠️ **감싸지 않고 자식에 직접 붙인다.** 시안은 `.rv`를 카드·제목·항목
+ * 자체에 얹는다(`['#scr-landing .ld-3 .card','up',100]`). 래퍼를 하나 끼우면
+ * 그 래퍼가 그리드 아이템이 되고 안의 카드는 늘어나지 않아서, 내용이 짧은
+ * 카드만 키가 작아진다 — 실제로 03 BENEFITS의 2·3번 카드가 그랬다.
+ */
 function Reveal({
   dir = "up",
   index = 0,
   step = 0,
-  className,
-  style,
   children,
-  ...rest
 }: {
   dir?: "up" | "left" | "right";
   index?: number;
   step?: number;
-  className?: string;
-  style?: CSSProperties;
-  children: ReactNode;
-} & React.HTMLAttributes<HTMLDivElement>) {
-  const { ref, shown } = useReveal<HTMLDivElement>();
-  return (
-    <div
-      ref={ref}
-      className={cx(
-        styles.rv,
-        dir === "left" ? styles.rvL : dir === "right" ? styles.rvR : "",
-        shown && styles.in,
-        className,
-      )}
-      style={
-        { ...style, "--d": `${Math.min(index * step, 440)}ms` } as CSSProperties
-      }
-      {...rest}
-    >
-      {children}
-    </div>
-  );
+  children: ReactElement<{ className?: string; style?: CSSProperties }>;
+}) {
+  const { ref, shown } = useReveal<HTMLElement>();
+  const child = Children.only(children);
+  return cloneElement(child, {
+    ref,
+    className: cx(
+      styles.rv,
+      dir === "left" ? styles.rvL : dir === "right" ? styles.rvR : "",
+      shown && styles.in,
+      child.props.className,
+    ),
+    style: {
+      ...child.props.style,
+      "--d": `${Math.min(index * step, 440)}ms`,
+    } as CSSProperties,
+  } as Record<string, unknown>);
 }
 
 /** 섹션 머리 — 번호·라벨 · 제목 · (있으면) 부제 */
@@ -448,53 +447,61 @@ export function Landing({
           </div>
 
           {/* 라이브 전광판. 참가팀이 0이라 순위 대신 「준비 중」이다 */}
-          <Reveal dir="right" className={styles.live}>
-            <div className={styles.liveCap}>
-              <span className={styles.cur}>LIVE LEADERBOARD</span>
-              <Badge tone="gray">준비 중</Badge>
-            </div>
-            {[1, 2, 3].map((rank) => (
-              <div className={styles.slot} key={rank}>
-                <span className={styles.slotRank}>{rank}</span>
-                <span className={styles.slotBar} />
-                <span className={styles.slotScore}>─</span>
+          <Reveal dir="right">
+            <div className={styles.live}>
+              <div className={styles.liveCap}>
+                <span className={styles.cur}>LIVE LEADERBOARD</span>
+                <Badge tone="gray">준비 중</Badge>
               </div>
-            ))}
-            <p className={styles.liveNote}>
-              {seasonName}이 시작되면 참가팀의 유효 이용자 수가 여기에
-              실시간으로 표시돼요.
-            </p>
+              {[1, 2, 3].map((rank) => (
+                <div className={styles.slot} key={rank}>
+                  <span className={styles.slotRank}>{rank}</span>
+                  <span className={styles.slotBar} />
+                  <span className={styles.slotScore}>─</span>
+                </div>
+              ))}
+              <p className={styles.liveNote}>
+                {seasonName}이 시작되면 참가팀의 유효 이용자 수가 여기에
+                실시간으로 표시돼요.
+              </p>
+            </div>
           </Reveal>
         </div>
 
         {/* ═══════ 스탯 4칸 ═══════ */}
         <div className={styles.stats}>
           {stats.map((s, i) => (
-            <Reveal key={s.label} index={i} step={80} className={styles.stat}>
-              <span className="score">
-                {s.value}
-                {s.unit ? <span style={{ fontSize: 16 }}>{s.unit}</span> : null}
-              </span>
-              <small>{s.label}</small>
+            <Reveal key={s.label} index={i} step={80}>
+              <div className={styles.stat}>
+                <span className="score">
+                  {s.value}
+                  {s.unit ? (
+                    <span style={{ fontSize: 16 }}>{s.unit}</span>
+                  ) : null}
+                </span>
+                <small>{s.label}</small>
+              </div>
             </Reveal>
           ))}
         </div>
 
         {/* ═══════ 마퀴 전광판 ═══════ */}
-        <Reveal className={styles.mq} aria-hidden="true">
-          {/* 목록을 두 번 이어 붙인다 — translateX(-50%)로 이음매 없이 돈다 */}
-          <div className={styles.mqTrack}>
-            {[...MARQUEE, ...MARQUEE].map((text, i) => (
-              <span key={i}>
-                {text === "PROO✓IT" ? (
-                  <>
-                    PROO<em>✓</em>IT
-                  </>
-                ) : (
-                  text
-                )}
-              </span>
-            ))}
+        <Reveal>
+          <div className={styles.mq} aria-hidden="true">
+            {/* 목록을 두 번 이어 붙인다 — translateX(-50%)로 이음매 없이 돈다 */}
+            <div className={styles.mqTrack}>
+              {[...MARQUEE, ...MARQUEE].map((text, i) => (
+                <span key={i}>
+                  {text === "PROO✓IT" ? (
+                    <>
+                      PROO<em>✓</em>IT
+                    </>
+                  ) : (
+                    text
+                  )}
+                </span>
+              ))}
+            </div>
           </div>
         </Reveal>
 
@@ -649,8 +656,10 @@ export function Landing({
           <div className={styles.spec}>
             {LANDING_SPEC.map((s, i) => (
               <Reveal key={s.label} index={i} step={70}>
-                <small>{s.label}</small>
-                <b>{s.value}</b>
+                <div>
+                  <small>{s.label}</small>
+                  <b>{s.value}</b>
+                </div>
               </Reveal>
             ))}
           </div>

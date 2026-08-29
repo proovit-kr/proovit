@@ -168,6 +168,19 @@ const probe = (pairs) => `(() => {
     }
     out[name + " ▸불투명한 조상 수"] = String(opaque);
 
+    /*
+      ⚠️ 그리드·플렉스 컨테이너면 자식들의 높이가 서로 같은지 본다.
+      시안은 카드가 곧 그리드 아이템이라 stretch로 키가 맞는데, 래퍼를 하나
+      끼우면 그 래퍼만 늘어나고 카드는 내용만큼만 커진다 — 값은 전부 같아도
+      화면에서는 카드 셋의 키가 어긋난다(03 BENEFITS에서 실제로 그랬다).
+    */
+    const disp = getComputedStyle(el).display;
+    if (disp === "grid" || disp === "flex") {
+      const hs = [...el.children].map((c) => Math.round(c.getBoundingClientRect().height));
+      out[name + " ▸자식 높이 같음"] =
+        hs.length > 1 ? String(new Set(hs).size === 1) : "해당없음";
+    }
+
     const cs = getComputedStyle(el);
     for (const p of CSS.concat(extra || [])) {
       if ((skip || []).includes(p)) continue;
@@ -196,9 +209,14 @@ const settle = `(async () => {
     화면 밖 요소는 영영 나타나지 않는다.
   */
   await nap(700);
+  /*
+    ⚠️ 한 칸에 충분히 머문다. IntersectionObserver의 콜백은 프레임 뒤에
+    비동기로 배달되는데, 24ms 간격으로 훑으면 배달되기 전에 이미 지나가서
+    화면 밖 요소가 영영 안 나타난다(파이널 제목이 그랬다).
+  */
   const h = () => document.documentElement.scrollHeight;
-  for (let y = 0; y <= h(); y += 300) { window.scrollTo(0, y); await nap(24); }
-  await nap(300);
+  for (let y = 0; y <= h(); y += 400) { window.scrollTo(0, y); await nap(90); }
+  await nap(500);
   window.scrollTo(0, 0);
   await nap(1200);
 
@@ -213,10 +231,35 @@ const settle = `(async () => {
     **정지 상태를 비교하는 것이 목적이다.** 리빌이 실제로 어떻게 움직이는지는
     .rv 의 transition·transform·delay 값으로 이미 대조된다.
   */
-  document.querySelectorAll(".rv").forEach((e) => e.classList.add("in"));
+  /*
+    양쪽 다 리빌을 끝 상태로 못박는다. **정지 상태를 비교하는 것이 목적**이고,
+    리빌이 실제로 어떻게 움직이는지는 rv 의 transition·transform·delay 값으로
+    이미 대조된다.
+
+    시안: 관찰자가 root를 #stage로 잡는데 뷰어 셸을 걷어내면 발화하지 않는다.
+    구현: CSS Module이라 클래스가 해시돼 있다. __rv 로 끝나는 클래스에서
+          모듈 접두사를 얻어 같은 모듈의 __in 을 만든다.
+
+    자연 리빌이 실제로 도는지는 아래 naturally 수치로 따로 본다 —
+    못박기 **전에** 세므로 스크롤만으로 다 나타났는지가 그대로 드러난다.
+  */
+  const hashed = [...document.querySelectorAll('[class*="__rv"]')];
+  const isIn = (e) => [...e.classList].some((c) => c === "in" || c.endsWith("__in"));
+  const plain = [...document.querySelectorAll(".rv")];
+  const all = plain.length ? plain : hashed;
+  const naturally = all.filter(isIn).length + "/" + all.length;
+
+  plain.forEach((e) => e.classList.add("in"));
   document.querySelectorAll(".rm").forEach((e) => e.classList.add("in"));
+  for (const [sel, suffix] of [["__rv", "__in"], ["__rm", "__in"]]) {
+    const els = [...document.querySelectorAll('[class*="' + sel + '"]')];
+    const own = els[0] && [...els[0].classList].find((c) => c.endsWith(sel));
+    if (!own) continue;
+    const inClass = own.slice(0, -sel.length) + suffix;
+    els.forEach((e) => e.classList.add(inClass));
+  }
   await nap(1000);
-  return 1;
+  return naturally;
 })()`;
 
 let total = 0;
@@ -225,21 +268,23 @@ for (const w of WIDTHS) {
     await p.goto(SPEC_URL);
     await p.stripViewerShell();
     await p.resize(w, 1000);
-    await p.eval(settle, true);
+    const naturally = await p.eval(settle, true);
     const r = await p.eval(probe(PAIRS.map(([n, s, , x, k]) => [n, s, "spec", x, k])));
+    r.naturally = naturally;
     await p.shot(`${OUT}/spec-${w}.png`);
     return r;
   });
   const impl = await withPage(async (p) => {
     await p.goto(IMPL_URL);
     await p.resize(w, 1000);
-    await p.eval(settle, true);
+    const naturally = await p.eval(settle, true);
     const r = await p.eval(probe(PAIRS.map(([n, , i, x, k]) => [n, i, "impl", x, k])));
+    r.naturally = naturally;
     await p.shot(`${OUT}/impl-${w}.png`);
     return r;
   });
 
-  console.log(`\n\n████ 폭 ${w}`);
+  console.log(`\n\n████ 폭 ${w}   스크롤만으로 나타난 리빌 — 시안 ${spec.naturally} / 구현 ${impl.naturally}`);
   for (const m of spec.missing) console.log(`  ⚠️ 시안에서 못 찾음: ${m}`);
   for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
   total += spec.missing.length + impl.missing.length;
