@@ -12,19 +12,42 @@
     ② mobile:true는 <meta name="viewport">가 없으면 레이아웃 뷰포트를 980px로
        떨어뜨린다. 폭 기준 대조에는 mobile:false. 매 폭마다 innerWidth를 검증한다.
 */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+/** 리포 뿌리. scripts/design-diff/ 에서 두 칸 위다 */
+const REPO = resolve(fileURLToPath(import.meta.url), "../../..");
 
 const HOST = process.env.CDP_HOST ?? "http://127.0.0.1:9222";
 
-/** 시안 정본. 위치가 다르면 SPEC_HTML로 넘긴다 */
-export const SPEC_URL =
-  "file://" +
-  encodeURI(
-    process.env.SPEC_HTML ??
-      "/Users/sy/Downloads/proovit_디자인시안_ver2.html",
-  );
+/*
+  시안 정본. `design/` 안에서 **버전 숫자가 가장 큰 것**이다 — 윤서가 ver4를
+  주면 그 파일을 넣는 것만으로 대상이 바뀐다.
+
+  옛 버전으로 재려면 SPEC_HTML로 넘긴다. ver2로 맞춘 화면이 ver3에서
+  어디가 어긋나는지 볼 때 쓴다.
+
+    SPEC_HTML=design/proovit_디자인시안_ver2.html node scripts/design-diff/globals.mjs
+
+  ⚠️ 대상이 조용히 바뀌면 안 되므로 어느 파일로 쟀는지 매번 찍는다.
+*/
+function resolveSpec() {
+  if (process.env.SPEC_HTML) return resolve(process.env.SPEC_HTML);
+  const dir = join(REPO, "design");
+  const latest = readdirSync(dir)
+    .filter((f) => /ver(\d+)\.html$/.test(f))
+    .sort((a, b) => Number(a.match(/ver(\d+)/)[1]) - Number(b.match(/ver(\d+)/)[1]))
+    .at(-1);
+  if (!latest) throw new Error(`시안이 없다: ${dir}`);
+  return join(dir, latest);
+}
+
+const SPEC_PATH = resolveSpec();
+console.log(`시안: ${relative(REPO, SPEC_PATH)}`);
+
+export const SPEC_URL = "file://" + encodeURI(SPEC_PATH);
 
 /** 구현본. `npm run dev`가 떠 있어야 한다 */
 export const IMPL_URL = process.env.IMPL_URL ?? "http://localhost:3000";
