@@ -77,6 +77,7 @@ async function send(mail: {
   to: string;
   subject: string;
   text: string;
+  html: string;
 }): Promise<MailResult> {
   if (!configured()) return { ok: true, skipped: true };
 
@@ -93,7 +94,12 @@ async function send(mail: {
         to: [mail.to],
         reply_to: REPLY_TO,
         subject: mail.subject,
+        /*
+          text와 html을 함께 보낸다. 이미지를 막아 둔 클라이언트, 스크린리더,
+          스팸 필터가 모두 text를 본다 — html만 보내면 도달률이 떨어진다.
+        */
         text: mail.text,
+        html: mail.html,
       }),
     });
   } catch {
@@ -127,6 +133,50 @@ async function send(mail: {
   return { ok: false, reason: "REJECTED" };
 }
 
+/*
+  ── 메일 HTML ────────────────────────────────────────────────
+
+  ⚠️ 메일은 웹이 아니다. 여기서만 지키는 규칙 넷.
+
+    1. **인라인 스타일만.** `<style>` 블록과 클래스는 Gmail이 지운다.
+    2. **레이아웃은 표로.** flex·grid는 Outlook에서 무너진다.
+    3. **웹폰트를 부르지 않는다.** 대부분 막히고, 막히면 대체 글꼴이
+       제각각이라 자간이 다 어긋난다. 시스템 글꼴 목록을 쓴다.
+    4. **밝은 바탕에 어두운 글씨.** 제품은 어두운 화면이지만 메일에서
+       어두운 바탕은 클라이언트마다 반전·덧칠이 제각각이라 못 믿는다.
+
+  워드마크의 체크는 라임(#c8ff3d)이 아니라 한 단계 어두운 #8fc400을 쓴다.
+  밝은 바탕에서 라임은 대비가 모자라 글자가 안 읽힌다.
+*/
+const INK = "#12161f";
+const MUTED = "#5b6472";
+const LINE = "#e4e7ec";
+const FONT =
+  "-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
+
+/** 값 하나짜리 줄. 「받는 주소: …」처럼 이름과 값이 붙는다 */
+const row = (label: string, value: string) => `
+  <tr>
+    <td style="padding:6px 0;font-size:13px;color:${MUTED};width:88px;vertical-align:top">${label}</td>
+    <td style="padding:6px 0;font-size:13px;color:${INK};vertical-align:top">${value}</td>
+  </tr>`;
+
+function shell(inner: string): string {
+  return `<!doctype html>
+<html lang="ko"><body style="margin:0;padding:0;background:#f6f7f9">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7f9">
+    <tr><td align="center" style="padding:40px 16px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+             style="max-width:520px;background:#ffffff;border:1px solid ${LINE};border-radius:14px">
+        <tr><td style="padding:36px 32px;font-family:${FONT}">
+${inner}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
 /**
  * 사전 신청 접수 확인 메일.
  *
@@ -134,7 +184,8 @@ async function send(mail: {
  * 시즌 혜택·상금·크레딧 같은 말을 한 줄이라도 넣으면 광고성 정보가 되어
  * (광고) 표기와 수신동의 요건이 붙는다(구현 규칙 9).
  *
- * 하단 두 링크가 규칙 6·10이 요구하는 철회 수단이다.
+ * 하단 버튼이 규칙 6·10이 요구하는 철회 수단이다. **눈에 띄게 둔다** —
+ * 법이 요구하는 것은 링크의 존재가 아니라 찾을 수 있음이다.
  */
 export async function sendLeadWelcome(params: {
   email: string;
@@ -160,9 +211,55 @@ export async function sendLeadWelcome(params: {
     "PROOVIT | 운영자: 이윤서 | 문의: help@proovit.kr",
   ].join("\n");
 
+  const html = shell(`
+          <div style="font-size:17px;font-weight:800;letter-spacing:.06em;color:${INK}">
+            PROO<span style="color:#8fc400">✓</span>IT
+          </div>
+
+          <h1 style="margin:26px 0 0;font-size:21px;line-height:1.45;font-weight:800;color:${INK}">
+            ${seasonTitle} 사전 신청이<br>접수됐어요.
+          </h1>
+          <p style="margin:14px 0 0;font-size:15px;line-height:1.75;color:${MUTED}">
+            서비스 오픈과 시즌 모집이 시작되면 이 주소로 안내를 보내드려요.
+            그때까지 따로 하실 일은 없어요.
+          </p>
+
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                 style="margin:28px 0 0;border-top:1px solid ${LINE};border-bottom:1px solid ${LINE}">
+            <tr><td style="padding:10px 0">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${row("받는 주소", email)}
+                ${row("수집 항목", `이메일 주소 하나 <span style="color:${MUTED}">(동의 문안 ${PRIVACY_CONSENT_VERSION})</span>`)}
+                ${row("보유 기간", "시즌1 모집 종료 후 6개월 또는 동의 철회 시까지")}
+              </table>
+            </td></tr>
+          </table>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 0">
+            <tr><td style="border-radius:10px;background:${INK}">
+              <a href="${unsubscribeUrl}"
+                 style="display:inline-block;padding:13px 22px;font-size:14px;font-weight:700;
+                        color:#ffffff;text-decoration:none;border-radius:10px;border:1px solid ${INK}">
+                사전 신청 취소 · 수신거부
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:12px 0 0;font-size:12px;line-height:1.7;color:${MUTED}">
+            본 메일을 잘못 받으셨다면 위 버튼으로 신청을 취소하실 수 있어요.
+            취소하시면 저장된 이메일 주소를 지워요.
+          </p>
+
+          <p style="margin:30px 0 0;padding-top:18px;border-top:1px solid ${LINE};
+                    font-size:12px;line-height:1.8;color:${MUTED}">
+            PROOVIT &nbsp;|&nbsp; 운영자: 이윤서 &nbsp;|&nbsp;
+            문의: <a href="mailto:help@proovit.kr" style="color:${MUTED}">help@proovit.kr</a><br>
+            <span style="color:#98a0ad">© 2026 PROOVIT</span>
+          </p>`);
+
   return send({
     to: email,
     subject: `[PROOVIT] ${seasonTitle} 사전 신청이 접수됐어요`,
     text,
+    html,
   });
 }
