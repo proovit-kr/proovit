@@ -45,6 +45,19 @@ export function siteUrl(): string {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
   const prod = process.env.VERCEL_PROJECT_PRODUCTION_URL;
   if (prod) return `https://${prod}`;
+
+  /*
+    ⚠️ 마지막 수단이다. 여기까지 왔는데 실제로 메일을 보내는 중이면 받는
+    사람에게 **누를 수 없는 수신거부 링크**가 나간다 — 그건 보유기간을
+    「동의 철회 시까지」로 약속해 놓고 철회 수단을 안 준 것과 같다.
+    조용히 지나가면 안 되므로 크게 남긴다.
+  */
+  if (configured()) {
+    console.warn(
+      "[mail] NEXT_PUBLIC_SITE_URL이 없어 메일 링크가 localhost로 나갑니다. " +
+        "받는 사람은 이 링크를 열 수 없습니다.",
+    );
+  }
   return "http://localhost:3000";
 }
 
@@ -88,7 +101,15 @@ async function send(mail: {
     return { ok: false, reason: "UNAVAILABLE" };
   }
 
-  if (response.ok) return { ok: true, skipped: false };
+  if (response.ok) {
+    /*
+      메시지 id를 남긴다. 「저 사람이 메일을 받았나」를 나중에 되짚을 수 있는
+      유일한 실마리다 — Resend 대시보드에서 이 id로 배달 상태를 본다.
+    */
+    const { id } = (await response.json().catch(() => ({}))) as { id?: string };
+    console.info(`[mail] 보냄 → ${mail.to} (${id ?? "id 없음"})`);
+    return { ok: true, skipped: false };
+  }
 
   /*
     401·403은 우리 잘못이다 — 키가 틀렸거나 도메인 인증이 안 끝났다.
