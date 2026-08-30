@@ -29,6 +29,22 @@
   gap: 14px;
 }
 
+/* 아직 계정이 없는 채널. 누를 수 없다는 것을 칩으로 말한다 */
+.soon {
+  color: var(--faint);
+  opacity: 0.55;
+  cursor: default;
+}
+.soon::after {
+  content: "준비 중";
+  font-size: 10px;
+  margin-left: 5px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 0 5px;
+  vertical-align: 1px;
+}
+
 /* ver3의 모바일 패스. SNS가 오른쪽 끝을 놓고 한 줄을 통째로 차지한다 */
 @media (max-width: 760px) {
   .foot {

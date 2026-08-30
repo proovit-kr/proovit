@@ -57,6 +57,13 @@ const PAIRS = [
   ["foot wm", S + ".pub-foot .wm", "footer > span:first-child"],
   ["foot a", S + ".pub-foot > a:first-of-type", "footer a:first-of-type"],
   ["foot sns", S + ".pub-foot .sns", "footer > span:last-child", { flushRight: true }],
+  /*
+    ⚠️ 링크 자체를 센다. 상자만 재면 안에 무엇이 몇 개 있는지 모른다 —
+    ver3가 이용약관·개인정보처리방침 둘을 넣었는데 상자 값은 그대로여서
+    대조가 0건이라고 말했다. 수연이 눈으로 잡았다.
+  */
+  ["foot ▸링크", S + ".pub-foot", "footer"],
+  ["foot soon", S + ".pub-foot .sns .soon", '[class*="__soon"]'],
 ];
 
 const probe = (pairs) => `(() => {
@@ -76,6 +83,10 @@ const probe = (pairs) => `(() => {
     const o = opt || {};
     if (o.fixedHeight) {
       out[name + " ▸height"] = Math.round(el.getBoundingClientRect().height * 100) / 100 + "px";
+    }
+    if (name.endsWith("▸링크")) {
+      /* 링크 글자를 그대로 늘어놓는다. 개수와 순서와 문구가 한 줄에 나온다 */
+      out[name] = [...el.querySelectorAll("a")].map(a => a.textContent.trim()).join(" · ");
     }
     if (o.flushRight) {
       /* margin-left:auto가 실제로 오른쪽 끝까지 밀었는가 */
