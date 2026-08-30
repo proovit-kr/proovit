@@ -53,28 +53,36 @@ const PAIRS = [
   ["nav a(on)", S + ".pub-head nav a:nth-child(2)", "header nav a:nth-child(2)"],
   ["cta", S + ".pub-head .cta", "header > :last-child", { flushRight: true }],
 
-  ["pub-foot", S + ".pub-foot", "footer"],
-  ["foot wm", S + ".pub-foot .wm", "footer > span:first-child"],
-  ["foot a", S + ".pub-foot > a:first-of-type", "footer a:first-of-type"],
-  ["foot sns", S + ".pub-foot .sns", "footer > span:last-child", { flushRight: true }],
+  /*
+    ⚠️ **푸터는 내용이 시안 소관이 아니다** (2026-08-30 팀장 지시). 노션
+    「사전신청 폼 문안·푸터 — 게시용 최종본」의 「5. 푸터 표기」가 정본이라
+    링크 목록·SNS·정렬은 대조하지 않는다. 시안이 여전히 정하는 것은
+    경계선·여백·색·글자 크기이고 그것만 본다.
+
+    시안 쪽은 한 줄 배치(`display:flex` 가로, gap 22px)이고 우리는 세 줄이라
+    방향과 gap도 뺀다.
+  */
+  ["pub-foot", S + ".pub-foot", "footer", {},
+   ["display", "flex-direction", "gap", "flex-wrap", "align-items", "height"]],
+  /* ⚠️ 푸터로 좁힌다. `.wm`은 헤더에도 있어서 안 좁히면 헤더 것을 잰다(18px) */
+  ["foot wm", S + ".pub-foot .wm", 'footer [class*="__wm"]'],
   /*
     ⚠️ 링크 자체를 센다. 상자만 재면 안에 무엇이 몇 개 있는지 모른다 —
     ver3가 이용약관·개인정보처리방침 둘을 넣었는데 상자 값은 그대로여서
     대조가 0건이라고 말했다. 수연이 눈으로 잡았다.
   */
   ["head ▸링크", S + ".pub-head nav", "header nav"],
-  ["foot ▸링크", S + ".pub-foot", "footer"],
-  ["foot soon", S + ".pub-foot .sns .soon", '[class*="__soon"]'],
 ];
 
 const probe = (pairs) => `(() => {
   const CSS = ${JSON.stringify(CSS)};
   const out = {}, missing = [];
-  for (const [name, sel, opt] of ${JSON.stringify(pairs)}) {
+  for (const [name, sel, opt, skip] of ${JSON.stringify(pairs)}) {
     const el = document.querySelector(sel);
     if (!el) { missing.push(name + "  ← " + sel); continue; }
     const cs = getComputedStyle(el);
     for (const p of CSS) {
+      if ((skip || []).includes(p)) continue;
       if (p.startsWith("border-bottom-") && p !== "border-bottom-width"
           && cs.getPropertyValue("border-bottom-width") === "0px") continue;
       if (p.startsWith("border-top-") && p !== "border-top-width"
@@ -157,7 +165,7 @@ for (const w of WIDTHS) {
     await p.goto(SPEC_URL + "#leaderboard");
     await p.stripViewerShell();
     await p.resize(w);
-    const r = await p.eval(probe(PAIRS.map(([n, s, , o]) => [n, s, o])));
+    const r = await p.eval(probe(PAIRS.map(([n, s, , o, k]) => [n, s, o, k])));
     await p.shot(`${OUT}/spec-${w}.png`);
     /* ⚠️ 캡처보다 뒤에 둔다 — hover가 켜진 채로 찍히면 안 된다 */
     Object.assign(r.out, await hoverValues(p, HOVER, "spec"));
@@ -173,7 +181,7 @@ for (const w of WIDTHS) {
     */
     await p.goto(IMPL_URL + "/seasons/season-1/leaderboard");
     await p.resize(w);
-    const r = await p.eval(probe(PAIRS.map(([n, , i, o]) => [n, i, o])));
+    const r = await p.eval(probe(PAIRS.map(([n, , i, o, k]) => [n, i, o, k])));
     await p.shot(`${OUT}/impl-${w}.png`);
     Object.assign(r.out, await hoverValues(p, HOVER, "impl"));
     return r;

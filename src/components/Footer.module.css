@@ -1,15 +1,32 @@
 /*
-  공개 푸터 — 시안 `.pub-foot`.
-  한 줄에 워드마크 · 링크 셋 · 오른쪽 끝 SNS. 좁아지면 접힌다.
+  공개 푸터 — 모양은 시안 `.pub-foot`, 내용은 노션 정본(Footer.tsx 참조).
+
+  시안에서 그대로 가져온 값: border-top · padding · color · font-size,
+  그리고 ≤760의 padding.
+
+  ⚠️ 시안과 다른 것은 방향과 gap 둘이다. 노션 푸터가 세 줄이라 세로로 쌓는다 —
+  시안은 한 줄에 늘어놓고 `flex-wrap`으로 접는 구조(gap 22px)였다.
 */
 .foot {
   border-top: 1px solid var(--line);
   padding: 34px 40px;
   display: flex;
-  gap: 22px;
+  flex-direction: column;
+  gap: 10px;
   color: var(--faint);
   font-size: 13px;
+}
+
+/* 첫 줄 — 워드마크 · 운영자 · 문의 */
+.line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
+}
+/* 노션 정본이 쓰는 구분자. 읽어 줄 것이 없어 aria-hidden이다 */
+.sep {
+  opacity: 0.45;
 }
 
 .foot a:hover {
@@ -27,36 +44,26 @@
   font-style: normal;
 }
 
-.sns {
-  margin-left: auto;
-  display: flex;
-  gap: 14px;
+/*
+  개인정보처리방침. 시행령 제31조 제2항이 「본문과 구분되는 방법」을 요구하고
+  노션 정본이 「굵게 또는 별도 링크」로 적어 두었다 — 둘 다 한다.
+
+  `align-self`가 필요한 이유: 세로 플렉스라 기본 stretch면 링크의 클릭 영역이
+  푸터 폭 전체로 늘어난다. 글자만큼만 눌리게 한다.
+*/
+.privacy {
+  font-weight: 700;
+  color: var(--muted);
+  align-self: flex-start;
 }
 
-/* 아직 계정이 없는 채널. 누를 수 없다는 것을 칩으로 말한다 */
-.soon {
-  color: var(--faint);
-  opacity: 0.55;
-  cursor: default;
-}
-.soon::after {
-  content: "준비 중";
-  font-size: 10px;
-  margin-left: 5px;
-  border: 1px solid var(--line);
-  border-radius: 99px;
-  padding: 0 5px;
-  vertical-align: 1px;
+.copy {
+  opacity: 0.7;
 }
 
-/* ver3의 모바일 패스. SNS가 오른쪽 끝을 놓고 한 줄을 통째로 차지한다 */
+/* ver3의 모바일 패스. 시안 `.pub-foot`의 ≤760 padding이다 */
 @media (max-width: 760px) {
   .foot {
     padding: 26px 20px;
-    gap: 12px 16px;
-  }
-  .sns {
-    margin-left: 0;
-    flex-basis: 100%;
   }
 }
