@@ -23,8 +23,6 @@
  * KPI#1의 원천이 사라진다.
  */
 
-import { PRIVACY_CONSENT_VERSION } from "@/content/consent";
-
 const ENDPOINT = "https://api.resend.com/emails";
 
 /**
@@ -202,7 +200,7 @@ export async function sendLeadWelcome(params: {
     "",
     "─────────────",
     `받는 주소: ${email}`,
-    `수집 항목: 이메일 주소 하나 (동의 문안 ${PRIVACY_CONSENT_VERSION})`,
+    "수집 항목: 이메일 주소",
     "보유 기간: 시즌1 모집 종료 후 6개월 또는 동의 철회 시까지",
     "",
     "사전 신청 취소(동의 철회)와 광고성 정보 수신거부:",
@@ -229,7 +227,7 @@ export async function sendLeadWelcome(params: {
             <tr><td style="padding:10px 0">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 ${row("받는 주소", email)}
-                ${row("수집 항목", `이메일 주소 하나 <span style="color:${MUTED}">(동의 문안 ${PRIVACY_CONSENT_VERSION})</span>`)}
+                ${row("수집 항목", "이메일 주소")}
                 ${row("보유 기간", "시즌1 모집 종료 후 6개월 또는 동의 철회 시까지")}
               </table>
             </td></tr>
