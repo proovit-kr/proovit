@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { TERMS } from "@/content/terms";
+
 import styles from "./Footer.module.css";
 
 /*
@@ -19,9 +21,12 @@ import styles from "./Footer.module.css";
 */
 
 /*
-  ⚠️ `/terms`와 `/privacy`는 **아직 라우트가 없다.** ver3에 화면이 새로
-  들어왔고 아직 구현 전이라 지금 누르면 404다. 두 화면을 만들 때까지 남는
-  빚이고, 개인정보처리방침은 법이 요구하는 연결화면이라 먼저 갚아야 한다.
+  ⚠️ **이용약관은 본문이 확정되기 전까지 링크하지 않는다.** 시안에는 있지만
+  `/terms`가 404를 내는 동안 링크만 내보내면 고장으로 보인다. 팀장의 게시
+  계획이 이 문서를 「가입 오픈 시점에 게시」로 두었다 — 이유는
+  `content/terms.ts`에 적혀 있고, 값이 들어오면 이 링크가 저절로 살아난다.
+
+  개인정보처리방침은 반대다. 법이 요구하는 연결화면이라 항상 낸다.
 */
 const LINKS = [
   { href: "/rules", label: "시즌 규칙" },
@@ -30,7 +35,7 @@ const LINKS = [
     우리 쪽 앵커 이름은 `/rules`를 만들 때(§9) 그 화면이 정한다.
   */
   { href: "/rules#valid-users", label: "유효 이용자 기준" },
-  { href: "/terms", label: "이용약관" },
+  ...(TERMS ? [{ href: "/terms", label: "이용약관" }] : []),
   { href: "/privacy", label: "개인정보처리방침" },
 ];
 

@@ -96,6 +96,14 @@ const probe = (pairs) => `(() => {
       */
       out[name] = [...el.querySelectorAll("a")]
         .map(a => a.textContent.trim() + (a.hasAttribute("href") ? "[href]" : ""))
+        /*
+          ⚠️ 이용약관은 양쪽에서 뺀다. 본문이 확정되기 전까지 링크하지 않기로
+          한 자리다(content/terms.ts에 이유가 있다). 시안에는 있으므로 빼지
+          않으면 영원히 빨간 줄이 하나 남고, 그러면 이 검사를 안 보게 된다.
+
+          TERMS에 값이 들어오면 이 줄을 지운다.
+        */
+        .filter(t => !t.startsWith("이용약관"))
         .join(" · ");
     }
     if (o.flushRight) {

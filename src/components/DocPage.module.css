@@ -1,0 +1,180 @@
+/*
+  법령 문서 화면 — 시안 `.ru-wrap` / `.ru-toc` / `.ru`.
+
+  `/privacy`, `/terms`, `/rules` 셋이 같은 껍데기를 쓴다. 시안도 세 화면에
+  같은 클래스(`.ru`)를 건다 — 규칙에서 온 이름이지만 문서 화면 전체의 것이다.
+
+  값은 `fold-spec.mjs '^\.ru-|^\.doc-|^\.ru '`가 뽑은 최종 승자 표에서 옮겼다.
+  v3.0 피드백 패스가 본문을 한 번 키웠다 —
+    .ru-toc a  13 → 13.5 → **14px**,  padding 6px 12px → **7px 12px**
+    .ru h1     28 → **30px**          .ru h3  17 → **18px**, padding-top 26 → **30px**
+    .ru p·li   14.5 → 15 → 15.5 → **16px**,  line-height 1.8 → **1.85**
+*/
+
+.wrap {
+  max-width: 1020px;
+  margin: 0 auto;
+  padding: 44px 40px 80px;
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 44px;
+}
+
+/*
+  ⚠️ 시안에 없는 줄. 그리드 아이템의 기본 `min-width:auto`는 내용의
+  최소 폭까지 칸을 늘린다 — 6열짜리 국외이전 표가 있는 우리 화면에서는
+  본문 칸이 1020px 상한을 뚫고 나가 페이지 전체가 가로로 밀렸다.
+  시안의 방침 화면은 조를 줄여 그려서 그 표가 없으니 겪지 않는 문제다.
+*/
+.wrap > * {
+  min-width: 0;
+}
+
+/* 목차. 본문을 따라 붙어 있는다 */
+.toc {
+  position: sticky;
+  top: 70px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.toc a {
+  font-size: 14px;
+  color: var(--muted);
+  padding: 7px 12px;
+  border-left: 2px solid var(--line);
+  cursor: pointer;
+}
+.toc a:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* 버전과 시행일 칩 줄 */
+.ver {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 10px 0 34px;
+}
+
+.doc h1 {
+  font-size: 30px;
+  font-weight: 800;
+}
+
+/*
+  조 제목. `margin`을 적고 `margin-top`으로 다시 덮는 것까지 시안 그대로다
+  (36px 0 12px → 위만 42px). 눈으로는 위 42 / 아래 12가 된다.
+
+  `scroll-margin-top`은 목차로 건너뛸 때 제목이 헤더 밑에 숨지 않게 한다.
+*/
+.doc h3 {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 36px 0 12px;
+  padding-top: 30px;
+  border-top: 1px solid var(--line);
+  margin-top: 42px;
+  scroll-margin-top: 80px;
+}
+/* 조 번호. 문서에서 유일하게 라임을 쓰는 자리다 */
+.doc h3 .n {
+  font-family: var(--mono);
+  color: var(--accent);
+  margin-right: 10px;
+  font-size: 14px;
+}
+
+.doc p,
+.doc li {
+  font-size: 16px;
+  color: var(--muted);
+  line-height: 1.85;
+  max-width: 66ch;
+}
+.doc ol {
+  padding-left: 22px;
+}
+.doc ol li {
+  padding: 4px 0;
+}
+/* 본문 안에서 한 단계 밝히는 자리 — 조문 이름 등 */
+.doc .em {
+  color: var(--text);
+}
+
+.doc table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  margin: 10px 0 20px;
+}
+.doc th,
+.doc td {
+  border: 1px solid var(--line);
+  padding: 8px 11px;
+  text-align: left;
+  color: var(--muted);
+  vertical-align: top;
+  line-height: 1.6;
+}
+.doc th {
+  color: var(--text);
+  background: var(--surface-2);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/*
+  문서 머리에 붙는 안내 상자.
+
+  ⚠️ `.doc`으로 한 겹 감싼다. 맨몸 `.note`(0,1,0)는 `.doc p`(0,1,1)에 져서
+  글자 크기와 색이 본문 값으로 덮인다. 시안도 `.ru .doc-note`로 두 겹이라
+  같은 구조다.
+*/
+.doc .note {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: var(--blue-dim);
+  border: 1px solid rgba(111, 179, 255, 0.4);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 22px;
+}
+
+/*
+  ⚠️ 시안에 없는 것. 표가 좁은 폭에서 넘칠 때 가로로 굴린다.
+
+  시안의 방침 화면은 조를 줄여 보여주느라 6열짜리 국외이전 표가 없다 —
+  제품에는 있고, 390에서 그 표는 어떻게 눌러도 안 들어간다. 상자 없이 두면
+  페이지 전체가 가로로 밀려서 본문까지 읽을 수 없게 된다.
+*/
+.scroller {
+  overflow-x: auto;
+}
+
+@media (max-width: 1024px) {
+  .wrap {
+    grid-template-columns: 1fr;
+  }
+  .toc {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 760px) {
+  .wrap {
+    padding: 26px 16px 50px;
+  }
+  .doc h1 {
+    font-size: 24px;
+  }
+}
