@@ -6,10 +6,12 @@ import {
   PRIVACY_CONSENT_VERSION,
 } from "@/content/consent";
 import { apiFail, apiOk } from "@/lib/api";
+import { sendLeadWelcome, siteUrl } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { getClientIp, limitByIp } from "@/lib/ratelimit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { getCurrentSeason } from "@/lib/season";
+import { makeUnsubscribeToken } from "@/lib/unsubscribe-token";
 
 /*
   POST /api/v1/leads — API 명세서 v0.2 §1.2
@@ -128,9 +130,17 @@ export async function POST(request: NextRequest) {
     select: { id: true, marketingOptIn: true },
   });
 
+  /*
+    접수 확인 메일을 보내려면 만들어진 행의 id가 필요하다(수신거부 토큰의 근거).
+    중복 신청일 때는 보내지 않는다 — 「접수됐다」는 사실을 알리는 이행 메일이라
+    새로 접수됐을 때만 할 말이 있고, 남의 주소로 재신청을 반복해 메일을 쏟아붓는
+    길을 열어 두지 않는 쪽이 낫다.
+  */
+  let createdId: string | null = null;
+
   if (!existing) {
     try {
-      await prisma.lead.create({
+      const created = await prisma.lead.create({
         data: {
           email,
           seasonId: season.id,
@@ -153,7 +163,9 @@ export async function POST(request: NextRequest) {
           marketingOptIn,
           marketingConsentVersion: marketingOptIn ? MARKETING_CONSENT_VERSION : null,
         },
+        select: { id: true },
       });
+      createdId = created.id;
     } catch (error) {
       // 조회와 생성 사이에 같은 이메일이 들어온 경우(동시 요청).
       // 유니크 제약이 최종 방어선이고, 사용자에게는 여전히 성공이다.
@@ -177,6 +189,34 @@ export async function POST(request: NextRequest) {
         unsubscribedAt: null,
       },
     });
+  }
+
+  /*
+    ⚠️ 메일은 **접수를 저장한 뒤에, 응답을 막지 않고** 보낸다.
+
+    접수는 이미 끝났고 그 숫자가 KPI#1의 원천이다. 메일이 안 나갔다고 접수를
+    실패로 돌리면 세어야 할 것을 잃는다. sendLeadWelcome은 예외를 던지지 않고
+    실패를 로그로만 남긴다(키가 없으면 조용히 건너뛴다).
+  */
+  if (createdId) {
+    /*
+      ⚠️ 통째로 감싼다. sendLeadWelcome은 스스로 던지지 않지만
+      makeUnsubscribeToken은 AUTH_SECRET이 없으면 던진다 — 그러면 리드를
+      저장해 놓고 500을 돌려주게 되어, 사용자는 실패한 줄 알고 다시 누르고
+      우리는 「접수됐는데 안 됐다고 나온다」는 제보를 받는다.
+    */
+    try {
+      const url = `${siteUrl()}/api/v1/unsubscribe?t=${encodeURIComponent(
+        makeUnsubscribeToken(createdId),
+      )}`;
+      await sendLeadWelcome({
+        email,
+        seasonTitle: season.title,
+        unsubscribeUrl: url,
+      });
+    } catch (error) {
+      console.error("[leads] 접수 확인 메일을 보내지 못했습니다.", error);
+    }
   }
 
   return apiOk({ seasonSlug: season.slug }, { status: 201 });

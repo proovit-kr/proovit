@@ -1,0 +1,49 @@
+/*
+  수신거부 결과 화면.
+
+  ⚠️ 시안에 없는 화면이라 옮겨 적을 값이 없다. 지어내는 대신 문서 화면
+  (DocPage.module.css)의 값을 그대로 쓴다 — 같은 「읽는 화면」이고,
+  시안이 그 리듬을 이미 정해 뒀다.
+    .ru-wrap  max-width 1020 / padding 44px 40px 80px / ≤760에서 26px 16px 50px
+    .ru h1    30px 800 / ≤760에서 24px
+    .ru p     16px, line-height 1.85, max-width 66ch, --muted
+*/
+
+.wrap {
+  max-width: 1020px;
+  margin: 0 auto;
+  padding: 44px 40px 80px;
+}
+
+.title {
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.body {
+  font-size: 16px;
+  color: var(--muted);
+  line-height: 1.85;
+  max-width: 66ch;
+  margin-top: 12px;
+}
+
+/* 되돌릴 수 없는 자리는 선으로 한 번 끊는다 */
+.cancel {
+  margin-top: 42px;
+  padding-top: 30px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+@media (max-width: 760px) {
+  .wrap {
+    padding: 26px 16px 50px;
+  }
+  .title {
+    font-size: 24px;
+  }
+}
