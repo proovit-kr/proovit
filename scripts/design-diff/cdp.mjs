@@ -44,7 +44,7 @@ function resolveSpec() {
   return join(dir, latest);
 }
 
-const SPEC_PATH = resolveSpec();
+export const SPEC_PATH = resolveSpec();
 console.log(`시안: ${relative(REPO, SPEC_PATH)}`);
 
 export const SPEC_URL = "file://" + encodeURI(SPEC_PATH);
@@ -140,6 +140,27 @@ export async function withPage(fn) {
       });
       const w = await this.eval("innerWidth");
       if (w !== width) throw new Error(`레이아웃 뷰포트가 ${width}가 아니라 ${w}다`);
+      await this.settle();
+    },
+
+    /**
+     * 진행 중인 전이를 끝낸다. **폭을 바꾼 직후 반드시 부른다.**
+     *
+     * ⚠️ 시안의 `.btn{transition:.15s}`는 속성 이름이 없어서 **전부**
+     * 전이시킨다. 미디어 쿼리가 font-size나 padding을 바꾸는 요소는
+     * 폭을 바꾸는 순간 0.15초 동안 값이 움직이고, 바로 재면 그 중간값이
+     * 잡힌다(13px → 14.5px 사이의 13.0191px 같은 것). 값은 맞는데
+     * 대조가 통째로 가짜 불일치가 된다.
+     *
+     * 무한 반복(blink·pul·sweep)은 끝낼 수 없으니 유한한 것만 끝낸다.
+     */
+    async settle() {
+      await this.eval(`(() => {
+        document.getAnimations().forEach(a => {
+          if (a.effect?.getTiming().iterations !== Infinity) a.finish();
+        });
+        return 1;
+      })()`);
     },
 
     async eval(expression, awaitPromise = false) {

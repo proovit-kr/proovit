@@ -15,8 +15,10 @@
 */
 import { readFileSync } from "node:fs";
 
-const SPEC =
-  process.env.SPEC_HTML ?? "/Users/sy/Downloads/proovit_디자인시안_ver2.html";
+import { SPEC_PATH } from "./cdp.mjs";
+
+/* 정본 고르는 규칙은 한 곳에만 둔다 — cdp.mjs가 design/에서 최신 버전을 고른다 */
+const SPEC = SPEC_PATH;
 
 const args = process.argv.slice(2);
 const withMedia = args.includes("--media");

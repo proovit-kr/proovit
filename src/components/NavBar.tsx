@@ -20,9 +20,10 @@ import styles from "./NavBar.module.css";
   로그인으로 가는 길이 없다 — **윤서에게 넘길 요구사항이다**(아래 「시즌
   아카이브」와 함께).
 
-  ⚠️ 「시즌 아카이브」도 빠져 있다. 시안 화면 레지스트리에서 `/seasons`가
-  보류(P2)라 화면이 없다. 시안 마크업은 `<a href="#">`로 두지만 죽은 링크를
-  내보내느니 빼는 쪽을 골랐다.
+  「시즌 아카이브」는 ver3에서 답이 왔다. ver2는 `<a href="#">`라 죽은 링크를
+  내보내느니 빼는 쪽을 골랐는데, ver3는 `<a class="soon-nav" title="P2, 시즌
+  종료 후">`로 **href를 아예 뺐다** — 링크가 아니라 예고로 그리라는 뜻이다.
+  그대로 따른다.
 */
 
 /**
@@ -60,6 +61,13 @@ export function Logo({
 }
 
 const HOME = { href: "/", label: "리그 소개" };
+
+/*
+  아직 화면이 없는 항목. 시안 `.soon-nav`는 스타일이 없는 표시용 클래스라
+  옮길 값이 없고, href 없는 `<a>`라 링크로도 포커스로도 잡히지 않는다.
+  `title`이 언제 열리는지 말한다.
+*/
+const SOON = { label: "시즌 아카이브", title: "P2, 시즌 종료 후" };
 
 export interface NavBarProps {
   /**
@@ -109,6 +117,7 @@ export function NavBar({ cta, leaderboardHref, glitchLogo }: NavBarProps) {
             </Link>
           );
         })}
+        <a title={SOON.title}>{SOON.label}</a>
       </nav>
       {/* 시안의 CTA는 `padding:9px 18px; font-size:13.5px` — Button의 sm이다 */}
       {cta.onClick ? (

@@ -28,3 +28,15 @@
   display: flex;
   gap: 14px;
 }
+
+/* ver3의 모바일 패스. SNS가 오른쪽 끝을 놓고 한 줄을 통째로 차지한다 */
+@media (max-width: 760px) {
+  .foot {
+    padding: 26px 20px;
+    gap: 12px 16px;
+  }
+  .sns {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}

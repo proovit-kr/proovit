@@ -59,3 +59,27 @@
     padding: 0 22px;
   }
 }
+
+/*
+  ver3의 모바일 패스. 좁아지면 헤더가 워드마크와 CTA만 남긴다 —
+  nav를 접는 게 아니라 통째로 감춘다.
+
+  ⚠️ `!important`는 시안 값 그대로다. 시안은 CTA의 인라인 style을 이기려고
+  붙였는데, 우리는 그 자리가 Button의 `.sm`(다른 모듈, 같은 특정도 0,1,0)이라
+  소스 순서로 승부가 갈린다 — 모듈 사이 순서는 보장되지 않는다. 시안을
+  그대로 옮기는 것이 여기서는 맞는 선택이기도 하다.
+*/
+@media (max-width: 760px) {
+  .head {
+    padding: 0 18px;
+    gap: 12px;
+    height: 56px;
+  }
+  .nav {
+    display: none;
+  }
+  .cta {
+    padding: 8px 14px !important;
+    font-size: 13px !important;
+  }
+}
