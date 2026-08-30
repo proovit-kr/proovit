@@ -86,7 +86,6 @@
 }
 .outline:hover:not(:disabled) {
   background: var(--accent-dim);
-  color: var(--accent);
 }
 
 .ghost {

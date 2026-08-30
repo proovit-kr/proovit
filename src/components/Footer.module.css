@@ -12,6 +12,10 @@
   flex-wrap: wrap;
 }
 
+.foot a:hover {
+  color: var(--text);
+}
+
 /* 푸터의 워드마크는 헤더보다 한 톤 낮다 — 여기선 상표가 아니라 서명이다 */
 .wm {
   font-weight: 800;

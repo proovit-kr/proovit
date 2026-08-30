@@ -144,6 +144,40 @@ export async function withPage(fn) {
     },
 
     /**
+     * 셀렉터가 가리키는 요소에 **:hover를 강제로 켠다.** 끄려면 인자 없이 부른다.
+     *
+     * ⚠️ 프로브가 구조적으로 못 보던 자리다. `getComputedStyle`은 기본 상태만
+     * 돌려주므로 `:hover`·`:focus` 규칙을 빠뜨려도 대조가 0건이라고 말한다.
+     * 실제로 푸터 링크의 hover를 통째로 안 옮겼는데 못 잡았다.
+     *
+     * 전이가 있으면 색이 도중에 잡히므로 켠 뒤 settle()을 부른다.
+     */
+    async hover(selector) {
+      await this.send("DOM.enable");
+      await this.send("CSS.enable");
+      /*
+        ⚠️ 순서가 중요하다. `DOM.getDocument`가 노드 맵을 새로 만들어 앞서
+        받은 nodeId를 무효로 만든다 — 먼저 끄고 나서 문서를 다시 받는다.
+        (반대로 하면 "Could not find node with given id"로 죽는다.)
+      */
+      for (const nodeId of this.hovered ?? []) {
+        await this.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses: [] });
+      }
+      this.hovered = [];
+      if (!selector) return;
+      const { root } = await this.send("DOM.getDocument", { depth: -1 });
+      const { nodeId } = await this.send("DOM.querySelector", {
+        nodeId: root.nodeId, selector,
+      });
+      if (!nodeId) throw new Error(`hover 대상이 없다: ${selector}`);
+      await this.send("CSS.forcePseudoState", {
+        nodeId, forcedPseudoClasses: ["hover"],
+      });
+      this.hovered = [nodeId];
+      await this.settle();
+    },
+
+    /**
      * 진행 중인 전이를 끝낸다. **폭을 바꾼 직후 반드시 부른다.**
      *
      * ⚠️ 시안의 `.btn{transition:.15s}`는 속성 이름이 없어서 **전부**

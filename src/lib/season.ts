@@ -42,16 +42,23 @@ export function resolveLandingCta(season: Season): LandingCta {
  * 걸리면 "지금 신청이 되는 건가"를 화면마다 다르게 답하는 셈이 된다.
  * 랜딩만은 예외로 자기 폼으로 스크롤하는 onClick을 따로 넘긴다.
  */
+/*
+  헤더 CTA 문구. 시안이 시즌 상세 화면(1712행)에 상태별로 적어 둔 것을 그대로
+  쓴다 — pre「사전 신청하기」, recruit「참가 신청하기」, racing「리더보드 보기」.
+
+  ⚠️ CLOSED만 시안에 대응하는 것이 없다. 시안의 상태는 pre·recruit·racing
+  셋뿐이라 시즌이 끝난 뒤의 문구는 아직 정해지지 않았다 — 윤서에게 넘길 것.
+*/
 export function resolveNavCta(season: Season): { href: string; label: string } {
   const kind = resolveLandingCta(season).kind;
-  if (kind === "APPLY") return { href: "/apply", label: "참가 신청" };
+  if (kind === "APPLY") return { href: "/apply", label: "참가 신청하기" };
   if (kind === "LEADERBOARD") {
-    return { href: `/seasons/${season.slug}/leaderboard`, label: "리더보드" };
+    return { href: `/seasons/${season.slug}/leaderboard`, label: "리더보드 보기" };
   }
   if (kind === "CLOSED") {
     return { href: `/seasons/${season.slug}`, label: "시즌 보기" };
   }
-  return { href: "/?preregister=1", label: "사전 신청" };
+  return { href: "/?preregister=1", label: "사전 신청하기" };
 }
 
 /*

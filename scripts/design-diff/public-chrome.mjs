@@ -62,6 +62,7 @@ const PAIRS = [
     ver3가 이용약관·개인정보처리방침 둘을 넣었는데 상자 값은 그대로여서
     대조가 0건이라고 말했다. 수연이 눈으로 잡았다.
   */
+  ["head ▸링크", S + ".pub-head nav", "header nav"],
   ["foot ▸링크", S + ".pub-foot", "footer"],
   ["foot soon", S + ".pub-foot .sns .soon", '[class*="__soon"]'],
 ];
@@ -85,8 +86,17 @@ const probe = (pairs) => `(() => {
       out[name + " ▸height"] = Math.round(el.getBoundingClientRect().height * 100) / 100 + "px";
     }
     if (name.endsWith("▸링크")) {
-      /* 링크 글자를 그대로 늘어놓는다. 개수와 순서와 문구가 한 줄에 나온다 */
-      out[name] = [...el.querySelectorAll("a")].map(a => a.textContent.trim()).join(" · ");
+      /*
+        글자를 그대로 늘어놓는다. 개수·순서·문구가 한 줄에 나온다.
+        href 표시는 누를 수 있는가를 함께 본다 — 시안의 soon-nav는 href가
+        없는 예고라 링크로 만들면 안 된다.
+
+        ⚠️ 이 주석 안에 백틱을 쓰지 않는다. 프로브 전체가 템플릿 리터럴이라
+        백틱 하나가 문자열을 끊는다.
+      */
+      out[name] = [...el.querySelectorAll("a")]
+        .map(a => a.textContent.trim() + (a.hasAttribute("href") ? "[href]" : ""))
+        .join(" · ");
     }
     if (o.flushRight) {
       /* margin-left:auto가 실제로 오른쪽 끝까지 밀었는가 */
@@ -99,6 +109,39 @@ const probe = (pairs) => `(() => {
   return { out, missing };
 })()`;
 
+/*
+  hover로만 갈리는 것들. `getComputedStyle`은 기본 상태만 돌려주므로
+  CDP로 :hover를 강제로 켜고 다시 잰다.
+
+  ⚠️ 이걸 안 재서 푸터 링크의 hover를 통째로 빠뜨렸는데 대조는 0건이라고
+  말했다. 수연이 눈으로 잡았다.
+*/
+const HOVER = [
+  ["nav a", S + ".pub-head nav a", "header nav a"],
+  ["foot a", S + ".pub-foot a", "footer a"],
+  ["cta", S + ".pub-head .cta", "header button, header a[class*=btn]"],
+];
+const HOVER_CSS = ["color", "background-color", "background-image", "box-shadow",
+                   "filter", "border-color", "opacity", "animation-name"];
+
+/** :hover를 켜고 그 요소의 값만 뽑는다 */
+async function hoverValues(p, list, side) {
+  const out = {};
+  for (const [name, specSel, implSel] of list) {
+    const sel = side === "spec" ? specSel : implSel;
+    await p.hover(sel);
+    const v = await p.eval(`(() => {
+      const cs = getComputedStyle(document.querySelector(${JSON.stringify(sel)}));
+      const o = {};
+      for (const k of ${JSON.stringify(HOVER_CSS)}) o[k] = cs.getPropertyValue(k);
+      return o;
+    })()`);
+    for (const [k, val] of Object.entries(v)) out[`${name}:hover ${k}`] = val;
+  }
+  await p.hover();
+  return out;
+}
+
 let total = 0;
 for (const w of WIDTHS) {
   const spec = await withPage(async (p) => {
@@ -108,6 +151,8 @@ for (const w of WIDTHS) {
     await p.resize(w);
     const r = await p.eval(probe(PAIRS.map(([n, s, , o]) => [n, s, o])));
     await p.shot(`${OUT}/spec-${w}.png`);
+    /* ⚠️ 캡처보다 뒤에 둔다 — hover가 켜진 채로 찍히면 안 된다 */
+    Object.assign(r.out, await hoverValues(p, HOVER, "spec"));
     return r;
   });
   const impl = await withPage(async (p) => {
@@ -122,6 +167,7 @@ for (const w of WIDTHS) {
     await p.resize(w);
     const r = await p.eval(probe(PAIRS.map(([n, , i, o]) => [n, i, o])));
     await p.shot(`${OUT}/impl-${w}.png`);
+    Object.assign(r.out, await hoverValues(p, HOVER, "impl"));
     return r;
   });
 
