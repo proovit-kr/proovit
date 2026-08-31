@@ -11,7 +11,10 @@
 
     node scripts/design-diff/landing.mjs
 */
-import { withPage, diffTable, SPEC_URL, IMPL_URL, WIDTHS, shotDir } from "./cdp.mjs";
+import {
+  withPage, diffTable, diffText, textNodes,
+  SPEC_URL, IMPL_URL, WIDTHS, shotDir,
+} from "./cdp.mjs";
 
 const OUT = shotDir("landing");
 
@@ -263,79 +266,10 @@ const settle = `(async () => {
 })()`;
 
 /*
-  ⚠️ **글자를 따로 센다.** getComputedStyle 대조는 값만 보므로 문구가 통째로
-  바뀌어도 0건이라고 말한다 — ver3가 심사 기준·FAQ·로드맵 라벨을 갈았는데
-  못 잡고 넘어갔다(수연이 눈으로 찾았다).
-
-  화면에 보이는 텍스트 노드를 전부 긁어 집합으로 비교한다. 순서·줄바꿈은
-  보지 않는다 — DOM이 쪼개지는 방식이 시안과 달라 잡음만 는다.
-
-  데이터에서 오는 차이(개막일·사전신청 수 같은 것)는 IGNORE로 뺀다.
+  ⚠️ 글자 대조. 공용 `textNodes`·`diffText`가 cdp.mjs에 있다.
+  데이터가 정하는 것만 뺀다 — 사전 신청 수 하나뿐이다.
 */
-const textNodes = (sel) => `(() => {
-  const root = document.querySelector(${JSON.stringify(sel)});
-  const out = [];
-  const walk = (n) => {
-    for (const c of n.childNodes) {
-      if (c.nodeType === 3) {
-        const t = c.textContent.replace(/\s+/g, " ").trim();
-        if (t) out.push(t);
-      } else if (c.nodeType === 1 && getComputedStyle(c).display !== "none") {
-        walk(c);
-      }
-    }
-  };
-  walk(root);
-  return out;
-})()`;
-
-/*
-  dev 데이터가 정하는 것 **만** 뺀다.
-
-  ⚠️ 여기에 넣는 순간 그 문구는 영원히 대조되지 않는다. 실제로
-  「일정 확정 중」을 데이터 차이로 오해해 넣었다가, 시안이 「2026.09.28 개막」
-  으로 바꾼 것을 검사가 잡고도 못 보고 넘어갔다(수연이 눈으로 찾았다).
-  **판단이 서지 않으면 넣지 말고 빨간 줄로 남겨 둔다.**
-
-  지금 여기 있는 것은 하나뿐이다 — **사전 신청 수.** 시안은 목업 숫자를
-  적고 우리는 dev DB의 실측을 그린다.
-
-  DOM이 쪼개져 조각으로 잡히는 것은 여기서 빼지 않는다. 아래 `glue`가
-  이어 붙여 비교하므로 예외가 필요 없다.
-*/
-const IGNORE = [/^\d+$/];
-const ignored = (t) => IGNORE.some((re) => re.test(t));
-
-function diffText(spec, impl) {
-  /*
-    시안은 배지·문장을 한 텍스트 노드로 쓰는데 우리는 값을 끼워 넣느라
-    쪼개진다(「시즌 1, 2026.09.28 개막」 하나 vs 「시즌 1」+「,」+「…개막」 셋).
-    조각을 이어 붙인 것이 상대 쪽에 있으면 맞는 것으로 본다.
-
-    ⚠️ 이을 때는 **공백을 통째로 뺀다.** 프로브가 노드마다 trim을 걸어
-    공백만 있던 노드가 사라지므로, 이어 붙이면 쉼표 뒤 공백이 없어져
-    시안과 안 맞는다. 붙는 방식이 다른 것과 글자가 다른 것을 가르는 것이
-    목적이라 공백은 볼 필요가 없다.
-  */
-  const glue = (arr) => arr.join("").replace(/\s+/g, "");
-  const bare = (t) => t.replace(/\s+/g, "");
-  const implFlat = glue(impl), specFlat = glue(spec);
-  const S = new Set(spec), I = new Set(impl);
-  const onlySpec = spec.filter(
-    (t) => !I.has(t) && !implFlat.includes(bare(t)) && !ignored(t),
-  );
-  const onlyImpl = impl.filter(
-    (t) => !S.has(t) && !specFlat.includes(bare(t)) && !ignored(t),
-  );
-  if (!onlySpec.length && !onlyImpl.length) {
-    console.log(`  글자 일치 ✓  (시안 ${spec.length}개 대조)`);
-    return 0;
-  }
-  console.log("  ✗ 글자가 다르다");
-  for (const t of onlySpec) console.log(`    시안에만: ${t}`);
-  for (const t of onlyImpl) console.log(`    구현에만: ${t}`);
-  return onlySpec.length + onlyImpl.length;
-}
+const TEXT_IGNORE = [/^\d+$/];
 
 let total = 0;
 for (const w of WIDTHS) {
@@ -367,7 +301,7 @@ for (const w of WIDTHS) {
   total += spec.missing.length + impl.missing.length;
   total += diffTable(`${w}px — 랜딩`, spec.out, impl.out);
   /* 글자는 폭과 무관하지만, 미디어 쿼리로 숨는 것이 있어 폭마다 다시 본다 */
-  total += diffText(spec.text, impl.text);
+  total += diffText(spec.text, impl.text, { ignore: TEXT_IGNORE });
 }
 console.log(`\n═══════════════════════════\n세 폭 합계 불일치 ${total}건`);
 console.log(`스크린샷: ${OUT}`);

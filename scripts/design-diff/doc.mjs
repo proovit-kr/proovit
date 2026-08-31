@@ -16,7 +16,10 @@
 
     node scripts/design-diff/doc.mjs
 */
-import { withPage, diffTable, SPEC_URL, IMPL_URL, WIDTHS, shotDir } from "./cdp.mjs";
+import {
+  withPage, diffTable, diffText, textNodes,
+  SPEC_URL, IMPL_URL, WIDTHS, shotDir,
+} from "./cdp.mjs";
 
 const OUT = shotDir("doc");
 
@@ -96,6 +99,22 @@ async function hoverValues(p, side) {
   return out;
 }
 
+/*
+  글자 대조. **본문은 대조하지 않는다.**
+
+  ⚠️ 시안은 조를 줄여서 그리고(4조를 건너뛰고 8~10·12~18을 묶는다) 본문은
+  「노션 정본에서 그대로 가져와요」라고 스스로 적어 두었다. 즉 이 화면에서
+  시안이 정하는 것은 레이아웃이고 글자의 정본은 `content/privacy.ts`다.
+  본문을 견주면 시안이 안 그린 만큼 전부 빨간 줄이 된다.
+
+  대신 **시안이 직접 적은 것**만 본다 — 제목과 버전 칩과 배지다.
+  이 셋은 시안이 값을 박아 두었고 우리가 그대로 옮겨야 하는 자리다.
+*/
+const TEXT_PAIRS = [
+  ["제목", S + ".ru h1", '[class*="__doc"] h1'],
+  ["버전 칩", S + ".ru-ver", '[class*="__ver"]'],
+];
+
 let total = 0;
 for (const w of WIDTHS) {
   const spec = await withPage(async (p) => {
@@ -105,6 +124,8 @@ for (const w of WIDTHS) {
     const r = await p.eval(probe(PAIRS.map(([n, s, , k]) => [n, s, k])));
     await p.shot(`${OUT}/spec-${w}.png`);
     Object.assign(r.out, await hoverValues(p, "spec"));
+    r.text = {};
+    for (const [n, sel] of TEXT_PAIRS) r.text[n] = await p.eval(textNodes(sel));
     return r;
   });
   const impl = await withPage(async (p) => {
@@ -113,6 +134,8 @@ for (const w of WIDTHS) {
     const r = await p.eval(probe(PAIRS.map(([n, , i, k]) => [n, i, k])));
     await p.shot(`${OUT}/impl-${w}.png`);
     Object.assign(r.out, await hoverValues(p, "impl"));
+    r.text = {};
+    for (const [n, , sel] of TEXT_PAIRS) r.text[n] = await p.eval(textNodes(sel));
     return r;
   });
 
@@ -121,6 +144,9 @@ for (const w of WIDTHS) {
   for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
   total += spec.missing.length + impl.missing.length;
   total += diffTable(`${w}px — 문서 화면`, spec.out, impl.out);
+  for (const [n] of TEXT_PAIRS) {
+    total += diffText(spec.text[n], impl.text[n], { label: n });
+  }
 }
 console.log(`\n═══════════════════════════\n세 폭 합계 불일치 ${total}건`);
 console.log(`스크린샷: ${OUT}`);

@@ -11,7 +11,10 @@
 
     node scripts/design-diff/public-chrome.mjs
 */
-import { withPage, diffTable, SPEC_URL, IMPL_URL, WIDTHS, shotDir } from "./cdp.mjs";
+import {
+  withPage, diffTable, diffText, textNodes,
+  SPEC_URL, IMPL_URL, WIDTHS, shotDir,
+} from "./cdp.mjs";
 
 const OUT = shotDir("public-chrome");
 
@@ -185,6 +188,28 @@ async function hoverValues(p, list, side) {
   }
 }
 
+/*
+  글자 대조. 헤더와 푸터를 따로 긁는다 — 사이의 본문은 이 프로브 소관이 아니다.
+
+  ⚠️ **푸터는 시안이 정본이 아니다**(2026-08-30 팀장 지시). 노션
+  「사전신청 폼 문안·푸터」가 정하므로 글자를 대조하지 않는다. 시안이 정하는
+  것은 경계선·여백·색·글자 크기뿐이고 그것만 위에서 본다.
+*/
+const TEXT_PAIRS = [
+  ["헤더", S + ".pub-head", "header"],
+];
+
+/*
+  ⚠️ CTA 문구는 **시즌 상태가 정한다**(season.ts의 `resolveNavCta`).
+  이 프로브는 메뉴가 보여야 돌아가므로 dev를 recruiting으로 두고 재는데,
+  시안의 리더보드 화면 헤더는 pre 상태의 문구(「사전 신청하기」)를 박아 두었다.
+  상태가 다른 것이지 문구가 틀린 것이 아니다.
+
+  넷 다 §3에서 값으로 이미 대조했고, 시안이 상태별로 무엇을 적는지도
+  거기서 확인했다(시즌 상세 1712행).
+*/
+const TEXT_IGNORE = [/^(사전 신청하기|참가 신청하기|리더보드 보기|시즌 보기)$/];
+
 let total = 0;
 for (const w of WIDTHS) {
   const spec = await withPage(async (p) => {
@@ -196,6 +221,8 @@ for (const w of WIDTHS) {
     await p.shot(`${OUT}/spec-${w}.png`);
     /* ⚠️ 캡처보다 뒤에 둔다 — hover가 켜진 채로 찍히면 안 된다 */
     Object.assign(r.out, await hoverValues(p, HOVER, "spec"));
+    r.text = {};
+    for (const [n, sel] of TEXT_PAIRS) r.text[n] = await p.eval(textNodes(sel));
     return r;
   });
   const impl = await withPage(async (p) => {
@@ -211,6 +238,8 @@ for (const w of WIDTHS) {
     const r = await p.eval(probe(PAIRS.map(([n, , i, o, k]) => [n, i, o, k])));
     await p.shot(`${OUT}/impl-${w}.png`);
     Object.assign(r.out, await hoverValues(p, HOVER, "impl"));
+    r.text = {};
+    for (const [n, , sel] of TEXT_PAIRS) r.text[n] = await p.eval(textNodes(sel));
     return r;
   });
 
@@ -219,6 +248,12 @@ for (const w of WIDTHS) {
   for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
   total += spec.missing.length + impl.missing.length;
   total += diffTable(`${w}px — 공개 크롬`, spec.out, impl.out);
+  for (const [n] of TEXT_PAIRS) {
+    total += diffText(spec.text[n], impl.text[n], {
+      ignore: TEXT_IGNORE,
+      label: n,
+    });
+  }
 }
 console.log(`\n═══════════════════════════\n세 폭 합계 불일치 ${total}건`);
 console.log(`스크린샷: ${OUT}`);

@@ -17,6 +17,11 @@ const IMPL = IMPL_URL;
 const OUT = shotDir("globals");
 
 /* 시안이 :root에 정의한 토큰 전부 + body 계산값 + 전역 규칙의 결과 */
+/*
+  ⚠️ 글자 대조가 없다. 이 프로브는 `:root`·`body`의 토큰과 의사요소만 재고
+  화면의 문구를 다루지 않는다 — 견줄 글자가 없다.
+  (대조의 네 축은 AGENTS.md 참조. 여기서는 값 하나만 해당한다.)
+*/
 const PROBE = `(() => {
   const rootCS = getComputedStyle(document.documentElement);
   const bodyCS = getComputedStyle(document.body);

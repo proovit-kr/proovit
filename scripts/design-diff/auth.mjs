@@ -20,7 +20,10 @@
 
   `.env*`는 gitignore라 각자 넣어야 한다.
 */
-import { withPage, diffTable, SPEC_URL, IMPL_URL, WIDTHS, shotDir } from "./cdp.mjs";
+import {
+  withPage, diffTable, diffText, textNodes,
+  SPEC_URL, IMPL_URL, WIDTHS, shotDir,
+} from "./cdp.mjs";
 
 const OUT = shotDir("auth");
 
@@ -142,6 +145,16 @@ const run = (list, mode) =>
     mode === "spec" ? [n, s, "spec", x, k] : [n, i, "impl", x, k])));
 
 let total = 0;
+/*
+  글자 대조. 카드 하나가 화면 전부라 카드째 긁는다.
+
+  ⚠️ 시안은 상태를 CSS(`.only-login`/`.only-signup`)로 감추는데 우리는
+  라우트가 갈린다. `textNodes`가 `display:none`을 건너뛰므로 양쪽 다
+  지금 보이는 것만 잡힌다.
+*/
+const TEXT_SPEC = (mode) => `#scr-auth[data-state="${mode}"] .auth-card`;
+const TEXT_IMPL = '[class*="login-module"][class*="__card"]';
+
 for (const mode of ["login", "signup"]) {
   for (const w of WIDTHS) {
     const list = pairs(mode);
@@ -157,6 +170,7 @@ for (const mode of ["login", "signup"]) {
       await p.resize(w, 900);
       const r = await p.eval(run(list, "spec"));
       await p.shot(`${OUT}/spec-${mode}-${w}.png`);
+      r.text = await p.eval(textNodes(TEXT_SPEC(mode)));
       return r;
     });
     const impl = await withPage(async (p) => {
@@ -164,6 +178,7 @@ for (const mode of ["login", "signup"]) {
       await p.resize(w, 900);
       const r = await p.eval(run(list, "impl"));
       await p.shot(`${OUT}/impl-${mode}-${w}.png`);
+      r.text = await p.eval(textNodes(TEXT_IMPL));
       return r;
     });
 
@@ -172,6 +187,7 @@ for (const mode of ["login", "signup"]) {
     for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
     total += spec.missing.length + impl.missing.length;
     total += diffTable(`${mode} ${w}px — 인증`, spec.out, impl.out);
+    total += diffText(spec.text, impl.text, { label: mode });
   }
 }
 console.log(`\n═══════════════════════════\n합계 불일치 ${total}건`);

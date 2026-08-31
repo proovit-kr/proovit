@@ -10,7 +10,10 @@
 
     node scripts/design-diff/leaderboard.mjs
 */
-import { withPage, diffTable, SPEC_URL, IMPL_URL, WIDTHS, shotDir } from "./cdp.mjs";
+import {
+  withPage, diffTable, diffText, textNodes,
+  SPEC_URL, IMPL_URL, WIDTHS, shotDir,
+} from "./cdp.mjs";
 
 const OUT = shotDir("leaderboard");
 const SLUG = process.env.LB_SLUG ?? "season-1";
@@ -198,6 +201,48 @@ const stateOf = `(() => {
        : has("finalBanner") ? "시즌 종료" : has("table") ? "레이스 운영중" : "알 수 없음";
 })()`;
 
+/*
+  글자 대조. **표의 몸통은 데이터라 빼고**, 머리글과 라벨만 본다 —
+  팀명·지표는 시안의 목업과 dev DB가 같을 수 없다.
+
+  그래서 긁는 자리를 셋으로 나눈다: 눈썹·제목 줄, 스테이지 트랙, 표 머리.
+  집계 전 상태에서는 표 대신 빈 상자의 문구를 본다.
+*/
+const TEXT_PAIRS = {
+  공통: [
+    ["머리", S + ".lb-eyebrow", "eyebrow"],
+    ["트랙", S + ".stg-track", "track"],
+  ],
+  "lb-race": [["표 머리", S + ".pane[data-id='lb-race'] .lb-tbl thead", '[class*="__table"] thead']],
+  "lb-final": [["표 머리", S + ".pane[data-id='lb-final'] .lb-tbl thead", '[class*="__table"] thead']],
+  "lb-empty": [["빈 상자", S + ".pane[data-id='lb-empty'] .lb-empty", "empty"]],
+};
+
+/*
+  ⚠️ 스테이지 이름은 데이터다. 시안은 짧게 줄여 쓰고(「등록」) 우리는 DB의
+  이름을 그대로 쓴다(「아이디어 등록과 고도화」) — §6에서 폭을 대조하지
+  않기로 한 것과 같은 이유다. 게이트 이름은 라벨이라 대조에 남긴다.
+*/
+const TEXT_IGNORE = [
+  /^s[1-5]$/, /등록|수요조사|빌드|배포|유입|유저|트래픽|매출|레이스|고도화|마케팅/,
+  /^✓$/, /갱신|롤업|집계 대기/, /^\d+$/,
+  /*
+    ⚠️ **아는 차이.** 시안의 집계 전 문구는 「집계 시작됨, 첫 갱신까지 14분」
+    이고 우리는 「첫 갱신을 기다려요」다.
+
+    롤업이 아직 없어서다 — 크론도 없고 스냅샷을 만드는 것은 dev 샌드박스뿐이다.
+    없는 주기로 남은 시간을 찍으면 숫자를 지어내는 것이 되고, 그건 이 제품이
+    파는 「조작 불가능한 지표」와 정확히 반대다.
+
+    **롤업이 붙으면 이 줄을 지우고 카운트다운을 구현한다.**
+  */
+  /^\d+분$/,
+];
+
+/** 모듈 이름만 준 것은 구현본 쪽에서 클래스로 바꾼다 */
+const implSel = (v) =>
+  /[ .#>[]/.test(v) ? v : `[class*="leaderboard-module"][class*="__${v}"]`;
+
 let total = 0;
 const implState = await withPage(async (p) => {
   await p.goto(`${IMPL_URL}/seasons/${SLUG}/leaderboard`);
@@ -236,6 +281,10 @@ for (const [pane, list] of plan) {
       await p.resize(w, 900);
       const r = await p.eval(run(list, "spec", w));
       await p.shot(`${OUT}/spec-${pane}-${w}.png`);
+      r.text = {};
+      for (const [n, sel] of [...TEXT_PAIRS.공통, ...(TEXT_PAIRS[pane] ?? [])]) {
+        r.text[n] = await p.eval(textNodes(sel));
+      }
       return r;
     });
     const impl = await withPage(async (p) => {
@@ -243,6 +292,10 @@ for (const [pane, list] of plan) {
       await p.resize(w, 900);
       const r = await p.eval(run(list, "impl", w));
       await p.shot(`${OUT}/impl-${pane}-${w}.png`);
+      r.text = {};
+      for (const [n, , sel] of [...TEXT_PAIRS.공통, ...(TEXT_PAIRS[pane] ?? [])]) {
+        r.text[n] = await p.eval(textNodes(implSel(sel)));
+      }
       return r;
     });
     console.log(`\n\n████ ${pane} · 폭 ${w}`);
@@ -250,6 +303,9 @@ for (const [pane, list] of plan) {
     for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
     total += spec.missing.length + impl.missing.length;
     total += diffTable(`${pane} ${w}px — 리더보드`, spec.out, impl.out);
+    for (const [n] of [...TEXT_PAIRS.공통, ...(TEXT_PAIRS[pane] ?? [])]) {
+      total += diffText(spec.text[n], impl.text[n], { ignore: TEXT_IGNORE, label: n });
+    }
   }
 }
 console.log(`\n═══════════════════════════\n합계 불일치 ${total}건`);

@@ -49,6 +49,69 @@ console.log(`시안: ${relative(REPO, SPEC_PATH)}`);
 
 export const SPEC_URL = "file://" + encodeURI(SPEC_PATH);
 
+/**
+ * 화면에 **보이는 글자를 전부** 긁는 표현식. `p.eval(textNodes(sel))`.
+ *
+ * ⚠️ 대조의 네 축 중 하나다(값·상태·글자·구조). `getComputedStyle`은 값만
+ * 보므로 문구가 통째로 바뀌어도 통과한다 — 실제로 시안이 심사 기준·FAQ·
+ * 히어로 배지를 갈았는데 값 대조는 0건이라고 말했다.
+ *
+ * `display:none`인 가지는 건너뛴다. 미디어 쿼리로 숨는 것이 있어 폭마다
+ * 다시 재야 한다.
+ */
+export const textNodes = (sel) => `(() => {
+  const root = document.querySelector(${JSON.stringify(sel)});
+  if (!root) return null;
+  const out = [];
+  const walk = (n) => {
+    for (const c of n.childNodes) {
+      if (c.nodeType === 3) {
+        const t = c.textContent.replace(/\\s+/g, " ").trim();
+        if (t) out.push(t);
+      } else if (c.nodeType === 1 && getComputedStyle(c).display !== "none") {
+        walk(c);
+      }
+    }
+  };
+  walk(root);
+  return out;
+})()`;
+
+/**
+ * 긁어 온 글자 두 벌을 견준다. 다른 것만 찍고 개수를 돌려준다.
+ *
+ * 시안은 한 텍스트 노드로 쓰는 문장을 우리는 값을 끼워 넣느라 쪼갠다
+ * (「시즌 1, 2026.09.28 개막」 하나 vs 세 조각). 조각을 이어 붙인 것이
+ * 상대 쪽에 있으면 맞는 것으로 본다 — **이을 때는 공백을 통째로 뺀다.**
+ * 노드마다 trim이 걸려 공백만 있던 노드가 사라지기 때문이다.
+ *
+ * @param ignore 데이터가 정하는 것만 넣는다. ⚠️ 여기 넣는 순간 그 문구는
+ *   영원히 대조되지 않는다 — **판단이 서지 않으면 넣지 말고 빨간 줄로 남긴다.**
+ */
+export function diffText(spec, impl, { ignore = [], label = "" } = {}) {
+  if (!spec || !impl) {
+    console.log(`  ⚠️ 글자를 긁지 못했다${label ? ` (${label})` : ""}`);
+    return 1;
+  }
+  const glue = (arr) => arr.join("").replace(/\s+/g, "");
+  const bare = (t) => t.replace(/\s+/g, "");
+  const implFlat = glue(impl), specFlat = glue(spec);
+  const skip = (t) => ignore.some((re) => re.test(t));
+  const S = new Set(spec), I = new Set(impl);
+
+  const onlySpec = spec.filter((t) => !I.has(t) && !implFlat.includes(bare(t)) && !skip(t));
+  const onlyImpl = impl.filter((t) => !S.has(t) && !specFlat.includes(bare(t)) && !skip(t));
+
+  if (!onlySpec.length && !onlyImpl.length) {
+    console.log(`  글자 일치 ✓  (시안 ${spec.length}개 대조)`);
+    return 0;
+  }
+  console.log("  ✗ 글자가 다르다");
+  for (const t of onlySpec) console.log(`    시안에만: ${t}`);
+  for (const t of onlyImpl) console.log(`    구현에만: ${t}`);
+  return onlySpec.length + onlyImpl.length;
+}
+
 /** 구현본. `npm run dev`가 떠 있어야 한다 */
 export const IMPL_URL = process.env.IMPL_URL ?? "http://localhost:3000";
 
