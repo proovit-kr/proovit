@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# main으로 가는 push를 거부한다.
+#
+# 운영이 main에서 나간다. 조직이 GitHub Free이고 리포가 비공개라 서버 쪽
+# 브랜치 보호를 걸 수 없어서(403), 이 훅이 유일한 방어선이다.
+#
+# 켜기:  git config core.hooksPath .githooks
+# 우회:  git push --no-verify   ← 정말 아는 경우에만
+#
+# pre-push는 stdin으로 "<로컬ref> <로컬sha> <원격ref> <원격sha>" 줄을 받는다.
+
+protected="main"
+
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+	case "$remote_ref" in
+	refs/heads/"$protected")
+		echo "" >&2
+		echo "  거부: $protected 에 직접 push하지 않는다." >&2
+		echo "  운영이 $protected 에서 나가므로 리뷰 없이 배포된다." >&2
+		echo "" >&2
+		echo "  브랜치를 따서 PR로 보낸다:" >&2
+		echo "    git switch -c <브랜치명>" >&2
+		echo "    git push -u origin <브랜치명>" >&2
+		echo "    gh pr create" >&2
+		echo "" >&2
+		exit 1
+		;;
+	esac
+done
+
+exit 0
