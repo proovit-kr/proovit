@@ -93,6 +93,20 @@ CDP로 붙는 하네스가 `scripts/design-diff/`에 있다 — `cdp.mjs`가 드
 `globals.mjs`가 본보기다. 새 섹션은 `globals.mjs`를 복사해 `PROBE`만
 갈아 끼운다. 실행법은 그 파일 머리 주석에 있다.
 
+### 폰에서 개발 서버 열기
+
+같은 와이파이의 폰으로 `http://<맥 주소>:3000`을 열려면 `next.config.ts`의
+`allowedDevOrigins`에 그 주소가 있어야 한다. 없으면 Next가 다른 출처의
+`/_next/*` 요청을 막는다.
+
+⚠️ **막혔을 때의 증상이 코드 버그처럼 보인다.** HTML은 오는데 클라이언트
+번들이 실행되지 않아 하이드레이션만 조용히 실패하고, 랜딩은 리빌이
+`opacity: 0`으로 시작하므로 **헤더 아래가 통째로 빈 화면**이 된다. 콘솔에
+오류가 없고 네트워크도 전부 200이라 원인을 짚기 어렵다 — 개발 서버 로그의
+`Blocked cross-origin request` 줄이 유일한 실마리다.
+
+맥의 주소는 바뀐다: `ipconfig getifaddr en0`
+
 ### 모션 감축 검사
 
 `prefers-reduced-motion: reduce`는 어지럼증·전정기관 장애가 있는 사람이 켜는
