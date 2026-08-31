@@ -27,6 +27,27 @@ npm run verify   # typecheck + lint + test
 빌드가 필요한 때는 스키마를 고쳤거나 프로덕션 렌더를 확인해야 할 때뿐이다.
 그때는 개발 서버를 먼저 내린다.
 
+## main에는 직접 push하지 않는다
+
+운영이 main에서 나간다. main에 직접 push하면 리뷰 없이 배포된다.
+
+조직이 GitHub Free이고 리포가 비공개라 **서버 쪽 브랜치 보호를 걸 수 없다** —
+클래식 보호도 룰셋도 `403 Upgrade to GitHub Pro…`를 낸다(2026-08-31 확인).
+그래서 방어선은 각자 켜는 훅 하나뿐이다. 훅은 클론에 따라오지 않으므로
+**클론한 뒤 아래 두 줄을 한 번 실행한다.**
+
+```
+git config core.hooksPath .githooks
+git config push.default current
+```
+
+`.githooks/pre-push`가 main으로 가는 push를 거부한다.
+
+`push.default current`가 함께 필요한 이유가 있다. `git switch -c <새브랜치>
+origin/main`으로 브랜치를 따면 **업스트림이 main으로 잡힌다.** 그 상태에서
+`git push`만 치면 새 브랜치가 아니라 main으로 나간다. `current`는 항상 같은
+이름의 원격 브랜치로만 보낸다. (2026-08-31에 실제로 이 자리에서 걸릴 뻔했다.)
+
 ## 라우트를 지우면 `.next`도 지운다
 
 Turbopack의 영구 캐시가 `.next/dev`에 남는다(500MB대). 라우트 디렉터리를 지워도
