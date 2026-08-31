@@ -11,7 +11,7 @@ import { NavBar } from "@/components/NavBar";
 import { SEASON_STAGES } from "@/content/landing";
 import { guardPage } from "@/lib/access";
 import { loadPublicEntry } from "@/lib/public-read";
-import { getCurrentSeason, resolveNavCta } from "@/lib/season";
+import { getCurrentSeason, resolveNav } from "@/lib/season";
 
 import styles from "./project.module.css";
 
@@ -93,10 +93,7 @@ export default async function Page({
 
   return (
     <main className={`page ${styles.page}`}>
-      <NavBar
-        leaderboardHref={`/seasons/${season.slug}/leaderboard`}
-        cta={resolveNavCta(season)}
-      />
+      <NavBar {...resolveNav(season)} />
       <div className={`container container--narrow grow ${styles.wrap}`}>
         <header className={styles.head}>
           <p className={styles.meta}>

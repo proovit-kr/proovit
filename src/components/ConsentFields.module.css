@@ -1,11 +1,12 @@
 /*
   동의 블록 — 시안 `.consents`.
 
-  값은 시안에서 그대로 옮겼다.
-    .consents        gap 9px / font-size 14px / line-height 1.7 / color muted
-    .consents label  display:flex / gap 9px / align-items:flex-start
-    .consents input  accent-color 라임 / margin-top 3px
-    .consents .req   라임 11px 700
+  값은 시안에서 그대로 옮겼다. ver3(v3.0 피드백 패스)가 셋을 바꿨다.
+    .consents label       gap 9 → **10px**
+    .consents label>span  **flex:1 / min-width:0** 신설
+    .consents input       크기가 브라우저 기본(13) → **17×17**,
+                          margin-top 3px → **calc(.85em - 8.5px)**
+    .consents .all        **신설** — 「모두 선택」 줄
 
   ⚠️ **펼침 패널(.detail)은 시안에 없다.** 시안의 「보기」는 갈 곳 없는 링크지만
   우리는 본문을 그 자리에서 펼쳐야 한다 — 전문을 항상 펼쳐두면 히어로가 약관
@@ -32,8 +33,30 @@
 .row {
   display: flex;
   align-items: flex-start;
-  gap: 9px;
+  gap: 10px;
   flex-wrap: wrap;
+}
+
+/*
+  라벨 글자가 남은 폭을 다 쓴다. ver3가 새로 넣은 두 줄이다 —
+  `min-width: 0`이 없으면 긴 항목명이 체크박스를 밀어낸다.
+*/
+.label {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+/*
+  「모두 선택」 줄. ver3의 v3.0 피드백 패스가 넣었다.
+  아래 항목들과 선으로 끊어 이 줄이 항목이 아니라 조작이라는 것을 말한다.
+*/
+.all {
+  padding-bottom: 9px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-weight: 700;
 }
 
 /*
@@ -44,15 +67,24 @@
 .checkbox {
   flex: none;
   /*
-    ⚠️ 크기를 주지 않는다. 시안은 브라우저 기본(13×13)을 그대로 쓴다.
-    누르는 면적은 라벨 전체가 이미 감당한다(`<label for>`).
+    ver3가 크기를 명시했다(ver2는 브라우저 기본 13×13이었다).
+    `margin-top`도 함께 바뀐다 — 첫 줄 글자의 가운데에 박스를 맞추는 식이라
+    (줄높이 .85em의 절반에서 박스 절반 8.5px를 뺀다) 글자 크기가 바뀌어도
+    따라간다. 고정 3px이던 것을 이 식으로 되돌린다.
   */
-  margin-top: 3px;
+  /*
+    ⚠️ 글꼴을 UA 기본으로 되돌린다. Tailwind 프리플라이트가 폼 컨트롤에
+    `font: inherit`을 걸어 두는데, 시안에는 프리플라이트가 없어 체크박스가
+    UA 기본(400 / 13.333px)을 쓴다. 그냥 두면 `.all`의 700과 라벨의 14px을
+    물려받아 아래 `calc`의 `em` 기준까지 어긋난다.
+    (버튼·입력칸에서 이미 두 번 걸렸던 것과 같은 함정이다.)
+  */
+  font: revert;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  margin-top: calc(0.85em - 8.5px);
   accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.label {
   cursor: pointer;
 }
 
@@ -112,10 +144,13 @@
   font-family: var(--mono);
   font-size: 11px;
   color: var(--faint);
+  /* ver3가 `a.see`로 클래스를 주면서 점선 밑줄이 생겼다 — 누를 수 있음을 말한다 */
+  border-bottom: 1px dashed var(--line-strong);
   cursor: pointer;
 }
+/* ver3: hover가 --text가 아니라 라임이다 */
 .toggle:hover {
-  color: var(--text);
+  color: var(--accent);
 }
 
 /* 펼친 본문. 체크박스 폭 + gap 만큼 들여써서 라벨과 세로선을 맞춘다 */
@@ -168,4 +203,3 @@
 .policyLink a:hover {
   color: var(--c-lime);
 }
-

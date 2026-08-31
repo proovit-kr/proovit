@@ -52,6 +52,8 @@ export interface LandingProps {
   seasonName: string;
   /** 시즌 슬러그. 리더보드·시즌 상세 주소가 전부 여기서 나온다. */
   seasonSlug: string;
+  /** 헤더 메뉴를 내보이는가. 판정은 서버의 `navMenuVisible`이 한다 */
+  showMenu: boolean;
   seasonTheme: string | null;
   /** 킥오프 시각(ISO). 미정이면 null. */
   startAt: string | null;
@@ -186,6 +188,7 @@ function SectionHead({
 export function Landing({
   seasonName,
   seasonSlug,
+  showMenu,
   cta,
   preRegisterCount,
 }: LandingProps) {
@@ -350,6 +353,7 @@ export function Landing({
       <NavBar
         glitchLogo
         leaderboardHref={`/seasons/${seasonSlug}/leaderboard`}
+        showMenu={showMenu}
         cta={{
           href: heroCtaHref,
           label: ctaLabel,
@@ -412,6 +416,20 @@ export function Landing({
             <Reveal index={4} step={70}>
               <form className={styles.form} onSubmit={onPreRegister} noValidate>
                 <div className={styles.formHead}>시즌 소식 받기</div>
+                {/*
+                  ⚠️ ver3가 순서를 뒤집었다 — 동의가 이메일 **앞**이다.
+                  ver2는 「이메일+신청 → 동의」였다. 무엇에 동의하는지 읽기 전에
+                  주소부터 적게 하지 않겠다는 뜻으로 읽힌다. DOM 순서가 곧 탭
+                  순서라 이 자리를 바꾸는 것은 모양이 아니라 흐름의 변경이다.
+                */}
+                <ConsentFields
+                  selectAll
+                  className={styles.formConsents}
+                  value={consent}
+                  onChange={setConsent}
+                  disabled={pending}
+                  showMissing={showMissingConsent}
+                />
                 <div className={styles.formRow}>
                   <Input
                     ref={emailRef}
@@ -426,15 +444,6 @@ export function Landing({
                   <Button type="submit" disabled={pending}>
                     {pending ? "보내는 중" : "신청"}
                   </Button>
-                </div>
-                <div>
-                  <ConsentFields
-                    className={styles.formConsents}
-                    value={consent}
-                    onChange={setConsent}
-                    disabled={pending}
-                    showMissing={showMissingConsent}
-                  />
                 </div>
                 {turnstileEnabled ? (
                   <Turnstile

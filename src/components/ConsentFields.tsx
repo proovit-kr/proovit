@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { PREREGISTER_CONSENTS, type ConsentItem } from "@/content/consent";
 import styles from "./ConsentFields.module.css";
@@ -184,6 +184,7 @@ export default function ConsentFields({
   disabled = false,
   showMissing = false,
   missingMessage = "필수 항목에 동의해야 사전 신청을 접수할 수 있어요.",
+  selectAll = false,
   className,
 }: {
   /** 표시할 동의 항목. 기본값은 사전 신청 폼이다. */
@@ -200,11 +201,55 @@ export default function ConsentFields({
    * 지적하는 화면이 되기 때문이다. 제출을 눌러본 뒤에만 켠다.
    */
   showMissing?: boolean;
+  /**
+   * 「모두 선택」 줄을 낸다. 시안은 랜딩 폼에만 둔다 —
+   * 인증 화면은 항목이 둘뿐이라 모아 줄 것이 없다.
+   */
+  selectAll?: boolean;
   /** 쓰는 화면이 여백만 덮는 자리. 시안이 랜딩에서 인라인으로 하는 일이다 */
   className?: string;
 }) {
+  /*
+    「모두 선택」. ver3의 v3.0 피드백 패스가 넣었다.
+
+    ⚠️ **랜딩에만 있다.** 시안은 랜딩 폼에만 `data-all`을 걸고 인증 화면
+    (`.consents.only-signup`)에는 넣지 않는다. 항목이 둘뿐이라 모아 줄 것이
+    없어서로 읽힌다. 그래서 부르는 쪽이 켜는 값으로 둔다 — 기본은 끔이다.
+
+    ⚠️ **개별 체크박스를 대신하지 않는다.** 항목마다 체크박스를 두고 선택은
+    기본 해제로 둔다는 요건(D2·D4)은 그대로다 — 이 줄은 항목이 아니라 조작이고,
+    아래 셋은 여전히 각자 켜고 끌 수 있다. 그래서 상태를 따로 들지 않고
+    「전부 켜져 있는가」로 계산한다. 하나라도 끄면 저절로 풀린다.
+
+    ⚠️ 이 줄은 **선택 항목(마케팅 수신)까지 함께 켠다.** 시안이 그렇게 그렸고
+    (`items` 전체를 도는 스크립트) 그대로 따랐다. 다만 선택 동의를 일괄 동의에
+    묶는 것은 규제기관이 눈여겨보는 자리이므로, 문제가 되면 여기서 선택 항목만
+    빼면 된다.
+  */
+  const allKeys = items.map((c) => c.key);
+  const allChecked = allKeys.length > 0 && allKeys.every((k) => value[k]);
+  const toggleAll = (next: boolean) =>
+    onChange(Object.fromEntries(allKeys.map((k) => [k, next])));
+  const allId = `${useId()}-all`;
+
   return (
     <div className={[styles.root, className].filter(Boolean).join(" ")}>
+      {selectAll ? (
+        <div className={`${styles.row} ${styles.all}`}>
+          <input
+            id={allId}
+            type="checkbox"
+            className={styles.checkbox}
+            checked={allChecked}
+            disabled={disabled}
+            onChange={(e) => toggleAll(e.target.checked)}
+          />
+          <label htmlFor={allId} className={styles.label}>
+            모두 선택
+          </label>
+        </div>
+      ) : null}
+
       {items.map((item) => (
         <ConsentRow
           key={item.key}

@@ -12,7 +12,7 @@ import type {
   LeaderboardRow,
   PublicSeason,
 } from "@/lib/public-read";
-import { getCurrentSeason, resolveNavCta } from "@/lib/season";
+import { getCurrentSeason, resolveNav } from "@/lib/season";
 
 import styles from "./leaderboard.module.css";
 
@@ -255,11 +255,7 @@ export default async function Page({
 
   return (
     <main className="page">
-      <NavBar
-        leaderboardHref={
-          current ? `/seasons/${current.slug}/leaderboard` : undefined
-        }
-        cta={current ? resolveNavCta(current) : { href: "/", label: "홈" }}
+      <NavBar {...resolveNav(current)}
       />
       <div className={`${styles.wrap} grow`}>
         <div className={styles.eyebrow}>

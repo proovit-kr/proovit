@@ -71,6 +71,13 @@ const PAIRS = [
     ver3가 이용약관·개인정보처리방침 둘을 넣었는데 상자 값은 그대로여서
     대조가 0건이라고 말했다. 수연이 눈으로 잡았다.
   */
+  /*
+    ⚠️ 메뉴는 리그 시작 전에 그리지 않는다(2026-08-31 수연 지시, season.ts의
+    `navMenuVisible`). 시안은 늘 그리므로 이 대조는 **메뉴가 보이는 상태**에서만
+    뜻이 있다 — dev DB가 pre_apply면 구현본에 `<nav>` 자체가 없다.
+
+        npx tsx …/phase.mts recruiting   # 켜고 대조
+  */
   ["head ▸링크", S + ".pub-head nav", "header nav"],
 ];
 
@@ -156,6 +163,26 @@ async function hoverValues(p, list, side) {
   }
   await p.hover();
   return out;
+}
+
+/*
+  ⚠️ 메뉴가 보이는 상태여야 대조가 성립한다. 리그 시작 전에는 구현본에
+  `<nav>` 자체가 없다(season.ts의 `navMenuVisible`). dev DB가 pre_apply면
+  여기서 멈추고 무엇을 해야 하는지 말한다 — 스택 트레이스로 끝나면 안 된다.
+*/
+{
+  const has = await withPage(async (p) => {
+    await p.goto(IMPL_URL + "/seasons/season-1/leaderboard");
+    return p.eval('!!document.querySelector("header nav")');
+  });
+  if (!has) {
+    console.error(
+      "\n구현본 헤더에 메뉴가 없다 — dev 시즌이 리그 시작 전이다.\n" +
+        "메뉴가 보이는 상태로 바꾸고 다시 돌린다:\n" +
+        "  npx tsx --env-file=.env --env-file=.env.development.local <phase 스크립트> recruiting\n",
+    );
+    process.exit(1);
+  }
 }
 
 let total = 0;

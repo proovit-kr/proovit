@@ -4,7 +4,7 @@ import { Footer } from "@/components/Footer";
 import { NavBar } from "@/components/NavBar";
 import type { PolicyBlock, PolicyTable } from "@/content/privacy";
 import { SEASON_RULES } from "@/content/rules";
-import { getCurrentSeason, resolveNavCta } from "@/lib/season";
+import { getCurrentSeason, resolveNav } from "@/lib/season";
 
 import styles from "./rules.module.css";
 
@@ -76,11 +76,7 @@ export default async function Page() {
 
   return (
     <main className={`page ${styles.page}`}>
-      <NavBar
-        leaderboardHref={
-          season ? `/seasons/${season.slug}/leaderboard` : undefined
-        }
-        cta={season ? resolveNavCta(season) : { href: "/", label: "홈" }}
+      <NavBar {...resolveNav(season)}
       />
       <div className={`container container--narrow grow ${styles.wrap}`}>
         <header className={styles.head}>

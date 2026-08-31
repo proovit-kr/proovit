@@ -71,7 +71,7 @@ const pairs = (mode) => {
           ["consent box", S + ".consents input", '[class*="ConsentFields-module"][class*="checkbox"]',
             [], ["font-size", "line-height", "color", "letter-spacing", "font-family"]],
           ["consent req", S + ".consents .req", '[class*="ConsentFields-module"][class*="tagRequired"]'],
-          ["consent 보기", S + ".consents a.mono", '[class*="ConsentFields-module"][class*="toggle"]',
+          ["consent 보기", S + ".consents a.see", '[class*="ConsentFields-module"][class*="toggle"]',
             [], ["display", "text-align", "width"]],
         ]
       : []),
