@@ -289,16 +289,44 @@ const textNodes = (sel) => `(() => {
   return out;
 })()`;
 
-/* dev 데이터가 정하는 것들. 시안의 목업 숫자와 같을 수 없다 */
-const IGNORE = [
-  /^시즌/, /^,/, /^\d+$/, /이 시작되면/, /^개막/, /일정 확정 중/,
-];
+/*
+  dev 데이터가 정하는 것 **만** 뺀다.
+
+  ⚠️ 여기에 넣는 순간 그 문구는 영원히 대조되지 않는다. 실제로
+  「일정 확정 중」을 데이터 차이로 오해해 넣었다가, 시안이 「2026.09.28 개막」
+  으로 바꾼 것을 검사가 잡고도 못 보고 넘어갔다(수연이 눈으로 찾았다).
+  **판단이 서지 않으면 넣지 말고 빨간 줄로 남겨 둔다.**
+
+  지금 여기 있는 것은 하나뿐이다 — **사전 신청 수.** 시안은 목업 숫자를
+  적고 우리는 dev DB의 실측을 그린다.
+
+  DOM이 쪼개져 조각으로 잡히는 것은 여기서 빼지 않는다. 아래 `glue`가
+  이어 붙여 비교하므로 예외가 필요 없다.
+*/
+const IGNORE = [/^\d+$/];
 const ignored = (t) => IGNORE.some((re) => re.test(t));
 
 function diffText(spec, impl) {
+  /*
+    시안은 배지·문장을 한 텍스트 노드로 쓰는데 우리는 값을 끼워 넣느라
+    쪼개진다(「시즌 1, 2026.09.28 개막」 하나 vs 「시즌 1」+「,」+「…개막」 셋).
+    조각을 이어 붙인 것이 상대 쪽에 있으면 맞는 것으로 본다.
+
+    ⚠️ 이을 때는 **공백을 통째로 뺀다.** 프로브가 노드마다 trim을 걸어
+    공백만 있던 노드가 사라지므로, 이어 붙이면 쉼표 뒤 공백이 없어져
+    시안과 안 맞는다. 붙는 방식이 다른 것과 글자가 다른 것을 가르는 것이
+    목적이라 공백은 볼 필요가 없다.
+  */
+  const glue = (arr) => arr.join("").replace(/\s+/g, "");
+  const bare = (t) => t.replace(/\s+/g, "");
+  const implFlat = glue(impl), specFlat = glue(spec);
   const S = new Set(spec), I = new Set(impl);
-  const onlySpec = spec.filter((t) => !I.has(t) && !ignored(t));
-  const onlyImpl = impl.filter((t) => !S.has(t) && !ignored(t));
+  const onlySpec = spec.filter(
+    (t) => !I.has(t) && !implFlat.includes(bare(t)) && !ignored(t),
+  );
+  const onlyImpl = impl.filter(
+    (t) => !S.has(t) && !specFlat.includes(bare(t)) && !ignored(t),
+  );
   if (!onlySpec.length && !onlyImpl.length) {
     console.log(`  글자 일치 ✓  (시안 ${spec.length}개 대조)`);
     return 0;

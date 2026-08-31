@@ -188,6 +188,7 @@ function SectionHead({
 export function Landing({
   seasonName,
   seasonSlug,
+  startAt,
   showMenu,
   cta,
   preRegisterCount,
@@ -340,6 +341,28 @@ export function Landing({
   const isScrollCta = cta.kind === "PREREGISTER";
   const heroCtaHref = ctaHref(cta.kind, seasonSlug);
 
+  /*
+    히어로 배지의 개막일. 시안은 「시즌 1, 2026.09.28 개막」이다.
+
+    ⚠️ **「일정 확정 중」을 하드코딩하고 있었다.** `startAt`을 props로 받아
+    놓고 쓰지 않아, 개막일이 DB에 들어와도 화면은 계속 미정이라고 말했다.
+    ver1 피드백이 짚은 바로 그 손해다 — 없는 것을 약속하는 것과 반대로,
+    **정해진 것을 안 정해진 것처럼 보이게 해서 신청을 미루게 만든다.**
+
+    값이 정말 없을 때만 「일정 확정 중」으로 떨어진다.
+  */
+  const openingLabel = startAt
+    ? `${new Intl.DateTimeFormat("ko-KR", {
+        timeZone: "Asia/Seoul",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+        .format(new Date(startAt))
+        .replace(/\. /g, ".")
+        .replace(/\.$/, "")} 개막`
+    : "일정 확정 중";
+
   /* 시안의 스탯 4칸. 앞 셋은 고정값이고 마지막만 DB에서 온다 */
   const stats = [
     { value: "20~40", unit: "팀", label: "모집 규모" },
@@ -368,7 +391,7 @@ export function Landing({
           <div>
             <Reveal>
               <Badge tone="lime" className={styles.cur}>
-                {seasonName}, 일정 확정 중
+                {seasonName}, {openingLabel}
               </Badge>
             </Reveal>
             <Reveal index={1} step={70}>
