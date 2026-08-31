@@ -82,7 +82,14 @@ const PAIRS = [
   ["신청 버튼", S + ".ld-form .row .btn", '[class*="__formRow"] > *:last-child'],
   ["live cap", S + ".ld-live .cap", "liveCap"],
   /* 상자만 재면 안의 뱃지가 왼쪽에 붙어 있어도 통과한다(실제로 그랬다) */
-  ["live 뱃지", S + ".ld-live .cap .badge", '[class*="__liveCap"] > *:last-child', [], ["width"]],
+  /*
+    ⚠️ `margin-left`를 비교하지 않는다. `auto`라 **뱃지 자신의 폭**에서
+    거꾸로 계산되는데, 한글이 시안은 시스템 대체 글꼴로 우리는 Pretendard로
+    그려져 0.03px 어긋난다(`korean-font.mjs`가 그 이유다).
+    「오른쪽 끝에 붙었는가」가 여기서 볼 것이고, 그건 아래 ▸오른쪽 끝이 잰다.
+  */
+  ["live 뱃지", S + ".ld-live .cap .badge", '[class*="__liveCap"] > *:last-child',
+   [], ["width", "margin-left"]],
   ["slot", S + ".ld-live .slot", "slot"],
   ["slot bar", S + ".ld-live .slot .bar", "slotBar"],
   ["slot rk", S + ".ld-live .slot .rk", "slotRank"],
@@ -187,6 +194,19 @@ const probe = (pairs) => `(() => {
       if (cs2.backgroundColor !== "rgba(0, 0, 0, 0)" || cs2.backgroundImage !== "none") opaque++;
     }
     out[name + " ▸불투명한 조상 수"] = String(opaque);
+
+    /*
+      margin-left:auto 가 실제로 오른쪽 끝까지 밀었는가. 계산값은 요소의
+      폭에서 거꾸로 나오므로 글꼴이 조금만 달라도 어긋난다 — 뜻을 직접 잰다.
+      (⚠️ 이 주석은 프로브 문자열 안이라 백틱을 쓸 수 없다)
+    */
+    if (name.includes("뱃지")) {
+      const r = el.getBoundingClientRect();
+      const pr = el.parentElement.getBoundingClientRect();
+      const pad = parseFloat(getComputedStyle(el.parentElement).paddingRight);
+      out[name + " ▸오른쪽 끝"] =
+        Math.abs(pr.right - pad - r.right) < 1 ? "붙음" : "안 붙음";
+    }
 
     /*
       ⚠️ 그리드·플렉스 컨테이너면 자식들의 높이가 서로 같은지 본다.

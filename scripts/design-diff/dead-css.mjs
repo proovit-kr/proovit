@@ -12,7 +12,11 @@
 
   그래서 사람 눈에 맡기지 않고 검사로 만든다.
 
-    node scripts/design-diff/dead-css.mjs
+    npm run build && node scripts/design-diff/dead-css.mjs
+
+  ⚠️ **dev 데이터가 화면을 다 그리는 상태여야 한다.** 리더보드가 잠겨 있으면
+  표 규칙이 통째로 「안 맞는 것」으로 나온다. 리더보드는 레이스 상태로 두고
+  돌린다(픽스처 스크립트의 `race`).
 
   ⚠️ **잡음이 섞인다.** 상태 클래스(`.done`, `.stLocked`)나 지금 안 그려진
   화면의 규칙은 「안 맞는 것」으로 나오지만 죽은 것이 아니다. 그래서

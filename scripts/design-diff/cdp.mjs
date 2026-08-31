@@ -317,12 +317,27 @@ export const norm = (v) =>
   String(v).replace(/\s+/g, " ").replace(/\s*,\s*/g, ", ").trim();
 
 /** 두 맵을 비교해 다른 행만 표로 찍는다. 반환값은 불일치 수 */
+/*
+  ⚠️ **글꼴 스택은 「시안 것으로 시작하는가」만 본다.**
+
+  시안의 `--mono`에는 한글 글리프를 가진 글꼴이 없어서 한글이 시스템 기본
+  고정폭(윈도우=굴림)으로 떨어진다. 시안 프롬프트가 「한글에 모노스페이스를
+  절대 걸지 않는다」고 정했으므로 우리는 스택 **뒤에** 한글 글꼴을 덧붙였다
+  (`korean-font.mjs` 참조). 앞부분이 같으면 라틴 글자는 시안과 똑같이
+  그려지고, 뒤는 시안에 없는 상황을 메우는 자리다.
+
+  ⚠️ 앞부분이 다르면 그대로 불일치로 남는다 — 글꼴을 바꾼 것은 여전히 잡힌다.
+*/
+const fontOk = (key, spec, impl) =>
+  /font-family|--mono|--font/.test(key) &&
+  impl.startsWith(spec.replace(/,\s*(monospace|sans-serif|serif)$/, ""));
+
 export function diffTable(title, spec, impl) {
   const rows = [];
   for (const k of Object.keys(spec)) {
     const s = norm(spec[k]);
     const i = k in impl ? norm(impl[k]) : "(없음)";
-    if (s !== i) rows.push([k, s, i]);
+    if (s !== i && !fontOk(k, s, i)) rows.push([k, s, i]);
   }
   console.log(`\n══════ ${title} ══════`);
   if (!rows.length) {
