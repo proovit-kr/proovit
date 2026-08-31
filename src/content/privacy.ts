@@ -21,6 +21,22 @@
  * |---|---|---|
  * | Neon Inc. | 싱가포르 | `DATABASE_URL` 호스트가 `…c-3.ap-southeast-1.aws.neon.tech` |
  * | Upstash, Inc. | 싱가포르 | 콘솔 Settings → Manage Regions가 `ap-southeast-1` 하나 (2026-08-09 확인) |
+ * | Vercel Inc. | 미국, 싱가포르 | 아래 참조 |
+ *
+ * Vercel만 한 칸에 두 나라를 적었다. 「미국」이 틀린 게 아니라 덜 적힌 것이라서다.
+ * 함수는 싱가포르에서 돈다 — 프로젝트 설정이 `serverlessFunctionRegion: "sin1"`
+ * (= ap-southeast-1)이고, 운영 응답 헤더도 `x-vercel-id: icn1::sin1::…`으로
+ * 서울 PoP로 들어와 sin1에서 실행된다. PoP는 TCP 종료·라우팅만 하고 **TLS 종료는
+ * 라우팅된 리전이 하므로** 요청 본문이 평문이 되는 곳도 싱가포르다. 반면 런타임
+ * 로그·Observability는 미국이다(Vercel DPA — primary processing facilities are
+ * in the United States). 제7조 Vercel 행의 이전 항목 「접속 IP, 이용 기록」이
+ * 정확히 로그에 남는 것들이라 두 나라가 다 걸린다.
+ *
+ * ⚠️ 이 싱가포르는 **리포에 근거가 없다.** `vercel.json`도 `preferredRegion`도
+ * 없고 값은 Vercel 프로젝트 설정에만 있다. 대시보드에서 리전을 바꾸면 코드는
+ * 한 줄도 안 변한 채 이 칸이 거짓이 된다. 리전을 옮길 때 여기를 같이 고칠 것.
+ * (`functionZeroConfigFailover: false`이고 함수 자동 페일오버는 Enterprise
+ * 전용이라, 장애로 다른 나라에서 실행될 일은 지금 설정에서는 없다.)
  *
  * 사소한 오기가 아니었다 — 제7조 ①은 이 표를 공개하는 것으로 **별도 동의를
  * 갈음**한다. 갈음의 근거가 되는 사실이 틀리면 그 이전에 대한 갈음이 성립하지
@@ -390,10 +406,10 @@ export const PRIVACY_POLICY: PrivacyPolicy | null = {
           [
             [
               "Vercel Inc. (privacy@vercel.com)",
-              "미국",
+              "미국, 싱가포르",
               "접속 IP, 이용 기록",
               "서비스 이용 시 네트워크를 통한 전송",
-              "웹 호스팅·서비스 운영",
+              "웹 호스팅·서비스 운영(함수 실행 싱가포르, 운영 로그 미국)",
               "위탁계약 종료 시까지",
             ],
             [

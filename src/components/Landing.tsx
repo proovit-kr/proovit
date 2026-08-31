@@ -641,7 +641,7 @@ export function Landing({
             no="05"
             label="CRITERIA"
             title="심사 기준 공개"
-            lead="기준은 처음부터 전부 공개돼요. 숨겨진 점수는 없어요."
+            lead="평가 항목은 처음부터 공개돼요. 1차는 항목과 기준을, 2차는 산식과 배점까지 전부 공개해요."
           />
           <div className={styles.crit}>
             {LANDING_CRITERIA.map((c, i) => (

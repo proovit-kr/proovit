@@ -262,6 +262,53 @@ const settle = `(async () => {
   return naturally;
 })()`;
 
+/*
+  ⚠️ **글자를 따로 센다.** getComputedStyle 대조는 값만 보므로 문구가 통째로
+  바뀌어도 0건이라고 말한다 — ver3가 심사 기준·FAQ·로드맵 라벨을 갈았는데
+  못 잡고 넘어갔다(수연이 눈으로 찾았다).
+
+  화면에 보이는 텍스트 노드를 전부 긁어 집합으로 비교한다. 순서·줄바꿈은
+  보지 않는다 — DOM이 쪼개지는 방식이 시안과 달라 잡음만 는다.
+
+  데이터에서 오는 차이(개막일·사전신청 수 같은 것)는 IGNORE로 뺀다.
+*/
+const textNodes = (sel) => `(() => {
+  const root = document.querySelector(${JSON.stringify(sel)});
+  const out = [];
+  const walk = (n) => {
+    for (const c of n.childNodes) {
+      if (c.nodeType === 3) {
+        const t = c.textContent.replace(/\s+/g, " ").trim();
+        if (t) out.push(t);
+      } else if (c.nodeType === 1 && getComputedStyle(c).display !== "none") {
+        walk(c);
+      }
+    }
+  };
+  walk(root);
+  return out;
+})()`;
+
+/* dev 데이터가 정하는 것들. 시안의 목업 숫자와 같을 수 없다 */
+const IGNORE = [
+  /^시즌/, /^,/, /^\d+$/, /이 시작되면/, /^개막/, /일정 확정 중/,
+];
+const ignored = (t) => IGNORE.some((re) => re.test(t));
+
+function diffText(spec, impl) {
+  const S = new Set(spec), I = new Set(impl);
+  const onlySpec = spec.filter((t) => !I.has(t) && !ignored(t));
+  const onlyImpl = impl.filter((t) => !S.has(t) && !ignored(t));
+  if (!onlySpec.length && !onlyImpl.length) {
+    console.log(`  글자 일치 ✓  (시안 ${spec.length}개 대조)`);
+    return 0;
+  }
+  console.log("  ✗ 글자가 다르다");
+  for (const t of onlySpec) console.log(`    시안에만: ${t}`);
+  for (const t of onlyImpl) console.log(`    구현에만: ${t}`);
+  return onlySpec.length + onlyImpl.length;
+}
+
 let total = 0;
 for (const w of WIDTHS) {
   const spec = await withPage(async (p) => {
@@ -270,6 +317,7 @@ for (const w of WIDTHS) {
     await p.resize(w, 1000);
     const naturally = await p.eval(settle, true);
     const r = await p.eval(probe(PAIRS.map(([n, s, , x, k]) => [n, s, "spec", x, k])));
+    r.text = await p.eval(textNodes("#scr-landing .ld"));
     r.naturally = naturally;
     await p.shot(`${OUT}/spec-${w}.png`);
     return r;
@@ -279,6 +327,7 @@ for (const w of WIDTHS) {
     await p.resize(w, 1000);
     const naturally = await p.eval(settle, true);
     const r = await p.eval(probe(PAIRS.map(([n, , i, x, k]) => [n, i, "impl", x, k])));
+    r.text = await p.eval(textNodes('[class*="Landing-module"][class*="__ld"]'));
     r.naturally = naturally;
     await p.shot(`${OUT}/impl-${w}.png`);
     return r;
@@ -289,6 +338,8 @@ for (const w of WIDTHS) {
   for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
   total += spec.missing.length + impl.missing.length;
   total += diffTable(`${w}px — 랜딩`, spec.out, impl.out);
+  /* 글자는 폭과 무관하지만, 미디어 쿼리로 숨는 것이 있어 폭마다 다시 본다 */
+  total += diffText(spec.text, impl.text);
 }
 console.log(`\n═══════════════════════════\n세 폭 합계 불일치 ${total}건`);
 console.log(`스크린샷: ${OUT}`);
