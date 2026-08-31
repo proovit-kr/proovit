@@ -19,6 +19,16 @@
   padding: 11px 20px;
   transition: 0.15s;
   /*
+    ⚠️ 시안에는 이 줄도 없다. 시안의 버튼은 전부 `<button>`이라 UA 기본값
+    `text-align: center`를 받는데, 우리는 실제로 페이지를 이동하는 자리에
+    `<a>`를 쓴다(LinkButton). `<a>`는 부모에서 물려받아 start가 된다.
+
+    `<a>`를 고른 것은 의미 때문이지 모양 때문이 아니므로, 두 태그가 똑같이
+    그려져야 한다. 글자가 한 줄일 때는 `justify-content`가 가려 주지만
+    ≤760에서 버튼이 폭을 나눠 가지면 라벨이 접히면서 드러난다.
+  */
+  text-align: center;
+  /*
     ⚠️ 시안에는 이 줄이 없다. 브라우저 기본 스타일시트가 폼 컨트롤에
     `line-height: normal`을 주고, 시안은 그걸 그대로 쓴다. Tailwind preflight가
     `font: inherit`으로 덮어서 body의 1.65가 들어오면 버튼이 3px 높아진다.

@@ -49,6 +49,16 @@ const PAIRS = [
   ["h1", S + ".ld-hero h1", "title"],
   ["sub", S + ".ld-hero .sub", "sub"],
   ["ctas", S + ".ld-ctas", "ctas"],
+  /*
+    ⚠️ **상자만 재면 안 된다.** `.ld-ctas`의 폭은 양쪽이 같은데 그 안의
+    버튼이 시안은 164px씩 폭을 나눠 갖고 우리는 글자 폭(128·134px)만
+    차지하고 있었다 — `.ctas .btn`이 다른 모듈의 해시 클래스라 안 먹은
+    것이고, 상자 값만 보던 대조는 0건이라고 말했다(수연이 눈으로 잡았다).
+
+    푸터 링크 때와 같은 종류다. **자식이 규칙을 받는 자리는 자식을 재라.**
+  */
+  ["cta 버튼1", S + ".ld-ctas .btn:first-child", '[class*="__ctas"] > *:first-child', [], ["width"]],
+  ["cta 버튼2", S + ".ld-ctas .btn:last-child", '[class*="__ctas"] > *:last-child', [], ["width"]],
   ["form", S + ".ld-form", "form"],
   ["form fh", S + ".ld-form .fh", "formHead"],
   /* 동의 블록. §4에서 빠뜨렸다가 17개 속성이 어긋난 채로 나갔다 */
@@ -270,6 +280,30 @@ const settle = `(async () => {
   데이터가 정하는 것만 뺀다 — 사전 신청 수 하나뿐이다.
 */
 const TEXT_IGNORE = [/^\d+$/];
+
+/*
+  ⚠️ **시안의 랜딩은 pre 상태다.** CTA가 「사전 신청하기」이고 사전신청 폼이
+  있다. dev 시즌이 recruiting 이후면 우리 CTA가 「참가 신청하기」·「리더보드
+  보기」로 갈려 글자가 통째로 어긋난다 — 상태가 다른 것이지 틀린 것이 아니다.
+
+  ⚠️ 리더보드 픽스처(`lbfix.mts race`)가 phase를 racing으로 바꾼다.
+  둘을 잇달아 돌리면 여기서 걸린다. 스택 트레이스 대신 무엇을 해야 하는지
+  말한다.
+*/
+{
+  const label = await withPage(async (p) => {
+    await p.goto(IMPL_URL);
+    return p.eval(`document.querySelector('[class*="__ctas"] > *')?.textContent?.trim() ?? ""`);
+  });
+  if (!label.startsWith("사전 신청")) {
+    console.error(
+      `\n랜딩 CTA가 「${label}」이다 — dev 시즌이 사전신청 구간이 아니다.\n` +
+        "시안은 pre 상태를 그리므로 되돌리고 다시 돌린다:\n" +
+        "  npx tsx --env-file=.env --env-file=.env.development.local <phase 스크립트> pre_apply\n",
+    );
+    process.exit(1);
+  }
+}
 
 let total = 0;
 for (const w of WIDTHS) {
