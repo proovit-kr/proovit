@@ -366,7 +366,7 @@ function CardBody({ card }: { card: CreditCardView }) {
     case "award":
       return (
         <p className={styles.hint}>
-          최종 심사가 확정된 뒤에 안내돼요. 여기서 받는 게 아니라 시상 절차로
+          2차 심사가 확정된 뒤에 안내돼요. 여기서 받는 게 아니라 시상 절차로
           가요.
         </p>
       );

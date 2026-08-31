@@ -65,7 +65,7 @@ export const CREDIT_CARDS: readonly CreditCardSpec[] = [
     code: "C4",
     title: "시상 크레딧",
     unlockEvent: CreditUnlockEvent.final_confirmed,
-    condition: "최종 심사 확정",
+    condition: "2차 심사 확정",
   },
 ] as const;
 
@@ -143,9 +143,9 @@ export type CreditCardState =
   | "confirmed"
   /** 유효기간이 지났거나 안 열린 채 시즌이 끝났다 */
   | "expired"
-  /** 시상 카드. 최종 심사 전 */
+  /** 시상 카드. 2차 심사 전 */
   | "award"
-  /** 시상 카드. 최종 심사 확정 */
+  /** 시상 카드. 2차 심사 확정 */
   | "awarded";
 
 export type CreditCardStateInput = {
@@ -274,7 +274,7 @@ export const UNLOCK_EVENT_LABEL: Record<CreditUnlockEvent, string> = {
   [CreditUnlockEvent.s1_submitted]: "s1 제출 완료",
   [CreditUnlockEvent.gate1_passed]: "게이트 1 통과",
   [CreditUnlockEvent.deploy_verified]: "배포 URL 검증 완료",
-  [CreditUnlockEvent.final_confirmed]: "최종 심사 확정",
+  [CreditUnlockEvent.final_confirmed]: "2차 심사 확정",
 };
 
 export const DELIVERY_LABEL: Record<CreditDelivery, string> = {

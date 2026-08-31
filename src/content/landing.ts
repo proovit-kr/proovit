@@ -47,7 +47,7 @@ export const SEASON_STAGES: SeasonStageInfo[] = [
     label: "랜딩·수요조사",
     week: "2주차",
     description: "아이디어의 수요를 데이터로 먼저 확인해요.",
-    gate: "1차 심사 — 사업성",
+    gate: "1차 심사(사업성)",
   },
   {
     key: "S3",
@@ -69,7 +69,7 @@ export const SEASON_STAGES: SeasonStageInfo[] = [
     label: "트래픽·매출",
     week: "5주차",
     description: "실측 지표로 리더보드에서 최종 순위를 겨뤄요.",
-    gate: "최종 심사 — 실행",
+    gate: "2차 심사(최종)",
   },
 ];
 

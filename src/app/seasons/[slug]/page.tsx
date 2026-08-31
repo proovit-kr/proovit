@@ -56,8 +56,8 @@ function gateNumber(
   셋 이상인 시즌이 오면 그때는 stages에 이름 칸이 생겨야 한다 — 여기서 지어내지 않는다.
 */
 const GATE_LABEL: Record<number, string> = {
-  1: "1차 심사 — 사업성",
-  2: "최종 심사 — 실행",
+  1: "1차 심사(사업성)",
+  2: "2차 심사(최종)",
 };
 
 function gateLabel(no: number): string {
