@@ -25,9 +25,11 @@ const nextConfig: NextConfig = {
     ⚠️ 사설 대역(192.168.*)만 적는다. 공인 주소를 적으면 개발 서버의 소스와
     HMR이 그 출처에 열린다.
 
-    맥의 주소는 바뀔 수 있다: `ipconfig getifaddr en0`
+    ⚠️ **맥의 주소는 자주 바뀐다**(공유기 재접속·네트워크 전환). 한 대만
+    적어 두면 다음에 또 막힌다 — 사설 대역을 통째로 적는다.
+    지금 주소는 `ipconfig getifaddr en0`으로 본다.
   */
-  allowedDevOrigins: ["192.168.0.20", "192.168.0.*"],
+  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.30.*.*"],
 };
 
 export default nextConfig;

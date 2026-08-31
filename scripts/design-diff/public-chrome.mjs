@@ -32,7 +32,7 @@ const OUT = shotDir("public-chrome");
 */
 const CSS = [
   "font-size", "font-weight", "line-height", "letter-spacing",
-  "color", "background-color", "backdrop-filter",
+  "color", "background-color", "backdrop-filter", "box-shadow",
   "padding-top", "padding-right", "padding-bottom", "padding-left",
   "gap", "display", "align-items", "flex-wrap",
   "position", "z-index",
@@ -47,7 +47,13 @@ const CSS = [
 */
 const S = "#scr-leaderboard ";
 const PAIRS = [
-  ["pub-head", S + ".pub-head", "header", { fixedHeight: true }],
+  /*
+    ⚠️ **box-shadow는 의도한 차이가 하나 있다.** 헤더에 `0 -60px 0 60px var(--bg)`를
+    더해 위쪽 120px을 배경색으로 덮는다 — iOS 26 사파리에서 헤더 위로 본문이
+    새는 것을 가리는 줄이다(NavBar.module.css에 측정값과 막힌 길이 적혀 있다).
+    시안에는 없으므로 이 속성만 뺀다. 나머지 값은 그대로 대조한다.
+  */
+  ["pub-head", S + ".pub-head", "header", { fixedHeight: true }, ["box-shadow"]],
   ["wm", S + ".pub-head .wm", "header > a:first-child"],
   ["wm em", S + ".pub-head .wm em", "header > a:first-child em"],
   ["nav", S + ".pub-head nav", "header nav"],
