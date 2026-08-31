@@ -1,6 +1,10 @@
 import { Landing } from "@/components/Landing";
 import { prisma } from "@/lib/prisma";
-import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
+import {
+  getCurrentSeason,
+  navMenuVisible,
+  resolveLandingCta,
+} from "@/lib/season";
 
 /*
   랜딩. 서버 컴포넌트에서 시즌과 사전신청 수를 읽어 클라이언트 컴포넌트에 내려준다.
@@ -38,6 +42,7 @@ export default async function Home() {
     <Landing
       seasonName={season.title}
       seasonSlug={season.slug}
+      showMenu={navMenuVisible(season)}
       seasonTheme={season.theme}
       startAt={season.startsAt?.toISOString() ?? null}
       cta={resolveLandingCta(season)}

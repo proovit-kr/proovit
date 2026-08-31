@@ -76,6 +76,13 @@ export interface NavBarProps {
    * 그 값은 서버만 안다. 시즌이 없으면 메뉴에서 아예 빠진다.
    */
   leaderboardHref?: string;
+  /**
+   * 메뉴를 내보이는가. 기준은 `season.ts`의 `navMenuVisible` 하나다.
+   *
+   * ⚠️ **기본값이 false다.** 빠뜨리면 안 보이는 쪽으로 틀리게 만든다 —
+   * 반대로 두면 새 화면에서 메뉴가 조용히 되살아난다.
+   */
+  showMenu?: boolean;
   /** 워드마크에 글리치를 건다. 시안에서는 랜딩만 그렇다 */
   glitchLogo?: boolean;
   /** 우측 주 버튼. 시즌 상태에 따라 서버에서 정해 내려준다. */
@@ -91,7 +98,12 @@ export interface NavBarProps {
   };
 }
 
-export function NavBar({ cta, leaderboardHref, glitchLogo }: NavBarProps) {
+export function NavBar({
+  cta,
+  leaderboardHref,
+  showMenu = false,
+  glitchLogo,
+}: NavBarProps) {
   const pathname = usePathname();
   const menu = leaderboardHref
     ? [HOME, { href: leaderboardHref, label: "리더보드" }]
@@ -100,25 +112,32 @@ export function NavBar({ cta, leaderboardHref, glitchLogo }: NavBarProps) {
   return (
     <header className={styles.head}>
       <Logo glitch={glitchLogo} />
-      <nav className={styles.nav}>
-        {menu.map((item) => {
-          const on =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={on ? styles.navOn : undefined}
-              aria-current={on ? "page" : undefined}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
-        <a title={SOON.title}>{SOON.label}</a>
-      </nav>
+      {/*
+        ⚠️ 리그 시작 전에는 `<nav>`를 통째로 내지 않는다. 감추는(`display:none`)
+        것이 아니라 그리지 않는다 — 없는 메뉴가 스크린리더와 탭 순서에 남으면
+        안 된다. 시안과 다르게 한 자리이고 이유는 `navMenuVisible`에 있다.
+      */}
+      {showMenu ? (
+        <nav className={styles.nav}>
+          {menu.map((item) => {
+            const on =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={on ? styles.navOn : undefined}
+                aria-current={on ? "page" : undefined}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+          <a title={SOON.title}>{SOON.label}</a>
+        </nav>
+      ) : null}
       {/* 시안의 CTA는 `padding:9px 18px; font-size:13.5px` — Button의 sm이다 */}
       {cta.onClick ? (
         <Button size="sm" className={styles.cta} onClick={cta.onClick}>

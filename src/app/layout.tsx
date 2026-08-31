@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 
 import { DevBar } from "@/components/DevBar";
@@ -49,6 +49,24 @@ export const metadata: Metadata = {
     title,
     description,
   },
+};
+
+/*
+  상단 띠 색.
+
+  iOS 사파리는 상태 바 자리를 페이지 색으로 칠하는데, 선언이 없으면 페이지에서
+  **짐작해** 뽑는다. 지금은 짐작한 결과가 마침 `--bg`와 같아 티가 안 나지만,
+  배경을 손대는 순간 조용히 어긋난다. 그래서 값으로 못박는다.
+
+  ⚠️ `--bg`(#0a101c)와 **같은 값이어야 한다.** globals.css의 그 토큰을 바꾸면
+  여기도 같이 바꾼다 — CSS 변수를 meta에서 읽을 방법이 없어 손으로 맞춘다.
+
+  Next는 이 export가 있어도 viewport meta의 기본값(width=device-width,
+  initial-scale=1)은 그대로 내보낸다. `viewport-fit`은 넣지 않는다 —
+  사파리에서 inset이 0이라 얻을 것이 없다(NavBar.module.css의 「막힌 길」).
+*/
+export const viewport: Viewport = {
+  themeColor: "#0a101c",
 };
 
 export default function RootLayout({

@@ -11,7 +11,10 @@
 
     node scripts/design-diff/landing.mjs
 */
-import { withPage, diffTable, SPEC_URL, IMPL_URL, WIDTHS, shotDir } from "./cdp.mjs";
+import {
+  withPage, diffTable, diffText, textNodes,
+  SPEC_URL, IMPL_URL, WIDTHS, shotDir,
+} from "./cdp.mjs";
 
 const OUT = shotDir("landing");
 
@@ -46,6 +49,16 @@ const PAIRS = [
   ["h1", S + ".ld-hero h1", "title"],
   ["sub", S + ".ld-hero .sub", "sub"],
   ["ctas", S + ".ld-ctas", "ctas"],
+  /*
+    ⚠️ **상자만 재면 안 된다.** `.ld-ctas`의 폭은 양쪽이 같은데 그 안의
+    버튼이 시안은 164px씩 폭을 나눠 갖고 우리는 글자 폭(128·134px)만
+    차지하고 있었다 — `.ctas .btn`이 다른 모듈의 해시 클래스라 안 먹은
+    것이고, 상자 값만 보던 대조는 0건이라고 말했다(수연이 눈으로 잡았다).
+
+    푸터 링크 때와 같은 종류다. **자식이 규칙을 받는 자리는 자식을 재라.**
+  */
+  ["cta 버튼1", S + ".ld-ctas .btn:first-child", '[class*="__ctas"] > *:first-child', [], ["width"]],
+  ["cta 버튼2", S + ".ld-ctas .btn:last-child", '[class*="__ctas"] > *:last-child', [], ["width"]],
   ["form", S + ".ld-form", "form"],
   ["form fh", S + ".ld-form .fh", "formHead"],
   /* 동의 블록. §4에서 빠뜨렸다가 17개 속성이 어긋난 채로 나갔다 */
@@ -62,10 +75,21 @@ const PAIRS = [
     폭·가로 위치·세로 중심은 같고(18.88px / 0.95px / 0.35px 이내), 배경도
     테두리도 없어 화면에 드러나지 않는다. 접근성을 값 하나와 바꾸지 않는다.
   */
-  ["consent 보기", S + ".ld-form .consents a.mono", '[class*="ConsentFields-module"][class*="toggle"]',
+  ["consent 보기", S + ".ld-form .consents a.see", '[class*="ConsentFields-module"][class*="toggle"]',
     ["font-family"], ["display", "text-align", "width"]],
   ["live", S + ".ld-live", "live"],
+  /* 폼 안의 신청 버튼. 시안이 인라인으로 좁은 여백을 준다 */
+  ["신청 버튼", S + ".ld-form .row .btn", '[class*="__formRow"] > *:last-child'],
   ["live cap", S + ".ld-live .cap", "liveCap"],
+  /* 상자만 재면 안의 뱃지가 왼쪽에 붙어 있어도 통과한다(실제로 그랬다) */
+  /*
+    ⚠️ `margin-left`를 비교하지 않는다. `auto`라 **뱃지 자신의 폭**에서
+    거꾸로 계산되는데, 한글이 시안은 시스템 대체 글꼴로 우리는 Pretendard로
+    그려져 0.03px 어긋난다(`korean-font.mjs`가 그 이유다).
+    「오른쪽 끝에 붙었는가」가 여기서 볼 것이고, 그건 아래 ▸오른쪽 끝이 잰다.
+  */
+  ["live 뱃지", S + ".ld-live .cap .badge", '[class*="__liveCap"] > *:last-child',
+   [], ["width", "margin-left"]],
   ["slot", S + ".ld-live .slot", "slot"],
   ["slot bar", S + ".ld-live .slot .bar", "slotBar"],
   ["slot rk", S + ".ld-live .slot .rk", "slotRank"],
@@ -95,8 +119,11 @@ const PAIRS = [
   ["rm-d", S + ".rm-d", "rmD"],
   ["rm-legend", S + ".rm-legend", "rmLegend"],
   ["three", S + ".ld-3", "three"],
+  /* Reveal이 감싸지 않고 자식에 붙으므로 카드가 곧 그리드의 자식이다 */
+  ["three 카드", S + ".ld-3 .card", '[class*="__three"] > *', [], ["width", "height"]],
   ["three n", S + ".ld-3 .n", "threeNo"],
   ["crit", S + ".ld-crit", "crit"],
+  ["crit 카드", S + ".ld-crit .card", '[class*="__crit"] > *', [], ["width", "height"]],
   ["crit rd", S + ".ld-crit .rd", "critRound"],
   ["spec", S + ".ld-spec", "spec"],
   ["faq", S + ".ld-faq", "faq"],
@@ -167,6 +194,19 @@ const probe = (pairs) => `(() => {
       if (cs2.backgroundColor !== "rgba(0, 0, 0, 0)" || cs2.backgroundImage !== "none") opaque++;
     }
     out[name + " ▸불투명한 조상 수"] = String(opaque);
+
+    /*
+      margin-left:auto 가 실제로 오른쪽 끝까지 밀었는가. 계산값은 요소의
+      폭에서 거꾸로 나오므로 글꼴이 조금만 달라도 어긋난다 — 뜻을 직접 잰다.
+      (⚠️ 이 주석은 프로브 문자열 안이라 백틱을 쓸 수 없다)
+    */
+    if (name.includes("뱃지")) {
+      const r = el.getBoundingClientRect();
+      const pr = el.parentElement.getBoundingClientRect();
+      const pad = parseFloat(getComputedStyle(el.parentElement).paddingRight);
+      out[name + " ▸오른쪽 끝"] =
+        Math.abs(pr.right - pad - r.right) < 1 ? "붙음" : "안 붙음";
+    }
 
     /*
       ⚠️ 그리드·플렉스 컨테이너면 자식들의 높이가 서로 같은지 본다.
@@ -262,6 +302,36 @@ const settle = `(async () => {
   return naturally;
 })()`;
 
+/*
+  ⚠️ 글자 대조. 공용 `textNodes`·`diffText`가 cdp.mjs에 있다.
+  데이터가 정하는 것만 뺀다 — 사전 신청 수 하나뿐이다.
+*/
+const TEXT_IGNORE = [/^\d+$/];
+
+/*
+  ⚠️ **시안의 랜딩은 pre 상태다.** CTA가 「사전 신청하기」이고 사전신청 폼이
+  있다. dev 시즌이 recruiting 이후면 우리 CTA가 「참가 신청하기」·「리더보드
+  보기」로 갈려 글자가 통째로 어긋난다 — 상태가 다른 것이지 틀린 것이 아니다.
+
+  ⚠️ 리더보드 픽스처(`lbfix.mts race`)가 phase를 racing으로 바꾼다.
+  둘을 잇달아 돌리면 여기서 걸린다. 스택 트레이스 대신 무엇을 해야 하는지
+  말한다.
+*/
+{
+  const label = await withPage(async (p) => {
+    await p.goto(IMPL_URL);
+    return p.eval(`document.querySelector('[class*="__ctas"] > *')?.textContent?.trim() ?? ""`);
+  });
+  if (!label.startsWith("사전 신청")) {
+    console.error(
+      `\n랜딩 CTA가 「${label}」이다 — dev 시즌이 사전신청 구간이 아니다.\n` +
+        "시안은 pre 상태를 그리므로 되돌리고 다시 돌린다:\n" +
+        "  npx tsx --env-file=.env --env-file=.env.development.local <phase 스크립트> pre_apply\n",
+    );
+    process.exit(1);
+  }
+}
+
 let total = 0;
 for (const w of WIDTHS) {
   const spec = await withPage(async (p) => {
@@ -270,6 +340,7 @@ for (const w of WIDTHS) {
     await p.resize(w, 1000);
     const naturally = await p.eval(settle, true);
     const r = await p.eval(probe(PAIRS.map(([n, s, , x, k]) => [n, s, "spec", x, k])));
+    r.text = await p.eval(textNodes("#scr-landing .ld"));
     r.naturally = naturally;
     await p.shot(`${OUT}/spec-${w}.png`);
     return r;
@@ -279,6 +350,7 @@ for (const w of WIDTHS) {
     await p.resize(w, 1000);
     const naturally = await p.eval(settle, true);
     const r = await p.eval(probe(PAIRS.map(([n, , i, x, k]) => [n, i, "impl", x, k])));
+    r.text = await p.eval(textNodes('[class*="Landing-module"][class*="__ld"]'));
     r.naturally = naturally;
     await p.shot(`${OUT}/impl-${w}.png`);
     return r;
@@ -289,6 +361,8 @@ for (const w of WIDTHS) {
   for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
   total += spec.missing.length + impl.missing.length;
   total += diffTable(`${w}px — 랜딩`, spec.out, impl.out);
+  /* 글자는 폭과 무관하지만, 미디어 쿼리로 숨는 것이 있어 폭마다 다시 본다 */
+  total += diffText(spec.text, impl.text, { ignore: TEXT_IGNORE });
 }
 console.log(`\n═══════════════════════════\n세 폭 합계 불일치 ${total}건`);
 console.log(`스크린샷: ${OUT}`);

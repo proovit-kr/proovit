@@ -11,7 +11,10 @@
 
     node scripts/design-diff/public-chrome.mjs
 */
-import { withPage, diffTable, SPEC_URL, IMPL_URL, WIDTHS, shotDir } from "./cdp.mjs";
+import {
+  withPage, diffTable, diffText, textNodes,
+  SPEC_URL, IMPL_URL, WIDTHS, shotDir,
+} from "./cdp.mjs";
 
 const OUT = shotDir("public-chrome");
 
@@ -29,7 +32,7 @@ const OUT = shotDir("public-chrome");
 */
 const CSS = [
   "font-size", "font-weight", "line-height", "letter-spacing",
-  "color", "background-color", "backdrop-filter",
+  "color", "background-color", "backdrop-filter", "box-shadow",
   "padding-top", "padding-right", "padding-bottom", "padding-left",
   "gap", "display", "align-items", "flex-wrap",
   "position", "z-index",
@@ -44,7 +47,13 @@ const CSS = [
 */
 const S = "#scr-leaderboard ";
 const PAIRS = [
-  ["pub-head", S + ".pub-head", "header", { fixedHeight: true }],
+  /*
+    ⚠️ **box-shadow는 의도한 차이가 하나 있다.** 헤더에 `0 -60px 0 60px var(--bg)`를
+    더해 위쪽 120px을 배경색으로 덮는다 — iOS 26 사파리에서 헤더 위로 본문이
+    새는 것을 가리는 줄이다(NavBar.module.css에 측정값과 막힌 길이 적혀 있다).
+    시안에는 없으므로 이 속성만 뺀다. 나머지 값은 그대로 대조한다.
+  */
+  ["pub-head", S + ".pub-head", "header", { fixedHeight: true }, ["box-shadow"]],
   ["wm", S + ".pub-head .wm", "header > a:first-child"],
   ["wm em", S + ".pub-head .wm em", "header > a:first-child em"],
   ["nav", S + ".pub-head nav", "header nav"],
@@ -70,6 +79,13 @@ const PAIRS = [
     ⚠️ 링크 자체를 센다. 상자만 재면 안에 무엇이 몇 개 있는지 모른다 —
     ver3가 이용약관·개인정보처리방침 둘을 넣었는데 상자 값은 그대로여서
     대조가 0건이라고 말했다. 수연이 눈으로 잡았다.
+  */
+  /*
+    ⚠️ 메뉴는 리그 시작 전에 그리지 않는다(2026-08-31 수연 지시, season.ts의
+    `navMenuVisible`). 시안은 늘 그리므로 이 대조는 **메뉴가 보이는 상태**에서만
+    뜻이 있다 — dev DB가 pre_apply면 구현본에 `<nav>` 자체가 없다.
+
+        npx tsx …/phase.mts recruiting   # 켜고 대조
   */
   ["head ▸링크", S + ".pub-head nav", "header nav"],
 ];
@@ -158,6 +174,48 @@ async function hoverValues(p, list, side) {
   return out;
 }
 
+/*
+  ⚠️ 메뉴가 보이는 상태여야 대조가 성립한다. 리그 시작 전에는 구현본에
+  `<nav>` 자체가 없다(season.ts의 `navMenuVisible`). dev DB가 pre_apply면
+  여기서 멈추고 무엇을 해야 하는지 말한다 — 스택 트레이스로 끝나면 안 된다.
+*/
+{
+  const has = await withPage(async (p) => {
+    await p.goto(IMPL_URL + "/seasons/season-1/leaderboard");
+    return p.eval('!!document.querySelector("header nav")');
+  });
+  if (!has) {
+    console.error(
+      "\n구현본 헤더에 메뉴가 없다 — dev 시즌이 리그 시작 전이다.\n" +
+        "메뉴가 보이는 상태로 바꾸고 다시 돌린다:\n" +
+        "  npx tsx --env-file=.env --env-file=.env.development.local <phase 스크립트> recruiting\n",
+    );
+    process.exit(1);
+  }
+}
+
+/*
+  글자 대조. 헤더와 푸터를 따로 긁는다 — 사이의 본문은 이 프로브 소관이 아니다.
+
+  ⚠️ **푸터는 시안이 정본이 아니다**(2026-08-30 팀장 지시). 노션
+  「사전신청 폼 문안·푸터」가 정하므로 글자를 대조하지 않는다. 시안이 정하는
+  것은 경계선·여백·색·글자 크기뿐이고 그것만 위에서 본다.
+*/
+const TEXT_PAIRS = [
+  ["헤더", S + ".pub-head", "header"],
+];
+
+/*
+  ⚠️ CTA 문구는 **시즌 상태가 정한다**(season.ts의 `resolveNavCta`).
+  이 프로브는 메뉴가 보여야 돌아가므로 dev를 recruiting으로 두고 재는데,
+  시안의 리더보드 화면 헤더는 pre 상태의 문구(「사전 신청하기」)를 박아 두었다.
+  상태가 다른 것이지 문구가 틀린 것이 아니다.
+
+  넷 다 §3에서 값으로 이미 대조했고, 시안이 상태별로 무엇을 적는지도
+  거기서 확인했다(시즌 상세 1712행).
+*/
+const TEXT_IGNORE = [/^(사전 신청하기|참가 신청하기|리더보드 보기|시즌 보기)$/];
+
 let total = 0;
 for (const w of WIDTHS) {
   const spec = await withPage(async (p) => {
@@ -169,6 +227,8 @@ for (const w of WIDTHS) {
     await p.shot(`${OUT}/spec-${w}.png`);
     /* ⚠️ 캡처보다 뒤에 둔다 — hover가 켜진 채로 찍히면 안 된다 */
     Object.assign(r.out, await hoverValues(p, HOVER, "spec"));
+    r.text = {};
+    for (const [n, sel] of TEXT_PAIRS) r.text[n] = await p.eval(textNodes(sel));
     return r;
   });
   const impl = await withPage(async (p) => {
@@ -184,6 +244,8 @@ for (const w of WIDTHS) {
     const r = await p.eval(probe(PAIRS.map(([n, , i, o, k]) => [n, i, o, k])));
     await p.shot(`${OUT}/impl-${w}.png`);
     Object.assign(r.out, await hoverValues(p, HOVER, "impl"));
+    r.text = {};
+    for (const [n, , sel] of TEXT_PAIRS) r.text[n] = await p.eval(textNodes(sel));
     return r;
   });
 
@@ -192,6 +254,12 @@ for (const w of WIDTHS) {
   for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
   total += spec.missing.length + impl.missing.length;
   total += diffTable(`${w}px — 공개 크롬`, spec.out, impl.out);
+  for (const [n] of TEXT_PAIRS) {
+    total += diffText(spec.text[n], impl.text[n], {
+      ignore: TEXT_IGNORE,
+      label: n,
+    });
+  }
 }
 console.log(`\n═══════════════════════════\n세 폭 합계 불일치 ${total}건`);
 console.log(`스크린샷: ${OUT}`);

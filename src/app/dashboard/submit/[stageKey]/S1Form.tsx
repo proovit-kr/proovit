@@ -189,7 +189,7 @@ export function S1Form({
       <fieldset className={styles.fieldset}>
         <legend className={fieldStyles.label}>과금 유형</legend>
         <p className={fieldStyles.hint}>
-          <span>최종 심사의 수익화 트랙이 이 값으로 갈립니다.</span>
+          <span>2차 심사의 수익화 트랙이 이 값으로 갈립니다.</span>
           <span>
             {chargeTypeLocked
               ? "이미 제출해서 바꿀 수 없습니다."

@@ -124,7 +124,17 @@
   gap: 12px;
   margin: 26px 0 30px;
 }
-.ctas .btn {
+/*
+  ⚠️ `.ctas .btn`으로 쓰면 **안 먹는다.** `.btn`은 Button.module.css의 해시
+  클래스라 이 모듈의 `.btn`과 다른 이름이 된다(`.sso .btn`·`.stat .score`와
+  같은 부류. 세 번째로 밟았다). `.ctas` 안에는 버튼밖에 없으므로 자식으로
+  집는다.
+
+  값 자체는 Button의 `size="lg"`가 이미 같은 것을 주지만, 시안이 여기에
+  적어 둔 값이라 자리를 남긴다 — 버튼 크기 체계가 바뀌어도 이 자리는
+  시안대로 남아야 한다.
+*/
+.ctas > * {
   padding: 13px 24px;
   font-size: 15px;
 }
@@ -147,9 +157,13 @@
     0 1px 2px rgba(0, 0, 0, 0.32),
     0 16px 40px -28px rgba(0, 0, 0, 0.45);
 }
-/* 시안 랜딩은 `.consents`의 margin-top 20px를 인라인 14px로 덮는다 */
+/*
+  ver3는 인라인으로 `margin:0 0 14px`를 준다 — 위가 아니라 **아래**로 14px다.
+  동의 블록이 이메일 칸 앞으로 올라가면서(폼 순서가 바뀌었다) 위는 제목에
+  붙고 아래로만 벌어진다.
+*/
 .formConsents {
-  margin-top: 14px;
+  margin: 0 0 14px;
 }
 
 .formHead {
@@ -161,8 +175,16 @@
   display: flex;
   gap: 10px;
 }
-.formRow .btn {
+/*
+  ⚠️ `.formRow .btn`은 안 먹는다 — `.btn`이 Button 모듈의 해시 클래스다.
+  `.formRow`의 마지막 자식이 신청 버튼이라 그것으로 집는다.
+  (같은 부류를 네 번 밟았다: `.ctas .btn`·`.sso .btn`·`.stat .score`·
+  `.liveCap .badge`.)
+*/
+.formRow > :last-child {
   flex: none;
+  /* 시안은 이 버튼에만 인라인으로 좁은 좌우 여백을 준다(`padding:11px 16px`) */
+  padding: 11px 16px;
 }
 
 /* ═══════════════ 라이브 리더보드 ═══════════════ */
@@ -238,8 +260,17 @@
   align-items: center;
   gap: 8px;
 }
-/* 「준비 중」 뱃지가 형광등처럼 아주 가끔 깜빡인다 */
-.liveCap .badge {
+/*
+  「준비 중」 뱃지가 형광등처럼 아주 가끔 깜빡이고, 오른쪽 끝에 붙는다.
+
+  ⚠️ `.liveCap .badge`로 쓰면 **안 먹는다.** `.badge`는 Badge.module.css의
+  해시 클래스라 이 모듈의 `.badge`와 다른 이름이 된다 — `.ctas .btn`·
+  `.sso .btn`·`.stat .score`와 같은 부류이고 **네 번째로 밟았다.**
+  `.liveCap` 안에는 글자와 뱃지뿐이므로 마지막 자식으로 집는다.
+
+  안 먹는 동안 뱃지가 「LIVE LEADERBOARD」에 붙어 있었고 깜빡이지도 않았다.
+*/
+.liveCap > :last-child {
   margin-left: auto;
   animation: flick 4.2s steps(1) infinite;
 }
@@ -683,7 +714,14 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
-.three .card {
+/*
+  ⚠️ `.three .card`는 안 먹는다 — `.card`는 Surface 모듈이다. 지금은 TSX가
+  인라인 `style={{ padding: 24 }}`로 같은 값을 주고 있어 드러나지 않았지만,
+  값이 두 곳에 나뉘어 있으면 한쪽만 고쳐진다. 여기로 모은다.
+
+  `Reveal`은 감싸지 않고 자식에 직접 클래스를 붙이므로 카드가 곧 자식이다.
+*/
+.three > * {
   padding: 24px;
 }
 .threeNo {
@@ -710,7 +748,8 @@
   gap: 16px;
   margin-bottom: 22px;
 }
-.crit .card {
+/* 위와 같다 */
+.crit > * {
   padding: 24px;
 }
 .critRound {
@@ -908,11 +947,120 @@
   }
 }
 
+/*
+  ver3가 새로 넣은 모바일 패스. 시안의 `@media (max-width:760px)` 한 블록에
+  전 화면의 좁은 폭 규칙이 함께 들어 있고, 그중 랜딩 몫만 여기 옮긴다.
+  (헤더·푸터는 NavBar/Footer, 문서 화면은 DocPage, 리더보드는 그 모듈이 받는다.)
+*/
+@media (max-width: 760px) {
+  /*
+    ⚠️ 이 한 줄이 빠지면 아래가 전부 어긋난다. 좌우 여백이 40px로 남아
+    콘텐츠 폭이 40px 좁아지고, 그 차이가 그리드·의사요소·마퀴까지 번진다
+    (실제로 그랬다 — 폭만 다른 불일치 열댓 개가 이 줄 하나였다).
+  */
+  .ld {
+    padding: 0 20px;
+  }
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 40px 0 30px;
+  }
+  .title {
+    font-size: 34px;
+    line-height: 1.18;
+  }
+  .sub {
+    font-size: 15px;
+  }
+  .ctas {
+    flex-wrap: wrap;
+  }
+  /*
+    좁아지면 두 버튼이 남은 폭을 나눠 갖는다. 140px보다 좁아지면 줄바꿈해
+    각자 한 줄을 쓴다.
+
+    ⚠️ 위와 같은 이유로 `.ctas .btn`이 아니라 자식으로 집는다. 이걸 놓쳐서
+    390에서 버튼이 글자 폭만큼만(128·134px) 그려지고 있었다 — 시안은 164px씩
+    나눠 화면을 채운다. 수연이 눈으로 잡았다.
+  */
+  .ctas > * {
+    flex: 1 1 140px;
+  }
+  .form {
+    max-width: none;
+  }
+  .formRow {
+    flex-direction: column;
+  }
+  .formRow > :last-child {
+    width: 100%;
+  }
+  /* 히어로 배경 두 겹. 좁은 폭에서는 낮고 넓게 깔린다 */
+  .hero::after,
+  .hero::before {
+    inset: -40px -20px auto;
+    height: 360px;
+  }
+  /* 마퀴와 로드맵은 좌우 여백 밖으로 흘려 화면 끝까지 쓴다 */
+  .mq {
+    margin: 22px -20px 0;
+  }
+  .rmWrap {
+    margin: 0 -20px;
+    padding: 0 20px 8px;
+  }
+  .stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 22px 0;
+  }
+  .stat :global(.score) {
+    font-size: 26px;
+  }
+  .sec {
+    padding: 48px 0;
+  }
+  .secTitle {
+    font-size: 24px;
+  }
+  .three {
+    grid-template-columns: 1fr;
+  }
+  .cmp,
+  .crit {
+    grid-template-columns: 1fr;
+  }
+  /*
+    스펙 표는 2열로 접힌다. 1024에서 이미 2열이지만 칸 경계가 달라진다 —
+    2열이 되면 2번 칸이 오른쪽 끝이라 세로선을 지우고, 첫 줄(1·2번)에
+    가로선을 넣는다.
+  */
+  .spec {
+    grid-template-columns: 1fr 1fr;
+  }
+  .spec div:nth-child(2) {
+    border-right: 0;
+  }
+  .spec div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
+  }
+  .fin {
+    padding: 56px 0;
+  }
+  .finTitle {
+    font-size: 24px;
+  }
+  .fin::before {
+    inset: -20px -20px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mqTrack,
   .live::before,
   .slotBar,
-  .liveCap .badge,
+  .liveCap > :last-child,
   .hero::after,
   .cur::after,
   .glitch.on::before,

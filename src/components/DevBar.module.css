@@ -69,6 +69,20 @@
   color: #9aa3b5;
 }
 
+/*
+  화면 프로브 한 줄. 읽는 법은 ViewportProbe.tsx에 적었다.
+  좁으면 옆으로 넘기게 둔다 — 줄바꿈으로 바가 두 줄이 되면 화면을 더 먹는다.
+*/
+.probe {
+  padding: 0 14px 6px;
+  color: #9aa3b5;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
 /* ── 열린 패널 ─────────────────────────────────────────────── */
 
 .panel {

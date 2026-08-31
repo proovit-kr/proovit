@@ -112,8 +112,14 @@
     0 0 0 3px rgba(200, 255, 61, 0.12),
     0 8px 18px -8px rgba(200, 255, 61, 0.45);
 }
-/* 게이트는 점선 바이올렛 — 「아직 안 열린 것」의 색이다 */
-.gate {
+/*
+  게이트는 점선 바이올렛 — 「아직 안 열린 것」의 색이다.
+
+  ⚠️ `.stg.gate`로 두 겹이다(0,2,0). 시안이 그렇게 쓰고, 그래야 ≤760의
+  `.stg{font-size:12px}`(0,1,0)를 이긴다 — 맨몸 `.gate`로 두면 같은 특정도라
+  나중에 오는 미디어 규칙이 11.5px를 덮는다.
+*/
+.stg.gate {
   border-style: dashed;
   border-color: rgba(167, 139, 250, 0.5);
   color: var(--violet);
@@ -370,6 +376,87 @@
 @media (max-width: 1024px) {
   .wrap {
     padding: 34px 22px 60px;
+  }
+}
+
+/*
+  ver3가 새로 넣은 모바일 패스. 시안의 `@media (max-width:760px)` 한 블록에서
+  리더보드 몫만 옮겼다.
+
+  핵심은 **SERVICE 열을 버리는 것**이다. 여섯 열을 390에 밀어 넣으면 표가
+  넘치는데, 시안은 스크롤 상자를 씌우는 대신 관전에 덜 중요한 열을 지운다
+  (`:nth-child(3)`). 팀명 아래 참가작 이름(`.tm small`)도 같은 이유로 숨긴다.
+*/
+@media (max-width: 760px) {
+  .wrap {
+    padding: 26px 16px 50px;
+  }
+  .title {
+    font-size: 24px;
+  }
+  /* 갱신 시각이 오른쪽 끝을 놓고 한 줄을 통째로 쓴다 */
+  .upd {
+    margin-left: 0;
+    flex-basis: 100%;
+    font-size: 12px;
+  }
+  .track {
+    gap: 6px;
+    margin: 18px 0 22px;
+  }
+  .stg {
+    font-size: 12px;
+    padding: 6px 11px;
+  }
+
+  .table thead th,
+  .table td {
+    padding: 12px 10px;
+  }
+  /*
+    ⚠️ SERVICE 열을 통째로 지운다. `:nth-child(3)`이라 머리와 몸이 함께
+    빠져야 열이 어긋나지 않는다.
+  */
+  .table :is(th, td):nth-child(3) {
+    display: none;
+  }
+  .table .rank {
+    width: 40px;
+    font-size: 14px;
+  }
+  .table .top .rank {
+    font-size: 16px;
+  }
+  .table .team {
+    font-size: 14px;
+  }
+  .table .team small {
+    display: none;
+  }
+  /* 남은 세 열은 폭을 고정하지 않고 내용에 맡긴다 */
+  .table .usr {
+    width: auto;
+  }
+  .table .usr :global(.score) {
+    font-size: 18px;
+  }
+  .table .dt {
+    width: auto;
+    font-size: 12.5px;
+  }
+  .table .bd {
+    width: auto;
+  }
+
+  .finalBanner {
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+  .empty {
+    padding: 56px 16px;
+  }
+  .emptyBig {
+    font-size: 20px;
   }
 }
 

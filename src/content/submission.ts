@@ -185,7 +185,7 @@ export const AI_CHECKS = [
   },
   {
     key: "B5",
-    label: "계도기간이어도 표시 의무는 시행 중이고 최종 심사에 반영된다는 걸 알아요",
+    label: "계도기간이어도 표시 의무는 시행 중이고 2차 심사에 반영된다는 걸 알아요",
   },
 ] as const;
 
@@ -193,7 +193,7 @@ export const AI_CHECKS = [
   과금 유형.
 
   s1 폼에 있어야 하고 **첫 제출 뒤에는 바꿀 수 없다**(심사 기준서 v0.3 ·
-  스키마 `entries.charge_type` 주석). 최종 심사의 수익화 트랙(R3)이 이 값으로
+  스키마 `entries.charge_type` 주석). 2차 심사의 수익화 트랙(R3)이 이 값으로
   갈리므로, 지표를 본 뒤에 유리한 쪽으로 바꾸는 길을 막아야 한다.
 */
 export const CHARGE_TYPES = [

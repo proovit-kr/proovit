@@ -52,6 +52,8 @@ export interface LandingProps {
   seasonName: string;
   /** 시즌 슬러그. 리더보드·시즌 상세 주소가 전부 여기서 나온다. */
   seasonSlug: string;
+  /** 헤더 메뉴를 내보이는가. 판정은 서버의 `navMenuVisible`이 한다 */
+  showMenu: boolean;
   seasonTheme: string | null;
   /** 킥오프 시각(ISO). 미정이면 null. */
   startAt: string | null;
@@ -186,6 +188,8 @@ function SectionHead({
 export function Landing({
   seasonName,
   seasonSlug,
+  startAt,
+  showMenu,
   cta,
   preRegisterCount,
 }: LandingProps) {
@@ -337,6 +341,28 @@ export function Landing({
   const isScrollCta = cta.kind === "PREREGISTER";
   const heroCtaHref = ctaHref(cta.kind, seasonSlug);
 
+  /*
+    히어로 배지의 개막일. 시안은 「시즌 1, 2026.09.28 개막」이다.
+
+    ⚠️ **「일정 확정 중」을 하드코딩하고 있었다.** `startAt`을 props로 받아
+    놓고 쓰지 않아, 개막일이 DB에 들어와도 화면은 계속 미정이라고 말했다.
+    ver1 피드백이 짚은 바로 그 손해다 — 없는 것을 약속하는 것과 반대로,
+    **정해진 것을 안 정해진 것처럼 보이게 해서 신청을 미루게 만든다.**
+
+    값이 정말 없을 때만 「일정 확정 중」으로 떨어진다.
+  */
+  const openingLabel = startAt
+    ? `${new Intl.DateTimeFormat("ko-KR", {
+        timeZone: "Asia/Seoul",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+        .format(new Date(startAt))
+        .replace(/\. /g, ".")
+        .replace(/\.$/, "")} 개막`
+    : "일정 확정 중";
+
   /* 시안의 스탯 4칸. 앞 셋은 고정값이고 마지막만 DB에서 온다 */
   const stats = [
     { value: "20~40", unit: "팀", label: "모집 규모" },
@@ -350,6 +376,7 @@ export function Landing({
       <NavBar
         glitchLogo
         leaderboardHref={`/seasons/${seasonSlug}/leaderboard`}
+        showMenu={showMenu}
         cta={{
           href: heroCtaHref,
           label: ctaLabel,
@@ -364,7 +391,7 @@ export function Landing({
           <div>
             <Reveal>
               <Badge tone="lime" className={styles.cur}>
-                {seasonName}, 일정 확정 중
+                {seasonName}, {openingLabel}
               </Badge>
             </Reveal>
             <Reveal index={1} step={70}>
@@ -412,6 +439,20 @@ export function Landing({
             <Reveal index={4} step={70}>
               <form className={styles.form} onSubmit={onPreRegister} noValidate>
                 <div className={styles.formHead}>시즌 소식 받기</div>
+                {/*
+                  ⚠️ ver3가 순서를 뒤집었다 — 동의가 이메일 **앞**이다.
+                  ver2는 「이메일+신청 → 동의」였다. 무엇에 동의하는지 읽기 전에
+                  주소부터 적게 하지 않겠다는 뜻으로 읽힌다. DOM 순서가 곧 탭
+                  순서라 이 자리를 바꾸는 것은 모양이 아니라 흐름의 변경이다.
+                */}
+                <ConsentFields
+                  selectAll
+                  className={styles.formConsents}
+                  value={consent}
+                  onChange={setConsent}
+                  disabled={pending}
+                  showMissing={showMissingConsent}
+                />
                 <div className={styles.formRow}>
                   <Input
                     ref={emailRef}
@@ -426,15 +467,6 @@ export function Landing({
                   <Button type="submit" disabled={pending}>
                     {pending ? "보내는 중" : "신청"}
                   </Button>
-                </div>
-                <div>
-                  <ConsentFields
-                    className={styles.formConsents}
-                    value={consent}
-                    onChange={setConsent}
-                    disabled={pending}
-                    showMissing={showMissingConsent}
-                  />
                 </div>
                 {turnstileEnabled ? (
                   <Turnstile
@@ -592,7 +624,7 @@ export function Landing({
           <div className={styles.three}>
             {LANDING_BENEFITS.map((b, i) => (
               <Reveal key={b.no} index={i} step={100}>
-                <Card style={{ padding: 24 }}>
+                <Card>
                   <span className={styles.threeNo}>{b.no}</span>
                   <h4>{b.title}</h4>
                   <p>{b.desc}</p>
@@ -616,7 +648,7 @@ export function Landing({
           <div className={styles.three}>
             {LANDING_WHY.map((w, i) => (
               <Reveal key={w.no} index={i} step={100}>
-                <Card style={{ padding: 24 }}>
+                <Card>
                   <span className={styles.threeNo}>{w.no}</span>
                   <h4>{w.title}</h4>
                   <p>{w.desc}</p>
@@ -632,7 +664,7 @@ export function Landing({
             no="05"
             label="CRITERIA"
             title="심사 기준 공개"
-            lead="기준은 처음부터 전부 공개돼요. 숨겨진 점수는 없어요."
+            lead="평가 항목은 처음부터 공개돼요. 1차는 항목과 기준을, 2차는 산식과 배점까지 전부 공개해요."
           />
           <div className={styles.crit}>
             {LANDING_CRITERIA.map((c, i) => (
@@ -642,7 +674,7 @@ export function Landing({
                 index={i}
                 step={110}
               >
-                <Card style={{ padding: 24 }}>
+                <Card>
                   <div className={styles.critRound}>{c.round}</div>
                   <h4>{c.title}</h4>
                   <ul>

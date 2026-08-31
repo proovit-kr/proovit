@@ -53,12 +53,51 @@ export function resolveNavCta(season: Season): { href: string; label: string } {
   const kind = resolveLandingCta(season).kind;
   if (kind === "APPLY") return { href: "/apply", label: "참가 신청하기" };
   if (kind === "LEADERBOARD") {
-    return { href: `/seasons/${season.slug}/leaderboard`, label: "리더보드 보기" };
+    return {
+      href: `/seasons/${season.slug}/leaderboard`,
+      label: "리더보드 보기",
+    };
   }
   if (kind === "CLOSED") {
     return { href: `/seasons/${season.slug}`, label: "시즌 보기" };
   }
   return { href: "/?preregister=1", label: "사전 신청하기" };
+}
+
+/**
+ * 공개 헤더에 넘길 것 한 묶음. `<NavBar {...resolveNav(season)} />`.
+ *
+ * 한 줄로 묶어 두는 이유는 **빠뜨리지 않기 위해서**다. 화면마다 같은 다섯 줄을
+ * 손으로 적으면 새 화면이 생길 때마다 하나씩 어긋난다(실제로 이 리포에서
+ * 반복된 종류의 새어나감이다).
+ */
+export function resolveNav(season: Season | null): {
+  leaderboardHref?: string;
+  showMenu: boolean;
+  cta: { href: string; label: string };
+} {
+  if (!season) return { showMenu: false, cta: { href: "/", label: "홈" } };
+  return {
+    leaderboardHref: `/seasons/${season.slug}/leaderboard`,
+    showMenu: navMenuVisible(season),
+    cta: resolveNavCta(season),
+  };
+}
+
+/**
+ * 헤더 메뉴(리그 소개·리더보드·시즌 아카이브)를 내보이는가.
+ *
+ * ⚠️ **시안과 다르게 한 것**(2026-08-31 수연 지시). 시안은 공개 헤더에 늘
+ * 메뉴 셋을 두지만, 리그가 시작되기 전에는 워드마크만 남긴다 — 사전신청만
+ * 받는 동안 갈 곳이 랜딩 하나뿐이라 메뉴가 가리키는 데가 없다.
+ *
+ * 기준을 `recruiting`으로 잡는다. 「리그 시작」은 모집이 열리는 때이고,
+ * 그때 `/apply`가 열려 실제로 갈 곳이 생긴다. 리더보드는 레이스부터라
+ * 모집 구간에는 잠긴 화면을 가리키지만, 그건 시안이 이미 그리는 상태다
+ * (`.lb-empty`·잠김 안내).
+ */
+export function navMenuVisible(season: Season): boolean {
+  return phaseAtLeast(season.phase, SeasonPhase.recruiting);
 }
 
 /*

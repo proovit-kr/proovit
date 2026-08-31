@@ -9,7 +9,7 @@ import { NavBar } from "@/components/NavBar";
 import { PHASE_LABEL } from "@/content/dashboard";
 import { guardPage } from "@/lib/access";
 import { loadPublicSeason } from "@/lib/public-read";
-import { getCurrentSeason, resolveNavCta } from "@/lib/season";
+import { getCurrentSeason, resolveNav } from "@/lib/season";
 
 import styles from "./season.module.css";
 
@@ -56,8 +56,8 @@ function gateNumber(
   셋 이상인 시즌이 오면 그때는 stages에 이름 칸이 생겨야 한다 — 여기서 지어내지 않는다.
 */
 const GATE_LABEL: Record<number, string> = {
-  1: "1차 심사 — 사업성",
-  2: "최종 심사 — 실행",
+  1: "1차 심사(사업성)",
+  2: "2차 심사(최종)",
 };
 
 function gateLabel(no: number): string {
@@ -77,17 +77,13 @@ export default async function Page({
   if (!season) notFound();
 
   const action = cta(season.phase);
-  /* 헤더 버튼은 랜딩과 같은 판정을 쓴다(resolveNavCta) */
+  /* 헤더 버튼은 랜딩과 같은 판정을 쓴다(resolveNav) */
   const current = await getCurrentSeason();
   const scheduled = season.stages.some((stage) => stage.opensAt !== null);
 
   return (
     <main className={`page ${styles.page}`}>
-      <NavBar
-        leaderboardHref={
-          current ? `/seasons/${current.slug}/leaderboard` : undefined
-        }
-        cta={current ? resolveNavCta(current) : { href: "/", label: "홈" }}
+      <NavBar {...resolveNav(current)}
       />
       <div className={`container grow ${styles.wrap}`}>
         <header className={styles.head}>

@@ -136,6 +136,11 @@ for (const w of WIDTHS) {
   const specPairs = PAIRS.map(([n, s, , x]) => [n, s, x]);
   const implPairs = PAIRS.map(([n, , i, x]) => [n, i, x]);
 
+  /*
+    ⚠️ 글자 대조가 없다. 시안의 컴포넌트 갤러리와 우리 `/dev/components`는
+    각자 다른 예시 문구로 같은 부품을 늘어놓은 진열장이라, 글자가 다른 것이
+    정상이다. 부품의 **값**이 같은지가 이 프로브의 일이다.
+  */
   const spec = await withPage(async (p) => {
     await p.goto(SPEC_URL);
     await p.resize(w);
