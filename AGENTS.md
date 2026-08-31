@@ -93,6 +93,24 @@ CDP로 붙는 하네스가 `scripts/design-diff/`에 있다 — `cdp.mjs`가 드
 `globals.mjs`가 본보기다. 새 섹션은 `globals.mjs`를 복사해 `PROBE`만
 갈아 끼운다. 실행법은 그 파일 머리 주석에 있다.
 
+### 모션 감축 검사
+
+`prefers-reduced-motion: reduce`는 어지럼증·전정기관 장애가 있는 사람이 켜는
+설정이다. 켜 두었는데 화면이 계속 움직이면 쓸 수 없는 화면이 된다.
+
+```
+node scripts/design-diff/motion.mjs
+```
+
+⚠️ **전이(transition)까지 끄지 말 것.** `*`에 일괄로 `transition-duration`을
+누르면 편하지만 시안보다 과하다 — 시안은 기능마다 `animation: none`만 끄고
+전이는 남긴다. 취지는 「움직임을 줄이는 것」이지 「모든 변화를 없애는 것」이
+아니고, 끄면 버튼이 툭툭 바뀌어 오히려 거칠어진다.
+
+일괄 규칙이 없으므로 **새 애니메이션은 그 모듈의
+`@media (prefers-reduced-motion: reduce)` 블록에 직접 추가해야 한다.**
+빠뜨리면 이 검사가 잡는다.
+
 ### 한글 글꼴 검사
 
 시안의 `--mono`(`JetBrains Mono, SF Mono, Consolas, monospace`)에는 **한글
