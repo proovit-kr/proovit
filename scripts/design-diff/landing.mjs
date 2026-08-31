@@ -78,7 +78,11 @@ const PAIRS = [
   ["consent 보기", S + ".ld-form .consents a.see", '[class*="ConsentFields-module"][class*="toggle"]',
     ["font-family"], ["display", "text-align", "width"]],
   ["live", S + ".ld-live", "live"],
+  /* 폼 안의 신청 버튼. 시안이 인라인으로 좁은 여백을 준다 */
+  ["신청 버튼", S + ".ld-form .row .btn", '[class*="__formRow"] > *:last-child'],
   ["live cap", S + ".ld-live .cap", "liveCap"],
+  /* 상자만 재면 안의 뱃지가 왼쪽에 붙어 있어도 통과한다(실제로 그랬다) */
+  ["live 뱃지", S + ".ld-live .cap .badge", '[class*="__liveCap"] > *:last-child', [], ["width"]],
   ["slot", S + ".ld-live .slot", "slot"],
   ["slot bar", S + ".ld-live .slot .bar", "slotBar"],
   ["slot rk", S + ".ld-live .slot .rk", "slotRank"],
@@ -108,8 +112,11 @@ const PAIRS = [
   ["rm-d", S + ".rm-d", "rmD"],
   ["rm-legend", S + ".rm-legend", "rmLegend"],
   ["three", S + ".ld-3", "three"],
+  /* Reveal이 감싸지 않고 자식에 붙으므로 카드가 곧 그리드의 자식이다 */
+  ["three 카드", S + ".ld-3 .card", '[class*="__three"] > *', [], ["width", "height"]],
   ["three n", S + ".ld-3 .n", "threeNo"],
   ["crit", S + ".ld-crit", "crit"],
+  ["crit 카드", S + ".ld-crit .card", '[class*="__crit"] > *', [], ["width", "height"]],
   ["crit rd", S + ".ld-crit .rd", "critRound"],
   ["spec", S + ".ld-spec", "spec"],
   ["faq", S + ".ld-faq", "faq"],

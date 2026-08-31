@@ -624,7 +624,7 @@ export function Landing({
           <div className={styles.three}>
             {LANDING_BENEFITS.map((b, i) => (
               <Reveal key={b.no} index={i} step={100}>
-                <Card style={{ padding: 24 }}>
+                <Card>
                   <span className={styles.threeNo}>{b.no}</span>
                   <h4>{b.title}</h4>
                   <p>{b.desc}</p>
@@ -648,7 +648,7 @@ export function Landing({
           <div className={styles.three}>
             {LANDING_WHY.map((w, i) => (
               <Reveal key={w.no} index={i} step={100}>
-                <Card style={{ padding: 24 }}>
+                <Card>
                   <span className={styles.threeNo}>{w.no}</span>
                   <h4>{w.title}</h4>
                   <p>{w.desc}</p>
@@ -674,7 +674,7 @@ export function Landing({
                 index={i}
                 step={110}
               >
-                <Card style={{ padding: 24 }}>
+                <Card>
                   <div className={styles.critRound}>{c.round}</div>
                   <h4>{c.title}</h4>
                   <ul>
