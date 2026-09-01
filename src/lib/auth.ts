@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Google from "next-auth/providers/google";
 import Kakao from "next-auth/providers/kakao";
+import type { KakaoProfile } from "next-auth/providers/kakao";
 
 import { ProovitAdapter } from "@/lib/auth-adapter";
 import { isProviderConfigured } from "@/lib/auth-providers";
@@ -14,7 +15,34 @@ import { prisma } from "@/lib/prisma";
 function configuredProviders(): Provider[] {
   const providers: Provider[] = [];
 
-  if (isProviderConfigured("kakao")) providers.push(Kakao);
+  if (isProviderConfigured("kakao")) {
+    providers.push(
+      Kakao({
+        /*
+          기본 profile()은 id·name·email·image만 넘긴다. 그대로 두면
+          emailVerified가 비어서 **카카오로 가입한 사람 전원이 미인증**이 된다
+          (구글에서 같은 자리를 놓쳤던 것과 똑같은 함정이다. 아래 linkAccount 주석 참고).
+
+          카카오는 `kakao_account.is_email_verified`로 인증 여부를 준다.
+          is_email_valid는 「형식이 유효한가」라서 인증 여부가 아니다 — 섞지 말 것.
+
+          ⚠️ scope는 여기서 지정하지 않는다. next-auth의 카카오 제공자는
+          authorize 요청에 scope를 비워 보내고, 카카오는 **콘솔의 동의항목 설정**을
+          그대로 따른다. 이메일은 콘솔에서 필수 동의로 열어 두었다(앱 1541124).
+        */
+        profile(profile: KakaoProfile) {
+          const account = profile.kakao_account;
+          return {
+            id: profile.id.toString(),
+            name: account?.profile?.nickname,
+            email: account?.email,
+            image: account?.profile?.profile_image_url,
+            emailVerified: account?.is_email_verified ? new Date() : null,
+          };
+        },
+      }),
+    );
+  }
 
   if (isProviderConfigured("google")) {
     providers.push(
@@ -87,7 +115,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       **강제로 덮어쓴다**(@auth/core handle-login.js). 그 필드는 Email 제공자 전용이라는
       전제로 짜여 있어서다. 그래서 계정이 연결된 직후인 이 이벤트에서 바로잡는다.
 
-      안 하면 users.email_verified_at이 영원히 비어서 **구글로 가입한 사람 전원이
+      안 하면 users.email_verified_at이 영원히 비어서 **소셜로 가입한 사람 전원이
       미인증 상태**가 된다. 나중에 인증을 조건으로 거는 화면이 생기면 한 명도 통과 못 한다.
 
       linkAccount는 계정이 **새로 연결될 때만** 불린다. 재로그인마다 쓰기가 생기지 않는다.
