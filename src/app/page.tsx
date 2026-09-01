@@ -1,3 +1,6 @@
+import type { Metadata } from "next";
+
+import { OrganizationJsonLd } from "@/components/JsonLd";
 import { Landing } from "@/components/Landing";
 import { prisma } from "@/lib/prisma";
 import {
@@ -20,6 +23,21 @@ import {
 */
 export const revalidate = 60;
 
+/*
+  정규 URL.
+
+  ⚠️ 랜딩만 canonical이 특히 필요하다. 헤더·시즌 상세의 사전신청 CTA가
+  `/?preregister=1`로 걸려 있어서(season.ts `resolveNavCta`) 같은 문서가
+  주소 둘로 돌아다닌다. 쿼리만 다른 중복으로 잡히면 유입이 두 주소로 갈린다.
+  나머지 공개 화면도 같은 이유로 각자 자기 주소를 못박는다 — 광고·메일에서
+  붙는 UTM 파라미터가 전부 같은 모양의 중복을 만든다.
+
+  상대 경로로 적으면 layout.tsx의 `metadataBase`가 앞에 붙는다.
+*/
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
+
 export default async function Home() {
   const season = await getCurrentSeason();
 
@@ -39,14 +57,17 @@ export default async function Home() {
   });
 
   return (
-    <Landing
-      seasonName={season.title}
-      seasonSlug={season.slug}
-      showMenu={navMenuVisible(season)}
-      seasonTheme={season.theme}
-      startAt={season.startsAt?.toISOString() ?? null}
-      cta={resolveLandingCta(season)}
-      preRegisterCount={preRegisterCount}
-    />
+    <>
+      <OrganizationJsonLd />
+      <Landing
+        seasonName={season.title}
+        seasonSlug={season.slug}
+        showMenu={navMenuVisible(season)}
+        seasonTheme={season.theme}
+        startAt={season.startsAt?.toISOString() ?? null}
+        cta={resolveLandingCta(season)}
+        preRegisterCount={preRegisterCount}
+      />
+    </>
   );
 }

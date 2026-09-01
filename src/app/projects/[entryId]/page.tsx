@@ -63,10 +63,12 @@ export async function generateMetadata({
     title: `${entry.ideaTitle} · ${entry.teamName}`,
     description:
       entry.ideaSummary ?? `${season?.title}에 참가한 ${entry.teamName}의 참가작입니다.`,
+    alternates: { canonical: `/projects/${entryId}` },
     openGraph: {
       title: `${entry.ideaTitle} · ${entry.teamName}`,
       description: entry.ideaSummary ?? undefined,
       type: "article",
+      url: `/projects/${entryId}`,
     },
   };
 }

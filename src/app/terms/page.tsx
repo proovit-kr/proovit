@@ -17,6 +17,9 @@ import { TERMS } from "@/content/terms";
 
 export const metadata: Metadata = {
   title: "이용약관",
+  description:
+    "PROOVIT 서비스 이용 조건과 이용자·운영자의 권리와 의무를 정한 약관입니다.",
+  alternates: { canonical: "/terms" },
 };
 
 export default async function Page() {

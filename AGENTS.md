@@ -107,6 +107,24 @@ CDP로 붙는 하네스가 `scripts/design-diff/`에 있다 — `cdp.mjs`가 드
 
 맥의 주소는 바뀐다: `ipconfig getifaddr en0`
 
+### OG 공유 카드
+
+공유 카드(`src/app/opengraph-image.png`)는 **커밋된 PNG**다. 빌드 때 다시 그리지
+않는다 — CI에 Chrome이 없고, 폰트를 네트워크로 받는 빌드는 막힌 CI에서 통째로
+실패한다(`layout.tsx`가 `next/font/google`을 안 쓰는 것과 같은 이유).
+
+문구나 색을 고칠 일이 생기면 원본 HTML을 고치고 다시 뜬다.
+
+```
+node scripts/design-diff/og-card.mjs   # scripts/design-diff/og-card.html → PNG
+```
+
+⚠️ **카드에 시즌명·순위·팀명을 넣지 않는다.** 정적 PNG라 값이 바뀌어도 안
+따라오는데 공유 카드는 캐시가 길다 — 틀린 숫자가 오래 남는다. 가변 텍스트가
+필요해지는 때는 `/projects/:id`가 열릴 때(레이스 페이즈)이고, 그때 그 라우트에만
+`opengraph-image.tsx`를 얹는다. `next/og`를 쓰려면 Pretendard 서브셋을 먼저
+떠야 한다 — satori가 woff2를 못 읽고, 우리가 가진 OTF는 1.5MB다.
+
 ### 모션 감축 검사
 
 `prefers-reduced-motion: reduce`는 어지럼증·전정기관 장애가 있는 사람이 켜는

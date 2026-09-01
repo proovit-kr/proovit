@@ -27,6 +27,7 @@ export const metadata: Metadata = {
     "PROOVIT 시즌의 참가 자격, 제출, 지표 검증, 심사, 시상, 지식재산권과 제재를 정한 규칙입니다.",
   /* 참가 전에 읽고 판단하는 문서라 검색에 잡혀야 한다 */
   robots: { index: true, follow: true },
+  alternates: { canonical: "/rules" },
 };
 
 function Table({ table }: { table: PolicyTable }) {
