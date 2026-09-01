@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { AwardType, DeployStatus, EntryStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
@@ -32,8 +34,15 @@ export type PublicSeason = {
   tracks: { name: string; description: string | null }[];
 };
 
-/** 공개용 시즌 한 건. draft는 운영자만 보는 상태라 공개 조회에서 뺀다 */
-export async function loadPublicSeason(
+/**
+ * 공개용 시즌 한 건. draft는 운영자만 보는 상태라 공개 조회에서 뺀다.
+ *
+ * `cache()`로 감싼 이유는 **한 요청에서 두 번 불리기 때문이다** —
+ * `generateMetadata()`가 제목에 시즌명을 넣으려고 한 번, 페이지 본문이 한 번.
+ * 감싸지 않으면 관전 트래픽마다 같은 조회가 두 배로 나간다. React의 요청
+ * 단위 메모라 요청이 끝나면 비고, 요청끼리 섞이지 않는다.
+ */
+export const loadPublicSeason = cache(async function loadPublicSeason(
   slug: string,
 ): Promise<PublicSeason | null> {
   const season = await prisma.season.findFirst({
@@ -63,7 +72,7 @@ export async function loadPublicSeason(
     },
   });
   return season;
-}
+});
 
 export type LeaderboardRow = {
   entryId: string;
@@ -391,4 +400,25 @@ export async function loadPublicEntry(
     /* 집계가 하나도 없으면 평평한 선 대신 아무것도 안 그린다 */
     recentVisitors: recentVisitors.some((v) => v > 0) ? recentVisitors : [],
   };
+}
+
+/**
+ * 사이트맵이 쓸 참가작 목록.
+ *
+ * 화면용 로더(`loadPublicEntry`)를 N번 부르지 않는다 — 사이트맵 한 장에
+ * 지표·스냅샷 조회가 팀 수만큼 딸려 붙는다. 여기서는 주소를 만드는 데 필요한
+ * 두 칸만 읽는다.
+ *
+ * ⚠️ `status: active`만 넣는다. 실격·자진포기 팀의 참가작 페이지는 리더보드에서
+ * 빠지는 것과 같은 이유로 사이트맵에도 없어야 한다 — 우리가 검색엔진에
+ * 「이 주소를 색인해 달라」고 먼저 내미는 자리다.
+ */
+export async function listPublicEntries(
+  seasonId: string,
+): Promise<{ id: string; updatedAt: Date }[]> {
+  return prisma.entry.findMany({
+    where: { seasonId, status: EntryStatus.active },
+    orderBy: { appliedAt: "asc" },
+    select: { id: true, updatedAt: true },
+  });
 }

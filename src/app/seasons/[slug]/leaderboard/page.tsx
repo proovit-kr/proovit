@@ -32,9 +32,38 @@ import styles from "./leaderboard.module.css";
   참가자 이름은 어디에도 넣지 않는다.
 */
 
-export const metadata: Metadata = {
-  title: "리더보드",
-};
+/*
+  시즌명이 들어간 제목. 리더보드는 시즌 중 가장 많이 공유되는 주소라
+  「리더보드 | PROOVIT」 하나로 두면 어느 시즌 것인지 링크만 봐서는 모른다.
+
+  ⚠️ **순위나 팀명을 설명에 넣지 않는다.** 이 화면이 순위를 계산하지 않는 것과
+  같은 이유이고(파일 머리 주석), 설명은 검색 결과에 캐시로 오래 남아서 스냅샷이
+  갱신돼도 옛 숫자가 그대로 돌아다닌다.
+*/
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const season = await loadPublicSeason(slug);
+  if (!season) return { title: "리더보드" };
+
+  const title = `${season.title} 리더보드`;
+  const description = `${season.title} 참가팀의 유효 이용자 수와 매출 지표로 매긴 순위입니다.`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: `/seasons/${season.slug}/leaderboard` },
+    openGraph: {
+      type: "website",
+      title,
+      description,
+      url: `/seasons/${season.slug}/leaderboard`,
+    },
+  };
+}
 
 const DATE = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul",

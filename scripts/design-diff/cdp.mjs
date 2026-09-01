@@ -18,7 +18,7 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** 리포 뿌리. scripts/design-diff/ 에서 두 칸 위다 */
-const REPO = resolve(fileURLToPath(import.meta.url), "../../..");
+export const REPO = resolve(fileURLToPath(import.meta.url), "../../..");
 
 const HOST = process.env.CDP_HOST ?? "http://127.0.0.1:9222";
 

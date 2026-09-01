@@ -24,9 +24,39 @@ import styles from "./season.module.css";
   넣으면 그걸 보고 참가자가 자기 일정을 잡는다.
 */
 
-export const metadata: Metadata = {
-  title: "시즌",
-};
+/*
+  제목·설명에 시즌명이 들어가야 한다. 정적 `metadata`로 두면 시즌이 무엇이든
+  검색 결과와 공유 카드가 「시즌 | PROOVIT」 하나로 나온다 — 시즌마다 남는
+  아카이브인데 서로 구분이 안 된다.
+
+  `loadPublicSeason`은 `cache()`로 감싸 두어 본문과 조회를 나눠 쓴다.
+*/
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const season = await loadPublicSeason(slug);
+  /* 없는 시즌은 본문이 404를 낸다. 제목만 무난한 것으로 두고 넘긴다 */
+  if (!season) return { title: "시즌" };
+
+  const description = season.theme
+    ? `${season.title} — ${season.theme}. 일정과 심사 게이트, 참가 방법을 확인하세요.`
+    : `${season.title}의 일정과 심사 게이트, 참가 방법을 확인하세요.`;
+
+  return {
+    title: season.title,
+    description,
+    alternates: { canonical: `/seasons/${season.slug}` },
+    openGraph: {
+      type: "website",
+      title: season.title,
+      description,
+      url: `/seasons/${season.slug}`,
+    },
+  };
+}
 
 const DATE = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul",

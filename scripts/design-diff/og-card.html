@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<!--
+  OG 공유 카드의 **원본**. 여기서 그린 것을 헤드리스 Chrome으로 떠서
+  `src/app/opengraph-image.png`으로 굳힌다(og-card.mjs).
+
+  ⚠️ 값은 전부 시안에서 온 것이다. 새로 짓지 않는다 —
+    표면·글자·포인트  globals.css :root
+    워드마크          NavBar.module.css .wm / .wmCheck
+    제목·부제         Landing.module.css .title / .sub
+    배지              Badge.module.css .badge + .lime
+    배경 두 겹        Landing.module.css .hero::before / .hero::after
+  화면 크기(54px 제목)를 1200×630 카드로 키우면서 배율만 곱했다.
+
+  ⚠️ 시즌명·순위·팀명을 넣지 않는다. 정적 PNG라 값이 바뀌어도 안 따라오고,
+  공유 카드는 캐시가 길어서 틀린 숫자가 오래 남는다. 가변 텍스트가 필요해지는
+  때는 `/projects/:id`가 열릴 때이고, 그때 그 라우트에만 동적 카드를 얹는다.
+-->
+<style>
+  /* 로컬 렌더 전용 — node_modules에서 바로 읽는다. 번들에 들어가지 않는다 */
+  @import url("../../node_modules/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css");
+
+  :root {
+    --bg: #0a101c;
+    --text: #eaeef6;
+    --muted: #a7b1c6;
+    --accent: #c8ff3d;
+    --accent-dim: rgba(200, 255, 61, 0.12);
+    --font: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1200px;
+    height: 630px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* 시안 .hero::before — 라임과 블루를 옅게 깔아 위쪽에 깊이를 만든다 */
+  .glow {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(760px 420px at 14% 6%, rgba(200, 255, 61, 0.09), transparent 62%),
+      radial-gradient(700px 380px at 88% 0%, rgba(111, 179, 255, 0.11), transparent 62%);
+  }
+
+  /*
+    시안 .hero::after — 46px 잔 격자 위에 184px 굵은 격자.
+    카드에서는 흐르지 않는다(정지 이미지라 애니메이션이 의미 없다).
+    마스크로 오른쪽 아래를 지워 글자 쪽이 가장 진하게 남는다.
+  */
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(234, 238, 246, 0.09) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(234, 238, 246, 0.09) 1px, transparent 1px),
+      linear-gradient(rgba(200, 255, 61, 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200, 255, 61, 0.07) 1px, transparent 1px);
+    background-size: 46px 46px, 46px 46px, 184px 184px, 184px 184px;
+    -webkit-mask-image: radial-gradient(900px 560px at 26% 26%, #000 38%, transparent 86%);
+  }
+
+  .card {
+    position: relative;
+    height: 100%;
+    padding: 76px 84px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* NavBar .wm — 18px를 카드 배율로 키웠다. 자간·굵기는 그대로 */
+  .wm {
+    font-weight: 800;
+    font-size: 30px;
+    letter-spacing: 0.06em;
+  }
+  .wm em { color: var(--accent); font-style: normal; }
+
+  /* Badge .badge + .lime — 11.5px를 배율로 키웠다 */
+  .badge {
+    align-self: flex-start;
+    margin-top: 44px;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    border-radius: 99px;
+    padding: 7px 18px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(200, 255, 61, 0.35);
+  }
+
+  /* Landing .title — 54px → 88px. line-height·letter-spacing·색은 그대로 */
+  h1 {
+    margin-top: 24px;
+    font-size: 88px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.028em;
+    /*
+      ⚠️ 둘째 줄에 라임을 칠하지 않는다. 시안의 `.glitch`는 글자색을 안 바꾸고
+      의사요소 두 겹(라임·블루)을 0.42초 터뜨렸다 지운다 — 평상시 색은 이
+      한 가지다. 정지 이미지에 라임을 굳히면 시안에 없는 상태가 정본이 된다.
+    */
+    color: #f3f6fc;
+  }
+
+  /* Landing .sub — 17px → 27px */
+  .sub {
+    margin-top: 22px;
+    color: var(--muted);
+    font-size: 26px;
+    line-height: 1.6;
+    /* 한 줄에 담는다. 접히면 마지막 「요.」만 떨어져 카드가 지저분해진다 */
+    white-space: nowrap;
+  }
+
+  .foot {
+    margin-top: auto;
+    color: var(--muted);
+    font-size: 22px;
+    letter-spacing: 0.04em;
+  }
+</style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="grid"></div>
+  <div class="card">
+    <div class="wm">PROO<em>✓</em>IT</div>
+    <div class="badge">AI 빌드 시즌제 리그</div>
+    <h1>말이 아니라,<br />지표로 증명하라</h1>
+    <p class="sub">아이디어를 실제 유저와 매출 데이터로 바꾸는 AI 빌드 리그예요.</p>
+    <div class="foot">proovit.kr</div>
+  </div>
+</body>
+</html>

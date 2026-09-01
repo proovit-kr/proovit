@@ -23,6 +23,10 @@ import { PRIVACY_POLICY, type PolicyBlock } from "@/content/privacy";
 
 export const metadata: Metadata = {
   title: "개인정보처리방침",
+  /* 없으면 루트의 리그 소개 문구가 그대로 붙는다 — 검색 결과에 그게 나온다 */
+  description:
+    "PROOVIT이 수집하는 개인정보의 항목과 이용 목적, 보관 기간, 제3자 제공과 이용자의 권리를 안내합니다.",
+  alternates: { canonical: "/privacy" },
 };
 
 function Blocks({ blocks }: { blocks: PolicyBlock[] }) {
