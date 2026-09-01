@@ -65,6 +65,15 @@ const pairs = (mode) => {
     ["sso ic", S + ".sso .btn-kakao .ic", '[class*="__ssoMark"]',
       ["stroke-width", "height"]],
     ["terms", S + ".auth-card .terms", "terms"],
+    /*
+      ver3가 「이용약관」·「개인정보처리방침」을 링크로 만들었다. 상자만 재면
+      안의 링크가 없어도 통과하므로(푸터·CTA 버튼과 같은 부류) 직접 잰다.
+
+      ⚠️ 시안의 첫 링크는 「이용약관」이고 우리는 「개인정보처리방침」이다 —
+      약관 본문이 확정되기 전까지 링크하지 않기로 했다(content/terms.ts).
+      값이 아니라 글자가 다른 것이라 아래 글자 대조에서 예외로 뺀다.
+    */
+    ["terms a", S + ".auth-card .terms a", '[class*="__terms"] a', [], ["width"]],
     ["swap", S + ".auth-card .swap" + only, "swap"],
     ["swap a", S + ".auth-card .swap" + only + " a", '[class*="__swap"] a'],
     ...(mode === "signup"
@@ -155,6 +164,37 @@ let total = 0;
 const TEXT_SPEC = (mode) => `#scr-auth[data-state="${mode}"] .auth-card`;
 const TEXT_IMPL = '[class*="login-module"][class*="__card"]';
 
+/*
+  hover로만 갈리는 것. 이 화면 고유의 규칙은 둘이다 —
+  `.auth-card .terms a:hover`와 `.consents a.see:hover`. 둘 다 ver3 신설이라
+  값 대조만으로는 빠뜨렸는지 알 수 없다.
+*/
+const HOVER_CSS = ["color", "border-bottom-color", "background-color"];
+const HOVER = (mode) => [
+  ["terms a", `#scr-auth[data-state="${mode}"] .auth-card .terms a`, '[class*="__terms"] a'],
+  ...(mode === "signup"
+    ? [["보기", `#scr-auth[data-state="${mode}"] .consents a.see`,
+        '[class*="ConsentFields-module"][class*="__toggle"]']]
+    : []),
+];
+
+async function hoverValues(p, mode, side) {
+  const out = {};
+  for (const [name, specSel, implSel] of HOVER(mode)) {
+    const sel = side === "spec" ? specSel : implSel;
+    await p.hover(sel);
+    const v = await p.eval(`(() => {
+      const cs = getComputedStyle(document.querySelector(${JSON.stringify(sel)}));
+      const o = {};
+      for (const k of ${JSON.stringify(HOVER_CSS)}) o[k] = cs.getPropertyValue(k);
+      return o;
+    })()`);
+    for (const [k, val] of Object.entries(v)) out[`${name}:hover ${k}`] = val;
+  }
+  await p.hover();
+  return out;
+}
+
 for (const mode of ["login", "signup"]) {
   for (const w of WIDTHS) {
     const list = pairs(mode);
@@ -171,6 +211,7 @@ for (const mode of ["login", "signup"]) {
       const r = await p.eval(run(list, "spec"));
       await p.shot(`${OUT}/spec-${mode}-${w}.png`);
       r.text = await p.eval(textNodes(TEXT_SPEC(mode)));
+      Object.assign(r.out, await hoverValues(p, mode, "spec"));
       return r;
     });
     const impl = await withPage(async (p) => {
@@ -179,6 +220,7 @@ for (const mode of ["login", "signup"]) {
       const r = await p.eval(run(list, "impl"));
       await p.shot(`${OUT}/impl-${mode}-${w}.png`);
       r.text = await p.eval(textNodes(TEXT_IMPL));
+      Object.assign(r.out, await hoverValues(p, mode, "impl"));
       return r;
     });
 
@@ -187,7 +229,15 @@ for (const mode of ["login", "signup"]) {
     for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
     total += spec.missing.length + impl.missing.length;
     total += diffTable(`${mode} ${w}px — 인증`, spec.out, impl.out);
-    total += diffText(spec.text, impl.text, { label: mode });
+    /*
+      ⚠️ 「이용약관」은 아는 차이다. 시안은 링크로 그리지만 우리는 본문이
+      확정될 때까지 글자로 둔다 — 그래서 시안 쪽에만 있는 것으로 잡힌다.
+      TERMS에 값이 들어오면 이 예외를 지운다.
+    */
+    total += diffText(spec.text, impl.text, {
+      ignore: [/^이용약관$/],
+      label: mode,
+    });
   }
 }
 console.log(`\n═══════════════════════════\n합계 불일치 ${total}건`);

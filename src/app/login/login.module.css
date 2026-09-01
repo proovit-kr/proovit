@@ -100,6 +100,20 @@
   font-size: 13px;
   color: var(--faint);
 }
+/*
+  ver3가 「이용약관」과 「개인정보처리방침」을 링크로 만들었다. ver2는 갈 곳
+  없는 글자였고, ver1 피드백이 「인증 화면이 두 문서에 동의하게 된다고
+  말하는데 갈 곳이 없다」고 짚은 자리다.
+*/
+.terms a {
+  color: var(--muted);
+  border-bottom: 1px dashed var(--line-strong);
+  cursor: pointer;
+}
+.terms a:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
 .swap {
   margin-top: 10px;

@@ -11,6 +11,7 @@ import ConsentFields, {
   type ConsentState,
 } from "@/components/ConsentFields";
 import { SIGNUP_CONSENTS } from "@/content/consent";
+import { TERMS } from "@/content/terms";
 import type { AuthProviderInfo } from "@/lib/auth-providers";
 
 import styles from "./login.module.css";
@@ -143,8 +144,17 @@ export function AuthCard({
           />
         ) : null}
 
+        {/*
+          ⚠️ 「이용약관」은 본문이 확정되기 전까지 링크하지 않는다. `/terms`가
+          404를 내는 동안 링크만 내보내면 고장으로 보인다 — 푸터와 같은 판단이고
+          이유는 `content/terms.ts`에 있다. 값이 들어오면 저절로 링크가 된다.
+
+          개인정보처리방침은 반대다. 법이 요구하는 연결화면이라 항상 건다.
+        */}
         <p className={styles.terms}>
-          계속하면 이용약관과 개인정보처리방침에 동의하게 돼요.
+          계속하면{" "}
+          {TERMS ? <Link href="/terms">이용약관</Link> : "이용약관"}과{" "}
+          <Link href="/privacy">개인정보처리방침</Link>에 동의하게 돼요.
         </p>
         <p className={styles.swap}>
           {copy.swap.text} <Link href={copy.swap.href}>{copy.swap.label}</Link>
