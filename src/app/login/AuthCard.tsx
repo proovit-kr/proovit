@@ -11,7 +11,6 @@ import ConsentFields, {
   type ConsentState,
 } from "@/components/ConsentFields";
 import { SIGNUP_CONSENTS } from "@/content/consent";
-import { TERMS } from "@/content/terms";
 import type { AuthProviderInfo } from "@/lib/auth-providers";
 
 import styles from "./login.module.css";
@@ -145,15 +144,16 @@ export function AuthCard({
         ) : null}
 
         {/*
-          ⚠️ 「이용약관」은 본문이 확정되기 전까지 링크하지 않는다. `/terms`가
-          404를 내는 동안 링크만 내보내면 고장으로 보인다 — 푸터와 같은 판단이고
-          이유는 `content/terms.ts`에 있다. 값이 들어오면 저절로 링크가 된다.
+          ⚠️ **`/terms`는 아직 404다**(본문 미확정, `content/terms.ts`). 그래도
+          링크한다 — 2026-09-03 수연 판단. 사전신청 구간에는 이 화면으로 오는
+          길이 어디에도 없어서(헤더 메뉴를 안 그리고 푸터에도 없다) 404를 볼
+          사람이 없고, 시안대로 두 링크를 나란히 두는 편이 낫다.
 
-          개인정보처리방침은 반대다. 법이 요구하는 연결화면이라 항상 건다.
+          ⚠️ **푸터는 다르다.** 랜딩에 실제로 보이므로 약관 링크를 아직 걸지
+          않는다(Footer.tsx). 같은 404라도 이쪽은 사람이 누른다.
         */}
         <p className={styles.terms}>
-          계속하면{" "}
-          {TERMS ? <Link href="/terms">이용약관</Link> : "이용약관"}과{" "}
+          계속하면 <Link href="/terms">이용약관</Link>과{" "}
           <Link href="/privacy">개인정보처리방침</Link>에 동의하게 돼요.
         </p>
         <p className={styles.swap}>

@@ -68,10 +68,6 @@ const pairs = (mode) => {
     /*
       ver3가 「이용약관」·「개인정보처리방침」을 링크로 만들었다. 상자만 재면
       안의 링크가 없어도 통과하므로(푸터·CTA 버튼과 같은 부류) 직접 잰다.
-
-      ⚠️ 시안의 첫 링크는 「이용약관」이고 우리는 「개인정보처리방침」이다 —
-      약관 본문이 확정되기 전까지 링크하지 않기로 했다(content/terms.ts).
-      값이 아니라 글자가 다른 것이라 아래 글자 대조에서 예외로 뺀다.
     */
     ["terms a", S + ".auth-card .terms a", '[class*="__terms"] a', [], ["width"]],
     ["swap", S + ".auth-card .swap" + only, "swap"],
@@ -229,15 +225,7 @@ for (const mode of ["login", "signup"]) {
     for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
     total += spec.missing.length + impl.missing.length;
     total += diffTable(`${mode} ${w}px — 인증`, spec.out, impl.out);
-    /*
-      ⚠️ 「이용약관」은 아는 차이다. 시안은 링크로 그리지만 우리는 본문이
-      확정될 때까지 글자로 둔다 — 그래서 시안 쪽에만 있는 것으로 잡힌다.
-      TERMS에 값이 들어오면 이 예외를 지운다.
-    */
-    total += diffText(spec.text, impl.text, {
-      ignore: [/^이용약관$/],
-      label: mode,
-    });
+    total += diffText(spec.text, impl.text, { label: mode });
   }
 }
 console.log(`\n═══════════════════════════\n합계 불일치 ${total}건`);
