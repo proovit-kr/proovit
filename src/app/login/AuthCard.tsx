@@ -95,7 +95,7 @@ export function AuthCard({
           사람은 그것도 안 통한다.
 
           워드마크를 눌러 첫 화면으로 가는 것은 널리 쓰이는 관례이고,
-          모양은 그대로 둔다(아래 `.wm`이 링크의 기본 색·밑줄을 지운다).
+          모양은 그대로 둔다 — 누르는 자리도 글자 폭에만 둔다(login.module.css).
         */}
         <Link href="/" className={styles.wm} aria-label="PROOVIT 첫 화면">
           PROO<em className={styles.wmCheck}>✓</em>IT

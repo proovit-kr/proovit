@@ -49,7 +49,14 @@ const pairs = (mode) => {
     */
     ["wrap", S + ".wrap", "wrap", [], ["min-height"]],
     ["card", S + ".auth-card", "card"],
-    ["wm", S + ".auth-card .wm", "wm"],
+    /*
+      ⚠️ 폭과 좌우 마진을 비교하지 않는다. 시안의 워드마크는 `<div>`라 카드
+      폭 전체(346px)를 차지하지만, 우리는 첫 화면으로 가는 `<a>`라 **글자
+      폭만큼만**(122px) 잡고 `margin-inline: auto`로 가운데에 둔다 — 블록으로
+      두면 글자에서 한참 떨어진 여백을 눌러도 화면이 넘어간다.
+      가운데에 오는 것은 아래 ▸가운데가 확인한다.
+    */
+    ["wm", S + ".auth-card .wm", "wm", [], ["width", "margin-left", "margin-right"]],
     ["wm em", S + ".auth-card .wm em", "wmCheck"],
     ["h2", S + ".auth-card h2" + only, "title"],
     ["sub", S + ".auth-card .sub" + only, "sub"],
@@ -118,6 +125,17 @@ const probe = () => `(() => {
     if (disp === "grid" || disp === "flex") {
       /* display:none인 자식(숨은 input 등)은 상자를 만들지 않으므로 세지 않는다 */
       const shown = [...el.children].filter(c => getComputedStyle(c).display !== "none");
+    /*
+      부모 안에서 가운데인가. 폭을 비교하지 않는 요소(워드마크)가 제자리에
+      있는지는 값이 아니라 뜻으로 봐야 한다.
+    */
+    if (name === "wm") {
+      const r = el.getBoundingClientRect();
+      const pr = el.parentElement.getBoundingClientRect();
+      out[name + " ▸가운데"] =
+        Math.abs((r.left - pr.left) - (pr.right - r.right)) < 2 ? "가운데" : "치우침";
+    }
+
       const hs = shown.map(c => Math.round(c.getBoundingClientRect().height));
       if (!(skip || []).includes("▸자식 높이 같음"))
         out[name + " ▸자식 높이 같음"] = hs.length > 1 ? String(new Set(hs).size === 1) : "해당없음";
@@ -170,8 +188,9 @@ const HOVER = (mode) => [
   ["terms a", `#scr-auth[data-state="${mode}"] .auth-card .terms a`, '[class*="__terms"] a'],
   /*
     ⚠️ 워드마크는 시안에서 `<div>`, 우리는 `<a>`다(첫 화면으로 가는 링크).
-    링크로 만들면 색·밑줄·display가 딸려 오므로 hover에서도 시안과 같은지
-    본다 — 값 대조가 기본 상태만 보기 때문이다.
+    hover 효과는 **두지 않았다** — 시안의 이 카드에는 장식이 없다. 그래도
+    hover에서 색·밑줄이 딸려 오지 않는지는 봐야 한다. `<a>`로 바꾼 자리라
+    브라우저 기본값이 새기 쉽고, 값 대조는 기본 상태만 본다.
   */
   ["wm", `#scr-auth[data-state="${mode}"] .auth-card .wm`, '[class*="login-module"][class*="__wm"]'],
   ...(mode === "signup"
