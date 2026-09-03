@@ -88,9 +88,18 @@ export function AuthCard({
   return (
     <div className={styles.wrap}>
       <div className={styles.card}>
-        <div className={styles.wm}>
+        {/*
+          ⚠️ **시안에 없는 링크다**(2026-09-03 수연 제안). 시안은
+          `<div class="wm">`로 두지만, 이 화면에는 헤더도 푸터도 없어서
+          지금은 나갈 길이 브라우저 뒤로가기뿐이다 — 주소로 바로 들어온
+          사람은 그것도 안 통한다.
+
+          워드마크를 눌러 첫 화면으로 가는 것은 널리 쓰이는 관례이고,
+          모양은 그대로 둔다(아래 `.wm`이 링크의 기본 색·밑줄을 지운다).
+        */}
+        <Link href="/" className={styles.wm} aria-label="PROOVIT 첫 화면">
           PROO<em className={styles.wmCheck}>✓</em>IT
-        </div>
+        </Link>
         <h1 className={styles.title}>{copy.title}</h1>
         <p className={styles.sub}>{copy.sub}</p>
 

@@ -41,11 +41,23 @@
     0 16px 40px -28px rgba(0, 0, 0, 0.45);
 }
 
+/*
+  ⚠️ 시안은 `<div>`인데 우리는 `<a>`다(AuthCard.tsx의 이유). 링크가 되면서
+  따라오는 것들을 지워 시안과 같은 모양으로 되돌린다 —
+    display  `<a>`는 inline이라 `text-align: center`가 안 먹는다
+    color    부모에게서 물려받게 둔다. 링크 기본색이 아니다
+*/
 .wm {
+  display: block;
+  color: inherit;
   font-weight: 800;
   font-size: 24px;
   letter-spacing: 0.07em;
   text-align: center;
+}
+/* 누를 수 있다는 것은 hover에서만 말한다. 밑줄은 시안에 없다 */
+.wm:hover .wmCheck {
+  filter: brightness(1.15);
 }
 .wmCheck {
   color: var(--accent);

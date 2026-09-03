@@ -165,9 +165,15 @@ const TEXT_IMPL = '[class*="login-module"][class*="__card"]';
   `.auth-card .terms a:hover`와 `.consents a.see:hover`. 둘 다 ver3 신설이라
   값 대조만으로는 빠뜨렸는지 알 수 없다.
 */
-const HOVER_CSS = ["color", "border-bottom-color", "background-color"];
+const HOVER_CSS = ["color", "border-bottom-color", "background-color", "text-decoration-line"];
 const HOVER = (mode) => [
   ["terms a", `#scr-auth[data-state="${mode}"] .auth-card .terms a`, '[class*="__terms"] a'],
+  /*
+    ⚠️ 워드마크는 시안에서 `<div>`, 우리는 `<a>`다(첫 화면으로 가는 링크).
+    링크로 만들면 색·밑줄·display가 딸려 오므로 hover에서도 시안과 같은지
+    본다 — 값 대조가 기본 상태만 보기 때문이다.
+  */
+  ["wm", `#scr-auth[data-state="${mode}"] .auth-card .wm`, '[class*="login-module"][class*="__wm"]'],
   ...(mode === "signup"
     ? [["보기", `#scr-auth[data-state="${mode}"] .consents a.see`,
         '[class*="ConsentFields-module"][class*="__toggle"]']]
