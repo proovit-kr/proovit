@@ -49,12 +49,21 @@ async function main() {
     주차 기산일이라(거기서 7일씩 끊어 submissions.week를 센다) 그때까지
     s4 주간 제출은 열리지 않는다.
   */
+  /*
+    ⚠️ 이름은 **시안 3351행 그대로**다. 리더보드의 스테이지 트랙이 이 값을
+    그린다. 한때 더 긴 이름(「등록·아이디어 고도화」 등)이었는데 시안과
+    달랐다 — 2026-09-06에 맞췄다.
+
+    랜딩 로드맵은 여기를 안 본다. 그쪽은 `content/landing.ts`가 시안 1503행의
+    또 다른 짧은 이름(「랜딩, 수요조사」·「AI 빌드와 배포」)을 따로 갖고 있다.
+    시안이 두 화면에서 다르게 적은 것이라 둘을 억지로 합치지 않는다.
+  */
   const stages = [
-    { stageKey: "s1", name: "등록·아이디어 고도화", isGate: false },
-    { stageKey: "s2", name: "랜딩·수요조사", isGate: true },
-    { stageKey: "s3", name: "AI 빌드·배포", isGate: false },
-    { stageKey: "s4", name: "마케팅·유저 유입", isGate: false },
-    { stageKey: "s5", name: "트래픽·매출", isGate: true },
+    { stageKey: "s1", name: "아이디어 등록", isGate: false },
+    { stageKey: "s2", name: "수요조사", isGate: true },
+    { stageKey: "s3", name: "빌드와 배포", isGate: false },
+    { stageKey: "s4", name: "유저 유입", isGate: false },
+    { stageKey: "s5", name: "트래픽과 매출", isGate: true },
   ] as const;
 
   for (const stage of stages) {

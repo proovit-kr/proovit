@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -14,6 +15,7 @@ import type {
 } from "@/lib/public-read";
 import { getCurrentSeason, resolveNav } from "@/lib/season";
 
+import { UpdatedAt } from "./UpdatedAt";
 import styles from "./leaderboard.module.css";
 
 /*
@@ -126,20 +128,33 @@ function StageTrack({
         const gateLabel = stage.isGate
           ? (GATE_LABEL[++gateNo] ?? "심사")
           : null;
+        /*
+          ⚠️ **게이트는 자기 `<li>`를 갖는다.** 스테이지와 한 `<li>`에 담으면
+          플렉스 아이템이 그 `<li>` 하나라서, 안의 알약 둘이 세로로 쌓여
+          게이트가 아랫줄로 떨어진다(2026-09-06 수연 지적).
+
+          시안은 둘을 같은 줄의 형제로 넣는다 — 3356행이 s2 알약 **뒤에**
+          게이트를 `insertAdjacentHTML`로 붙인다.
+        */
         return (
-          <li key={stage.stageKey}>
-            <span className={`${styles.stg} ${state}`}>
+          <Fragment key={stage.stageKey}>
+            <li className={`${styles.stg} ${state}`}>
               <span className={styles.stgKey}>{stage.stageKey}</span>
               {stage.name}
-            </span>
+            </li>
             {gateLabel ? (
-              <span className={`${styles.stg} ${styles.gate}`}>
-                {/* 지난 게이트는 통과 표시가 붙는다 */}
-                {gateLabel}
-                {currentIndex > i ? " ✓" : ""}
-              </span>
+              <li className={`${styles.stg} ${styles.gate}`}>
+                {/*
+                  지난 게이트는 통과 표시가 붙는다.
+
+                  ⚠️ **한 문자열로 만든다.** `{gateLabel}{" ✓"}`처럼 나누면
+                  텍스트 노드가 둘이 되고 브라우저가 각 조각의 폭을 따로
+                  반올림해 0.016px이 어긋난다.
+                */}
+                {`${gateLabel}${currentIndex > i ? " ✓" : ""}`}
+              </li>
             ) : null}
-          </li>
+          </Fragment>
         );
       })}
     </ul>
@@ -298,9 +313,20 @@ export default async function Page({
           <h1 className={styles.title}>{season.title} 리더보드</h1>
           <span className={styles.upd}>
             <i />
-            {board?.snapshotDate
-              ? `${DATE.format(board.snapshotDate)} 갱신, 롤업 주기 15분`
-              : "집계 대기, 롤업 주기 15분"}
+            {/*
+              ⚠️ 「집계 대기」는 **시안에 없는 문구다.** 시안은 갱신 시각이 늘
+              있는 상태 하나만 그린다(1617행). 스냅샷이 아직 없을 때 이 줄을
+              통째로 비울 수는 없어서 채웠다 — 2026-09-06 수연 확인.
+            */}
+            {board?.snapshotDate ? (
+              <UpdatedAt
+                iso={board.snapshotDate.toISOString()}
+                renderedAt={board.loadedAt}
+              />
+            ) : (
+              "집계 대기"
+            )}
+            , 롤업 주기 15분
           </span>
         </div>
 
