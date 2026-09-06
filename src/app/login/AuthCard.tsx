@@ -162,8 +162,17 @@ export function AuthCard({
           문안·푸터」)을 따르기 때문이고, 거기에는 개인정보처리방침 하나뿐이다.
         */}
         <p className={styles.terms}>
+          {/*
+            ⚠️ 「동의하게」와 「돼요」 사이는 **줄바꿈 없는 공백**(&nbsp;)이다.
+            390·360px에서 「돼요.」만 다음 줄에 홀로 떨어졌다(2026-09-06 수연).
+            시안도 같은 폭에서 똑같이 깨진다 — 데스크톱에서만 검토된 자리다.
+
+            `text-wrap: pretty`가 세 폭(390·360·320)에서 이것과 결과가 같지만,
+            사파리에 없으면 조용히 원래대로 돌아간다. 폰에서 보는 화면이라
+            어디서나 되는 쪽을 골랐다.
+          */}
           계속하면 <Link href="/terms">이용약관</Link>과{" "}
-          <Link href="/privacy">개인정보처리방침</Link>에 동의하게 돼요.
+          <Link href="/privacy">개인정보처리방침</Link>에 동의하게&nbsp;돼요.
         </p>
         <p className={styles.swap}>
           {copy.swap.text} <Link href={copy.swap.href}>{copy.swap.label}</Link>
