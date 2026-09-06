@@ -15,7 +15,7 @@ import type {
 } from "@/lib/public-read";
 import { getCurrentSeason, resolveNav } from "@/lib/season";
 
-import { UpdatedAt } from "./UpdatedAt";
+import { FirstRollup, UpdatedAt } from "./UpdatedAt";
 import styles from "./leaderboard.module.css";
 
 /*
@@ -346,7 +346,24 @@ export default async function Page({
           /* ① 집계 전 */
           <div className={styles.empty}>
             <div className={`${styles.emptyBig} ${styles.cur}`}>
-              집계 시작됨, 첫 갱신을 기다려요
+              {/*
+                기준 시각은 표를 읽은 때다(`loadedAt`). 화면에서 `Date.now()`를
+                부를 수 없어서다 — 위 `UpdatedAt`과 같은 이유다.
+
+                `board`는 접근이 허용된 경우에만 채워지고 그 아닌 경우는 위
+                가지에서 이미 걸러진다. 그래도 타입은 null을 허용하므로,
+                기준 시각을 모르면 남은 시간을 지어내지 않고 iso를 비운다.
+              */}
+              <FirstRollup
+                iso={
+                  board
+                    ? (season.stages
+                        .find((stage) => stage.stageKey === "s4")
+                        ?.opensAt?.toISOString() ?? null)
+                    : null
+                }
+                renderedAt={board?.loadedAt ?? 0}
+              />
             </div>
             <p>참가팀의 유효 이용자 수가 여기에 실시간으로 표시돼요.</p>
           </div>

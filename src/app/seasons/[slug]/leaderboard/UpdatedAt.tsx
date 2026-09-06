@@ -42,15 +42,19 @@ function subscribe(cb: () => void): () => void {
   };
 }
 
+/** 「14분」·「3시간」·「7일」. 시안은 분 단위만 보여주지만 단위는 거리에 맞춘다 */
+function span(sec: number): string {
+  const min = Math.max(1, Math.round(sec / 60));
+  if (min < 60) return `${min}분`;
+  const hour = Math.round(min / 60);
+  if (hour < 24) return `${hour}시간`;
+  return `${Math.round(hour / 24)}일`;
+}
+
 /** 시안 문구를 그대로 쓴다 — 「방금」·「n분 전」·「n시간 전」·「n일 전」 */
 function ago(iso: string, now: number): string {
   const sec = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
-  if (sec < 60) return "방금";
-  const min = Math.round(sec / 60);
-  if (min < 60) return `${min}분 전`;
-  const hour = Math.round(min / 60);
-  if (hour < 24) return `${hour}시간 전`;
-  return `${Math.round(hour / 24)}일 전`;
+  return sec < 60 ? "방금" : `${span(sec)} 전`;
 }
 
 export function UpdatedAt({
@@ -68,4 +72,35 @@ export function UpdatedAt({
     이 컴포넌트가 하는 일 자체다.
   */
   return <span suppressHydrationWarning>{ago(iso, now)} 갱신</span>;
+}
+
+/*
+  첫 갱신까지 남은 시간 — 시안 `.lb-empty .big`(1624행)
+  「집계 시작됨, 첫 갱신까지 <b>14분</b>」.
+
+  ⚠️ **기준은 s4가 열리는 시각이다**(2026-09-06 수연 결정). 트래픽이 그때부터
+  쌓여서 첫 집계가 그때 돈다. 시안의 「14분」은 롤업이 곧 돌 순간을 그린 것이고,
+  s4가 며칠 뒤면 「7일」처럼 단위가 커진다.
+
+  ⚠️ 롤업은 아직 없다. 주기 15분은 결정된 값이고 구현만 남았다 —
+  `leaderboardSnapshot`을 쓰는 코드는 dev 샌드박스뿐이다.
+
+  그 시각이 지났는데도 스냅샷이 없으면 숫자를 지어내지 않고 기다린다고만 쓴다.
+*/
+export function FirstRollup({
+  iso,
+  renderedAt,
+}: {
+  /** s4가 열리는 시각(ISO). 미정이면 null */
+  iso: string | null;
+  renderedAt: number;
+}) {
+  const now = useSyncExternalStore(subscribe, () => current, () => renderedAt);
+  const left = iso ? new Date(iso).getTime() - now : -1;
+  if (left <= 0) return <>집계 시작됨, 첫 갱신을 기다려요</>;
+  return (
+    <span suppressHydrationWarning>
+      집계 시작됨, 첫 갱신까지 <b>{span(left / 1000)}</b>
+    </span>
+  );
 }
