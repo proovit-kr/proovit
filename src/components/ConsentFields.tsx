@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useId } from "react";
 
 import { PREREGISTER_CONSENTS, type ConsentItem } from "@/content/consent";
 import styles from "./ConsentFields.module.css";
@@ -16,9 +16,13 @@ import styles from "./ConsentFields.module.css";
  *   - 선택 미동의로도 접수가 되어야 한다 (D5)
  *   - 보유·이용 기간은 본문과 시각적으로 구분한다 (D3)
  *
- * 본문을 접어두되 한 번의 클릭으로 펼 수 있게 한다. 전문을 항상 펼쳐두면
- * 히어로가 약관 화면이 되고, 링크로만 빼면 "쉽게 읽고 이해할 수 있는"(D1 ③)
- * 조건에서 멀어진다.
+ * 고지 4요소는 이 자리에 펼치지 않고 개인정보처리방침으로 보낸다. 시안의
+ * 「보기」가 두 곳 모두 `<a class="see" href="#privacy">`이고, 운영규칙서
+ * 게시 전 확인 3번이 「별도 연결화면 또는 팝업」을 명시로 허용한다.
+ *
+ * ⚠️ 그래서 **개인정보처리방침이 고지의 정본**이다. 거기서 항목(제2조)·
+ * 목적(제3조)·기간(제9조)·거부권(제13조) 중 하나라도 빠지면 이 화면의
+ * 동의가 요건을 잃는다.
  */
 
 /*
@@ -75,13 +79,7 @@ function ConsentRow({
   invalid: boolean;
   onChange: (next: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const id = rowId(item.key);
-  const detailId = `${id}-detail`;
-  /* 시안이 「보기」를 붙이라고 표시한 항목에만 펼침을 단다 */
-  const hasDetail = Boolean(
-    item.disclosure && (item.body || item.table || item.notes),
-  );
 
   // "[필수] 개인정보 …" 에서 앞머리 태그만 떼어내 다르게 칠한다
   const match = /^\[(필수|선택)\]\s*(.*)$/.exec(item.label);
@@ -89,108 +87,61 @@ function ConsentRow({
   const rest = match ? match[2] : item.label;
 
   return (
-    <div>
-      <div className={styles.row}>
-        <input
-          id={id}
-          type="checkbox"
-          className={styles.checkbox}
-          checked={checked}
-          disabled={disabled}
-          /*
-            `required`를 쓰지 않는다. 브라우저 기본 검증이 걸리면 우리 onSubmit이
-            아예 안 불려서, 어느 항목이 왜 막혔는지 직접 안내할 기회가 사라진다.
-            미동의 접수는 제출 핸들러와 서버(`/api/v1/leads`)가 각각 막는다.
-          */
-          aria-invalid={invalid || undefined}
-          onChange={(e) => onChange(e.target.checked)}
-        />
-        <label
-          htmlFor={id}
-          className={`${styles.label} ${invalid ? styles.labelInvalid : ""}`}
-        >
-          {/*
-            ⚠️ 공백을 태그 **밖**에 둔다. 안에 넣으면 11px 태그 크기로 그려져
-            뒤 글자가 1px쯤 당겨진다. 시안은 `<span class="req">[필수]</span> 개인…`
-            처럼 태그와 본문 사이에 공백 노드가 있다.
-          */}
-          {tag ? (
-            <>
-              <span
-                className={
-                  item.required ? styles.tagRequired : styles.tagOptional
-                }
-              >
-                {tag}
-              </span>{" "}
-            </>
-          ) : null}
-          {rest}
-          {/*
-            시안은 「보기」를 라벨 글자 바로 뒤에 공백 하나 두고 붙인다
-            (`동의 <a class="mono">보기</a>`). 형제로 빼면 `.row`의 flex gap이
-            끼어서 간격이 벌어진다 — 그래서 라벨 **안**에 둔다.
-
-            대신 라벨 안의 클릭은 체크박스 토글로 새므로 preventDefault로 막는다.
-          */}
-          {item.policyHref ? (
-            <>
-              {" "}
-              {/*
-                시안대로 이동한다(`<a class="see" href="#privacy">`). 라벨 안의
-                클릭은 체크박스 토글로 새므로 여기서 전파를 끊는다 — 링크는
-                preventDefault를 쓸 수 없어(그러면 이동 자체가 막힌다)
-                stopPropagation으로 막는다.
-              */}
-              <Link
-                href={item.policyHref}
-                className={styles.toggle}
-                onClick={(e) => e.stopPropagation()}
-              >
-                보기
-              </Link>
-            </>
-          ) : hasDetail ? (
-            <>
-              {" "}
-              <button
-                type="button"
-                className={styles.toggle}
-                onClick={(e) => {
-                  e.preventDefault();
-                  setOpen((v) => !v);
-                }}
-                aria-expanded={open}
-                aria-controls={detailId}
-              >
-                {open ? "접기" : "보기"}
-              </button>
-            </>
-          ) : null}
-        </label>
-      </div>
-
-      {hasDetail && open ? (
-        <div id={detailId} className={styles.detail}>
-          {item.body ? <p>{item.body}</p> : null}
-
-          {item.table?.map((row) => (
-            <dl key={row.item}>
-              <dt>수집 항목</dt>
-              <dd>{row.item}</dd>
-              <dt>이용 목적</dt>
-              <dd>{row.purpose}</dd>
-              <dt>보유 기간</dt>
-              {/* D3 — 법이 지정한 "중요한 내용"이라 굵게 구분한다 */}
-              <dd className={styles.important}>{row.period}</dd>
-            </dl>
-          ))}
-
-          {item.notes?.map((note) => (
-            <p key={note}>{note}</p>
-          ))}
-        </div>
-      ) : null}
+    <div className={styles.row}>
+      <input
+        id={id}
+        type="checkbox"
+        className={styles.checkbox}
+        checked={checked}
+        disabled={disabled}
+        /*
+          `required`를 쓰지 않는다. 브라우저 기본 검증이 걸리면 우리 onSubmit이
+          아예 안 불려서, 어느 항목이 왜 막혔는지 직접 안내할 기회가 사라진다.
+          미동의 접수는 제출 핸들러와 서버(`/api/v1/leads`)가 각각 막는다.
+        */
+        aria-invalid={invalid || undefined}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <label
+        htmlFor={id}
+        className={`${styles.label} ${invalid ? styles.labelInvalid : ""}`}
+      >
+        {/*
+          ⚠️ 공백을 태그 **밖**에 둔다. 안에 넣으면 11px 태그 크기로 그려져
+          뒤 글자가 1px쯤 당겨진다. 시안은 `<span class="req">[필수]</span> 개인…`
+          처럼 태그와 본문 사이에 공백 노드가 있다.
+        */}
+        {tag ? (
+          <>
+            <span
+              className={
+                item.required ? styles.tagRequired : styles.tagOptional
+              }
+            >
+              {tag}
+            </span>{" "}
+          </>
+        ) : null}
+        {rest}
+        {/*
+          시안은 「보기」를 라벨 글자 바로 뒤에 공백 하나 두고 붙인다. 형제로
+          빼면 `.row`의 flex gap이 끼어서 간격이 벌어진다 — 그래서 라벨
+          **안**에 둔다. 대신 라벨 안의 클릭이 체크박스 토글로 새므로 전파를
+          끊는다. 링크라 preventDefault는 못 쓴다(이동 자체가 막힌다).
+        */}
+        {item.policyHref ? (
+          <>
+            {" "}
+            <Link
+              href={item.policyHref}
+              className={styles.see}
+              onClick={(e) => e.stopPropagation()}
+            >
+              보기
+            </Link>
+          </>
+        ) : null}
+      </label>
     </div>
   );
 }

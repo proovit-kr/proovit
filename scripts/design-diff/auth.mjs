@@ -86,7 +86,7 @@ const pairs = (mode) => {
           ["consent box", S + ".consents input", '[class*="ConsentFields-module"][class*="checkbox"]',
             [], ["font-size", "line-height", "color", "letter-spacing", "font-family"]],
           ["consent req", S + ".consents .req", '[class*="ConsentFields-module"][class*="tagRequired"]'],
-          ["consent 보기", S + ".consents a.see", '[class*="ConsentFields-module"][class*="toggle"]',
+          ["consent 보기", S + ".consents a.see", '[class*="ConsentFields-module"][class*="see"]',
             [], ["display", "text-align", "width"]],
         ]
       : []),
@@ -195,7 +195,7 @@ const HOVER = (mode) => [
   ["wm", `#scr-auth[data-state="${mode}"] .auth-card .wm`, '[class*="login-module"][class*="__wm"]'],
   ...(mode === "signup"
     ? [["보기", `#scr-auth[data-state="${mode}"] .consents a.see`,
-        '[class*="ConsentFields-module"][class*="__toggle"]']]
+        '[class*="ConsentFields-module"][class*="__see"]']]
     : []),
 ];
 

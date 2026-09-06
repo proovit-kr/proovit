@@ -59,7 +59,7 @@ const KNOWN = [
   /* 상태에 따라만 붙는 클래스. 지금 그 상태가 아닐 뿐이다 */
   /^\.StageProgress\.track--full /,
   /^\.(ProfileFields|DevBar)\./,
-  /^\.ConsentFields\.(detail|policyLink|labelInvalid)/,
+  /^\.ConsentFields\.labelInvalid/,
   /^\.Landing\.(in|gate|faq|mqTrack|crit li)/,
   /^\.Field\.sw /,
   /^\.leaderboard\.(done|empty|emptyBig) /,
