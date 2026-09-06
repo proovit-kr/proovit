@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState } from "react";
 
 import { PREREGISTER_CONSENTS, type ConsentItem } from "@/content/consent";
@@ -132,7 +133,24 @@ function ConsentRow({
 
             대신 라벨 안의 클릭은 체크박스 토글로 새므로 preventDefault로 막는다.
           */}
-          {hasDetail ? (
+          {item.policyHref ? (
+            <>
+              {" "}
+              {/*
+                시안대로 이동한다(`<a class="see" href="#privacy">`). 라벨 안의
+                클릭은 체크박스 토글로 새므로 여기서 전파를 끊는다 — 링크는
+                preventDefault를 쓸 수 없어(그러면 이동 자체가 막힌다)
+                stopPropagation으로 막는다.
+              */}
+              <Link
+                href={item.policyHref}
+                className={styles.toggle}
+                onClick={(e) => e.stopPropagation()}
+              >
+                보기
+              </Link>
+            </>
+          ) : hasDetail ? (
             <>
               {" "}
               <button
