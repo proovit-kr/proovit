@@ -383,6 +383,43 @@ function fixtureVisitors(index: number, day: number): number {
   return Math.max(4, Math.round(base * (0.45 + day * 0.045)));
 }
 
+/*
+  ⚠️ **픽스처가 스테이지 날짜도 함께 옮긴다.** 순위표만 채우면 트랙은 여전히
+  시즌 시작 전(s1)을 가리켜서, 「레이스 운영중」을 골라도 레이스 중인 화면이
+  아니다. §6 대조가 267건으로 벌어졌던 것이 그래서다(2026-09-06).
+
+  시안이 그리는 순간은 **s4 진행 중, 1차 심사 통과**다(3354행: i<3 done,
+  i===3 now). 그 순간을 여기서 만든다.
+
+  주 단위(7일)와 「다음 스테이지 열리기 1분 전 마감」은 실제 캘린더 규칙 그대로다
+  — 시즌 9/28~11/1을 5주로 끊은 것과 같은 모양이라, 옮겨도 구조는 안 망가진다.
+
+  ⚠️ 「시즌 종료」도 s4를 진행 중으로 둔다. 어색해 보이지만 시안이 세 상태에서
+  **같은 트랙**을 그리기 때문이다(`#lbTrack` 하나를 세 pane이 공유한다).
+  여기서 s5까지 끝내 놓으면 트랙만 시안과 어긋난다.
+*/
+const WEEK_MS = 7 * 86_400_000;
+const MIN_MS = 60_000;
+
+function fixtureStageDates(kind: MetricsFixture, now: number) {
+  /*
+    집계 전  — s3까지 마감했고 s4가 14분 뒤 열린다. 첫 갱신 기준이 s4 시작이라
+              화면에 「첫 갱신까지 14분」이 뜬다(시안 1624행과 같은 문장).
+    나머지  — s4가 이틀 전 열려 진행 중이다.
+  */
+  const s4OpensAt = kind === "none" ? now + 14 * MIN_MS : now - 2 * 86_400_000;
+  const KEYS = [StageKey.s1, StageKey.s2, StageKey.s3, StageKey.s4, StageKey.s5];
+  return KEYS.map((stageKey, i) => {
+    const opensAt = new Date(s4OpensAt + (i - 3) * WEEK_MS);
+    return {
+      stageKey,
+      opensAt,
+      /* 마감은 다음 스테이지가 열리기 1분 전 — 규칙서의 「마감 10.11 23:59」 모양 */
+      closesAt: new Date(opensAt.getTime() + WEEK_MS - MIN_MS),
+    };
+  });
+}
+
 export async function setMetricsFixture(args: {
   seasonId: string;
   kind: MetricsFixture;
@@ -421,10 +458,23 @@ export async function setMetricsFixture(args: {
   const clear = [
     prisma.leaderboardSnapshot.deleteMany({ where: { seasonId } }),
     prisma.metricDaily.deleteMany({ where: { entryId: { in: entryIds } } }),
+    /*
+      수상도 함께 지운다. 「시즌 종료」에서 만든 것이 남으면 레이스로 되돌려도
+      배지가 그대로 붙어 있다.
+    */
+    prisma.award.deleteMany({ where: { seasonId } }),
   ];
 
+  /* 셋 다 스테이지 날짜를 옮긴다 — 「집계 전」도 그 나름의 순간이 있다 */
+  const stageDates = fixtureStageDates(kind, Date.now()).map((s) =>
+    prisma.stage.updateMany({
+      where: { seasonId, stageKey: s.stageKey },
+      data: { opensAt: s.opensAt, closesAt: s.closesAt },
+    }),
+  );
+
   if (kind === "none" || entries.length === 0) {
-    await prisma.$transaction(clear);
+    await prisma.$transaction([...clear, ...stageDates]);
     return;
   }
 
@@ -500,8 +550,24 @@ export async function setMetricsFixture(args: {
       : [];
   });
 
+  /*
+    시안의 FINAL 표는 상위 셋에 수상 배지를 붙인다(3388·3396행 — 🏆 대상·2위·3위).
+    라벨은 `public-read.ts`의 `awardOf`가 rank에서 만들어 내므로 rank만 넣는다.
+  */
+  const awards =
+    kind === "final"
+      ? entries.slice(0, 3).map((entry, index) => ({
+          seasonId,
+          entryId: entry.id,
+          rank: index + 1,
+          awardedAt: new Date(),
+        }))
+      : [];
+
   await prisma.$transaction([
     ...clear,
+    ...stageDates,
+    prisma.award.createMany({ data: awards, skipDuplicates: true }),
     prisma.metricDaily.createMany({ data: daily, skipDuplicates: true }),
     prisma.leaderboardSnapshot.createMany({
       data: snapshots,
