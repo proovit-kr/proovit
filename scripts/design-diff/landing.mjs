@@ -309,28 +309,18 @@ const settle = `(async () => {
 const TEXT_IGNORE = [/^\d+$/];
 
 /*
-  ⚠️ **시안의 랜딩은 pre 상태다.** CTA가 「사전 신청하기」이고 사전신청 폼이
-  있다. dev 시즌이 recruiting 이후면 우리 CTA가 「참가 신청하기」·「리더보드
-  보기」로 갈려 글자가 통째로 어긋난다 — 상태가 다른 것이지 틀린 것이 아니다.
+  ⚠️ **랜딩은 이제 시즌 단계를 타지 않는다.** 버튼 셋(헤더·히어로·파이널)이
+  시안대로 「사전 신청하기」 고정이 됐고(2026-09-06), 사전신청 폼은 원래부터
+  단계와 무관하게 늘 렌더된다.
 
-  ⚠️ 리더보드 픽스처(`lbfix.mts race`)가 phase를 racing으로 바꾼다.
-  둘을 잇달아 돌리면 여기서 걸린다. 스택 트레이스 대신 무엇을 해야 하는지
-  말한다.
+  그래서 예전의 단계 확인 가드를 지웠다. CTA 문구로 dev 시즌이 사전 신청
+  단계인지 보던 것인데, 문구가 고정이라 무엇을 하든 통과하는 검사가 됐다.
+  리더보드 픽스처(`lbfix.mts race`)를 돌린 뒤에 이어 돌려도 0건이다.
+
+  헤더 메뉴는 모집 중부터 나오지만 대조 목록에 없다 — 시안은 메뉴를 늘 그리고
+  우리는 모집 전에 숨기는 것이 **의도적 차이**라(2026-08-31 수연 지시) 애초에
+  비교하지 않는다.
 */
-{
-  const label = await withPage(async (p) => {
-    await p.goto(IMPL_URL);
-    return p.eval(`document.querySelector('[class*="__ctas"] > *')?.textContent?.trim() ?? ""`);
-  });
-  if (!label.startsWith("사전 신청")) {
-    console.error(
-      `\n랜딩 CTA가 「${label}」이다 — dev 시즌이 사전신청 구간이 아니다.\n` +
-        "시안은 pre 상태를 그리므로 되돌리고 다시 돌린다:\n" +
-        "  npx tsx --env-file=.env --env-file=.env.development.local <phase 스크립트> pre_apply\n",
-    );
-    process.exit(1);
-  }
-}
 
 let total = 0;
 for (const w of WIDTHS) {

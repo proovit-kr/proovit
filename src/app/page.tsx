@@ -6,7 +6,6 @@ import { prisma } from "@/lib/prisma";
 import {
   getCurrentSeason,
   navMenuVisible,
-  resolveLandingCta,
 } from "@/lib/season";
 
 /*
@@ -65,7 +64,6 @@ export default async function Home() {
         showMenu={navMenuVisible(season)}
         seasonTheme={season.theme}
         startAt={season.startsAt?.toISOString() ?? null}
-        cta={resolveLandingCta(season)}
         preRegisterCount={preRegisterCount}
       />
     </>
