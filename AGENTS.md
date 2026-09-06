@@ -177,6 +177,22 @@ npm run build && node scripts/design-diff/dead-css.mjs
 찾는다. 판정하지 않고 목록만 준다 — 새 줄이 생기면 그것만 확인하면 된다.
 자식 셀렉터(`.a > *`)로 고치거나, 못 훑는 화면이면 `KNOWN`에 적는다.
 
+### 없는 애니메이션 검사
+
+CSS 모듈은 `animation` 이름도 **선택자와 똑같이 해싱한다.** 모듈에서
+`animation: blink`라고만 쓰면 `그모듈-module__해시__blink`가 되고, 그
+`@keyframes`가 같은 파일 안에 없으면 아무 데도 안 닿는다. `globals.css`에
+있어도 소용없다. 브라우저는 오류를 내지 않고 값도 그대로라, 값만 보는 대조는
+0건이라고 말한다 — 화면만 안 움직인다.
+
+```
+node scripts/design-diff/keyframes.mjs
+```
+
+브라우저가 계산한 `animation-name`을 문서의 `@keyframes` 목록과 맞춰 본다.
+소스를 읽는 방식으로는 해싱 뒤의 이름을 알 수 없다. 걸리면 그 모듈 안에
+`@keyframes`를 넣는다.
+
 ### 함정 넷
 
 도구와 무관하게 걸린다.
