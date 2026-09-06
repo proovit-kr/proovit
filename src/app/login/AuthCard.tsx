@@ -88,9 +88,18 @@ export function AuthCard({
   return (
     <div className={styles.wrap}>
       <div className={styles.card}>
-        <div className={styles.wm}>
+        {/*
+          ⚠️ **시안에 없는 링크다**(2026-09-03 수연 제안). 시안은
+          `<div class="wm">`로 두지만, 이 화면에는 헤더도 푸터도 없어서
+          지금은 나갈 길이 브라우저 뒤로가기뿐이다 — 주소로 바로 들어온
+          사람은 그것도 안 통한다.
+
+          워드마크를 눌러 첫 화면으로 가는 것은 널리 쓰이는 관례이고,
+          모양은 그대로 둔다 — 누르는 자리도 글자 폭에만 둔다(login.module.css).
+        */}
+        <Link href="/" className={styles.wm} aria-label="PROOVIT 첫 화면">
           PROO<em className={styles.wmCheck}>✓</em>IT
-        </div>
+        </Link>
         <h1 className={styles.title}>{copy.title}</h1>
         <p className={styles.sub}>{copy.sub}</p>
 
@@ -143,8 +152,27 @@ export function AuthCard({
           />
         ) : null}
 
+        {/*
+          ⚠️ **`/terms`는 아직 404다**(본문 미확정, `content/terms.ts`). 그래도
+          링크한다 — 2026-09-03 수연 판단. 사전신청 구간에는 이 화면으로 오는
+          길이 어디에도 없어서 404를 볼 사람이 없고, 시안대로 두 링크를 나란히
+          두는 편이 낫다.
+
+          푸터에는 약관 항목이 아예 없다. 시안이 아니라 노션 정본(「사전신청 폼
+          문안·푸터」)을 따르기 때문이고, 거기에는 개인정보처리방침 하나뿐이다.
+        */}
         <p className={styles.terms}>
-          계속하면 이용약관과 개인정보처리방침에 동의하게 돼요.
+          {/*
+            ⚠️ 「동의하게」와 「돼요」 사이는 **줄바꿈 없는 공백**(&nbsp;)이다.
+            390·360px에서 「돼요.」만 다음 줄에 홀로 떨어졌다(2026-09-06 수연).
+            시안도 같은 폭에서 똑같이 깨진다 — 데스크톱에서만 검토된 자리다.
+
+            `text-wrap: pretty`가 세 폭(390·360·320)에서 이것과 결과가 같지만,
+            사파리에 없으면 조용히 원래대로 돌아간다. 폰에서 보는 화면이라
+            어디서나 되는 쪽을 골랐다.
+          */}
+          계속하면 <Link href="/terms">이용약관</Link>과{" "}
+          <Link href="/privacy">개인정보처리방침</Link>에 동의하게&nbsp;돼요.
         </p>
         <p className={styles.swap}>
           {copy.swap.text} <Link href={copy.swap.href}>{copy.swap.label}</Link>
