@@ -4,6 +4,7 @@ import { Children, cloneElement, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import { Badge } from "./Badge";
+import { ClauseFit } from "./ClauseFit";
 import { Clauses } from "./Clauses";
 import { Card } from "./Surface";
 import { Button } from "./Button";
@@ -716,6 +717,7 @@ export function Landing({
 
       <Footer />
       <Toast message={message} />
+      <ClauseFit />
     </div>
   );
 }

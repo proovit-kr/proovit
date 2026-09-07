@@ -2,9 +2,22 @@
   절 하나를 담는 상자. `Clauses.tsx`에 왜 inline-block인지 적혀 있다.
 
   ⚠️ `vertical-align`을 건드리지 않는다. 기본값(baseline)이라야 같은 줄의
-  맨 텍스트와 밑선이 맞는다. inline-block은 안에 줄바꿈이 생기면 **마지막
-  줄**의 밑선을 쓰므로, 절이 접히는 자리에서도 앞뒤 글자와 어긋나지 않는다.
+  맨 텍스트와 밑선이 맞는다.
 */
 .c {
   display: inline-block;
+}
+
+/* 한 줄에 못 들어가는 절 — 상자를 벗겨 그냥 흐르게 둔다 (`ClauseFit`) */
+.flow {
+  display: inline;
+}
+
+/*
+  재는 동안만 켠다. 절을 한 줄로 펴야 **제 너비**가 나온다 — 접힌 상태의
+  너비는 칸 너비와 같아서 「들어가는가」를 물어볼 수 없다.
+*/
+.measuring .c {
+  display: inline-block;
+  white-space: nowrap;
 }

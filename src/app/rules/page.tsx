@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { Footer } from "@/components/Footer";
+import { ClauseFit } from "@/components/ClauseFit";
 import { Clauses } from "@/components/Clauses";
 import { NavBar } from "@/components/NavBar";
 import type { PolicyBlock, PolicyTable } from "@/content/privacy";
@@ -197,6 +198,7 @@ export default async function Page() {
         </section>
       </div>
       <Footer />
+      <ClauseFit />
     </main>
   );
 }

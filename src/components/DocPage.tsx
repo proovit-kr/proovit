@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Badge } from "@/components/Badge";
+import { ClauseFit } from "@/components/ClauseFit";
 import { Clauses } from "@/components/Clauses";
 import { Footer } from "@/components/Footer";
 import { NavBar } from "@/components/NavBar";
@@ -91,6 +92,7 @@ export async function DocPage({
         </div>
       </div>
       <Footer />
+      <ClauseFit />
     </main>
   );
 }
