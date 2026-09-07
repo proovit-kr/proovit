@@ -134,7 +134,12 @@ const PAIRS = [
   ["crit rd", S + ".ld-crit .rd", "critRound"],
   ["spec", S + ".ld-spec", "spec"],
   ["faq", S + ".ld-faq", "faq"],
-  ["faq a", S + ".ld-faq .a", "a"],
+  /*
+    ⚠️ `max-width`를 뺀다. 시안은 44em(660px), 우리는 58em(870px)이다 —
+    일부러 넓혔다(2026-09-07 수연 지시). 660px에서는 답 하나만 두 줄로 접혀
+    오른쪽 380px이 비었다. 이유는 `Landing.module.css`의 `.faq .a`에 적어 뒀다.
+  */
+  ["faq a", S + ".ld-faq .a", "a", undefined, ["max-width"]],
   ["fin", S + ".ld-fin", "fin"],
   ["fin h2", S + ".ld-fin h2", "finTitle"],
   ["glitch h1", S + ".ld-hero h1 .glitch", "#hero h1 span[data-text]"],
