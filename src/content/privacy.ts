@@ -103,7 +103,7 @@ export interface PrivacyPolicy {
   operator: string;
   /** 머리말 — "…에 따라 다음과 같이 개인정보 처리방침을 수립·공개합니다" */
   preamble: string;
-  /** 「주요 개인정보 처리 표시 (요약)」 */
+  /** 「주요 개인정보 처리 항목 (요약)」 */
   summary: PolicyTable;
   articles: PolicyArticle[];
 }

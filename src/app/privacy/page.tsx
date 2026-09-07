@@ -36,7 +36,11 @@ function Blocks({ blocks }: { blocks: PolicyBlock[] }) {
         if (b.kind === "para") return <p key={i}>{b.text}</p>;
         if (b.kind === "list") {
           const items = b.items.map((t, j) => <li key={j}>{t}</li>);
-          return b.ordered ? <ol key={i}>{items}</ol> : <ul key={i}>{items}</ul>;
+          return b.ordered ? (
+            <ol key={i}>{items}</ol>
+          ) : (
+            <ul key={i}>{items}</ul>
+          );
         }
         return (
           <DocTable
@@ -65,8 +69,8 @@ export default async function Page() {
     {
       id: "pv-0",
       num: "요약",
-      title: "주요 개인정보 처리 표시",
-      tocLabel: "요약 표시",
+      title: "주요 개인정보 처리 항목",
+      tocLabel: "요약",
       body: (
         <DocTable
           head={policy.summary.head}
