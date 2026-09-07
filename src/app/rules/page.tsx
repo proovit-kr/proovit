@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { Footer } from "@/components/Footer";
+import { Clauses } from "@/components/Clauses";
 import { NavBar } from "@/components/NavBar";
 import type { PolicyBlock, PolicyTable } from "@/content/privacy";
 import { SEASON_RULES } from "@/content/rules";
@@ -39,7 +40,7 @@ function Table({ table }: { table: PolicyTable }) {
           <tr>
             {table.head.map((cell) => (
               <th key={cell} scope="col">
-                {cell}
+                <Clauses text={cell} />
               </th>
             ))}
           </tr>
@@ -48,22 +49,37 @@ function Table({ table }: { table: PolicyTable }) {
           {table.rows.map((row, i) => (
             <tr key={i}>
               {row.map((cell, j) => (
-                <td key={j}>{cell}</td>
+                <td key={j}>
+                  <Clauses text={cell} />
+                </td>
               ))}
             </tr>
           ))}
         </tbody>
       </table>
-      {table.note ? <p className={styles.tableNote}>{table.note}</p> : null}
+      {table.note ? (
+        <p className={styles.tableNote}>
+          <Clauses text={table.note} />
+        </p>
+      ) : null}
     </div>
   );
 }
 
 function Block({ block }: { block: PolicyBlock }) {
-  if (block.kind === "para") return <p className={styles.para}>{block.text}</p>;
+  if (block.kind === "para")
+    return (
+      <p className={styles.para}>
+        <Clauses text={block.text} />
+      </p>
+    );
   if (block.kind === "table") return <Table table={block.table} />;
 
-  const items = block.items.map((item) => <li key={item}>{item}</li>);
+  const items = block.items.map((item) => (
+    <li key={item}>
+      <Clauses text={item} />
+    </li>
+  ));
   return block.ordered ? (
     <ol className={styles.clauses}>{items}</ol>
   ) : (
@@ -92,17 +108,23 @@ export default async function Page() {
               )}
             </dd>
           </dl>
-          <p className={styles.preamble}>{rules.preamble}</p>
+          <p className={styles.preamble}>
+            <Clauses text={rules.preamble} />
+          </p>
         </header>
 
         <section className={styles.overview} aria-labelledby="overview">
           <h2 id="overview" className={styles.sectionTitle}>
             시즌 구조 한눈에 보기
           </h2>
-          <p className={styles.para}>{rules.overview.note}</p>
+          <p className={styles.para}>
+            <Clauses text={rules.overview.note} />
+          </p>
           <ol className={styles.flow}>
             {rules.overview.flow.map((step) => (
-              <li key={step}>{step}</li>
+              <li key={step}>
+                <Clauses text={step} />
+              </li>
             ))}
           </ol>
           <Table table={rules.overview.gates} />
@@ -166,7 +188,7 @@ export default async function Page() {
               </h3>
               {appendix.paragraphs.map((text) => (
                 <p key={text} className={styles.para}>
-                  {text}
+                  <Clauses text={text} />
                 </p>
               ))}
               {appendix.table ? <Table table={appendix.table} /> : null}

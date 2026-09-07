@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { Clauses } from "@/components/Clauses";
 import { DocPage, DocTable, type DocSection } from "@/components/DocPage";
 import { PRIVACY_POLICY, type PolicyBlock } from "@/content/privacy";
 
@@ -33,9 +34,18 @@ function Blocks({ blocks }: { blocks: PolicyBlock[] }) {
   return (
     <>
       {blocks.map((b, i) => {
-        if (b.kind === "para") return <p key={i}>{b.text}</p>;
+        if (b.kind === "para")
+          return (
+            <p key={i}>
+              <Clauses text={b.text} />
+            </p>
+          );
         if (b.kind === "list") {
-          const items = b.items.map((t, j) => <li key={j}>{t}</li>);
+          const items = b.items.map((t, j) => (
+            <li key={j}>
+              <Clauses text={t} />
+            </li>
+          ));
           return b.ordered ? (
             <ol key={i}>{items}</ol>
           ) : (

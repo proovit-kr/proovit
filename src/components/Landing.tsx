@@ -4,6 +4,7 @@ import { Children, cloneElement, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import { Badge } from "./Badge";
+import { Clauses } from "./Clauses";
 import { Card } from "./Surface";
 import { Button } from "./Button";
 import ConsentFields, {
@@ -167,7 +168,9 @@ function SectionHead({
       </Reveal>
       {lead ? (
         <Reveal index={2} step={70}>
-          <p className={styles.secLead}>{lead}</p>
+          <p className={styles.secLead}>
+            <Clauses text={lead} />
+          </p>
         </Reveal>
       ) : null}
     </>
@@ -386,8 +389,7 @@ export function Landing({
             </Reveal>
             <Reveal index={2} step={70}>
               <p className={styles.sub}>
-                아이디어를 실제 유저와 매출 데이터로 바꾸는 AI 빌드 리그예요.
-                코딩 경험이 없어도 괜찮아요.
+                <Clauses text="아이디어를 실제 유저와 매출 데이터로 바꾸는 AI 빌드 리그예요. 코딩 경험이 없어도 괜찮아요." />
               </p>
             </Reveal>
             <Reveal index={3} step={70}>
@@ -571,7 +573,9 @@ export function Landing({
                     </div>
                     <div className={styles.rmT}>{stop.label}</div>
                     <div className={styles.rmW}>{stop.when}</div>
-                    <p className={styles.rmD}>{stop.desc}</p>
+                    <p className={styles.rmD}>
+                      <Clauses text={stop.desc} />
+                    </p>
                   </div>
                 ))}
               </div>
@@ -596,7 +600,9 @@ export function Landing({
                 <Card>
                   <span className={styles.threeNo}>{b.no}</span>
                   <h4>{b.title}</h4>
-                  <p>{b.desc}</p>
+                  <p>
+                    <Clauses text={b.desc} />
+                  </p>
                 </Card>
               </Reveal>
             ))}
@@ -620,7 +626,9 @@ export function Landing({
                 <Card>
                   <span className={styles.threeNo}>{w.no}</span>
                   <h4>{w.title}</h4>
-                  <p>{w.desc}</p>
+                  <p>
+                    <Clauses text={w.desc} />
+                  </p>
                 </Card>
               </Reveal>
             ))}
@@ -676,7 +684,9 @@ export function Landing({
                 {/* 시안은 첫 항목만 펼쳐 둔다 — 여는 방법을 한 번 보여주는 것이다 */}
                 <details open={i === 0}>
                   <summary>{f.q}</summary>
-                  <p className={styles.a}>{f.a}</p>
+                  <p className={styles.a}>
+                    <Clauses text={f.a} />
+                  </p>
                 </details>
               </Reveal>
             ))}
