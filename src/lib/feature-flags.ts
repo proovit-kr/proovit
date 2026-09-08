@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 /*
   시즌별 화면 on/off — 06 §4.4 · PLN3 화면정의서 2장 카탈로그.

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 /*
   이름·닉네임의 **규칙**만 둔다. 저장(DB 쓰기)은 profile-store.ts다.

@@ -147,6 +147,14 @@ function rpc(ws) {
         ws.send(JSON.stringify({ id: n, method, params, ...(sessionId ? { sessionId } : {}) }));
       });
     },
+    /** 계속 듣는다. 돌려주는 함수를 부르면 끊는다 */
+    on(method, sessionId, handler) {
+      const l = (msg) => {
+        if (msg.method === method && (!sessionId || msg.sessionId === sessionId)) handler(msg.params);
+      };
+      listeners.push(l);
+      return () => listeners.splice(listeners.indexOf(l), 1);
+    },
     once(method, sessionId) {
       return new Promise((resolve) => {
         const l = (msg) => {
@@ -186,6 +194,7 @@ export async function withPage(fn) {
   const page = {
     send: (m, p) => cdp.send(m, p, sessionId),
     once: (m) => cdp.once(m, sessionId),
+    on: (m, h) => cdp.on(m, sessionId, h),
 
     async goto(url) {
       await this.send("Page.enable");
