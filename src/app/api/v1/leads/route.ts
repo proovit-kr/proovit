@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 import {
   MARKETING_CONSENT_VERSION,

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 /*
   측정 연동의 **순수** 절반 — 주소 규칙. 화면(클라이언트)도 이 파일을 읽는다.

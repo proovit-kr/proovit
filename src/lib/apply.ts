@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 /*
   참가 신청(/apply)의 **규칙**만 둔다. 저장은 apply-store.ts다.

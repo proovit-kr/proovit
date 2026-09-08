@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 /*
   팀 관리의 **순수** 절반. DB도 세션도 모른다 — 화면(클라이언트)도 이 파일을 읽는다.

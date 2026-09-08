@@ -177,6 +177,22 @@ npm run build && node scripts/design-diff/dead-css.mjs
 찾는다. 판정하지 않고 목록만 준다 — 새 줄이 생기면 그것만 확인하면 된다.
 자식 셀렉터(`.a > *`)로 고치거나, 못 훑는 화면이면 `KNOWN`에 적는다.
 
+### CSP 검사
+
+`next.config.ts`의 CSP 허용 목록이 실제로 쓰는 출처를 다 담았는지는 헤더를
+읽어서는 모른다. 화면을 띄워 폰트·GA·Turnstile을 실제로 불러 봐야 한다.
+
+```
+NEXT_PUBLIC_GA_ID=G-TEST NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA npx next build
+node --env-file=.env.development.local node_modules/.bin/next start &
+node scripts/design-diff/csp.mjs
+```
+
+모든 화면(로그인 뒤·운영 콘솔 포함)을 돌며 `securitypolicyviolation`을 센다.
+0건이어야 한다. 「외부호스트」 열에 challenges.cloudflare.com과
+google-analytics가 안 보이면 빌드에 키가 안 실린 것이라 그 결과는 못 믿는다.
+외부 출처를 새로 쓰면 `next.config.ts`의 CSP에 한 줄 더하고 이걸 다시 돌린다.
+
 ### 함정 넷
 
 도구와 무관하게 걸린다.

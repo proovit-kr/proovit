@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 import { ConsentType, MemberRole, Prisma } from "@/generated/prisma/client";
 import {
