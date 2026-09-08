@@ -30,6 +30,30 @@ const nextConfig: NextConfig = {
     지금 주소는 `ipconfig getifaddr en0`으로 본다.
   */
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.30.*.*"],
+
+  /*
+    보안 헤더. 2026-09-08 OWASP ZAP 점검(노션 「proovit.kr 보안 점검」)에서
+    빠졌다고 나온 것 셋. HSTS는 Vercel이 이미 붙이므로 여기 없다.
+
+    ⚠️ CSP는 여기 없다 — 아직 설계 전이다. Next가 넣는 인라인 스크립트와
+    GA 스니펫 때문에 nonce 처리가 필요해서, 허용 목록만으로는 안 된다.
+    붙일 때는 Report-Only로 먼저 걸어 위반 로그를 본 뒤 강제로 바꾼다.
+    허용할 외부 출처는 넷뿐이다: fonts.googleapis.com, fonts.gstatic.com,
+    www.googletagmanager.com(GA), challenges.cloudflare.com(Turnstile).
+  */
+  poweredByHeader: false,
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          /* 우리 화면을 iframe에 넣어 쓰는 곳이 없고 로그인 세션이 있다 */
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
