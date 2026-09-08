@@ -6,6 +6,12 @@
   각 문서에 `securitypolicyviolation` 리스너를 심고, 위반이 있으면 지시어와
   막힌 URL을 화면별로 적는다. 0건이어야 통과다.
 
+  세 가지를 본다. 위반 수만으로는 부족해서 뒤의 둘을 더했다 — CSP가 위반을
+  **안 띄우고** 화면을 깨는 길이 있기 때문이다(①의 스킴 상향이 그랬다).
+    ① 스킴 상향 지시어가 개발 CSP에 섞였는지 (설정에서 직접 읽는다)
+    ② 화면마다 CSS 규칙이 실제로 실렸는지
+    ③ 화면마다 CSP 위반 수
+
   ⚠️ **프로덕션 빌드로 잰다.** dev 서버는 HMR·리프레시 스크립트를 더 넣어서
   운영에 없는 위반이 섞인다. 다만 `next start`는 .env(운영 DB)를 읽으므로
   DATABASE_URL을 dev로 먼저 덮어 띄운다:
@@ -19,6 +25,45 @@
 */
 import { spawnSync } from "node:child_process";
 import { withPage, IMPL_URL, REPO } from "./cdp.mjs";
+
+/*
+  ① 스킴을 올리는 지시어가 개발 CSP에 섞이지 않았는지 본다.
+
+  `upgrade-insecure-requests`는 문서 안의 http 요청을 https로 바꿔 받게 한다.
+  운영은 HTTPS라 할 일이 없지만 **개발 서버는 http로 뜨고 TLS가 없다.**
+  사파리는 이 지시어를 localhost에도 적용해서 `/_next/*.css`를 https로
+  올려 받으려다 전부 실패한다 — 스타일이 통째로 빠진 화면이 된다.
+
+  아래 화면 순회로는 이걸 못 잡는다. 두 가지가 겹친다.
+    · 크롬은 localhost를 예외로 둬서 증상 자체가 안 나온다.
+    · 스킴 상향은 `securitypolicyviolation`을 **안 띄운다.** 조용히 URL만 바꾼다.
+  그래서 브라우저에 기대지 않고, 설정에서 두 환경의 CSP를 직접 뽑아 비교한다.
+*/
+const CSP_PROBE = `
+  const m = await import(process.cwd() + "/next.config.ts");
+  /* tsx로 읽으면 default가 한 겹 더 감싸진다 */
+  const cfg = typeof m.default?.headers === "function" ? m.default : m.default?.default;
+  const hs = await cfg.headers();
+  console.log(hs.flatMap((x) => x.headers).find((x) => x.key === "Content-Security-Policy")?.value ?? "");
+`;
+
+const cspOf = (env) => {
+  const r = spawnSync("node", ["--import", "tsx", "--input-type=module", "-e", CSP_PROBE], {
+    cwd: REPO,
+    encoding: "utf8",
+    env: { ...process.env, NODE_ENV: env },
+  });
+  if (r.status !== 0) throw new Error(`${env} CSP를 못 읽었다:\n${r.stderr}`);
+  return r.stdout.trim().split("\n").at(-1);
+};
+
+const UPGRADE = "upgrade-insecure-requests";
+const schemeBad = [];
+if (cspOf("development").includes(UPGRADE))
+  schemeBad.push(`개발 CSP에 ${UPGRADE}가 있다 — 사파리에서 개발 서버의 CSS가 통째로 빠진다`);
+if (!cspOf("production").includes(UPGRADE)) schemeBad.push(`운영 CSP에 ${UPGRADE}가 없다`);
+for (const m of schemeBad) console.log(`  ✗ ${m}`);
+if (!schemeBad.length) console.log("  ✓ 스킴 상향: 개발 없음 / 운영 있음");
 
 const mk = spawnSync(
   "node",
@@ -110,6 +155,7 @@ await withPage(async (p) => {
 
   let role = undefined;
   const rows = [];
+  const noCss = [];
   let total = 0;
 
   for (const [name, path, who] of PAGES) {
@@ -131,6 +177,20 @@ await withPage(async (p) => {
     await p.eval("window.scrollTo(0, document.body.scrollHeight)");
     await p.eval("new Promise(r => setTimeout(r, 800))", true);
 
+    /*
+      ② 화면이 실제로 스타일을 입었는지 본다.
+
+      위반 0건은 「막힌 게 없다」는 뜻이지 「화면이 멀쩡하다」는 뜻이 아니다.
+      ①처럼 위반을 안 띄우고 자원만 조용히 사라지는 길이 있어서, 규칙 수가
+      0이면 CSS가 통째로 빠진 것으로 보고 떨어뜨린다.
+      (교차 출처 시트는 cssRules를 못 읽으니 0으로 친다 — 우리 CSS는 같은 출처다)
+    */
+    const rules = Number(
+      await p.eval(`[...document.styleSheets].reduce((n, s) => {
+        try { return n + s.cssRules.length } catch (e) { return n }
+      }, 0)`),
+    );
+
     const finalPath = await p.eval("location.pathname + location.search");
     const hits = await p.eval("JSON.stringify(window.__csp)");
     const list = JSON.parse(hits);
@@ -140,9 +200,14 @@ await withPage(async (p) => {
       화면: name,
       경로: finalPath === path ? path : `${path} → ${finalPath}`,
       위반: list.length,
+      CSS규칙: rules,
       CSP: header ? "있음" : "없음",
       외부호스트: [...hosts].sort().join(" "),
     });
+    if (rules === 0) {
+      noCss.push(name);
+      console.log(`  ✗ ${name}: CSS 규칙 0개 — 스타일이 통째로 안 실렸다`);
+    }
     for (const v of list) {
       console.log(`  ✗ ${name}: ${v.directive} ← ${v.blocked} ${v.at}`);
     }
@@ -150,5 +215,7 @@ await withPage(async (p) => {
 
   console.table(rows);
   console.log(total === 0 ? "CSP 위반 0건" : `CSP 위반 ${total}건`);
-  process.exitCode = total === 0 ? 0 : 1;
+  if (noCss.length) console.log(`스타일이 빠진 화면 ${noCss.length}개: ${noCss.join(", ")}`);
+  if (schemeBad.length) console.log(`스킴 상향 문제 ${schemeBad.length}건`);
+  process.exitCode = total === 0 && noCss.length === 0 && schemeBad.length === 0 ? 0 : 1;
 });
