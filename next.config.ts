@@ -17,7 +17,14 @@ const CSP = [
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",
-  "upgrade-insecure-requests",
+  /*
+    개발 서버는 http로 뜬다. 사파리는 이 지시어를 **localhost에도** 적용해서
+    `/_next/*.css`를 https로 올려 받으려 하고, 개발 서버에는 TLS가 없으니
+    전부 실패한다 — 스타일이 통째로 빠진 화면이 된다. 크롬은 localhost를
+    예외로 둬서 멀쩡하니, 크롬만 보면 이 문제가 안 보인다.
+    운영은 HTTPS라 이 지시어가 할 일이 없다. 그래서 개발에서만 뺀다.
+  */
+  ...(process.env.NODE_ENV === "development" ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
 const nextConfig: NextConfig = {
