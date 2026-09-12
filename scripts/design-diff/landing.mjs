@@ -45,7 +45,14 @@ const CSS = [
 const S = "#scr-landing ";
 const PAIRS = [
   ["ld", S + ".ld", "ld"],
-  ["hero", S + ".ld-hero", "hero"],
+  /*
+    ⚠️ `::before`/`::after`의 **inset만** 뺀다. 세 번째 값이 히어로 높이라서다
+    (`-40px -20px 699.609px`). 390에서 우리 히어로가 시안보다 한 줄 높다 —
+    부제 두 문장을 `Clauses`가 문장 끝에서 끊기 때문이고, 의도한 차이다
+    (2026-09-07 수연 지시). 나머지 의사요소 값은 그대로 대조한다.
+  */
+  ["hero", S + ".ld-hero", "hero", undefined,
+   ["::before inset", "::after inset"]],
   ["h1", S + ".ld-hero h1", "title"],
   ["sub", S + ".ld-hero .sub", "sub"],
   ["ctas", S + ".ld-ctas", "ctas"],
@@ -127,7 +134,12 @@ const PAIRS = [
   ["crit rd", S + ".ld-crit .rd", "critRound"],
   ["spec", S + ".ld-spec", "spec"],
   ["faq", S + ".ld-faq", "faq"],
-  ["faq a", S + ".ld-faq .a", "a"],
+  /*
+    ⚠️ `max-width`를 뺀다. 시안은 44em(660px), 우리는 58em(870px)이다 —
+    일부러 넓혔다(2026-09-07 수연 지시). 660px에서는 답 하나만 두 줄로 접혀
+    오른쪽 380px이 비었다. 이유는 `Landing.module.css`의 `.faq .a`에 적어 뒀다.
+  */
+  ["faq a", S + ".ld-faq .a", "a", undefined, ["max-width"]],
   ["fin", S + ".ld-fin", "fin"],
   ["fin h2", S + ".ld-fin h2", "finTitle"],
   ["glitch h1", S + ".ld-hero h1 .glitch", "#hero h1 span[data-text]"],
@@ -174,6 +186,7 @@ const probe = (pairs) => `(() => {
                        "background-image","background-size","background-color",
                        "opacity","mix-blend-mode","animation-name","animation-duration",
                        "mask-image","transform","border-radius","margin-left","color"]) {
+        if ((skip || []).includes(pe + " " + p)) continue;
         let v = pcs.getPropertyValue(p);
         if (p === "animation-name") v = v.split(", ").map(n => n.replace(/^.*__/, "")).join(", ");
         /* Lightning CSS가 그라디언트 위치의 0%를 0px로 줄인다. 같은 값이다 */
@@ -306,31 +319,56 @@ const settle = `(async () => {
   ⚠️ 글자 대조. 공용 `textNodes`·`diffText`가 cdp.mjs에 있다.
   데이터가 정하는 것만 뺀다 — 사전 신청 수 하나뿐이다.
 */
-const TEXT_IGNORE = [/^\d+$/];
+const TEXT_IGNORE = [
+  /^\d+$/,
+  /*
+    ⚠️ FAQ 「코딩을 못 해도 되나요?」의 답. 시안은 「AI 빌더와」, 우리는 「AI와」다
+    — **일부러 바꿨다**(2026-09-07 수연 지시). 제출 폼의 「빌더」는 배포처까지
+    포함해서(`submission.ts`의 `BUILDERS`) 랜딩이 쓰던 「AI 빌더」보다 넓다.
+    같은 말이 두 곳에서 범위가 달라, 좁은 쪽을 지웠다.
+    시안이 갱신되면 이 줄을 지운다.
+  */
+  /*
+    ⚠️ **구현 쪽은 조각으로 잡힌다.** `Clauses`가 문장을 절로 쪼개 각각
+    텍스트 노드가 되기 때문이다. 시안은 통짜 문장이라 양쪽 형태를 다 적는다.
+    (조각이 시안 문장의 부분 문자열이면 `diffText`가 알아서 맞춰 준다 —
+    여기 적는 것은 **문구를 바꾼** 절뿐이다.)
+  */
+  /^네, AI 빌더와 스텝별 가이드로 첫 서비스를 완성할 수 있어요\.$/,
+  /^AI와 스텝별 가이드로 첫 서비스를 완성할 수 있어요\.$/,
+  /*
+    ⚠️ FAQ 질문 둘도 일부러 바꿨다(2026-09-07, 동혁 QA ★). 답은 둘 다 그대로다.
+      · 「지표는 어떻게 검증하나요?」   → 「트래픽을 조작하면 되는 거 아닌가요?」
+      · 「상금이 있나요?」             → 「1등은 어떤 혜택을 받나요?」
+    뒤엣것은 답까지 바뀌었다 — 없는 상금 대신 받는 것을 말한다.
+    시안이 갱신되면 이 셋을 지운다.
+  */
+  /^(지표는 어떻게 검증하나요|트래픽을 조작하면 되는 거 아닌가요)\?$/,
+  /^(상금이 있나요|1등은 어떤 혜택을 받나요)\?$/,
+  /^시즌 1은 현금 상금 없이 순위와 시상 결과를 발표해요\..*$/,
+  /^최종 리더보드와 시즌 아카이브에 1위 기록이 남고,$/,
+  /^프루빗 공식 채널에서 서비스와 팀을 소개해요\.$/,
+  /*
+    ⚠️ 「1차에서 떨어지면 끝인가요?」의 뒷문장. 시안은 「만든 랜딩과 데이터는
+    그대로 남아요」인데 우리가 보관해 주는 것이 아니다 — 같은 날 함께 고쳤다.
+  */
+  /^아니요, 다음 시즌 재도전을 안내해 드려요\. 만든 랜딩과 데이터는 그대로 남아요\.$/,
+  /^리그에서 떨어져도 의미 있는 결과물과 경험이 남아요\.$/,
+];
 
 /*
-  ⚠️ **시안의 랜딩은 pre 상태다.** CTA가 「사전 신청하기」이고 사전신청 폼이
-  있다. dev 시즌이 recruiting 이후면 우리 CTA가 「참가 신청하기」·「리더보드
-  보기」로 갈려 글자가 통째로 어긋난다 — 상태가 다른 것이지 틀린 것이 아니다.
+  ⚠️ **랜딩은 이제 시즌 단계를 타지 않는다.** 버튼 셋(헤더·히어로·파이널)이
+  시안대로 「사전 신청하기」 고정이 됐고(2026-09-06), 사전신청 폼은 원래부터
+  단계와 무관하게 늘 렌더된다.
 
-  ⚠️ 리더보드 픽스처(`lbfix.mts race`)가 phase를 racing으로 바꾼다.
-  둘을 잇달아 돌리면 여기서 걸린다. 스택 트레이스 대신 무엇을 해야 하는지
-  말한다.
+  그래서 예전의 단계 확인 가드를 지웠다. CTA 문구로 dev 시즌이 사전 신청
+  단계인지 보던 것인데, 문구가 고정이라 무엇을 하든 통과하는 검사가 됐다.
+  리더보드 픽스처(`lbfix.mts race`)를 돌린 뒤에 이어 돌려도 0건이다.
+
+  헤더 메뉴는 모집 중부터 나오지만 대조 목록에 없다 — 시안은 메뉴를 늘 그리고
+  우리는 모집 전에 숨기는 것이 **의도적 차이**라(2026-08-31 수연 지시) 애초에
+  비교하지 않는다.
 */
-{
-  const label = await withPage(async (p) => {
-    await p.goto(IMPL_URL);
-    return p.eval(`document.querySelector('[class*="__ctas"] > *')?.textContent?.trim() ?? ""`);
-  });
-  if (!label.startsWith("사전 신청")) {
-    console.error(
-      `\n랜딩 CTA가 「${label}」이다 — dev 시즌이 사전신청 구간이 아니다.\n` +
-        "시안은 pre 상태를 그리므로 되돌리고 다시 돌린다:\n" +
-        "  npx tsx --env-file=.env --env-file=.env.development.local <phase 스크립트> pre_apply\n",
-    );
-    process.exit(1);
-  }
-}
 
 let total = 0;
 for (const w of WIDTHS) {

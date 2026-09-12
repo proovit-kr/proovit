@@ -72,15 +72,21 @@
     라고 못박았으므로, 이건 시안을 어기는 것이 아니라 시안이 말한 규칙을
     지키는 쪽이다. 시안 HTML이 목업이라 맥에서만 확인된 것으로 보인다.
 
-    라틴 글자는 JetBrains Mono가 가지고 있어 그대로다. 한글만 본문 글꼴로
-    떨어진다(글리프 단위 대체).
+    ⚠️ **한글 대체는 `monospace` 뒤에 둔다.** 앞에 두면 JetBrains Mono에 없는
+    글리프가 전부 Pretendard로 떨어진다 — 한글만이 아니다. 리더보드 트랙의
+    `✓`가 그래서 9.17px로 그려졌다(시안은 Menlo의 6.55px). 알약 폭이 하나당
+    2.64px씩 벌어져 있었다(2026-09-06).
+
+    글꼴 대체는 **글리프 단위**라, 뒤에 두어도 한글은 Pretendard로 온다.
+    확인한 것: `✓` → Menlo, 한글 → Pretendard Variable
+    (`CSS.getPlatformFontsForNode`).
 
     영향받는 자리: 로드맵 라벨(1주차·사업성), 마퀴 문구, 「보기」,
     「준비 중」 뱃지, 리더보드 갱신 시각, 통계의 단위(팀·인·명).
   */
   --mono:
-    "JetBrains Mono", "SF Mono", Consolas, "Pretendard Variable", Pretendard,
-    -apple-system, "Malgun Gothic", monospace;
+    "JetBrains Mono", "SF Mono", Consolas, monospace, "Pretendard Variable",
+    Pretendard, "Malgun Gothic";
 }
 
 /*
@@ -661,11 +667,6 @@ h4,
   color: var(--accent);
 }
 
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
-}
 @keyframes drawLine {
   to {
     stroke-dashoffset: 0;

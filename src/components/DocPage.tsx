@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
 import { Badge } from "@/components/Badge";
+import { ClauseFit } from "@/components/ClauseFit";
+import { Clauses } from "@/components/Clauses";
 import { Footer } from "@/components/Footer";
 import { NavBar } from "@/components/NavBar";
 import { Chip } from "@/components/Surface";
@@ -72,7 +74,11 @@ export async function DocPage({
             ))}
             {badge ? <Badge tone="gray">{badge}</Badge> : null}
           </div>
-          {note ? <p className={styles.note}>{note}</p> : null}
+          {note ? (
+            <p className={styles.note}>
+              {typeof note === "string" ? <Clauses text={note} /> : note}
+            </p>
+          ) : null}
           {intro}
           {sections.map((s) => (
             <section key={s.id}>
@@ -86,6 +92,7 @@ export async function DocPage({
         </div>
       </div>
       <Footer />
+      <ClauseFit />
     </main>
   );
 }
@@ -111,7 +118,7 @@ export function DocTable({
             <tr>
               {head.map((h) => (
                 <th key={h} scope="col">
-                  {h}
+                  <Clauses text={h} />
                 </th>
               ))}
             </tr>
@@ -120,14 +127,20 @@ export function DocTable({
             {rows.map((row, i) => (
               <tr key={i}>
                 {row.map((cell, j) => (
-                  <td key={j}>{cell}</td>
+                  <td key={j}>
+                    <Clauses text={cell} />
+                  </td>
                 ))}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {note ? <p>※ {note}</p> : null}
+      {note ? (
+        <p>
+          ※ <Clauses text={note} />
+        </p>
+      ) : null}
     </>
   );
 }

@@ -50,14 +50,13 @@ const RACE = [
   ["upd i", S + ".lb-head .upd i", '[class*="__upd"] i', [], ["opacity"]],
   ["stg-track", S + ".stg-track", "track"],
   /*
-    ⚠️ 폭은 비교하지 않는다. 시안은 트랙 라벨을 짧게 줄여 쓰고(「등록」)
-    우리는 DB의 스테이지 이름을 그대로 쓴다(「아이디어 등록과 고도화」) —
-    글자 수가 달라 생기는 폭 차이지 디자인 차이가 아니다.
+    폭도 비교한다. 2026-09-06에 DB의 스테이지 이름을 시안 3351행 값으로
+    맞추면서(seed.ts) 글자 수가 같아졌다 — 그전에는 이름이 길어 폭을 뺐었다.
   */
-  ["stg", S + ".stg-track .stg.done", '[class*="__done"]', [], ["width"]],
-  ["stg .n", S + ".stg-track .stg.done .n", '[class*="__done"] [class*="__stgKey"]', [], ["width"]],
-  ["stg.now", S + ".stg-track .stg.now", '[class*="__now"]', [], ["width"]],
-  ["stg.gate", S + ".stg-track .stg.gate", '[class*="__gate"]', [], ["width"]],
+  ["stg", S + ".stg-track .stg.done", '[class*="__done"]'],
+  ["stg .n", S + ".stg-track .stg.done .n", '[class*="__done"] [class*="__stgKey"]'],
+  ["stg.now", S + ".stg-track .stg.now", '[class*="__now"]'],
+  ["stg.gate", S + ".stg-track .stg.gate", '[class*="__gate"]'],
   ["tbl", S + ".pane[data-id='lb-race'] .lb-tbl", "table"],
   ["th", S + ".pane[data-id='lb-race'] .lb-tbl thead th", '[class*="__table"] thead th'],
   ["td", S + ".pane[data-id='lb-race'] .lb-tbl td", '[class*="__table"] tbody td'],
@@ -219,24 +218,23 @@ const TEXT_PAIRS = {
 };
 
 /*
-  ⚠️ 스테이지 이름은 데이터다. 시안은 짧게 줄여 쓰고(「등록」) 우리는 DB의
-  이름을 그대로 쓴다(「아이디어 등록과 고도화」) — §6에서 폭을 대조하지
-  않기로 한 것과 같은 이유다. 게이트 이름은 라벨이라 대조에 남긴다.
+  ⚠️ 스테이지 이름은 이제 **대조한다.** 2026-09-06에 DB 값을 시안 3351행에
+  맞췄다(seed.ts). 그전에는 이름이 달라 통째로 빼 두었는데, 그러는 동안
+  트랙이 두 줄로 깨져 있는 것도 함께 가려져 있었다.
 */
 const TEXT_IGNORE = [
-  /^s[1-5]$/, /등록|수요조사|빌드|배포|유입|유저|트래픽|매출|레이스|고도화|마케팅/,
   /^✓$/, /갱신|롤업|집계 대기/, /^\d+$/,
   /*
-    ⚠️ **아는 차이.** 시안의 집계 전 문구는 「집계 시작됨, 첫 갱신까지 14분」
-    이고 우리는 「첫 갱신을 기다려요」다.
+    남은 시간의 **숫자만** 뺀다. 문장은 시안과 같다 —
+    「집계 시작됨, 첫 갱신까지 <b>14분</b>」.
 
-    롤업이 아직 없어서다 — 크론도 없고 스냅샷을 만드는 것은 dev 샌드박스뿐이다.
-    없는 주기로 남은 시간을 찍으면 숫자를 지어내는 것이 되고, 그건 이 제품이
-    파는 「조작 불가능한 지표」와 정확히 반대다.
+    기준은 s4가 열리는 시각이고(2026-09-06 수연 결정), s4가 며칠 뒤면
+    「7일」처럼 단위가 커진다. 그건 dev 데이터가 정하는 값이다.
 
-    **롤업이 붙으면 이 줄을 지우고 카운트다운을 구현한다.**
+    ⚠️ 롤업은 아직 없다. 주기 15분은 결정된 값이고 구현만 남았다 —
+    `leaderboardSnapshot`을 쓰는 코드는 dev 샌드박스뿐이다.
   */
-  /^\d+분$/,
+  /^\d+(분|시간|일)$/,
 ];
 
 /** 모듈 이름만 준 것은 구현본 쪽에서 클래스로 바꾼다 */

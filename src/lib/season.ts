@@ -38,29 +38,21 @@ export function resolveLandingCta(season: Season): LandingCta {
 /**
  * 헤더(NavBar)의 주 버튼.
  *
- * 랜딩의 CTA와 **같은 판정**(resolveLandingCta)을 쓴다. 공개 화면마다 다른 문구가
- * 걸리면 "지금 신청이 되는 건가"를 화면마다 다르게 답하는 셈이 된다.
- * 랜딩만은 예외로 자기 폼으로 스크롤하는 onClick을 따로 넘긴다.
+ * 랜딩만은 예외로, 이동 대신 자기 폼으로 스크롤하는 onClick을 따로 넘긴다.
  */
 /*
-  헤더 CTA 문구. 시안이 시즌 상세 화면(1712행)에 상태별로 적어 둔 것을 그대로
-  쓴다 — pre「사전 신청하기」, recruit「참가 신청하기」, racing「리더보드 보기」.
+  헤더 CTA. **시즌 상태와 무관하게 「사전 신청하기」 하나다.**
 
-  ⚠️ CLOSED만 시안에 대응하는 것이 없다. 시안의 상태는 pre·recruit·racing
-  셋뿐이라 시즌이 끝난 뒤의 문구는 아직 정해지지 않았다 — 윤서에게 넘길 것.
+  시안의 공개 헤더는 셋 다(랜딩 1439행·리더보드 1607행·참가작 1655행) 같은
+  버튼을 그린다. 헤더에는 상태가 없다.
+
+  ⚠️ 한때 상태별로 갈랐다(모집 중「참가 신청하기」, 레이스 중「리더보드 보기」).
+  시안이 시즌 상세 화면 1712행에 적어 둔 것을 헤더 문구로 잘못 읽은 것이다 —
+  그건 그 화면 안의 버튼 설명이었다. 2026-09-06에 되돌렸다.
+
+  상태별 헤더 시안이 따로 올 예정이다(윤서). 그때까지는 시안대로 하나만 둔다.
 */
-export function resolveNavCta(season: Season): { href: string; label: string } {
-  const kind = resolveLandingCta(season).kind;
-  if (kind === "APPLY") return { href: "/apply", label: "참가 신청하기" };
-  if (kind === "LEADERBOARD") {
-    return {
-      href: `/seasons/${season.slug}/leaderboard`,
-      label: "리더보드 보기",
-    };
-  }
-  if (kind === "CLOSED") {
-    return { href: `/seasons/${season.slug}`, label: "시즌 보기" };
-  }
+export function resolveNavCta(): { href: string; label: string } {
   return { href: "/?preregister=1", label: "사전 신청하기" };
 }
 
@@ -80,7 +72,7 @@ export function resolveNav(season: Season | null): {
   return {
     leaderboardHref: `/seasons/${season.slug}/leaderboard`,
     showMenu: navMenuVisible(season),
-    cta: resolveNavCta(season),
+    cta: resolveNavCta(),
   };
 }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { Clauses } from "@/components/Clauses";
 import { DocPage, DocTable, type DocSection } from "@/components/DocPage";
 import { PRIVACY_POLICY, type PolicyBlock } from "@/content/privacy";
 
@@ -33,10 +34,23 @@ function Blocks({ blocks }: { blocks: PolicyBlock[] }) {
   return (
     <>
       {blocks.map((b, i) => {
-        if (b.kind === "para") return <p key={i}>{b.text}</p>;
+        if (b.kind === "para")
+          return (
+            <p key={i}>
+              <Clauses text={b.text} />
+            </p>
+          );
         if (b.kind === "list") {
-          const items = b.items.map((t, j) => <li key={j}>{t}</li>);
-          return b.ordered ? <ol key={i}>{items}</ol> : <ul key={i}>{items}</ul>;
+          const items = b.items.map((t, j) => (
+            <li key={j}>
+              <Clauses text={t} />
+            </li>
+          ));
+          return b.ordered ? (
+            <ol key={i}>{items}</ol>
+          ) : (
+            <ul key={i}>{items}</ul>
+          );
         }
         return (
           <DocTable
@@ -65,8 +79,8 @@ export default async function Page() {
     {
       id: "pv-0",
       num: "요약",
-      title: "주요 개인정보 처리 표시",
-      tocLabel: "요약 표시",
+      title: "주요 개인정보 처리 항목",
+      tocLabel: "요약",
       body: (
         <DocTable
           head={policy.summary.head}
@@ -87,8 +101,16 @@ export default async function Page() {
   return (
     <DocPage
       title="PROOVIT 개인정보처리방침"
-      chips={[policy.version, `시행 ${policy.effectiveDate}`]}
-      badge="계약과 다르면 정보주체에게 유리한 쪽 적용"
+      /*
+        ⚠️ 시안(1870줄)에 있는 버전 칩과 배지를 **일부러 뺐다**(2026-09-07 수연 지시).
+        `doc.mjs` 대조에 두 건이 남는 것은 이 결정 때문이지 이식 누락이 아니다.
+
+        버전 칩 v3.1은 노션 정본 문서의 판번호다. 게시본 제18조는 "2026. 08. 31.
+        최초 제정"이라고 말하므로 대외 화면에 붙으면 개정이 두 번 있었던 것처럼
+        읽힌다. 값은 `privacy.ts`의 `POLICY.version`에 그대로 두어 어느 정본을
+        옮겼는지는 코드에 남긴다.
+      */
+      chips={[`시행 ${policy.effectiveDate}`]}
       note="ℹ️ 사전 신청, 회원가입, 참가 신청의 동의 문안이 참조하는 처리방침이에요."
       intro={<p>{policy.preamble}</p>}
       sections={sections}

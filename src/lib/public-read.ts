@@ -109,6 +109,14 @@ export type LeaderboardRow = {
 export type Leaderboard = {
   /** 이 순위가 언제 것인가. 스냅샷이 없으면 null */
   snapshotDate: Date | null;
+  /*
+    이 표를 읽은 시각. 「12분 전 갱신」의 기준이다.
+
+    ⚠️ 화면에서 `Date.now()`를 부를 수 없어서 여기서 준다 — 렌더 중의 impure
+    호출은 리액트가 막는다(`react-hooks/purity`). 데이터를 읽는 이 자리가
+    「언제 기준인가」를 아는 자리이기도 하다.
+  */
+  loadedAt: number;
   /** 최종 확정 순위인가. 확정되면 더 안 바뀐다는 사실 자체가 정보다 */
   isFinal: boolean;
   rows: LeaderboardRow[];
@@ -155,7 +163,7 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
     },
   });
   if (entries.length === 0) {
-    return { snapshotDate: null, isFinal: false, rows: [] };
+    return { snapshotDate: null, isFinal: false, rows: [], loadedAt: Date.now() };
   }
 
   /* 가장 최근 집계일 하나를 잡고 그날 것만 읽는다 — 날짜가 섞이면 순위가 섞인다 */
@@ -250,6 +258,7 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
     /* 한 장이라도 최종이면 그 집계가 최종이다 — 롤업이 통째로 찍는 값이다 */
     isFinal: snapshots.some((s) => s.isFinal),
     rows,
+    loadedAt: Date.now(),
   };
 }
 

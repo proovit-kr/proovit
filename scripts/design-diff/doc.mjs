@@ -46,7 +46,12 @@ const PAIRS = [
   ["h1", S + ".ru h1", '[class*="__doc"] h1', ["width"]],
   ["ru-ver", S + ".ru-ver", '[class*="__ver"]', ["width"]],
   ["chip", S + ".ru-ver .chip", '[class*="__ver"] [class*="__chip"]', ["width"]],
-  ["badge", S + ".ru-ver .badge", '[class*="__ver"] [class*="Badge-module"]', ["width"]],
+  /*
+    ⚠️ **배지는 대조하지 않는다** — 구현본에서 일부러 뺐다(2026-09-07 수연 지시).
+    시안 1871줄의 `계약과 다르면 정보주체에게 유리한 쪽 적용`이다. 남겨 두면
+    시안에만 있는 요소라 속성 하나하나가 전부 불일치로 찍혀 폭마다 38건씩,
+    합계 114건이 쌓인다. 진짜 누락이 그 안에 묻힌다.
+  */
   ["doc-note", S + ".doc-note", '[class*="__note"]', ["width", "height"]],
   ["h3", S + ".ru h3", '[class*="__doc"] h3', ["width"]],
   ["h3 .n", S + ".ru h3 .n", '[class*="__doc"] h3 [class*="__n"]', ["width"]],
@@ -110,9 +115,18 @@ async function hoverValues(p, side) {
   대신 **시안이 직접 적은 것**만 본다 — 제목과 버전 칩과 배지다.
   이 셋은 시안이 값을 박아 두었고 우리가 그대로 옮겨야 하는 자리다.
 */
+/*
+  ⚠️ 시안에만 남은 두 글자. 구현본에서 일부러 뺐다(2026-09-07 수연 지시).
+
+  v3.1은 노션 정본 문서의 판번호다. 게시본 제18조가 「2026. 08. 31. 최초 제정」
+  이라 대외 화면에 붙으면 개정이 두 번 있었던 것처럼 읽힌다. 배지는 위 PAIRS의
+  설명과 같은 이유로 뺐다. 시안이 갱신되면 이 목록을 지운다.
+*/
+const TEXT_IGNORE = [/^v3\.1$/, /^계약과 다르면 정보주체에게 유리한 쪽 적용$/];
+
 const TEXT_PAIRS = [
   ["제목", S + ".ru h1", '[class*="__doc"] h1'],
-  ["버전 칩", S + ".ru-ver", '[class*="__ver"]'],
+  ["버전 칩", S + ".ru-ver", '[class*="__ver"]', TEXT_IGNORE],
 ];
 
 let total = 0;
@@ -144,8 +158,8 @@ for (const w of WIDTHS) {
   for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
   total += spec.missing.length + impl.missing.length;
   total += diffTable(`${w}px — 문서 화면`, spec.out, impl.out);
-  for (const [n] of TEXT_PAIRS) {
-    total += diffText(spec.text[n], impl.text[n], { label: n });
+  for (const [n, , , ignore] of TEXT_PAIRS) {
+    total += diffText(spec.text[n], impl.text[n], { label: n, ignore });
   }
 }
 console.log(`\n═══════════════════════════\n세 폭 합계 불일치 ${total}건`);

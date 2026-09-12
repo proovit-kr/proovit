@@ -4,8 +4,10 @@ import { Children, cloneElement, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 import { Badge } from "./Badge";
+import { ClauseFit } from "./ClauseFit";
+import { Clauses } from "./Clauses";
 import { Card } from "./Surface";
-import { Button, LinkButton } from "./Button";
+import { Button } from "./Button";
 import ConsentFields, {
   EMPTY_CONSENT,
   focusFirstMissingConsent,
@@ -30,7 +32,6 @@ import {
   MARQUEE,
   ROADMAP,
 } from "@/content/landing";
-import type { LandingCta } from "@/lib/season";
 
 /*
   랜딩 — 시안 v2.1의 「랜딩(배포본 정적 재현)」을 그대로 옮긴 것.
@@ -57,31 +58,21 @@ export interface LandingProps {
   seasonTheme: string | null;
   /** 킥오프 시각(ISO). 미정이면 null. */
   startAt: string | null;
-  cta: LandingCta;
   /** 실제 사전 신청자 수 (DB 집계) */
   preRegisterCount: number;
 }
 
-const CTA_LABEL: Record<LandingCta["kind"], string> = {
-  PREREGISTER: "사전 신청하기",
-  APPLY: "참가 신청하기",
-  LEADERBOARD: "리더보드 보기",
-  CLOSED: "지난 시즌 보기",
-};
-
 /*
-  짧은 주소(`/leaderboard`·`/seasons`)를 쓰지 않는다 — 시안 v2.1의 화면
-  레지스트리에 그 둘이 없다. 리더보드의 정본은 `/seasons/:slug/leaderboard`고,
-  시즌 아카이브는 보류(P2)라 시즌 상세로 대신 보낸다. season.ts resolveNavCta와
-  같은 규칙이다.
+  ⚠️ **랜딩의 버튼 셋은 시즌 상태를 따르지 않는다.** 헤더(1439행)·히어로
+  (1451행)·파이널(1566행) 모두 시안에 「사전 신청하기」 하나로 그려져 있고,
+  분기가 없다. 셋 다 같은 폼을 향한다.
+
+  상태별 셋(`only-pre`·`only-recruit`·`only-racing`)이 있는 곳은 **시즌 상세
+  화면**(`#scr-season` 1712행)이다. 한때 그것을 랜딩으로 옮겨 놨었다 —
+  2026-09-06에 되돌렸다. `resolveLandingCta`는 시즌 상세(§8)가 쓸 값이라
+  season.ts에 그대로 둔다.
 */
-const ctaHref = (kind: LandingCta["kind"], slug: string): string =>
-  ({
-    PREREGISTER: "#hero",
-    APPLY: "/apply",
-    LEADERBOARD: `/seasons/${slug}/leaderboard`,
-    CLOSED: `/seasons/${slug}`,
-  })[kind];
+const CTA_LABEL = "사전 신청하기";
 
 const cx = (...v: (string | undefined | false)[]) =>
   v.filter(Boolean).join(" ");
@@ -178,7 +169,9 @@ function SectionHead({
       </Reveal>
       {lead ? (
         <Reveal index={2} step={70}>
-          <p className={styles.secLead}>{lead}</p>
+          <p className={styles.secLead}>
+            <Clauses text={lead} />
+          </p>
         </Reveal>
       ) : null}
     </>
@@ -190,7 +183,6 @@ export function Landing({
   seasonSlug,
   startAt,
   showMenu,
-  cta,
   preRegisterCount,
 }: LandingProps) {
   const { message, show } = useToast();
@@ -238,7 +230,6 @@ export function Landing({
     그래서 스크롤과 포커스를 함께 한다.
   */
   const runCta = () => {
-    if (cta.kind !== "PREREGISTER") return;
     scrollTo("hero");
     /*
       preventScroll이 없으면 브라우저가 포커스 대상으로 즉시 튀어
@@ -337,9 +328,6 @@ export function Landing({
     }
   };
 
-  const ctaLabel = CTA_LABEL[cta.kind];
-  const isScrollCta = cta.kind === "PREREGISTER";
-  const heroCtaHref = ctaHref(cta.kind, seasonSlug);
 
   /*
     히어로 배지의 개막일. 시안은 「시즌 1, 2026.09.28 개막」이다.
@@ -373,16 +361,15 @@ export function Landing({
 
   return (
     <div className="page">
+      {/*
+        이동 대신 폼으로 스크롤한다 — 같은 문서 안이라 주소만 갈면 아무 일도
+        안 일어난 것처럼 보인다. `href`는 자바스크립트가 죽었을 때의 대비다.
+      */}
       <NavBar
         glitchLogo
         leaderboardHref={`/seasons/${seasonSlug}/leaderboard`}
         showMenu={showMenu}
-        cta={{
-          href: heroCtaHref,
-          label: ctaLabel,
-          // 사전신청은 이 페이지 안에서 처리한다. 나머지는 실제 라우트 이동이다.
-          onClick: isScrollCta ? runCta : undefined,
-        }}
+        cta={{ href: "/?preregister=1", label: CTA_LABEL, onClick: runCta }}
       />
 
       <div className={`${styles.ld} grow`}>
@@ -403,29 +390,14 @@ export function Landing({
             </Reveal>
             <Reveal index={2} step={70}>
               <p className={styles.sub}>
-                아이디어를 실제 유저와 매출 데이터로 바꾸는 AI 빌드 리그예요.
-                코딩 경험이 없어도 괜찮아요.
+                <Clauses text="아이디어를 실제 유저와 매출 데이터로 바꾸는 AI 빌드 리그예요. 코딩 경험이 없어도 괜찮아요." />
               </p>
             </Reveal>
             <Reveal index={3} step={70}>
               <div className={styles.ctas}>
-                {isScrollCta ? (
-                  <Button
-                    size="lg"
-                    className={styles.btnPrimary}
-                    onClick={runCta}
-                  >
-                    {ctaLabel}
-                  </Button>
-                ) : (
-                  <LinkButton
-                    size="lg"
-                    href={heroCtaHref}
-                    className={styles.btnPrimary}
-                  >
-                    {ctaLabel}
-                  </LinkButton>
-                )}
+                <Button size="lg" className={styles.btnPrimary} onClick={runCta}>
+                  {CTA_LABEL}
+                </Button>
                 <Button
                   size="lg"
                   variant="outline"
@@ -602,7 +574,9 @@ export function Landing({
                     </div>
                     <div className={styles.rmT}>{stop.label}</div>
                     <div className={styles.rmW}>{stop.when}</div>
-                    <p className={styles.rmD}>{stop.desc}</p>
+                    <p className={styles.rmD}>
+                      <Clauses text={stop.desc} />
+                    </p>
                   </div>
                 ))}
               </div>
@@ -627,7 +601,9 @@ export function Landing({
                 <Card>
                   <span className={styles.threeNo}>{b.no}</span>
                   <h4>{b.title}</h4>
-                  <p>{b.desc}</p>
+                  <p>
+                    <Clauses text={b.desc} />
+                  </p>
                 </Card>
               </Reveal>
             ))}
@@ -651,7 +627,9 @@ export function Landing({
                 <Card>
                   <span className={styles.threeNo}>{w.no}</span>
                   <h4>{w.title}</h4>
-                  <p>{w.desc}</p>
+                  <p>
+                    <Clauses text={w.desc} />
+                  </p>
                 </Card>
               </Reveal>
             ))}
@@ -707,7 +685,9 @@ export function Landing({
                 {/* 시안은 첫 항목만 펼쳐 둔다 — 여는 방법을 한 번 보여주는 것이다 */}
                 <details open={i === 0}>
                   <summary>{f.q}</summary>
-                  <p className={styles.a}>{f.a}</p>
+                  <p className={styles.a}>
+                    <Clauses text={f.a} />
+                  </p>
                 </details>
               </Reveal>
             ))}
@@ -724,29 +704,20 @@ export function Landing({
             </h2>
           </Reveal>
           <Reveal index={1} step={90}>
-            {isScrollCta ? (
-              <Button
-                className={styles.btnPrimary}
-                style={{ padding: "14px 30px", fontSize: 15 }}
-                onClick={runCta}
-              >
-                {ctaLabel}
-              </Button>
-            ) : (
-              <LinkButton
-                href={heroCtaHref}
-                className={styles.btnPrimary}
-                style={{ padding: "14px 30px", fontSize: 15 }}
-              >
-                {ctaLabel}
-              </LinkButton>
-            )}
+            <Button
+              className={styles.btnPrimary}
+              style={{ padding: "14px 30px", fontSize: 15 }}
+              onClick={runCta}
+            >
+              {CTA_LABEL}
+            </Button>
           </Reveal>
         </div>
       </div>
 
       <Footer />
       <Toast message={message} />
+      <ClauseFit />
     </div>
   );
 }

@@ -58,6 +58,12 @@ const KNOWN = [
   */
   /* 상태에 따라만 붙는 클래스. 지금 그 상태가 아닐 뿐이다 */
   /^\.StageProgress\.track--full /,
+  /*
+    ⚠️ `.measuring`은 **재는 동안에만** <html>에 붙는다(`ClauseFit.tsx`).
+    절을 한 줄로 펴서 제 너비를 읽고 바로 뗀다 — 화면을 훑는 시점에는 절대
+    붙어 있지 않으므로 이 검사에는 영원히 안 잡힌다. 죽은 규칙이 아니다.
+  */
+  /^\.Clauses\.measuring /,
   /^\.(ProfileFields|DevBar)\./,
   /^\.ConsentFields\.labelInvalid/,
   /^\.Landing\.(in|gate|faq|mqTrack|crit li)/,
