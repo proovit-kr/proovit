@@ -283,14 +283,28 @@
 */
 html {
   /*
-    ⚠️ `color-scheme: dark`를 주지 않는다. 시안에 그 선언이 없다(0건).
-
-    이 한 줄이 **네이티브 폼 컨트롤의 색**을 바꾼다 — 체크박스가 어두운
-    바탕에 회색 테두리로 그려진다. 시안의 체크박스는 밝은(흰) 사각형이다.
-    스크롤바는 아래 `::-webkit-scrollbar` 규칙이 따로 칠하므로 이걸 빼도
-    어두운 채로 남는다.
+    `color-scheme: dark`는 여기가 아니라 layout.tsx의 viewport가 meta로
+    선언한다. 시안에 없는 선언인데 넣은 이유(삼성 인터넷 다크 모드의 강제
+    반전)도 거기 적혀 있다.
   */
   scroll-behavior: smooth;
+}
+
+/*
+  체크박스·라디오는 밝은 컨트롤로 되돌린다.
+
+  layout.tsx의 `color-scheme: dark`가 네이티브 폼 컨트롤을 어두운 바탕에 회색
+  테두리로 그리는데, 시안의 체크박스는 밝은(흰) 사각형이다. 컨트롤 하나에만
+  light를 주면 그 컨트롤은 시안대로 그려지고, 페이지는 여전히 다크를 선언한
+  상태라 강제 반전은 계속 비켜 간다 — 둘 다 플래그 Chrome에서 확인했다.
+
+  다른 네이티브 컨트롤(select 팝업, date 피커)은 어두운 채로 둔다. 시안이
+  select는 `appearance: none`으로 직접 그리고, 팝업·피커는 시안에 없다.
+  스크롤바는 아래 `::-webkit-scrollbar` 규칙이 따로 칠한다.
+*/
+input[type="checkbox"],
+input[type="radio"] {
+  color-scheme: light;
 }
 
 /*

@@ -94,6 +94,28 @@ export const metadata: Metadata = {
 */
 export const viewport: Viewport = {
   themeColor: "#0a101c",
+  /*
+    `<meta name="color-scheme" content="dark">`.
+
+    삼성 인터넷·Chrome Android의 「다크 모드」는 이 선언이 없는 페이지를
+    **강제로 반전**한다. 우리 화면은 이미 어두운데도 밝은 조각만 골라 뒤집어서,
+    라임 버튼(#c8ff3d)이 어두운 올리브(#113200)로, 흰 체크박스가 회색으로
+    그려졌다(2026-09-02 카톡 영상, 갤럭시). 시안이 정한 색이 통째로 죽는다.
+
+    Chromium은 페이지가 color-scheme에 dark를 선언하면 「이미 다크 테마를
+    지원한다」고 보고 반전을 건너뛴다. `--enable-features=WebContentsForceDark`로
+    띄운 Chrome에서 확인했다 — 선언 없음 #113200, 선언 있음 #c8ff3d.
+    (CDP의 `Emulation.setAutoDarkModeOverride`는 이 검사를 건너뛰어 재현에
+    못 쓴다. 실제 플래그로 띄워야 한다.)
+
+    ⚠️ 시안에는 이 선언이 없다(0건). 브라우저가 시안 색을 덮는 것을 막는
+    용도라 의도적으로 다르게 한 것이다.
+
+    ⚠️ 이 선언은 **네이티브 폼 컨트롤을 어둡게 그린다.** 시안의 체크박스는
+    흰 사각형이라 globals.css가 체크박스·라디오만 `color-scheme: light`로
+    되돌린다. 새 네이티브 컨트롤을 쓰면 그 자리를 함께 본다.
+  */
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
