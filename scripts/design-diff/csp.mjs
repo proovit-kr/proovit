@@ -132,9 +132,13 @@ await withPage(async (p) => {
 
   /*
     위반 0건은 「허용 목록이 충분하다」는 뜻이지 「GA·Turnstile이 실제로
-    실렸다」는 뜻이 아니다. 빌드에 NEXT_PUBLIC_GA_ID·TURNSTILE_SITE_KEY가
+    실렸다」는 뜻이 아니다. 빌드에 NEXT_PUBLIC_GA_ID·NEXT_PUBLIC_TURNSTILE_SITE_KEY가
     없으면 둘 다 안 그려져서 검사가 통째로 비게 된다. 그래서 화면마다 실제로
-    요청이 나간 외부 호스트를 같이 적는다 — 비어 있으면 그 빌드는 못 믿는다.
+    요청이 나간 외부 호스트를 같이 적는다 — 폰트 두 곳만 보이면 그 빌드는 못 믿는다.
+
+    채우는 법은 .env.example의 애널리틱스 항목에 있다. 요약하면 두 키를
+    `.env.production.local`에 두고, GA는 **가짜 측정 ID**를 쓴다 — 진짜를 쓰면
+    이 검사가 여는 33개 화면이 운영 GA4에 페이지뷰로 쌓인다.
   */
   let hosts = new Set();
   p.on("Network.requestWillBeSent", ({ request }) => {
