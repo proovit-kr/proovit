@@ -1,5 +1,25 @@
 import type { NextConfig } from "next";
 
+/*
+  한 줄에 한 지시어. 외부 출처는 넷뿐이다 —
+    Google Fonts(css는 googleapis, 파일은 gstatic),
+    GA(@next/third-parties가 googletagmanager를 넣고, 수집은 google-analytics로 간다),
+    Turnstile(스크립트와 챌린지 iframe 모두 challenges.cloudflare.com).
+*/
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://challenges.cloudflare.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https://www.googletagmanager.com https://*.google-analytics.com",
+  "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
+  "frame-src https://challenges.cloudflare.com",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "upgrade-insecure-requests",
+].join("; ");
+
 const nextConfig: NextConfig = {
   /*
     Next 개발 표시기를 끈다.
@@ -30,6 +50,39 @@ const nextConfig: NextConfig = {
     지금 주소는 `ipconfig getifaddr en0`으로 본다.
   */
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.30.*.*"],
+
+  /*
+    보안 헤더. 2026-09-08 OWASP ZAP 점검(노션 「proovit.kr 보안 점검」)에서
+    빠졌다고 나온 것들. HSTS는 Vercel이 이미 붙이므로 여기 없다.
+
+    CSP는 nonce 없이 간다. nonce는 모든 화면을 동적 렌더로 바꿔서 랜딩이
+    CDN 캐시를 잃는다. 대신 script-src에 'unsafe-inline'을 두는데, Next가
+    RSC 페이로드를 인라인 <script>로 넣기 때문에 이것 없이는 화면이 안 뜬다.
+    그래서 이 CSP가 막는 것은 인라인 스크립트가 아니라 **바깥으로 나가는 길**
+    이다 — 허용 목록 밖의 스크립트·fetch·iframe·플러그인·<base> 바꿔치기.
+
+    ⚠️ form-action은 일부러 없다. 로그인 폼이 서버 액션으로 POST한 뒤
+    kauth.kakao.com / accounts.google.com으로 302 되는데, Chrome은 그
+    리다이렉트 끝까지 form-action으로 검사해서 'self'만 두면 로그인이 깨진다.
+
+    출처를 더할 때는 여기 한 줄 추가로 끝난다. 검증은
+    scripts/design-diff/csp.mjs — 프로덕션 빌드를 띄우고 모든 화면을 돌며
+    콘솔의 CSP 위반을 센다.
+  */
+  poweredByHeader: false,
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          /* 우리 화면을 iframe에 넣어 쓰는 곳이 없고 로그인 세션이 있다 */
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Content-Security-Policy", value: CSP },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

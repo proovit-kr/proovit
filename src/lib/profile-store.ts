@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 import { hasAnyEntry } from "@/lib/apply-store";
 import { prisma } from "@/lib/prisma";

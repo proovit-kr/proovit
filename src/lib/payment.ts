@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 /*
   결제 연동의 **순수** 절반. 클라이언트도 읽는다(CLAUDE.md §8).
