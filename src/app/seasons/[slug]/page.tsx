@@ -26,7 +26,7 @@ import styles from "./season.module.css";
 
 /*
   제목·설명에 시즌명이 들어가야 한다. 정적 `metadata`로 두면 시즌이 무엇이든
-  검색 결과와 공유 카드가 「시즌 | PROOVIT」 하나로 나온다 — 시즌마다 남는
+  검색 결과와 공유 카드가 「시즌, PROOVIT」 하나로 나온다 — 시즌마다 남는
   아카이브인데 서로 구분이 안 된다.
 
   `loadPublicSeason`은 `cache()`로 감싸 두어 본문과 조회를 나눠 쓴다.
