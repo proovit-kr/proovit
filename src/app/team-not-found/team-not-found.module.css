@@ -1,0 +1,91 @@
+/*
+  참가팀 주소 404의 경량 크롬 — 시안 `.pub-head.lite` / `.pub-foot.lite`.
+
+  공개 크롬(NavBar·Footer)을 안 쓰는 이유: 이 화면은 참가팀 주소
+  (팀명.proovit.kr)에서 뜬다. 메뉴·CTA는 시즌 상태를 알아야 하고 푸터는
+  노션 정본의 세 줄인데, 시안은 여기에 워드마크 + proovit.kr 링크 하나,
+  푸터는 한 문장 + 메일뿐인 얇은 크롬을 따로 그렸다. 값은 시안 `.pub-head`·
+  `.pub-foot`의 것이고 NavBar.module.css·Footer.module.css와 같다.
+*/
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding: 0 40px;
+  height: 64px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(12, 19, 34, 0.78);
+  backdrop-filter: blur(12px) saturate(1.25);
+  /* iOS 사파리에서 헤더 위로 본문이 새는 것을 덮는다. 사유는 NavBar.module.css */
+  box-shadow: 0 -60px 0 60px var(--bg);
+}
+.wm {
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.06em;
+}
+.wmCheck {
+  color: var(--accent);
+  font-style: normal;
+}
+.rgt {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.rgt a {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.rgt a:hover {
+  color: var(--text);
+}
+
+.foot {
+  border-top: 1px solid var(--line);
+  padding: 34px 40px;
+  display: flex;
+  gap: 16px;
+  color: var(--faint);
+  font-size: 13px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+.foot span {
+  color: var(--faint);
+}
+/*
+  푸터 워드마크. 시안은 `.pub-foot .wm`이 --muted를 주지만 `.pub-foot.lite span`
+  (0,2,1)이 그것(0,2,0)을 이겨서 실제로는 --faint로 그려진다. 크기도 13px을
+  상속한다. 계산값을 따른다 — 헤더의 `.wm`(18px)을 여기서 덮는다.
+*/
+.foot .wm {
+  font-size: inherit;
+  color: var(--faint);
+}
+.foot a:hover {
+  color: var(--text);
+}
+
+@media (max-width: 760px) {
+  .head {
+    padding: 0 18px;
+    gap: 12px;
+    height: 56px;
+  }
+  .rgt {
+    gap: 10px;
+  }
+  /*
+    ⚠️ gap은 안 바꾼다. 시안 `.pub-foot`의 ≤760 `gap:12px 16px`(0,1,0)을
+    `.pub-foot.lite{gap:16px}`(0,2,0)이 이겨서 경량 푸터는 16px 그대로다.
+  */
+  .foot {
+    padding: 26px 20px;
+  }
+}

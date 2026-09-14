@@ -1,5 +1,5 @@
 /*
-  404 화면 — 시안 `design/proovit_404.html`의 `.nf*`.
+  404 본문 — 시안 `design/proovit_404.html`의 `.nf*`. ①(앱)과 ②(참가팀 주소)가 같이 쓴다.
 
   단일 파일 v1.1이라 누적 오버라이드가 없다. 값은 그대로 옮겼다.
 
@@ -129,4 +129,14 @@
   .num {
     font-size: 64px;
   }
+}
+
+/* 본문 안의 링크. ②에서 「측정 연동」이 이걸 쓴다 */
+.copy p a {
+  color: var(--text);
+  border-bottom: 1px dashed var(--line-strong);
+}
+.copy p a:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }

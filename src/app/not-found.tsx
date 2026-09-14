@@ -3,10 +3,8 @@ import Link from "next/link";
 
 import { Footer } from "@/components/Footer";
 import { NavBar } from "@/components/NavBar";
-import { Card } from "@/components/Surface";
+import { NotFoundBody, goClass } from "@/components/NotFound";
 import { getCurrentSeason, resolveNav } from "@/lib/season";
-
-import styles from "./not-found.module.css";
 
 /*
   404 — 시안 `design/proovit_404.html`의 ① 「proovit.kr 경로 없음」.
@@ -20,8 +18,7 @@ import styles from "./not-found.module.css";
   구조라(DocPage와 같다) 여기서도 그렇게 한다. 헤더의 메뉴·CTA는 시즌 상태에
   따라 `resolveNav`가 정하고, 푸터는 노션 정본(Footer.tsx)이다.
 
-  시안의 ② 「참가팀 주소 미연결」(teamname.proovit.kr)은 리버스 프록시가
-  돌려주는 경량 페이지라 이 앱의 것이 아니다. 여기서는 그리지 않는다.
+  시안의 ② 「참가팀 주소 미연결」은 `/team-not-found`다.
 */
 
 /*
@@ -38,22 +35,16 @@ export default async function NotFound() {
   return (
     <main className="page">
       <NavBar {...resolveNav(season)} />
-      <div className={styles.nf}>
-        <div className={styles.in}>
-          <div className={styles.copy}>
-            <h1>페이지를 찾을 수 없어요</h1>
-            <p>주소가 잘못됐거나 페이지가 옮겨졌을 수 있어요.</p>
-            <Link href="/" className={styles.go}>
-              홈으로 돌아가기
-            </Link>
-          </div>
-          {/* 장식이다. 제목이 이미 같은 말을 하므로 읽어 주지 않는다 */}
-          <Card className={styles.plate} aria-hidden="true">
-            <div className={styles.cap}>NOT FOUND</div>
-            <div className={styles.num}>404</div>
-          </Card>
-        </div>
-      </div>
+      <NotFoundBody
+        title="페이지를 찾을 수 없어요"
+        go={
+          <Link href="/" className={goClass}>
+            홈으로 돌아가기
+          </Link>
+        }
+      >
+        <p>주소가 잘못됐거나 페이지가 옮겨졌을 수 있어요.</p>
+      </NotFoundBody>
       <Footer />
     </main>
   );
