@@ -36,6 +36,8 @@ const PAGES = [
   ["회원가입", "/signup"],
   ["개인정보처리방침", "/privacy"],
   ["규칙", "/rules"],
+  ["404", "/this-route-does-not-exist"],
+  ["참가팀 주소 404", "/team-not-found"],
   ["컴포넌트 진열장", "/dev/components"],
 ];
 

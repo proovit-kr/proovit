@@ -32,8 +32,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
     default: title,
-    // 하위 페이지는 자기 제목만 지정하면 뒤에 브랜드가 붙는다
-    template: "%s | PROOVIT",
+    /*
+      하위 페이지는 자기 제목만 지정하면 뒤에 브랜드가 붙는다.
+      구분자는 쉼표다 — 윤서의 404 시안이 「페이지를 찾을 수 없어요, PROOVIT」로
+      적었고, 화면 제목 형식을 시안이 정한 것은 그것뿐이다. 초기 셋업의 `|`는
+      근거 없는 기본값이었다(2026-09-14 변경).
+    */
+    template: "%s, PROOVIT",
   },
   description,
   openGraph: {
