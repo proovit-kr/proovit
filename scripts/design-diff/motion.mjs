@@ -29,6 +29,7 @@ const PAGES = [
   ["회원가입", "/signup"],
   ["개인정보처리방침", "/privacy"],
   ["규칙", "/rules"],
+  ["404", "/this-route-does-not-exist"],
 ];
 
 /** 스크롤로만 켜지는 것이 있어 끝까지 내렸다가 돌아온다 */

@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>페이지를 찾을 수 없어요, PROOVIT</title>
+<!--
+  PROOVIT 404 페이지, proovit_404.html
+  v1.1 (2026-09-12, LYS_HP): 담백 패스. 본문 CTA 버튼 제거, 전광판 모션(스윕, 스캔라인, 글리치, 그리드)과 요청 주소, 확인 시각 제거.
+       정적 플레이트(NOT FOUND, 404) + 제목 + 한두 문장 + 텍스트 링크 하나로 축소
+  v1.0 (2026-09-12): 디자인 시안 v4.0의 토큰과 공개 크롬을 그대로 옮긴 단일 파일
+  근거: proovit_디자인시안_ver4.html (토큰, 공개 헤더 P1/P2/P3/P5, 푸터, 카드 표면, 측정 연동 화면의 팀 주소 발급 구조)
+
+  화면 2종 (STATE 바로 전환, 배포 시 STATE 바와 관련 스크립트 제거)
+    ① app  : proovit.kr 안에서 없는 경로. Next.js app/not-found.tsx 에 대응. 헤더와 푸터는 레이아웃에서 상속
+    ② team : 참가팀 주소(teamname.proovit.kr)에 연결된 참가작이 없을 때 리버스 프록시가 반환하는 경량 페이지
+  미리보기 쿼리: ?v=team, ?season=pre|recruit|stage|done
+  [판단 필요] 리더보드 경로의 시즌 slug는 /seasons/1/ 로 가정. 실제 slug 확정 후 교체
+-->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============ 디자인 토큰 (시안 v4.0 최종 적용값) ============ */
+:root{
+  --bg:#0A101C; --surface:#131C31; --surface-2:#0D1526;
+  --line:rgba(226,232,244,.11); --line-strong:rgba(226,232,244,.22);
+  --text:#EAEEF6; --muted:#A7B1C6; --faint:#7D88A3;
+  --accent:#C8FF3D; --accent-ink:#0B1220; --accent-dim:rgba(200,255,61,.12);
+  --r-s:8px; --r-m:12px; --r-l:16px;
+  --font:'Pretendard Variable',Pretendard,-apple-system,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+  --head-h:64px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.65;letter-spacing:-.005em;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100vh;word-break:keep-all;overflow-wrap:break-word}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:
+  radial-gradient(1000px 520px at 72% -12%,rgba(111,179,255,.055),transparent 62%),
+  radial-gradient(760px 460px at 4% -8%,rgba(200,255,61,.045),transparent 60%)}
+.ic{width:1.05em;height:1.05em;display:inline-block;vertical-align:-.15em;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ============ 공용 컴포넌트 (헤더 CTA용) ============ */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:14.5px;letter-spacing:-.01em;border-radius:11px;padding:11px 20px;transition:.15s;white-space:nowrap}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:linear-gradient(180deg,#D9FF74,#BEF22C);color:#0A1120;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4),inset 0 -1px 0 rgba(10,17,32,.25),0 8px 22px -10px rgba(200,255,61,.5)}
+.btn-primary:hover{background:linear-gradient(180deg,#E2FF8E,#C8F945)}
+.btn-outline{border:1px solid var(--accent);color:var(--accent);background:rgba(200,255,61,.05)}
+.btn-outline:hover{background:var(--accent-dim)}
+.btn-ghost{color:var(--muted)}.btn-ghost:hover{color:var(--text)}
+.btn.sm{padding:9px 18px;font-size:13.5px}
+
+/* ============ 공개 크롬 (시안 v3.1 헤더 상태별 P 계열) ============ */
+.pub-head{display:flex;align-items:center;gap:26px;padding:0 40px;height:var(--head-h);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;
+  background:rgba(12,19,34,.78);backdrop-filter:blur(12px) saturate(1.25)}
+.pub-head .wm{font-weight:800;font-size:18px;letter-spacing:.06em}
+.pub-head .wm em,.pub-foot .wm em{color:var(--accent);font-style:normal}
+.pub-head nav{display:flex;gap:22px;font-size:14px;color:var(--muted)}
+.pub-head nav a:hover{color:var(--text)}
+.pub-head nav a.soon-nav{color:var(--faint);cursor:not-allowed}
+.pub-head[data-nav="off"] nav{display:none}
+.pub-head[data-arch="on"] nav a.soon-nav{color:var(--muted);cursor:pointer}
+.pub-head .rgt{margin-left:auto;display:flex;align-items:center;gap:14px}
+.login-lnk{font-size:14px;color:var(--muted);white-space:nowrap}.login-lnk:hover{color:var(--text)}
+.hbg{display:none;color:var(--muted);padding:4px;border-radius:8px}.hbg:hover{color:var(--text);background:rgba(232,236,244,.05)}
+.pub-menu{display:none;position:absolute;left:0;right:0;top:100%;background:#0B1220;border-bottom:1px solid var(--line-strong);padding:6px 18px 12px;z-index:29}
+.pub-menu.on{display:block}
+.pub-menu a{display:block;padding:12px 2px;border-bottom:1px solid var(--line);font-size:15px;color:var(--text)}
+.pub-menu a.soon-nav{color:var(--faint)}
+.pub-menu a.login-lnk{border-bottom:0;color:var(--accent);font-weight:700}
+.pub-head.lite .rgt a{font-size:13.5px;color:var(--muted)}
+.pub-head.lite .rgt a:hover{color:var(--text)}
+.pub-foot{border-top:1px solid var(--line);padding:34px 40px;display:flex;gap:22px;color:var(--faint);font-size:13px;flex-wrap:wrap;margin-top:auto}
+.pub-foot .wm{font-weight:800;letter-spacing:.06em;color:var(--muted)}
+.pub-foot a:hover{color:var(--text)}
+.pub-foot .sns{margin-left:auto;display:flex;gap:14px}
+.pub-foot .sns .soon{color:var(--faint);opacity:.55;cursor:default}
+.pub-foot .sns .soon::after{content:"준비 중";font-size:10px;margin-left:5px;border:1px solid var(--line);border-radius:99px;padding:0 5px;vertical-align:1px}
+.pub-foot.lite{gap:16px}
+.pub-foot.lite span{color:var(--faint)}
+
+/* ============ 404 본문 ============ */
+.nf{flex:1;display:flex;align-items:center}
+.nf-in{width:100%;max-width:900px;margin:0 auto;padding:64px 40px 80px;display:grid;grid-template-columns:1fr 296px;gap:64px;align-items:center}
+.nf-copy h1{font-size:36px;font-weight:800;line-height:1.22;letter-spacing:-.025em;color:#F3F6FC;text-wrap:balance}
+.nf-copy p{color:var(--muted);font-size:16.5px;max-width:30em;margin-top:14px;text-wrap:pretty}
+.nf-copy p a{color:var(--text);border-bottom:1px dashed var(--line-strong)}
+.nf-copy p a:hover{color:var(--accent);border-color:var(--accent)}
+.nf-copy .go{display:inline-block;margin-top:26px;font-size:14.5px;color:var(--muted);border-bottom:1px dashed var(--line-strong);padding-bottom:1px;line-height:1.5}
+.nf-copy .go:hover{color:var(--accent);border-color:var(--accent)}
+/* 플레이트: 시안 카드 표면(시트 광, 인셋 하이라이트) 그대로, 모션 없음 */
+.nf-plate{justify-self:end;width:100%;padding:26px 30px 24px;border:1.5px solid var(--line);border-radius:var(--r-l);
+  background:linear-gradient(180deg,rgba(255,255,255,.026),rgba(255,255,255,0) 46%),var(--surface);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 1px 2px rgba(0,0,0,.4),0 18px 44px -28px rgba(0,0,0,.6)}
+.nf-plate .cap{font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;color:var(--accent);font-weight:700}
+.nf-plate .num{font-family:var(--mono);font-weight:800;font-size:92px;line-height:1;letter-spacing:-.04em;color:var(--text);margin-top:14px}
+
+/* 상태 전환 바 (시안 뷰어 전용, 배포 시 제거) */
+.state-bar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:8px;padding:9px 22px;background:rgba(9,15,27,.86);backdrop-filter:blur(12px) saturate(1.2);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.state-bar b{font-size:11px;color:var(--faint);letter-spacing:.1em;font-weight:700}
+.state-bar b + b{margin-left:14px}
+.state-bar .sb{font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:5px 13px}
+.state-bar .sb.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);font-weight:700}
+.state-bar .sb[disabled]{opacity:.35;cursor:not-allowed}
+body:has(.state-bar) .pub-head{top:41px}
+body[data-v="app"] .only-team{display:none!important}
+body[data-v="team"] .only-app{display:none!important}
+
+/* ============ 반응형 ============ */
+@media (max-width:860px){
+  .nf-in{grid-template-columns:1fr;gap:30px;padding:48px 40px 64px}
+  .nf-plate{order:-1;justify-self:start;width:auto;min-width:220px;padding:20px 24px 18px}
+  .nf-plate .num{font-size:72px;margin-top:10px}
+}
+@media (max-width:760px){
+  :root{--head-h:56px}
+  .pub-head{padding:0 18px;gap:12px}
+  .pub-head nav{display:none}
+  .pub-head .rgt{gap:10px}
+  .pub-head .rgt .login-lnk,.pub-head .rgt .btn-ghost{display:none}
+  .pub-head[data-nav="on"] .hbg{display:inline-flex}
+  .pub-head .cta{padding:8px 14px!important;font-size:13px!important}
+  .pub-foot{padding:26px 20px;gap:12px 16px}
+  .pub-foot .sns{margin-left:0;flex-basis:100%}
+  .nf-in{padding:40px 20px 52px;gap:26px}
+  .nf-copy h1{font-size:28px}
+  .nf-copy p{font-size:15.5px;margin-top:12px}
+  .nf-copy .go{margin-top:22px}
+  .nf-plate{min-width:0;padding:18px 20px 16px}
+  .nf-plate .num{font-size:64px}
+  .state-bar{position:static;padding:8px 12px;gap:6px}
+  .state-bar b + b{margin-left:6px}
+  body:has(.state-bar) .pub-head{top:0}
+}
+</style>
+</head>
+<body data-v="app" data-season="pre">
+
+<!-- 시안 뷰어 전용 상태 바, 배포 시 이 블록과 관련 스크립트를 제거 -->
+<div class="state-bar" id="stateBar" aria-label="시안 상태 전환">
+  <b>STATE</b>
+  <button class="sb" data-v="app" aria-pressed="true">① proovit.kr 경로 없음</button>
+  <button class="sb" data-v="team" aria-pressed="false">② 참가팀 주소 미연결</button>
+  <b>SEASON</b>
+  <button class="sb" data-season="pre" aria-pressed="true">모집 전</button>
+  <button class="sb" data-season="recruit" aria-pressed="false">모집 중</button>
+  <button class="sb" data-season="stage" aria-pressed="false">진행 중</button>
+  <button class="sb" data-season="done" aria-pressed="false">종료</button>
+</div>
+
+<!-- ① 앱 404: 공개 헤더는 레이아웃 상속 (헤더 상태별 시안 v1.1 P1/P2/P3/P5) -->
+<header class="pub-head only-app" data-ph="P1">
+  <a class="wm" href="/" aria-label="PROOVIT 홈">PROO<em>✓</em>IT</a>
+  <nav><a href="/">리그 소개</a><a href="/seasons/1/leaderboard">리더보드</a><a class="soon-nav" title="시즌 종료 후 열려요">시즌 아카이브</a></nav>
+</header>
+
+<!-- ② 참가팀 주소 404: 프록시가 직접 반환하는 경량 크롬 -->
+<header class="pub-head lite only-team">
+  <a class="wm" href="https://proovit.kr" aria-label="PROOVIT 홈">PROO<em>✓</em>IT</a>
+  <span class="rgt"><a href="https://proovit.kr">proovit.kr</a></span>
+</header>
+
+<main class="nf">
+  <div class="nf-in">
+    <div class="nf-copy">
+      <div class="only-app">
+        <h1>페이지를 찾을 수 없어요</h1>
+        <p>주소가 잘못됐거나 페이지가 옮겨졌을 수 있어요.</p>
+        <a class="go" href="/">홈으로 돌아가기</a>
+      </div>
+      <div class="only-team">
+        <h1>연결된 참가작이 없어요</h1>
+        <p>이 팀 주소에 아직 배포 주소가 등록되지 않았거나, 시즌 종료로 연결이 해제됐어요. 참가팀이라면 대시보드의 <a href="https://proovit.kr/dashboard/measurement">측정 연동</a>에서 배포 주소를 등록해 주세요.</p>
+        <a class="go" href="https://proovit.kr">프루빗 홈으로</a>
+      </div>
+    </div>
+    <div class="nf-plate" aria-hidden="true">
+      <div class="cap">NOT FOUND</div>
+      <div class="num">404</div>
+    </div>
+  </div>
+</main>
+
+<!-- ① 앱 푸터: 레이아웃 상속 (시안 v3.0 푸터 템플릿과 동일) -->
+<footer class="pub-foot only-app">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <a href="/rules">시즌 규칙</a><a href="/rules#ru-4">유효 이용자 기준</a><a href="/terms">이용약관</a><a href="/privacy">개인정보처리방침</a><a href="mailto:help@proovit.kr">스폰서 문의</a>
+  <span class="sns"><span class="soon">X</span><span class="soon">Instagram</span><span class="soon">Discord</span></span>
+</footer>
+<!-- ② 참가팀 주소 푸터 -->
+<footer class="pub-foot lite only-team">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span>참가팀 주소는 프루빗 시즌 참가작으로 연결돼요</span>
+  <a href="mailto:help@proovit.kr">help@proovit.kr</a>
+</footer>
+
+<script>
+const LB='/seasons/1/leaderboard';
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+
+/* 공개 헤더 우측 액션, 시안 v3.1 setPubHead와 동일. 배포 시 레이아웃 컴포넌트가 대신함 */
+const HBG='<button class="hbg" aria-label="메뉴 열기" aria-expanded="false"><svg class="ic" viewBox="0 0 24 24" style="width:1.3em;height:1.3em"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>';
+const LOGIN='<a class="login-lnk" href="/login">로그인</a>';
+const PUBHEAD={
+  P1:{nav:'off',rgt:'<a class="btn btn-primary sm cta" href="/">사전 신청하기</a>'},
+  P2:{nav:'on',login:1,rgt:LOGIN+'<a class="btn btn-primary sm cta" href="/apply">참가 신청하기</a>'+HBG},
+  P3:{nav:'on',login:1,rgt:LOGIN+'<a class="btn btn-outline sm cta" href="'+LB+'">리더보드 보기</a>'+HBG},
+  P5:{nav:'on',login:1,arch:1,rgt:LOGIN+'<a class="btn btn-ghost sm" href="'+LB+'">결과 보기</a><a class="btn btn-primary sm cta" href="/">시즌 2 알림 받기</a>'+HBG},
+};
+const PH={pre:'P1',recruit:'P2',stage:'P3',done:'P5'};
+function setPubHead(h,id){
+  const d=PUBHEAD[id];if(!d)return;
+  h.dataset.ph=id;h.dataset.nav=d.nav;h.dataset.arch=d.arch?'on':'off';
+  let r=h.querySelector('.rgt');if(!r){r=document.createElement('span');r.className='rgt';h.appendChild(r)}
+  r.innerHTML=d.rgt;
+  h.querySelector('.pub-menu')?.remove();
+  if(d.nav==='on'){const m=document.createElement('div');m.className='pub-menu';
+    m.innerHTML=$$('.pub-head.only-app nav a').map(a=>a.outerHTML).join('')+(d.login?LOGIN:'');h.appendChild(m)}
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.hbg');
+  if(b){const m=b.closest('.pub-head').querySelector('.pub-menu');const on=m.classList.toggle('on');b.setAttribute('aria-expanded',on);return}
+  if(!e.target.closest('.pub-menu'))$$('.pub-menu.on').forEach(m=>{m.classList.remove('on');m.parentElement.querySelector('.hbg')?.setAttribute('aria-expanded','false')});
+});
+
+/* 상태 전환 (시안 뷰어 전용) */
+const TITLE={app:'페이지를 찾을 수 없어요, PROOVIT',team:'연결된 참가작이 없어요, PROOVIT'};
+function setSeason(s){
+  document.body.dataset.season=s;
+  setPubHead($('.pub-head.only-app'),PH[s]);
+  $$('#stateBar [data-season]').forEach(b=>{b.classList.toggle('on',b.dataset.season===s);b.setAttribute('aria-pressed',b.dataset.season===s)});
+}
+function setVariant(v){
+  document.body.dataset.v=v;document.title=TITLE[v];
+  $$('#stateBar [data-v]').forEach(b=>{b.classList.toggle('on',b.dataset.v===v);b.setAttribute('aria-pressed',b.dataset.v===v)});
+  $$('#stateBar [data-season]').forEach(b=>b.disabled=(v==='team'));
+}
+$('#stateBar').addEventListener('click',e=>{
+  const b=e.target.closest('.sb');if(!b||b.disabled)return;
+  if(b.dataset.v)setVariant(b.dataset.v);else setSeason(b.dataset.season);
+});
+const q=new URLSearchParams(location.search);
+setSeason(PH[q.get('season')]?q.get('season'):'pre');
+setVariant(q.get('v')==='team'?'team':'app');
+</script>
+</body>
+</html>

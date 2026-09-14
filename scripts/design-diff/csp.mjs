@@ -81,6 +81,7 @@ const PAGES = [
   ["규칙", "/rules", null],
   ["개인정보처리방침", "/privacy", null],
   ["이용약관", "/terms", null],
+  ["404", "/this-route-does-not-exist", null],
   ["수신거부", "/unsubscribe", null],
   ["시즌", `/seasons/${seasonSlug}`, null],
   ["리더보드", `/seasons/${seasonSlug}/leaderboard`, null],
