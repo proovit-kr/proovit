@@ -154,6 +154,7 @@ export default function ConsentFields({
   showMissing = false,
   missingMessage = "필수 항목에 동의해야 사전 신청을 접수할 수 있어요.",
   selectAll = false,
+  selectAllLabel = "모두 선택",
   className,
 }: {
   /** 표시할 동의 항목. 기본값은 사전 신청 폼이다. */
@@ -175,6 +176,14 @@ export default function ConsentFields({
    * 인증 화면은 항목이 둘뿐이라 모아 줄 것이 없다.
    */
   selectAll?: boolean;
+  /**
+   * 「모두 선택」 줄의 글자.
+   *
+   * ⚠️ **시안이 화면마다 다르게 적었다.** ver4 1547행(랜딩 사전신청 폼)은
+   * 「모두 선택」, 1735행(계정 동의 모달)은 「모두 동의」다. 동의를 받는
+   * 자리라 말이 달라야 하는 것으로 읽힌다.
+   */
+  selectAllLabel?: string;
   /** 쓰는 화면이 여백만 덮는 자리. 시안이 랜딩에서 인라인으로 하는 일이다 */
   className?: string;
 }) {
@@ -214,7 +223,7 @@ export default function ConsentFields({
             onChange={(e) => toggleAll(e.target.checked)}
           />
           <label htmlFor={allId} className={styles.label}>
-            모두 선택
+            {selectAllLabel}
           </label>
         </div>
       ) : null}

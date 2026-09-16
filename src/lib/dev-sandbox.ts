@@ -9,6 +9,10 @@ import {
   StageKey,
   SubmissionStatus,
 } from "@/generated/prisma/enums";
+import {
+  ACCOUNT_PRIVACY_CONSENT_VERSION,
+  ACCOUNT_TERMS_CONSENT_VERSION,
+} from "@/content/consent";
 import type { FeatureFlagKey } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 
@@ -546,17 +550,47 @@ export async function setMetricsFixture(args: {
   */
   const consents = entries.flatMap((entry) => {
     const userId = entry.team.members[0]?.userId;
-    return userId
-      ? [
-          {
-            userId,
-            entryId: entry.id,
-            type: ConsentType.metrics_public,
-            granted: true,
-            version: "[개발용]",
-          },
-        ]
-      : [];
+    if (!userId) return [];
+
+    return [
+      {
+        userId,
+        entryId: entry.id,
+        type: ConsentType.metrics_public,
+        granted: true,
+        version: "[개발용]",
+      },
+      /*
+        계정 단위 동의(`entryId: null`) — 시안 ver4가 콜백 뒤 모달로 받기
+        시작한 것이다(`ConsentGate`).
+
+        ⚠️ **이게 없으면 개발용 계정 전원이 모든 화면에서 동의 모달에 막힌다.**
+        게이트는 「계정 동의 기록이 있는가」를 보는데, 시드가 지표 공개 동의만
+        넣고 있어서 한 건도 안 걸렸다. 이 픽스처들은 「이미 가입해 쓰고 있는
+        회원」을 흔내는 것이므로 동의를 마친 상태가 맞다 — 시안도 「기존 회원은
+        모달 없이 통과」로 적었다.
+
+        동의 모달 자체를 보려면 새 소셜 계정으로 로그인하면 된다.
+
+        ⚠️ 버전은 `[개발용]`이 아니라 **진짜 버전 문자열**이어야 한다.
+        게이트가 버전을 비교해 「낮으면 재동의」로 판정하므로(account-consent.ts),
+        파싱 안 되는 값을 넣으면 모달이 영원히 뜼다.
+      */
+      {
+        userId,
+        entryId: null,
+        type: ConsentType.terms,
+        granted: true,
+        version: ACCOUNT_TERMS_CONSENT_VERSION,
+      },
+      {
+        userId,
+        entryId: null,
+        type: ConsentType.privacy,
+        granted: true,
+        version: ACCOUNT_PRIVACY_CONSENT_VERSION,
+      },
+    ];
   });
 
   /*

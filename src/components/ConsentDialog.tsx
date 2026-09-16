@@ -124,8 +124,10 @@ export function ConsentDialog({
             items={SIGNUP_CONSENTS}
             value={consent}
             onChange={setConsent}
-            /* 시안 ver4가 이 모달에 「모두 동의」 줄을 둔다(1740행 `label.all`) */
+            /* 시안 ver4가 이 모달에 「모두 동의」 줄을 둔다(1735행 `label.all`) */
             selectAll
+            /* ⚠️ 랜딩 폼은 「모두 선택」이다. 모달만 「동의」로 적혀 있다 */
+            selectAllLabel="모두 동의"
             className={styles.consents}
           />
           {/*

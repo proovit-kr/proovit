@@ -93,30 +93,55 @@
 
 /* ── 지표 ──────────────────────────────────────────────────── */
 
-.metrics {
-  display: flex;
-  flex-wrap: wrap;
-  /* 균등 분할하지 않는다(§7) */
-  gap: var(--s-10);
+/*
+  시안 `.pj-cards` — 세 장을 같은 폭으로 늘어놓는다. 인라인 행으로 두었더니
+  숫자가 글줄처럼 읽혀 「지표」로 안 보였다.
+*/
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-4);
   margin: 0;
-  padding-top: var(--s-2);
 }
 
-.metrics dt {
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-6) var(--s-6) var(--s-7);
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  background: var(--c-surface);
+  min-height: 132px;
+}
+
+.card dt {
+  margin: 0;
   color: var(--c-text-dim);
   font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
 }
 
-.metrics dd {
+.card dd {
   margin: 0;
   color: var(--c-text-strong);
-  font-family: var(--font-mono);
+  font-family: var(--mono);
   font-size: var(--fs-3xl);
-  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.1;
 }
 
-/* "02 / 12"의 분모. 순위 숫자보다 눌러야 자릿수가 먼저 읽힌다 */
+@media (max-width: 720px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    min-height: 0;
+  }
+}
+
 .rankOf {
   color: var(--c-text-faint);
   font-size: var(--fs-base);
@@ -141,4 +166,64 @@
   .metrics {
     gap: var(--s-6);
   }
+}
+
+/*
+  시안 `.pj-head` — 팀명·트랙칩·검증 배지가 한 줄이다. 좁아지면 접힌다.
+*/
+.headRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+/* 시안 `.chip` */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border: 1px solid var(--c-line-3);
+  border-radius: 99px;
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+/* 제목 자리를 팀명에 내준 아이디어명 */
+.idea {
+  margin: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+}
+
+/* 시안 `.pj-cta-row` — 버튼과 주소가 한 줄 */
+.ctaRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  padding-top: var(--s-3);
+}
+
+/*
+  주소를 고정폭으로 둔다 — 시안 `.url`. 도메인은 글자 모양이 붙어 읽히면
+  오독되므로(rn/m, l/1) 비례폭으로 두지 않는다.
+*/
+.url {
+  color: var(--c-text-dim);
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  word-break: break-all;
+}
+
+/* 미배포 팀의 비활성 자리 — 시안은 disabled 버튼으로 둔다 */
+.ctaOff {
+  display: inline-flex;
+  align-items: center;
+  padding: 13px 26px;
+  border: 1px solid var(--c-line);
+  border-radius: 99px;
+  color: var(--c-text-faint);
+  font-size: var(--fs-md);
 }
