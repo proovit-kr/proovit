@@ -124,6 +124,15 @@ export function nextSeasonLabel(title: string): string {
   return m ? title.replace(m[1], String(Number(m[1]) + 1)) : "다음 시즌";
 }
 
+/**
+ * 전환율(%) — 사전 신청 리드 ÷ 랜딩 방문자, 소수 첫째 자리(시안 A1 「4.2%」).
+ * 방문자를 모르거나 0이면 null — 비우지, 0%로 적지 않는다.
+ */
+export function conversionRate(leads: number, visitors: number | null): number | null {
+  if (visitors === null || visitors <= 0) return null;
+  return Math.round((leads / visitors) * 1000) / 10;
+}
+
 /** 아바타 글자 — 이름 첫 글자(시안 규칙표 「아바타」) */
 export function initialOf(name: string): string {
   const first = Array.from(name.trim())[0];

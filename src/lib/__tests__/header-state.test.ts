@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 
 import { EntryStage, EntryStatus, SeasonPhase, StageKey } from "@/generated/prisma/enums";
 import {
+  conversionRate,
   currentStage,
   dayDiff,
   fmtDday,
@@ -58,6 +59,13 @@ describe("시각 표기(KST)", () => {
     expect(fmtHoursLeft(now, new Date("2026-10-06T10:20:00+09:00"))).toBe("20분");
     expect(fmtHoursLeft(now, new Date("2026-10-06T09:00:00+09:00"))).toBe("지연");
   });
+  it("전환율은 소수 첫째 자리, 분모를 모르면 null", () => {
+    expect(conversionRate(137, 3262)).toBe(4.2);
+    expect(conversionRate(8, 158)).toBe(5.1);
+    expect(conversionRate(8, null)).toBeNull();
+    expect(conversionRate(8, 0)).toBeNull();
+  });
+
   it("다음 시즌 이름과 아바타 글자", () => {
     expect(nextSeasonLabel("시즌 1")).toBe("시즌 2");
     expect(nextSeasonLabel("PROOVIT 리그")).toBe("다음 시즌");
