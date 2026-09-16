@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 
+import { ConsentGate } from "@/components/ConsentGate";
 import { DevBar } from "@/components/DevBar";
 
 import "./globals.css";
@@ -170,6 +171,12 @@ export default function RootLayout({
       </head>
       <body className="flex flex-col">
         {children}
+        {/*
+          계정 동의 모달. 로그인했는데 동의 기록이 없거나 문안이 개정됐으면
+          보던 화면 위에 덮는다(시안 ver4 `#scr-auth` ②). 여기 두는 이유는
+          ConsentGate 머리 주석에 있다 — 화면마다 붙이면 빠뜨리는 라우트가 생긴다.
+        */}
+        <ConsentGate />
         {/*
           개발용 상태 토글 바. production 빌드에서는 아무것도 안 그리고,
           dev 빌드라도 **dev DB에 붙었을 때만** 동작한다(lib/dev-sandbox.ts).

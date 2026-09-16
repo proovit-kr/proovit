@@ -8,8 +8,11 @@ import { AUTH_PROVIDERS } from "@/lib/auth-providers";
 import { AuthCard } from "./AuthCard";
 
 /*
-  로그인 화면 — 시안 `#scr-auth`의 login 상태.
-  회원가입(`/signup`)은 같은 카드의 signup 상태다.
+  인증 화면 — 시안 ver4 `#scr-auth` ① 「단일 진입 화면」.
+
+  ⚠️ **ver4가 로그인과 회원가입을 합쳤다.** 화면은 하나고 `/signup`은 여기로
+  되돌린다. 동의도 이 자리에서 받지 않는다 — 소셜 인증을 마치고 돌아온 뒤
+  모달이 받는다(`ConsentGate`). 그래야 기록이 계정에 붙는다.
 
   ⚠️ 라우트 이름이 문서마다 다르다 — 「필요 페이지 정리」(7/28)와 CLAUDE.md는
   `/signin`, 06 ARCHITECTURE 계열은 이 이름을 쓴다. 8/17 회의에서 정본을 정하고
@@ -17,7 +20,8 @@ import { AuthCard } from "./AuthCard";
 */
 
 export const metadata: Metadata = {
-  title: "로그인",
+  /* ver4가 화면을 합쳤으므로 제목도 둘을 같이 말해야 한다 */
+  title: "로그인 또는 회원가입",
   description: "PROOVIT 참가자·운영자 로그인",
   /*
     검색에 잡힐 이유가 없는 화면이다. 랜딩·리더보드가 유입을 받아야 하는데
@@ -58,7 +62,6 @@ export default async function LoginPage({
 
   return (
     <AuthCard
-      mode="login"
       providers={AUTH_PROVIDERS}
       errorMessage={
         error
