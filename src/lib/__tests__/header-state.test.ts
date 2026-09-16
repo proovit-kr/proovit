@@ -97,13 +97,13 @@ const PUB: Record<HeaderUser, string[]> = {
   admin: ["P11", "P11", "P11", "P11", "P11"],
 };
 
-function pub(kind: HeaderSeason, user: HeaderUser, extra: { unread?: number; archive?: boolean } = {}) {
+function pub(kind: HeaderSeason, user: HeaderUser, extra: { unread?: number } = {}) {
   return resolvePublicHeader({
     season: {
       kind,
       slug: "season-1",
       title: "시즌 1",
-      flags: { notifications: true, archive: extra.archive ?? false },
+      flags: { notifications: true },
     },
     user: user === "guest" ? null : { kind: user, initial: "김", unread: extra.unread ?? 0 },
   });
@@ -118,19 +118,18 @@ describe("공개 헤더 — 조합기 MAP.pub", () => {
     });
   }
 
-  it("내비는 시즌만 본다 — 모집 전 없음, 모집 중부터 3종, 아카이브는 2종", () => {
+  it("내비는 시즌만 본다 — 모집 전 없음, 모집 중부터 리그 소개·리더보드, 아카이브 기간은 리더보드만", () => {
     expect(pub("pre", "guest").nav).toEqual([]);
-    expect(pub("recruit", "guest").nav.map((n) => n.label)).toEqual(["리그 소개", "리더보드", "시즌 아카이브"]);
-    expect(pub("arch", "guest").nav.map((n) => n.label)).toEqual(["리더보드", "시즌 아카이브"]);
+    expect(pub("recruit", "guest").nav.map((n) => n.label)).toEqual(["리그 소개", "리더보드"]);
+    expect(pub("arch", "guest").nav.map((n) => n.label)).toEqual(["리더보드"]);
     /* 운영자도 시즌을 따른다 — P11 프레임은 우측 액션만 고정이다 */
     expect(pub("pre", "admin").nav).toEqual([]);
   });
 
-  it("시즌 아카이브는 플래그가 켜진 종료 시즌에만 링크다", () => {
-    const soon = pub("stage", "guest").nav[2];
-    expect(soon.href).toBeUndefined();
-    expect(pub("done", "guest").nav[2].href).toBeUndefined();
-    expect(pub("done", "guest", { archive: true }).nav[2].href).toBe("/seasons/season-1");
+  it("「시즌 아카이브」는 화면이 보류라 어느 시즌에도 그리지 않는다(2026-09-16)", () => {
+    for (const s of SEASONS) {
+      expect(pub(s, "guest").nav.map((n) => n.label)).not.toContain("시즌 아카이브");
+    }
   });
 
   it("CTA — 규칙표 「공개 CTA」", () => {
@@ -168,7 +167,7 @@ describe("공개 헤더 — 조합기 MAP.pub", () => {
 
   it("인앱 알림이 꺼진 시즌이면 참가자 벨도 없다", () => {
     const m = resolvePublicHeader({
-      season: { kind: "stage", slug: "s", title: "시즌 1", flags: { notifications: false, archive: false } },
+      season: { kind: "stage", slug: "s", title: "시즌 1", flags: { notifications: false } },
       user: { kind: "entrant", initial: "리", unread: 3 },
     });
     expect(m.bell).toBeNull();

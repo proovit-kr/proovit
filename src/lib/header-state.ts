@@ -265,22 +265,22 @@ export type PublicHeaderInput = {
     /** 리더보드 정본 주소를 만들 슬러그 */
     slug: string;
     title: string;
-    flags: { notifications: boolean; archive: boolean };
+    flags: { notifications: boolean };
   } | null;
   /** null이면 비로그인 */
   user: { kind: HeaderUser; initial: string; unread: number } | null;
 };
 
-const SOON_TITLE = "P2, 시즌 종료 후";
-
 /**
  * 내비는 **시즌만** 본다(규칙표 「공개 내비와 로그인」). 유저에 따라 갈리는
  * 것은 우측 액션뿐이다.
  *
- * ⚠️ 시즌 아카이브의 실제 주소는 아직 없다(P2). `archive` 플래그가 켜지면
- * 시즌 상세를 가리킨다 — 종료 시즌의 결과가 지금 놓이는 자리다. 아카이브
- * 화면이 생기면 그 주소로 바꾼다. 플래그가 꺼져 있으면 시안 `.soon-nav`
- * 그대로 예고로 남긴다(꺼진 기능은 링크를 만들지 않는다, 06 §4.4).
+ * ⚠️ **「시즌 아카이브」는 시안과 달리 그리지 않는다**(2026-09-16 수연 지시).
+ * 시안은 모집 중부터 예고(`.soon-nav`)로 두고 종료 후 링크로 켜지만, 그 화면이
+ * 보류(P2)라 갈 곳이 없다 — 눌러도 아무 데도 안 가는 항목은 예고로도 두지
+ * 않는다. 아카이브 화면이 생기면 여기에 항목을 되살린다: 모집 중~종료는
+ * 셋째 자리, 다음 시즌 사전 신청 기간(P6)은 리더보드 다음이다.
+ * `seasons.feature_flags.archive`는 그때까지 헤더가 읽지 않는다.
  */
 function publicNav(season: NonNullable<PublicHeaderInput["season"]>): NavItem[] {
   const home: NavItem = { href: "/", label: "리그 소개" };
@@ -288,11 +288,6 @@ function publicNav(season: NonNullable<PublicHeaderInput["season"]>): NavItem[] 
     href: `/seasons/${season.slug}/leaderboard`,
     label: "리더보드",
   };
-  const archiveOpen =
-    (season.kind === "done" || season.kind === "arch") && season.flags.archive;
-  const archive: NavItem = archiveOpen
-    ? { href: `/seasons/${season.slug}`, label: "시즌 아카이브" }
-    : { label: "시즌 아카이브", title: SOON_TITLE };
 
   switch (season.kind) {
     case "pre":
@@ -300,10 +295,10 @@ function publicNav(season: NonNullable<PublicHeaderInput["season"]>): NavItem[] 
     case "recruit":
     case "stage":
     case "done":
-      return [home, board, archive];
+      return [home, board];
     case "arch":
       /* 리그 소개는 랜딩 자체라 링크로 두지 않는다(P6 노트) */
-      return [board, archive];
+      return [board];
   }
 }
 

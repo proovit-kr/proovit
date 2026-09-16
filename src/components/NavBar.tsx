@@ -156,8 +156,8 @@ export function NavBar({ season, viewer, glitchLogo, onPreregister, activeHref }
 
   /*
     지금 보고 있는 항목 — 경로가 href와 같거나 그 아래인 것 중 **가장 긴 href**
-    하나. 시즌 아카이브(`/seasons/:slug`)와 리더보드(`/seasons/:slug/leaderboard`)가
-    앞부분을 공유해서, startsWith만으로는 리더보드에서 둘 다 켜진다.
+    하나. 시즌 상세(`/seasons/:slug`)와 리더보드(`/seasons/:slug/leaderboard`)처럼
+    앞부분을 공유하는 항목이 생기면 startsWith만으로는 둘 다 켜진다.
   */
   const active = model.nav
     .filter((i) => i.href && (pathname === i.href || (i.href !== "/" && pathname.startsWith(i.href + "/"))))

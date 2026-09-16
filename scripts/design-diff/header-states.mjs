@@ -137,8 +137,12 @@ export const probe = (rootSel, pairs) => `(() => {
       out[name + " ▸오른쪽 끝"] = Math.abs(pr.right - pad - r.right) < 1.5 ? "붙음" : "안 붙음 (" + Math.round(pr.right - pad - r.right) + "px)";
     }
     if (o.links) {
-      /* 글자·순서·색(활성은 --text, 예고는 --faint). href는 카탈로그가 안 싣는다 — public-chrome.mjs가 본다 */
-      out[name] = [...el.querySelectorAll("a")].map((a) => a.textContent.trim() + " " + getComputedStyle(a).color).join(" · ");
+      /*
+        글자·순서·색(활성은 --text, 예고는 --faint). href는 카탈로그가 안 싣는다 — public-chrome.mjs가 본다.
+        「시즌 아카이브」는 화면이 보류라 우리 헤더에 없다(header-state.ts publicNav) — 시안 쪽에서 뺀다.
+      */
+      out[name] = [...el.querySelectorAll("a")].filter((a) => a.textContent.trim() !== "시즌 아카이브")
+        .map((a) => a.textContent.trim() + " " + getComputedStyle(a).color).join(" · ");
     }
   };
   for (const [name, sel, o0] of ${JSON.stringify(pairs)}) {
@@ -208,8 +212,11 @@ const injectTokens = (p) => p.eval(`(() => { const s = document.createElement("s
     btn box-shadow   primary 버튼의 그림자는 ver4 v1.1 CRAFT 값이다(Button.module.css). 헤더 시안은 ver3 값을 적었다
 */
 const IGNORE_KEYS = [/ cursor$/, /^live::after.* opacity$/, /^btn(#\d+)? box-shadow$/];
-/* 탈락 스트립의 닫기 ×. 시안은 「닫을 수 있음」이라고만 적고 버튼을 그리지 않았다 */
-const IGNORE_TEXT = [/^×$/];
+/*
+  탈락 스트립의 닫기 ×  시안은 「닫을 수 있음」이라고만 적고 버튼을 그리지 않았다
+  시즌 아카이브        화면이 보류라 헤더에서 뺐다(2026-09-16 수연 지시). 화면이 생기면 이 줄을 지운다
+*/
+const IGNORE_TEXT = [/^×$/, /^시즌 아카이브$/];
 
 const only = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 let total = 0;

@@ -34,7 +34,7 @@ const KST = (s: string) => new Date(`${s}+09:00`);
 const SEASON = {
   title: "시즌 1",
   slug: "season-1",
-  flags: { notifications: true, archive: true },
+  flags: { notifications: true },
 };
 
 /* ── 공개 헤더: 시안 조합기의 대표 칸. 아바타 글자도 시안 표본 그대로 ── */
