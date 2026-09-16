@@ -7,6 +7,7 @@ import { LinkButton } from "@/components/Button";
 import { Footer } from "@/components/Footer";
 import { NavBar } from "@/components/NavBar";
 import { PHASE_LABEL } from "@/content/dashboard";
+import { SEASON_GATE_TAIL, SEASON_STAGE_DETAIL } from "@/content/landing";
 import { guardPage } from "@/lib/access";
 import { loadPublicSeason } from "@/lib/public-read";
 import { loadPublicNav } from "@/lib/header-read";
@@ -91,7 +92,24 @@ const GATE_LABEL: Record<number, string> = {
 };
 
 function gateLabel(no: number): string {
-  return GATE_LABEL[no] ?? "심사";
+  const name = GATE_LABEL[no] ?? "심사";
+  const tail = SEASON_GATE_TAIL[no];
+  return tail ? `${name}, ${tail}` : name;
+}
+
+/* 시즌 전체 기간 한 줄 — 시안 `.ss-hero .dt`. 날짜가 없으면 줄을 통째로 뺀다 */
+const ISO = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" });
+
+function seasonRange(
+  stages: { opensAt: Date | null; closesAt: Date | null }[],
+): string | null {
+  const opens = stages.map((s) => s.opensAt).filter((d): d is Date => !!d);
+  const closes = stages.map((s) => s.closesAt).filter((d): d is Date => !!d);
+  if (opens.length === 0 || closes.length === 0) return null;
+  const from = new Date(Math.min(...opens.map((d) => d.getTime())));
+  const to = new Date(Math.max(...closes.map((d) => d.getTime())));
+  const weeks = Math.round((to.getTime() - from.getTime()) / (7 * 864e5));
+  return `${ISO.format(from)} → ${ISO.format(to)}, ${weeks}주, 온라인`;
 }
 
 export default async function Page({
@@ -108,6 +126,23 @@ export default async function Page({
 
   const action = cta(season.phase);
   const scheduled = season.stages.some((stage) => stage.opensAt !== null);
+  const range = seasonRange(season.stages);
+  /*
+    오늘이 든 스테이지 — 시안의 「진행 중」 배지 자리.
+
+    ⚠️ `Date.now()`를 쓰지 않는다. `react-hooks/purity`가 렌더 중 호출을 막는다
+    (리더보드의 UpdatedAt.tsx에 같은 사정이 적혀 있다). 리더보드가 쓰는
+    `new Date()` 관용구를 그대로 따른다.
+  */
+  const today = new Date();
+  const current =
+    season.stages.find(
+      (s) =>
+        s.opensAt !== null &&
+        s.closesAt !== null &&
+        s.opensAt <= today &&
+        today <= s.closesAt,
+    )?.stageKey ?? null;
 
   return (
     <main className={`page ${styles.page}`}>
@@ -115,16 +150,19 @@ export default async function Page({
       <NavBar {...(await loadPublicNav())} />
       <div className={`container grow ${styles.wrap}`}>
         <header className={styles.head}>
-          <p className={styles.meta}>
-            <Badge tone="outline">{PHASE_LABEL[season.phase] ?? "진행"}</Badge>
-            {season.theme ? (
-              <span className={styles.theme}>{season.theme}</span>
-            ) : null}
+          {/*
+            시안 `.ld-eb` — 「SEASON 1 · 자유 주제」. 시즌 번호를 제목이 아니라
+            그 위에 두는 것은 아카이브에서 시즌이 여럿 쌓일 때 번호가 먼저
+            읽혀야 하기 때문이다.
+          */}
+          <p className={styles.eyebrow}>
+            <b>SEASON {season.title.replace(/[^0-9]/g, "") || "1"}</b>
+            <span>{season.tracks[0]?.name ?? season.theme ?? "자유 주제"}</span>
           </p>
           <h1 className={styles.title}>{season.title}</h1>
-          <p className={styles.lead}>
-            5주 동안 다섯 번 제출하고 두 번 심사받습니다. 순위는 발표가 아니라
-            실제 이용자 지표로 갈립니다.
+          {range ? <p className={styles.range}>{range}</p> : null}
+          <p className={styles.meta}>
+            <Badge tone="outline">{PHASE_LABEL[season.phase] ?? "진행"}</Badge>
           </p>
           <div className={styles.actions}>
             {action ? (
@@ -163,12 +201,30 @@ export default async function Page({
                     {stage.stageKey.toUpperCase()}
                   </span>
                   <span className={styles.stageBody}>
-                    <span className={styles.stageName}>{stage.name}</span>
-                    <span className={styles.stageWhen}>
-                      {stage.opensAt && stage.closesAt
-                        ? `${DATE.format(stage.opensAt)} ~ ${DATE.format(stage.closesAt)}`
-                        : "일정 확정 전"}
+                    <span className={styles.stageHead}>
+                      <span className={styles.stageName}>
+                        {SEASON_STAGE_DETAIL[stage.stageKey]?.name ?? stage.name}
+                      </span>
+                      <span className={styles.stageWhen}>
+                        {i + 1}주차
+                        {stage.opensAt && stage.closesAt
+                          ? `, ${DATE.format(stage.opensAt)} ~ ${DATE.format(stage.closesAt)}`
+                          : ", 일정 확정 전"}
+                      </span>
+                      {/* 지금 이 스테이지가 돌고 있으면 시안처럼 배지를 단다 */}
+                      {current === stage.stageKey ? (
+                        <Badge>진행 중</Badge>
+                      ) : null}
                     </span>
+                    {/*
+                      그 주에 무엇을 내는가. 시안 `.tl-item p`다 — 참가를 재는
+                      사람이 실제로 찾는 줄이라 카드에서 빠지면 일정표가 된다.
+                    */}
+                    {SEASON_STAGE_DETAIL[stage.stageKey] ? (
+                      <span className={styles.stageSubmits}>
+                        {SEASON_STAGE_DETAIL[stage.stageKey].submits}
+                      </span>
+                    ) : null}
                   </span>
                 </li>
                 {stage.isGate ? (
