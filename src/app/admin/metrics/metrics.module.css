@@ -1,0 +1,196 @@
+/*
+  지표 검토.
+
+  표다. 판단 재료가 「사유 · 원시 · 보정」 셋이고 셋을 나란히 놓고 봐야 해서
+  어뷰징 화면(카드)과 다르게 간다 — 시안 ver4 `#scr-adm-metrics`도 `.atbl`이다.
+
+  색은 이관 버튼 하나에만 쓴다. 셋 다 색을 주면 어느 것이 되돌릴 수 없는
+  판정인지 구분이 없어진다.
+*/
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding-block: var(--s-8) var(--s-14);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text-strong);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+}
+
+.sub {
+  /* 읽기 폭은 텍스트에만(§6) */
+  max-width: 44em;
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.scroller {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--c-line-2);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table thead th {
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.table tbody td {
+  color: var(--c-text-muted);
+}
+
+.team {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  color: var(--c-text-strong);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.when {
+  color: var(--c-text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+/*
+  사유는 여러 개가 겹쳐 걸린다. 한 줄로 이어 붙이면 어느 규칙에 걸렸는지
+  세기 어려워 줄로 나눈다.
+*/
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 14em;
+}
+
+.numbers {
+  color: var(--c-text-muted) !important;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.numbers b {
+  color: var(--c-text-strong);
+  font-weight: 600;
+}
+
+.arrow {
+  color: var(--c-text-faint);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+/* 시안은 이관만 danger 색을 준다 — 되돌리기 어려운 쪽에만 색이 붙는다 */
+.danger {
+  color: var(--c-danger);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 18em;
+}
+
+.hint {
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+.label {
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.reason,
+.number {
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+}
+
+.reason {
+  resize: vertical;
+}
+
+.number {
+  font-family: var(--font-mono);
+}
+
+.error {
+  margin: 0;
+  color: var(--c-danger);
+  font-size: var(--fs-xs);
+}
+
+.settled {
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: var(--fs-xs);
+}
+
+/*
+  액션 칸의 머리글. 시안은 빈 `<th>`로 두지만 그러면 스크린리더가 칸의 뜻을
+  못 읽는다 — 보이지 않게 두되 이름은 남긴다.
+*/
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
