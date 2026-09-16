@@ -176,8 +176,10 @@ export async function loadDashboardHeader(
     gateSubmittedAt: gateSubmission?.submittedAt ?? null,
     reviewSlaHours: REVIEW_SLA_HOURS,
     finalRank: finalSnapshot?.rank ?? null,
+    /* 게이트 스테이지(s2·s5)에 멈춰 있을 때만 사유를 안다. 그 밖(운영자 수동 탈락)은 null */
     elimination:
-      entry.status === EntryStatus.eliminated
+      entry.status === EntryStatus.eliminated &&
+      (entry.stage === EntryStage.s2 || entry.stage === EntryStage.s5)
         ? { gate: gateKey, submitted: gateSubmission !== null }
         : null,
     sanction: sanction

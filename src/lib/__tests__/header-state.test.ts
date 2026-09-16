@@ -323,6 +323,11 @@ describe("참가자 헤더 — 조합기 MAP.app", () => {
     /* 사유를 알면 문구가 시안 예문이 된다 */
     const m2 = dash({ entry: { stage: EntryStage.s2, status: EntryStatus.eliminated }, elimination: { gate: StageKey.s2, submitted: false } });
     expect(m2.strip?.text.map((s) => s.text).join("")).toBe("s2 게이트 미제출로 시즌 1 경쟁에서 제외되었어요. 리더보드와 참가작은 계속 볼 수 있어요.");
+    expect(dash({ entry: { stage: EntryStage.s2, status: EntryStatus.eliminated }, elimination: { gate: StageKey.s2, submitted: true } }).strip?.text[0].text).toBe("s2 게이트 미통과로 ");
+    /* 게이트 밖에서 떨어졌으면(운영자 수동 탈락) 어느 게이트라고 단정하지 않는다 */
+    const m3 = dash({ entry: { stage: EntryStage.s3, status: EntryStatus.eliminated }, elimination: null });
+    expect(m3.strip?.text.map((s) => s.text).join("")).toBe("시즌 1 경쟁에서 제외되었어요. 리더보드와 참가작은 계속 볼 수 있어요.");
+    expect(m3.strip?.text[0]).toMatchObject({ strong: true });
     /* 자진 포기도 관전 모드다 */
     expect(dash({ entry: { stage: EntryStage.s2, status: EntryStatus.withdrawn } }).variant).toBe("D7");
   });

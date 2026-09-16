@@ -453,7 +453,8 @@ export type DashboardHeaderInput = {
   finalRank: number | null;
   /**
    * 탈락 사유(스트립 문구용). 멈춘 게이트와 제출 여부 — 「s2 게이트 미제출로」
-   * 와 「s2 게이트 미통과로」를 가른다. 모르면 null
+   * 와 「s2 게이트 미통과로」를 가른다. 게이트에서 떨어진 것이 아니면 null —
+   * 그러면 사유 절 없이 사실만 적는다
    */
   elimination: { gate: StageKey; submitted: boolean } | null;
   /** 실격 제재. 소명 기한과 접수 여부 */
@@ -574,11 +575,16 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
 
   const out = entry.status === EntryStatus.eliminated || entry.status === EntryStatus.withdrawn;
   if (out && seasonKind !== "arch") {
+    /*
+      사유 절은 아는 만큼만. 게이트(s2·s5)에서 떨어진 것이 아니면(운영자 수동
+      탈락 같은 것) 어느 게이트라고 단정하지 않고 사실만 말한다 — 틀린 사유를
+      띠에 박아 두는 것이 사유가 없는 것보다 나쁘다. (2026-09-16)
+    */
     const e = input.elimination;
     const why =
       entry.status === EntryStatus.withdrawn ? "참가를 포기해 "
       : e ? `${e.gate} 게이트 ${e.submitted ? "미통과로" : "미제출로"} `
-      : "게이트를 통과하지 못해 ";
+      : "";
     return {
       ...base,
       variant: "D7",
@@ -588,7 +594,7 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
             tone: "gray",
             live: false,
             text: [
-              { text: why },
+              ...(why ? [{ text: why }] : []),
               { text: `${season.title} 경쟁에서 제외`, strong: true },
               { text: "되었어요. 리더보드와 참가작은 계속 볼 수 있어요." },
             ],
