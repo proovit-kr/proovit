@@ -18,15 +18,24 @@
   font-size: 16px;
 }
 
-/* 시즌 셀렉트 */
+/*
+  시즌 셀렉트. `.ssel`은 ver4의 공용 컴포넌트라 값은 ver4를 따른다
+  (12.5px → 13.5px, 안으로 파인 리세스 그림자가 붙는다).
+
+  ⚠️ `.ad-top` 자체는 ver4에 **없다** — 어드민 크롬의 바와 대기열 필(`.ad-q`)은
+  헤더 상태별 시안이 유일한 근거다. 그래서 이 바의 배경은 `--surface-2` 솔리드로
+  남는다(글래스로 간 `.db-top`과 갈린다). 운영자 화면은 참가자 화면과 색을
+  달리해 「지금 어느 쪽인가」를 알리는 자리라 갈리는 편이 오히려 맞다.
+*/
 .ssel {
   background: var(--surface);
   border: 1px solid var(--line);
   color: var(--text);
   border-radius: 8px;
   padding: 5px 10px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-family: inherit;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 /*

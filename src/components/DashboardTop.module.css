@@ -1,10 +1,31 @@
 /*
-  참가자 대시보드 헤더 — 「헤더 상태별 시안 v1.0」 `.db-top` `.db-ban` `.strip`.
-  값은 그대로 옮겼다(시안이 ver3 값을 그대로 계승해 겹쳐 쓴 규칙이 없다).
+  참가자 대시보드 헤더 — `.db-top` `.db-ban` `.strip`.
 
-  ⚠️ ver4는 이 값들을 한 단계 키웠다(`.db-ban` 13.5px / 7px 9px 7px 17px,
-  `.tm` 12.5px, `.go` 12px, 배경 글래스). 상태별 헤더 시안이 정본인 자리라
-  그쪽을 따랐고, 어느 쪽으로 갈지는 팀이 정한다(2026-09-16 스크럼).
+  ✅ **겹치는 자리는 ver4가 정본이다**(2026-09-16 수연 결정). 상태 분기(어느
+  상태에 무엇을 그리나)는 「헤더 상태별 시안 v1.0」이 정하고, 크롬과 필의 **값**은
+  ver4를 따른다. 스트립(`.strip`)은 ver4에 없으므로 헤더 시안이 유일한 근거다.
+
+  왜 ver4인가 — 크기 1px의 취향 문제가 아니라 **비율**이다. 헤더 시안은 본문
+  15px 시절에 쓰였고(그 파일의 `body{font-size:15px;line-height:1.6}`), ver4는
+  본문을 16px/1.65로 올리면서 필도 같이 올렸다.
+
+      헤더 시안  본문 15px · .db-ban 12.5px → 0.833
+      ver4      본문 16px · .db-ban 13.5px → 0.844
+      섞으면    본문 16px · .db-ban 12.5px → 0.781  ← 양쪽 어느 의도와도 다름
+
+  우리 globals.css는 이미 ver4의 16px/1.65를 쓴다. 12.5px를 남겨두면 필만
+  두 시안보다 작아진다.
+
+  ⚠️ 대신 필이 바를 76% 채운다(41 → 45.8px, 위아래 여백 9.5 → 7.1px). 공개
+  헤더의 CTA는 64px 바의 57%다. 답답하면 바를 64px로 올리는 수가 있는데 그건
+  두 시안 어디에도 없는 값이라 손대지 않았다.
+
+  ⚠️ **sticky는 안 옮겼다.** ver4의 `.db-top`은 `position:sticky`인데, 시안은
+  좌측 사이드바 구조라 붙는 것이 60px 바 하나다. 우리는 이 바 **아래에 네비 줄이
+  같은 `<header>` 안에 있어서** 그대로 붙이면 108px이 따라붙는다. 게다가 지금
+  자리에서 `.top`만 sticky로 바꾸면 부모가 짧아 아무 일도 일어나지 않는다 —
+  「한 것처럼 보이는 no-op」이 제일 나쁘다. 네비를 시안대로 사이드바로 옮길 때
+  같이 정한다.
 */
 .top {
   display: flex;
@@ -13,7 +34,12 @@
   height: 60px;
   padding: 0 24px;
   border-bottom: 1px solid var(--line);
-  background: var(--surface-2);
+  /*
+    ver4는 `.pub-head, .db-top`을 **한 규칙으로 묶어** 같은 재질로 만든다.
+    공개 헤더가 이미 이 값이라, 대시보드만 솔리드로 두면 근거 없이 둘이 갈린다.
+  */
+  background: rgba(12, 19, 34, 0.78);
+  backdrop-filter: blur(12px) saturate(1.25);
   position: relative;
 }
 
@@ -51,23 +77,27 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 99px;
-  padding: 6px 8px 6px 16px;
-  font-size: 12.5px;
+  padding: 7px 9px 7px 17px;
+  font-size: 13.5px;
 }
 .stg {
   font-weight: 700;
 }
 .tm {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--accent);
 }
+/*
+  ⚠️ `.go`(12px)가 `.tm`(12.5px)보다 작다. 뒤집힌 것처럼 보이지만 ver4가 그렇게
+  적었고, 버튼은 라임 솔리드라 크기가 아니라 **색으로** 무게를 받는다.
+*/
 .go {
-  font-size: 11.5px;
+  font-size: 12px;
   background: var(--accent);
   color: var(--accent-ink);
   border-radius: 99px;
-  padding: 4px 11px;
+  padding: 5px 13px;
   font-weight: 700;
 }
 .goV {
@@ -227,7 +257,7 @@
     white-space: nowrap;
   }
   .tm {
-    font-size: 11.5px;
+    font-size: 11px;
   }
   .full {
     display: none;

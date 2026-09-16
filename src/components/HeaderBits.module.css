@@ -35,6 +35,8 @@
   font-size: 12.5px;
   font-weight: 800;
   color: var(--muted);
+  /* ver4가 더한 줄. 좁아져 필이 줄바꿈될 때 아바타가 눌리지 않는다 */
+  flex: none;
 }
 .meAdm {
   border-color: rgba(167, 139, 250, 0.5);

@@ -71,7 +71,13 @@ const PAIRS = {
     ["wm", ".pub-head .wm", "header > a:first-child", { skip: ["width", "height"] }],
     ["wm em", ".pub-head .wm em", "header > a:first-child em", { only: ["color", "font-style"] }],
     ["nav", ".pub-head nav", "header nav", { skip: ["width", "height"] }],
-    ["nav ▸링크", ".pub-head nav", "header nav", { links: true }],
+    /*
+      ⚠️ `width`를 뺀다. 「시즌 아카이브」를 우리 헤더에서 뺐으므로(1ad6f2e)
+      항목 수가 시안 3개 / 구현 2개로 **일부러** 다르고, 내비 폭은 그 차이를
+      그대로 받는다. 바로 위 `nav` 쌍이 같은 이유로 이미 빼고 있다.
+      항목이 되살아나면 이 줄도 같이 지운다.
+    */
+    ["nav ▸링크", ".pub-head nav", "header nav", { links: true, skip: ["width", "height"] }],
     ["rgt", ".pub-head .rgt", 'header [class*="__rgt"]', { skip: ["width", "height"], flushRight: true }],
     ["login", ".login-lnk", '[class*="__login"]', { skip: ["width", "height"], hover: ["color"] }],
     ["btn", ".rgt .btn", '[class*="__rgt"] [class*="__btn"]', { all: true, skip: ["width", "height"], hover: ["color", "background-color", "background-image", "box-shadow", "filter"] }],
@@ -183,11 +189,23 @@ async function hoverValues(p, rootSel, pairs, side) {
 }
 
 /*
-  ⚠️ 토큰은 시안 ver4가 정본이다. 상태별 헤더 시안은 「토큰과 크롬은 ver3.0을
-  그대로 계승」이라 적고 ver3 토큰(`--text:#E8ECF4`, 본문 15px/1.6)을 박아 두었는데,
-  우리 globals.css는 ver4 토큰(`#eaeef6`, 16px/1.65)을 쓴다. 헤더가 제 토큰을
-  따로 가지면 화면과 어긋나므로, **시안 카탈로그에 우리 토큰을 주입하고** 헤더
-  고유 값만 잰다. 토큰 자체는 globals.mjs가 ver4와 대조한다.
+  ⚠️ **겹치는 자리는 ver4가 정본이다**(2026-09-16 수연 결정).
+
+  이 카탈로그가 정하는 것은 **상태 분기**다 — 어느 시즌·유저 상태에 무엇을
+  그리는가(P/D/A 27종), 그리고 ver4에 없는 조각(`.strip`, `.ad-top`, `.ad-q`).
+  크롬과 공용 컴포넌트의 **값**은 ver4가 정한다.
+
+  카탈로그는 「토큰과 크롬은 ver3.0을 그대로 계승」이라 적고 ver3 값을 박아
+  두었는데(본문 15px/1.6, `--text:#E8ECF4`, `.db-ban` 12.5px), ver4가 그 위를
+  덮었고 우리 globals.css는 ver4 쪽이다. 그대로 재면 **전부 가짜 불일치**가 된다.
+
+  그래서 재기 전에 시안 문서에 두 겹을 주입한다.
+    ① 우리 토큰과 본문 타이포 — globals.mjs가 ver4와 따로 대조하는 값들
+    ② ver4가 덮은 크롬 값 — 아래 VER4_CHROME
+
+  ②는 손으로 옮긴 값이라 출처를 밝힌다. 다시 뜨려면:
+      SPEC_HTML=design/proovit_디자인시안_ver4.html \
+        node scripts/design-diff/fold-spec.mjs '^\.(pub-head|db-top|db-ban|me|ssel|chip|ad-tag)'
 */
 const TOKENS = ["--bg","--surface","--surface-2","--line","--line-strong","--text","--muted","--faint",
   "--accent","--accent-ink","--accent-dim","--danger","--warn","--ok","--blue","--blue-dim",
@@ -203,7 +221,24 @@ const tokenCss = await withPage(async (p) => {
     return ":root{" + root + "}body{font-size:" + b.fontSize + ";line-height:" + lh.toFixed(3) + ";letter-spacing:" + b.letterSpacing + "}";
   })()`);
 });
-const injectTokens = (p) => p.eval(`(() => { const s = document.createElement("style"); s.textContent = ${JSON.stringify(tokenCss)}; document.head.appendChild(s); return 1; })()`);
+/*
+  ver4가 덮은 크롬 값(fold-spec의 마지막 승자). 카탈로그가 ver3 값을 들고 있는
+  자리만 적는다 — ver4에 없는 `.strip`·`.ad-top`·`.ad-q`는 건드리지 않는다.
+
+  ⚠️ `position:sticky`는 넣지 않는다. 카탈로그의 프레임은 `position:relative`로
+  떠 있고 우리 진열장도 그렇다. sticky는 실제 화면에서만 뜻이 있어 여기서
+  비교 대상이 아니다(DashboardTop.module.css 머리 주석 참조).
+*/
+const VER4_CHROME = `
+  .db-top{background:rgba(12,19,34,.78);backdrop-filter:blur(12px) saturate(1.25)}
+  .db-ban{padding:7px 9px 7px 17px;font-size:13.5px}
+  .db-ban .tm{font-size:12.5px}
+  .db-ban .go{font-size:12px;padding:5px 13px}
+  .me{flex:none}
+  .ssel{font-size:13.5px;box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
+  .frame.mob .db-ban .tm{font-size:11px}
+`;
+const injectVer4 = (p) => p.eval(`(() => { const s = document.createElement("style"); s.textContent = ${JSON.stringify(tokenCss)} + ${JSON.stringify(VER4_CHROME)}; document.head.appendChild(s); return 1; })()`);
 
 /*
   의도한 차이. 여기 넣는 순간 대조되지 않으므로 이유가 있는 것만.
@@ -228,7 +263,7 @@ for (const [id, specFrame] of VARIANTS) {
 
   const spec = await withPage(async (p) => {
     await p.goto(SPEC);
-    await injectTokens(p);
+    await injectVer4(p);
     await p.resize(1440);
     const r = await p.eval(probe(specFrame, pairs.map(([n, s, , o]) => [n, s, o])));
     r.text = await p.eval(textNodes(specFrame));
@@ -282,7 +317,7 @@ for (const [id, specFrame, implId, kind] of MOBILE) {
   const pairs = PAIRS[kind].filter(([n]) => !/^(rgt|nav ▸링크)$/.test(n));
   const spec = await withPage(async (p) => {
     await p.goto(SPEC);
-    await injectTokens(p);
+    await injectVer4(p);
     await p.resize(1440);
     const r = await p.eval(probe(specFrame, pairs.map(([n, s, , o]) => [n, s, o])));
     r.text = await p.eval(textNodes(specFrame));
