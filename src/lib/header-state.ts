@@ -314,7 +314,14 @@ function publicNav(season: NonNullable<PublicHeaderInput["season"]>): NavItem[] 
 /** 사전신청 폼. 「시즌 2 알림 받기」도 같은 폼을 쓴다(시안 판단 필요 P5, 이메일 수집이 같다) */
 const PREREGISTER = "/?preregister=1";
 
-/** 탈락 스트립을 닫은 표식(쿠키). 값은 entry id — 팀이 바뀌면 다시 보인다 */
+/**
+ * 탈락 스트립을 닫은 표식. 값은 entry id — 팀이 바뀌면 다시 보인다.
+ *
+ * ✅ **쿠키로 확정**(2026-09-16 수연 결정). 시안 규칙표는 서버 저장을 적었지만
+ * entries에 칸을 더하면 마이그레이션이 따라오고(운영 DB에 잘못 실린 전력이
+ * 있다, AGENTS.md 「DB」) 스트립 하나가 질 위험이 아니다. 손해는 다른 기기에서
+ * 한 번 더 보이는 것뿐이다.
+ */
 export const STRIP_COOKIE = "pv-strip-dismissed";
 
 export function resolvePublicHeader(input: PublicHeaderInput): PublicHeaderModel {
@@ -358,9 +365,17 @@ export function resolvePublicHeader(input: PublicHeaderInput): PublicHeaderModel
         actions: [{ kind: "leaderboard", label: "리더보드 보기", short: "리더보드", href: board, variant: "outline" }],
       };
     case "P5":
-      /* 시안대로 아바타를 두지 않는다(season=done, user=guest | member 한 프레임) */
+      /*
+        시안대로 아바타를 두지 않는다(season=done, user=guest | member 한 프레임).
+
+        ⚠️ 로그인 링크는 **ver4를 따른다.** 헤더 시안 v1.0의 P5 프레임에는
+        `.login-lnk`가 없는데 ver4는 `login:1`로 싣는다(`PUBHEAD.P5`). 겹치는
+        자리는 ver4가 정본이고(2026-09-16 수연 결정), 기능으로 봐도 그쪽이 맞다 —
+        시즌이 끝난 뒤 참가자가 제 대시보드로 가려면 로그인해야 하는데 이 상태에만
+        공개 화면에서 로그인으로 가는 길이 없었다.
+      */
       return {
-        variant, nav, login: false, adminTag: false, bell: null, avatar: null,
+        variant, nav, login: true, adminTag: false, bell: null, avatar: null,
         actions: [
           { kind: "result", label: "결과 보기", href: board, variant: "ghost" },
           { kind: "notify", label: `${next} 알림 받기`, href: PREREGISTER, variant: "primary" },

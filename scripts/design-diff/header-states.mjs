@@ -228,6 +228,16 @@ const tokenCss = await withPage(async (p) => {
   ⚠️ `position:sticky`는 넣지 않는다. 카탈로그의 프레임은 `position:relative`로
   떠 있고 우리 진열장도 그렇다. sticky는 실제 화면에서만 뜻이 있어 여기서
   비교 대상이 아니다(DashboardTop.module.css 머리 주석 참조).
+
+  `.ad-top`도 덮는다. 카탈로그에만 있는 클래스지만, ver4는 운영자 바를
+  `.db-top[data-adm]`으로 그리므로 상자 표면은 `.db-top`의 것이다
+  (AdminTop.module.css 머리 주석). 카탈로그가 적은 `--surface-2` 솔리드를
+  그 위로 덮는다. 단 `gap`은 덮지 않는다 — 카탈로그가 `.db-top` 16px /
+  `.ad-top` 14px로 일부러 갈라 적었고, ver4의 운영자 바는 항목이 넷뿐이라
+  그 값을 물을 수 없다.
+
+  ⚠️ **이 템플릿 리터럴 안에 백틱을 쓰지 않는다** — 하나만 들어가도 문자열이
+  끊긴다(probe의 같은 경고와 같은 이유).
 */
 const VER4_CHROME = `
   .db-top{background:rgba(12,19,34,.78);backdrop-filter:blur(12px) saturate(1.25)}
@@ -237,7 +247,28 @@ const VER4_CHROME = `
   .me{flex:none}
   .ssel{font-size:13.5px;box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
   .frame.mob .db-ban .tm{font-size:11px}
+  /* 어드민 바의 표면 — 아래 머리 주석의 마지막 단락 참조. gap은 덮지 않는다 */
+  .ad-top{background:rgba(12,19,34,.78);backdrop-filter:blur(12px) saturate(1.25)}
 `;
+/*
+  ver4가 **마크업**으로 덮은 자리. 값(VER4_CHROME)과 같은 이유로 카탈로그 쪽에
+  심어서 잰다.
+
+  P5 로그인 링크 — 카탈로그(v1.0)의 P5 프레임에는 `.login-lnk`가 없는데 ver4는
+  `PUBHEAD.P5`에 `login:1`로 싣는다. 겹치는 자리는 ver4가 정본이므로 카탈로그에
+  ver4와 같은 링크를 넣고 대조한다(header-state.ts의 P5 주석 참조).
+*/
+const patchVer4Markup = (p) => p.eval(`(() => {
+  const rgt = document.querySelector('.spec[data-id="P5"] .frame .rgt');
+  if (rgt && !rgt.querySelector('.login-lnk')) {
+    const a = document.createElement('a');
+    a.className = 'login-lnk';
+    a.textContent = '로그인';
+    rgt.prepend(a);
+  }
+  return 1;
+})()`);
+
 const injectVer4 = (p) => p.eval(`(() => { const s = document.createElement("style"); s.textContent = ${JSON.stringify(tokenCss)} + ${JSON.stringify(VER4_CHROME)}; document.head.appendChild(s); return 1; })()`);
 
 /*
@@ -264,6 +295,7 @@ for (const [id, specFrame] of VARIANTS) {
   const spec = await withPage(async (p) => {
     await p.goto(SPEC);
     await injectVer4(p);
+    await patchVer4Markup(p);
     await p.resize(1440);
     const r = await p.eval(probe(specFrame, pairs.map(([n, s, , o]) => [n, s, o])));
     r.text = await p.eval(textNodes(specFrame));
@@ -318,6 +350,7 @@ for (const [id, specFrame, implId, kind] of MOBILE) {
   const spec = await withPage(async (p) => {
     await p.goto(SPEC);
     await injectVer4(p);
+    await patchVer4Markup(p);
     await p.resize(1440);
     const r = await p.eval(probe(specFrame, pairs.map(([n, s, , o]) => [n, s, o])));
     r.text = await p.eval(textNodes(specFrame));

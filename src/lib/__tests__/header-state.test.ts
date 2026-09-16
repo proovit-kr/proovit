@@ -155,11 +155,13 @@ describe("공개 헤더 — 조합기 MAP.pub", () => {
     expect(pub("stage", "admin").actions[0]).toMatchObject({ label: "운영 콘솔", variant: "violet", href: "/admin" });
   });
 
-  it("로그인 링크는 비로그인 모집 중·진행 중에만", () => {
+  it("로그인 링크는 비로그인 모집 중부터", () => {
     expect(pub("pre", "guest").login).toBe(false);
     expect(pub("recruit", "guest").login).toBe(true);
     expect(pub("stage", "guest").login).toBe(true);
-    expect(pub("done", "guest").login).toBe(false);
+    /* P5는 ver4를 따라 켠다 — 종료 후 참가자가 대시보드로 갈 유일한 길이다 */
+    expect(pub("done", "guest").login).toBe(true);
+    /* 로그인한 사람에게는 아바타가 그 자리를 대신한다 */
     expect(pub("recruit", "member").login).toBe(false);
   });
 
