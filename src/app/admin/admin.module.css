@@ -10,58 +10,75 @@
   color: var(--c-text-ops);
 }
 
+/*
+  상단 바(`.ad-top`)는 AdminTop.module.css에 있다. 여기는 그 아래
+  네비게이션 줄과, 운영자가 아닐 때의 워드마크 자리뿐이다.
+*/
+/*
+  ⚠️ 배경이 여기와 `.top`(AdminTop) 두 군데에 있다. 참가자 헤더와 같은 사정이다
+  (dashboard.module.css의 같은 자리) — 여기 배경은 `container`라 폭이 좁은
+  `<nav>`를 전폭으로 덮고, 네비가 사이드바로 빠지면 이 줄을 지운다.
+
+  ⚠️ `--c-surface-ops`(= `--surface` 별칭)에서 글래스로 바꿨다. 솔리드 위에
+  글래스를 얹으면 바가 페이지 배경이 아니라 그 솔리드와 섞여, 바와 네비 줄이
+  서로 다른 표면으로 보인다.
+*/
 .head {
   border-bottom: 1px solid var(--c-line-2);
-  background: var(--c-surface-ops);
+  background: var(--c-nav);
+  backdrop-filter: blur(12px);
+  /*
+    참가자 헤더와 같은 이유로 붙인다(dashboard.module.css의 같은 줄).
+    대기열 필이 「지금 처리할 일」이라 어느 위치에서든 보여야 한다.
+
+    ver4도 운영자 바가 sticky다 — `.db-top[data-adm]`으로 그려 `.db-top`의 값을
+    통째로 물려받는다(AdminTop.module.css 머리 주석). 한때 「ver4에 어드민 크롬이
+    없다」고 적어 두었는데 클래스 이름만 grep한 잘못된 확인이었다.
+
+    ⚠️ **바(`.top`)가 아니라 이 `<header>`에 건다.** sticky는 부모 상자 안에서만
+    버티는데, 바는 이 헤더의 첫 줄이라 네비 줄 높이(약 47px)만큼만 붙어 있다가
+    같이 올라간다 — 시안 셀렉터를 글자 그대로 옮기면 한 번 움찔하고 끝난다.
+
+    시안이 60px 바 하나만 붙이는 이유는 네비가 좌측 사이드바에 있어서다. 우리는
+    아직 네비가 이 헤더 안에 있어서 약 107px(모바일 140px 안팎)이 붙는다.
+    **네비를 시안대로 사이드바로 옮기면 이 헤더에 바만 남아 저절로 시안과 같아진다**
+    — 그래서 지금 이 줄이 목표 상태다(2026-09-16 수연 결정).
+
+    z-index 30은 공개 헤더와 같은 층이다. 모달·토스트는 100이라 위로 지나간다.
+  */
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  /*
+    ⚠️ **iOS 덮개(`box-shadow: 0 -60px 0 60px var(--bg)`)를 넣지 않는다.**
+    공개 헤더(NavBar.module.css)에는 그 줄이 있다 — 아이폰에서 실제로 재서
+    넣은 것이다. 여기에도 같은 조건이라 생각하고 한 번 넣었다가 뺐다:
+    **운영 콘솔에서 헤더 가운데가 통째로 검게 칠해졌다.** sticky로 합성 레이어가
+    생긴 상태에서 spread 60짜리 불투명 그림자가 얹히면서 생긴 크롬 렌더 문제로,
+    `position:static`으로 두거나 이 줄만 빼면 사라진다(2026-09-16 확인).
+
+    애초에 아이폰에서 이 화면으로 새는 것을 본 적이 없다 — 공개 헤더와 조건이
+    같아 보여 미리 덮어 둔 추측이었다. 실기기에서 실제로 새는 것을 확인하면
+    그때 다른 방법으로 덮는다.
+  */
 }
 
-.headInner {
+/* 운영자가 아닐 때(곧 404) — 시안 `.ad-top`의 높이·여백만 빌린다 */
+.bare {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
-  padding-block: var(--s-4);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-}
-
-.tag {
-  padding: 2px var(--s-2);
-  border: 1px solid var(--c-line-3);
-  border-radius: 4px;
-  color: var(--c-text-dim);
-  font-size: var(--fs-2xs);
-  letter-spacing: 0.06em;
-}
-
-.season {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-}
-
-/* 페이즈는 운영자만 보는 내부 값이라 코드 그대로 띄운다 */
-.phase {
-  padding: 2px var(--s-2);
-  border-radius: 4px;
-  background: var(--c-field);
-  color: var(--c-text-dim);
-  font-family: var(--font-mono, monospace);
-  font-size: var(--fs-2xs);
+  gap: 14px;
+  height: 60px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
 }
 
 .nav {
   display: flex;
   gap: var(--s-5);
   overflow-x: auto;
-  padding-bottom: var(--s-3);
+  padding-block: var(--s-3);
   scrollbar-width: none;
 }
 

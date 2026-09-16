@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { isOnboardingComplete, loadViewerState } from "@/lib/access";
 import { apiOk } from "@/lib/api";
 import { resolveDashboardState } from "@/lib/dashboard-state";
+import { prisma } from "@/lib/prisma";
 
 /*
   GET /api/v1/me — API 명세서 v0.2 §2.1
@@ -11,7 +12,7 @@ import { resolveDashboardState } from "@/lib/dashboard-state";
   서버가 결론(`nextAction`·`blockedReasons`)까지 내려준다. 판정을 화면에 두면
   같은 조건이 화면마다 조금씩 달라지고, 그게 곧 "왜 나만 버튼이 없냐"가 된다.
 
-  헤더(NavBar)도 같은 엔드포인트를 쓴다. 응답이 넓어졌지만 헤더는 `user`만 읽는다 —
+  헤더(NavBar)도 같은 엔드포인트를 쓴다. 헤더는 `user`·`entry.status`·`unread`만 읽는다 —
   로그인한 사람이 랜딩에 올 때 쿼리가 둘 늘지만, 관전 트래픽 대부분이 비로그인이라
   아래 쿠키 단락에서 끊긴다.
 
@@ -56,6 +57,7 @@ const EMPTY_BODY = {
   team: null,
   entry: null,
   onboarding: null,
+  unread: 0,
 };
 
 async function buildBody() {
@@ -99,5 +101,15 @@ async function buildBody() {
         }
       : null,
     onboarding: { ...viewer.onboarding, complete },
+    /*
+      미읽음 알림 수 — 헤더 벨의 점. 참가팀이 있고 인앱 알림이 켜진 시즌에만
+      센다(헤더 규칙표 「벨」). 그 외에는 벨 자체가 없어서 셀 이유가 없다.
+    */
+    unread:
+      viewer.entry && viewer.season?.flags.notifications
+        ? await prisma.notification.count({
+            where: { userId: viewer.user.id, readAt: null },
+          })
+        : 0,
   };
 }

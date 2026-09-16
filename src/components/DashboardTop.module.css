@@ -1,0 +1,271 @@
+/*
+  참가자 대시보드 헤더 — `.db-top` `.db-ban` `.strip`.
+
+  ✅ **겹치는 자리는 ver4가 정본이다**(2026-09-16 수연 결정). 상태 분기(어느
+  상태에 무엇을 그리나)는 「헤더 상태별 시안 v1.0」이 정하고, 크롬과 필의 **값**은
+  ver4를 따른다. 스트립(`.strip`)은 ver4에 없으므로 헤더 시안이 유일한 근거다.
+
+  왜 ver4인가 — 크기 1px의 취향 문제가 아니라 **비율**이다. 헤더 시안은 본문
+  15px 시절에 쓰였고(그 파일의 `body{font-size:15px;line-height:1.6}`), ver4는
+  본문을 16px/1.65로 올리면서 필도 같이 올렸다.
+
+      헤더 시안  본문 15px · .db-ban 12.5px → 0.833
+      ver4      본문 16px · .db-ban 13.5px → 0.844
+      섞으면    본문 16px · .db-ban 12.5px → 0.781  ← 양쪽 어느 의도와도 다름
+
+  우리 globals.css는 이미 ver4의 16px/1.65를 쓴다. 12.5px를 남겨두면 필만
+  두 시안보다 작아진다.
+
+  ⚠️ 대신 필이 바를 76% 채운다(41 → 45.8px, 위아래 여백 9.5 → 7.1px). 공개
+  헤더의 CTA는 64px 바의 57%다. 답답하면 바를 64px로 올리는 수가 있는데 그건
+  두 시안 어디에도 없는 값이라 손대지 않았다.
+
+  ⚠️ **sticky는 안 옮겼다.** ver4의 `.db-top`은 `position:sticky`인데, 시안은
+  좌측 사이드바 구조라 붙는 것이 60px 바 하나다. 우리는 이 바 **아래에 네비 줄이
+  같은 `<header>` 안에 있어서** 그대로 붙이면 108px이 따라붙는다. 게다가 지금
+  자리에서 `.top`만 sticky로 바꾸면 부모가 짧아 아무 일도 일어나지 않는다 —
+  「한 것처럼 보이는 no-op」이 제일 나쁘다. 네비를 시안대로 사이드바로 옮길 때
+  같이 정한다.
+*/
+.top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 60px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  /*
+    ver4는 `.pub-head, .db-top`을 **한 규칙으로 묶어** 같은 재질로 만든다.
+    공개 헤더가 이미 이 값이라, 대시보드만 솔리드로 두면 근거 없이 둘이 갈린다.
+  */
+  background: rgba(12, 19, 34, 0.78);
+  backdrop-filter: blur(12px) saturate(1.25);
+  position: relative;
+}
+
+/*
+  축소 워드마크. 공개 헤더는 18px, 여기는 16px.
+  `.top`을 앞에 붙이는 이유: Logo가 NavBar 모듈의 `.wm`(18px)을 같이 달고
+  오는데, 모듈 사이 소스 순서는 보장되지 않아 특정도로 이겨야 한다.
+*/
+.top .wm {
+  font-size: 16px;
+}
+
+/* 팀명과 인원. 대시보드는 팀 단위 화면이라 팀 식별이 헤더에 있어야 한다 */
+.team {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.team b {
+  color: var(--text);
+}
+/* D9의 직전 시즌 성적 칩(시안 인라인 style). Badge 모듈의 `.badge`를 특정도로 이긴다 */
+.team .chip {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+/* 배너 필 — 스테이지명 · 시간 값 · 행동 버튼 */
+.ban {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 7px 9px 7px 17px;
+  font-size: 13.5px;
+}
+.stg {
+  font-weight: 700;
+}
+.tm {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--accent);
+}
+/*
+  ⚠️ `.go`(12px)가 `.tm`(12.5px)보다 작다. 뒤집힌 것처럼 보이지만 ver4가 그렇게
+  적었고, 버튼은 라임 솔리드라 크기가 아니라 **색으로** 무게를 받는다.
+*/
+.go {
+  font-size: 12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: 99px;
+  padding: 5px 13px;
+  font-weight: 700;
+}
+.goV {
+  background: var(--violet);
+  color: #0b1220;
+}
+.goR {
+  background: var(--danger);
+  color: #fff;
+}
+.goG {
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+}
+.lock {
+  color: var(--faint);
+}
+
+/* 색 변형. 라임 기본, 오렌지 경고, 바이올렛 심사, 틸 검증, 레드 실격, 블루 다음 시즌 */
+.urgent {
+  border-color: rgba(255, 183, 77, 0.45);
+}
+.urgent .tm {
+  color: var(--warn);
+}
+.judge {
+  border-color: rgba(167, 139, 250, 0.45);
+  background: rgba(167, 139, 250, 0.06);
+}
+.judge .tm {
+  color: var(--violet);
+}
+.verify {
+  border-color: rgba(69, 214, 190, 0.45);
+}
+.verify .tm {
+  color: var(--teal);
+}
+.elim {
+  border-style: dashed;
+  border-color: var(--line-strong);
+}
+.elim .tm,
+.elim .stg {
+  color: var(--muted);
+}
+.dq {
+  border-color: rgba(255, 93, 93, 0.5);
+  background: rgba(255, 93, 93, 0.06);
+}
+.dq .tm {
+  color: var(--danger);
+}
+.done {
+  border-color: rgba(200, 255, 61, 0.35);
+}
+.arch {
+  opacity: 0.65;
+}
+.arch .tm {
+  color: var(--faint);
+}
+.next {
+  border-color: rgba(111, 179, 255, 0.4);
+}
+.next .tm {
+  color: var(--blue);
+}
+
+.rgt {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/*
+  상단 얇은 상태 스트립. 실격과 탈락처럼 전 화면에서 잊히면 안 되는 상태만.
+  `b`의 색은 시안이 인라인으로 준다 — 회색 스트립은 --text, 레드는 #fff.
+*/
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 24px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--line);
+}
+.stripR {
+  background: rgba(255, 93, 93, 0.08);
+  color: #ffb3b3;
+  border-bottom-color: rgba(255, 93, 93, 0.25);
+}
+.stripR b {
+  color: #fff;
+}
+.stripG {
+  background: rgba(138, 147, 166, 0.07);
+  color: var(--muted);
+}
+.stripG b {
+  color: var(--text);
+}
+.strip [data-num] {
+  font-size: 12px;
+}
+.strip a {
+  margin-left: auto;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* 닫기. 시안은 「닫을 수 있음」이라고만 적었다 — 글자색 그대로의 × 하나 */
+.close {
+  font-size: 16px;
+  line-height: 1;
+  color: inherit;
+  opacity: 0.7;
+  padding: 0 2px;
+}
+.close:hover {
+  opacity: 1;
+}
+
+/* ≤760에서만 짧은 문구로 바꾼다. 둘 다 DOM에 있고 하나만 보인다 */
+.short {
+  display: none;
+}
+
+/*
+  모바일 축약(시안 5장). 팀명은 숨기고 배너가 전폭으로 다음 줄에 내려온다.
+  스테이지명은 12자 안으로 — 시안은 손으로 잘랐고 우리는 말줄임으로 자른다.
+*/
+@media (max-width: 760px) {
+  .top {
+    padding: 8px 14px;
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+  }
+  .team {
+    display: none;
+  }
+  .ban {
+    font-size: 12px;
+    padding: 5px 6px 5px 12px;
+    order: 3;
+    flex-basis: 100%;
+    justify-content: space-between;
+  }
+  .stg {
+    max-width: 12em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tm {
+    font-size: 11px;
+  }
+  .full {
+    display: none;
+  }
+  .short {
+    display: inline;
+  }
+  .strip {
+    padding: 7px 14px;
+  }
+}

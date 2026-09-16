@@ -6,7 +6,7 @@ import { Clauses } from "@/components/Clauses";
 import { NavBar } from "@/components/NavBar";
 import type { PolicyBlock, PolicyTable } from "@/content/privacy";
 import { SEASON_RULES } from "@/content/rules";
-import { getCurrentSeason, resolveNav } from "@/lib/season";
+import { getCurrentSeason, publicHeaderSeason } from "@/lib/season";
 
 import styles from "./rules.module.css";
 
@@ -94,7 +94,7 @@ export default async function Page() {
 
   return (
     <main className={`page ${styles.page}`}>
-      <NavBar {...resolveNav(season)}
+      <NavBar season={publicHeaderSeason(season)}
       />
       <div className={`container container--narrow grow ${styles.wrap}`}>
         <header className={styles.head}>

@@ -13,7 +13,7 @@ import type {
   LeaderboardRow,
   PublicSeason,
 } from "@/lib/public-read";
-import { getCurrentSeason, resolveNav } from "@/lib/season";
+import { loadPublicNav } from "@/lib/header-read";
 
 import { FirstRollup, UpdatedAt } from "./UpdatedAt";
 import styles from "./leaderboard.module.css";
@@ -298,13 +298,11 @@ export default async function Page({
 
   /* 잠김(레이스 전)은 404가 아니다 — 언제 열리는지 말해야 관전자가 다시 온다 */
   const board = access.ok ? await loadLeaderboard(season.id) : null;
-  const current = await getCurrentSeason();
   const ranked = board?.rows.some((row) => row.rank !== null) ?? false;
 
   return (
     <main className="page">
-      <NavBar {...resolveNav(current)}
-      />
+      <NavBar {...(await loadPublicNav())} />
       <div className={`${styles.wrap} grow`}>
         <div className={styles.eyebrow}>
           <span className={styles.cur}>LIVE LEADERBOARD</span>

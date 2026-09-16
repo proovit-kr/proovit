@@ -5,11 +5,14 @@ import styles from "./Button.module.css";
 
 /*
   버튼 — 시안 `.btn`의 변형을 그대로 쓴다.
-  primary / outline / ghost / danger / kakao / google 여섯이 시안의 전부다.
+  primary / outline / ghost / danger / kakao / google 여섯이 시안 ver3의 전부이고,
+  violet / gray 둘은 「헤더 상태별 시안 v1.0」이 더한 것이다 — 운영 콘솔(P11)과
+  탈락팀의 내 대시보드(P10)가 쓴다.
 */
 
 type SpecVariant =
-  "primary" | "outline" | "ghost" | "danger" | "kakao" | "google";
+  | "primary" | "outline" | "ghost" | "danger" | "kakao" | "google"
+  | "violet" | "gray";
 
 /*
   ⚠️ 임시 별칭 — 시안 이식이 끝나면 지운다.

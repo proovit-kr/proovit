@@ -11,7 +11,8 @@ import { NavBar } from "@/components/NavBar";
 import { SEASON_STAGES } from "@/content/landing";
 import { guardPage } from "@/lib/access";
 import { loadPublicEntry } from "@/lib/public-read";
-import { getCurrentSeason, resolveNav } from "@/lib/season";
+import { loadPublicNav } from "@/lib/header-read";
+import { getCurrentSeason } from "@/lib/season";
 
 import styles from "./project.module.css";
 
@@ -95,7 +96,7 @@ export default async function Page({
 
   return (
     <main className={`page ${styles.page}`}>
-      <NavBar {...resolveNav(season)} />
+      <NavBar {...(await loadPublicNav())} />
       <div className={`container container--narrow grow ${styles.wrap}`}>
         <header className={styles.head}>
           <p className={styles.meta}>

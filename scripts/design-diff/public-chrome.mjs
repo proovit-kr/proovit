@@ -60,7 +60,13 @@ const PAIRS = [
   /* 시안·구현 모두 리더보드 화면이라 활성 항목은 둘 다 두 번째다 */
   ["nav a", S + ".pub-head nav a:first-child", "header nav a:first-child"],
   ["nav a(on)", S + ".pub-head nav a:nth-child(2)", "header nav a:nth-child(2)"],
-  ["cta", S + ".pub-head .cta", "header > :last-child", { flushRight: true }],
+  /*
+    우측 액션 묶음(`.rgt`)이 오른쪽 끝에 붙고, CTA는 그 안의 버튼이다
+    (헤더 상태별 시안 v1.0, ver4 `setPubHead`). 상태별 27종의 대조는
+    header-states.mjs가 진열장에서 한다 — 여기서는 실제 화면에 붙은 크롬만 본다.
+  */
+  ["rgt", S + ".pub-head .rgt", 'header [class*="__rgt"]', { flushRight: true }],
+  ["cta", S + ".pub-head .cta", 'header [class*="__rgt"] [class*="__cta"]'],
 
   /*
     ⚠️ **푸터는 내용이 시안 소관이 아니다** (2026-08-30 팀장 지시). 노션
@@ -81,9 +87,10 @@ const PAIRS = [
     대조가 0건이라고 말했다. 수연이 눈으로 잡았다.
   */
   /*
-    ⚠️ 메뉴는 리그 시작 전에 그리지 않는다(2026-08-31 수연 지시, season.ts의
-    `navMenuVisible`). 시안은 늘 그리므로 이 대조는 **메뉴가 보이는 상태**에서만
-    뜻이 있다 — dev DB가 pre_apply면 구현본에 `<nav>` 자체가 없다.
+    ⚠️ 메뉴는 리그 시작 전에 그리지 않는다(2026-08-31 수연 지시, 이제는 헤더
+    상태별 시안 P1이 같은 말을 한다 — header-state.ts `publicNav`). 시안 ver4의
+    리더보드 화면은 늘 그리므로 이 대조는 **메뉴가 보이는 상태**에서만 뜻이
+    있다 — dev DB가 pre_apply면 구현본에 `<nav>` 자체가 없다.
 
         npx tsx …/phase.mts recruiting   # 켜고 대조
   */
@@ -151,7 +158,7 @@ const probe = (pairs) => `(() => {
 const HOVER = [
   ["nav a", S + ".pub-head nav a", "header nav a"],
   ["foot a", S + ".pub-foot a", "footer a"],
-  ["cta", S + ".pub-head .cta", "header button, header a[class*=btn]"],
+  ["cta", S + ".pub-head .cta", 'header [class*="__rgt"] [class*="__cta"]'],
 ];
 const HOVER_CSS = ["color", "background-color", "background-image", "box-shadow",
                    "filter", "border-color", "opacity", "animation-name"];
@@ -176,7 +183,7 @@ async function hoverValues(p, list, side) {
 
 /*
   ⚠️ 메뉴가 보이는 상태여야 대조가 성립한다. 리그 시작 전에는 구현본에
-  `<nav>` 자체가 없다(season.ts의 `navMenuVisible`). dev DB가 pre_apply면
+  `<nav>` 자체가 없다(header-state.ts의 `publicNav`). dev DB가 pre_apply면
   여기서 멈추고 무엇을 해야 하는지 말한다 — 스택 트레이스로 끝나면 안 된다.
 */
 {
@@ -206,15 +213,12 @@ const TEXT_PAIRS = [
 ];
 
 /*
-  ⚠️ CTA 문구는 **시즌 상태가 정한다**(season.ts의 `resolveNavCta`).
-  이 프로브는 메뉴가 보여야 돌아가므로 dev를 recruiting으로 두고 재는데,
-  시안의 리더보드 화면 헤더는 pre 상태의 문구(「사전 신청하기」)를 박아 두었다.
-  상태가 다른 것이지 문구가 틀린 것이 아니다.
-
-  넷 다 §3에서 값으로 이미 대조했고, 시안이 상태별로 무엇을 적는지도
-  거기서 확인했다(시즌 상세 1712행).
+  ⚠️ CTA 문구는 **시즌 상태와 로그인 여부가 정한다**(header-state.ts).
+  시안 ver4의 리더보드 화면은 `data-ph="P3"`(비로그인·진행 중)를 박아 두었고,
+  dev DB의 phase에 따라 우리 쪽 문구가 달라진다. 상태가 다른 것이지 문구가
+  틀린 것이 아니다 — 상태별 문구 자체는 header-states.mjs가 전부 대조한다.
 */
-const TEXT_IGNORE = [/^(사전 신청하기|참가 신청하기|리더보드 보기|시즌 보기)$/];
+const TEXT_IGNORE = [/^(사전 신청하기|참가 신청하기|리더보드 보기|리더보드|시즌 보기|로그인|시즌 \d+ 알림 받기|내 대시보드|운영 콘솔)$/];
 
 let total = 0;
 for (const w of WIDTHS) {

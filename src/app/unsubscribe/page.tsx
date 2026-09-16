@@ -4,7 +4,7 @@ import { cancelLead } from "@/app/actions/lead";
 import { Button } from "@/components/Button";
 import { Footer } from "@/components/Footer";
 import { NavBar } from "@/components/NavBar";
-import { getCurrentSeason, resolveNav } from "@/lib/season";
+import { getCurrentSeason, publicHeaderSeason } from "@/lib/season";
 
 import styles from "./unsubscribe.module.css";
 
@@ -63,7 +63,7 @@ export default async function Page({
 
   return (
     <main className="page">
-      <NavBar {...resolveNav(season)}
+      <NavBar season={publicHeaderSeason(season)}
       />
       <div className={`${styles.wrap} grow`}>
         <h1 className={styles.title}>{copy.title}</h1>

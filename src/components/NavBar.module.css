@@ -1,5 +1,6 @@
 /*
-  공개 헤더 — 시안 `.pub-head`.
+  공개 헤더 — 시안 `.pub-head`. 상태별 우측 액션은 「헤더 상태별 시안 v1.0」,
+  햄버거 메뉴(`.pub-menu`)는 그 시안이 그리지 않아 ver4에서 가져왔다.
 
   ⚠️ 마지막 승자를 썼다.
     nav gap        22px(v0.1) → 24px(v0.4)
@@ -79,13 +80,95 @@
 .nav a:hover {
   color: var(--text);
 }
-/* 지금 보고 있는 항목. 시안은 인라인 `style="color:var(--text)"`로 표시한다 */
+/* 지금 보고 있는 항목. 시안은 `.on`(카탈로그)·인라인 `style="color:var(--text)"`(ver4)로 표시한다 */
 .navOn {
   color: var(--text);
 }
+/* 아직 없는 화면의 예고 — `.soon-nav`. 링크가 아니라 hover도 없다 */
+.nav .soon,
+.nav .soon:hover {
+  color: var(--faint);
+  cursor: not-allowed;
+}
 
-.cta {
+/* 우측 액션 묶음 */
+.rgt {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* 「로그인」 텍스트 링크. 모집 중부터 비로그인에게만 */
+.login {
+  font-size: 14px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.login:hover {
+  color: var(--text);
+}
+
+/* 시안의 CTA는 `padding:9px 18px; font-size:13.5px` — Button의 sm이다 */
+.cta {
+  margin-left: 0;
+}
+/* P5의 「결과 보기」 — `.cta`가 없는 보조 버튼 */
+.sub {
+  margin-left: 0;
+}
+
+/* ≤760에서만 짧은 문구로 바꾼다 */
+.short {
+  display: none;
+}
+
+/* 햄버거. 데스크톱에서는 없다 */
+.hbg {
+  display: none;
+  color: var(--muted);
+  padding: 4px;
+  border-radius: 8px;
+}
+.hbg:hover {
+  color: var(--text);
+  background: rgba(232, 236, 244, 0.05);
+}
+.hbgIc {
+  width: 1.3em;
+  height: 1.3em;
+}
+
+/*
+  햄버거가 여는 메뉴(ver4 `.pub-menu`). 헤더 바로 아래 전폭으로 내려온다.
+  안의 링크는 `.nav` 것과 같은 요소라 색을 `!important`로 덮는다 — 시안이
+  그렇게 적었다(`.pub-menu a{color:var(--text)!important}`).
+*/
+.menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  background: #0b1220;
+  border-bottom: 1px solid var(--line-strong);
+  padding: 6px 18px 12px;
+  z-index: 29;
+  backdrop-filter: blur(12px);
+}
+.menu a {
+  display: block;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+  color: var(--text) !important;
+}
+.menu .soon {
+  color: var(--faint) !important;
+}
+.menu .menuLogin {
+  border-bottom: 0;
+  color: var(--accent) !important;
+  font-weight: 700;
 }
 
 @media (max-width: 1024px) {
@@ -95,8 +178,8 @@
 }
 
 /*
-  ver3의 모바일 패스. 좁아지면 헤더가 워드마크와 CTA만 남긴다 —
-  nav를 접는 게 아니라 통째로 감춘다.
+  모바일 축약(시안 5장). 내비와 로그인 링크는 햄버거 안으로, 보조 버튼은
+  숨기고 CTA 하나만 남긴다.
 
   ⚠️ `!important`는 시안 값 그대로다. 시안은 CTA의 인라인 style을 이기려고
   붙였는데, 우리는 그 자리가 Button의 `.sm`(다른 모듈, 같은 특정도 0,1,0)이라
@@ -109,11 +192,30 @@
     gap: 12px;
     height: 56px;
   }
+  .wm {
+    font-size: 16px;
+  }
   .nav {
+    display: none;
+  }
+  .rgt {
+    gap: 10px;
+  }
+  .login,
+  .sub {
     display: none;
   }
   .cta {
     padding: 8px 14px !important;
     font-size: 13px !important;
+  }
+  .full {
+    display: none;
+  }
+  .short {
+    display: inline;
+  }
+  .hbg {
+    display: inline-flex;
   }
 }

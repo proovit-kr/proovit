@@ -1,4 +1,6 @@
 import { SeasonPhase, type Season } from "@/generated/prisma/client";
+import { parseFeatureFlags } from "@/lib/feature-flags";
+import { toHeaderSeason, type PublicHeaderInput } from "@/lib/header-state";
 import { phaseAtLeast } from "@/lib/season-phase";
 
 import { prisma } from "./prisma";
@@ -36,60 +38,31 @@ export function resolveLandingCta(season: Season): LandingCta {
 }
 
 /**
- * 헤더(NavBar)의 주 버튼.
- *
- * 랜딩만은 예외로, 이동 대신 자기 폼으로 스크롤하는 onClick을 따로 넘긴다.
- */
-/*
-  헤더 CTA. **시즌 상태와 무관하게 「사전 신청하기」 하나다.**
-
-  시안의 공개 헤더는 셋 다(랜딩 1439행·리더보드 1607행·참가작 1655행) 같은
-  버튼을 그린다. 헤더에는 상태가 없다.
-
-  ⚠️ 한때 상태별로 갈랐다(모집 중「참가 신청하기」, 레이스 중「리더보드 보기」).
-  시안이 시즌 상세 화면 1712행에 적어 둔 것을 헤더 문구로 잘못 읽은 것이다 —
-  그건 그 화면 안의 버튼 설명이었다. 2026-09-06에 되돌렸다.
-
-  상태별 헤더 시안이 따로 올 예정이다(윤서). 그때까지는 시안대로 하나만 둔다.
-*/
-export function resolveNavCta(): { href: string; label: string } {
-  return { href: "/?preregister=1", label: "사전 신청하기" };
-}
-
-/**
- * 공개 헤더에 넘길 것 한 묶음. `<NavBar {...resolveNav(season)} />`.
+ * 공개 헤더에 넘길 **시즌 축**. `<NavBar season={publicHeaderSeason(season)} />`.
  *
  * 한 줄로 묶어 두는 이유는 **빠뜨리지 않기 위해서**다. 화면마다 같은 다섯 줄을
  * 손으로 적으면 새 화면이 생길 때마다 하나씩 어긋난다(실제로 이 리포에서
  * 반복된 종류의 새어나감이다).
+ *
+ * 유저 축(로그인·참가 상태)은 여기 없다. 세션을 읽은 화면은
+ * `loadHeaderViewer()`(header-read.ts)로 넘기고, 랜딩처럼 못 읽는 화면은
+ * NavBar가 클라이언트에서 채운다.
+ *
+ * 헤더 CTA를 상태별로 가르는 것은 2026-09-06에 한 번 되돌렸다가(시즌 상세
+ * 화면의 버튼 설명을 헤더 문구로 잘못 읽었다) 「헤더 상태별 시안 v1.0」이
+ * 오면서 다시 갈랐다 — 이번에는 판정표가 시안에 있다(header-state.ts).
  */
-export function resolveNav(season: Season | null): {
-  leaderboardHref?: string;
-  showMenu: boolean;
-  cta: { href: string; label: string };
-} {
-  if (!season) return { showMenu: false, cta: { href: "/", label: "홈" } };
+export function publicHeaderSeason(
+  season: Season | null,
+): PublicHeaderInput["season"] {
+  if (!season) return null;
+  const flags = parseFeatureFlags(season.featureFlags);
   return {
-    leaderboardHref: `/seasons/${season.slug}/leaderboard`,
-    showMenu: navMenuVisible(season),
-    cta: resolveNavCta(),
+    kind: toHeaderSeason(season.phase),
+    slug: season.slug,
+    title: season.title,
+    flags: { notifications: flags.notifications },
   };
-}
-
-/**
- * 헤더 메뉴(리그 소개·리더보드·시즌 아카이브)를 내보이는가.
- *
- * ⚠️ **시안과 다르게 한 것**(2026-08-31 수연 지시). 시안은 공개 헤더에 늘
- * 메뉴 셋을 두지만, 리그가 시작되기 전에는 워드마크만 남긴다 — 사전신청만
- * 받는 동안 갈 곳이 랜딩 하나뿐이라 메뉴가 가리키는 데가 없다.
- *
- * 기준을 `recruiting`으로 잡는다. 「리그 시작」은 모집이 열리는 때이고,
- * 그때 `/apply`가 열려 실제로 갈 곳이 생긴다. 리더보드는 레이스부터라
- * 모집 구간에는 잠긴 화면을 가리키지만, 그건 시안이 이미 그리는 상태다
- * (`.lb-empty`·잠김 안내).
- */
-export function navMenuVisible(season: Season): boolean {
-  return phaseAtLeast(season.phase, SeasonPhase.recruiting);
 }
 
 /*

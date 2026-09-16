@@ -1,0 +1,143 @@
+/*
+  세 헤더가 같이 쓰는 조각 — 헤더 상태별 시안 v1.0. 값은 그대로 옮겼다.
+  시안은 ver3 토큰을 그대로 계승하므로 겹쳐 쓴 값이 없다(마지막 승자 표 없음).
+*/
+
+/* 알림 벨. `i`가 미읽음 점 */
+.bell {
+  position: relative;
+  color: var(--muted);
+  display: inline-flex;
+}
+.bell i {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--accent);
+}
+.bellRed i {
+  background: var(--danger);
+}
+
+/* 아바타 — 이름 첫 글자 */
+.me {
+  width: 32px;
+  height: 32px;
+  border-radius: 99px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--muted);
+  /* ver4가 더한 줄. 좁아져 필이 줄바꿈될 때 아바타가 눌리지 않는다 */
+  flex: none;
+}
+.meAdm {
+  border-color: rgba(167, 139, 250, 0.5);
+  color: var(--violet);
+}
+
+/* ADMIN 태그. 라틴 대문자라 모노와 넓은 자간이 허용된다 */
+.adTag {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--violet);
+  border: 1px solid rgba(167, 139, 250, 0.5);
+  border-radius: 99px;
+  padding: 3px 10px;
+  font-weight: 800;
+}
+
+/*
+  라이브 도트 — 리더보드 「레이스 운영중」 표식과 같은 계열.
+
+  ⚠️ `@keyframes`를 이 파일에 둔다. CSS 모듈은 animation 이름도 선택자처럼
+  해싱하므로 globals.css의 keyframes는 여기서 안 닿는다(AGENTS.md 「없는
+  애니메이션 검사」). 모션 감축도 같은 자리에서 끈다.
+*/
+.live {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--accent);
+  flex: none;
+}
+.live::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 99px;
+  border: 1.5px solid var(--accent);
+  opacity: 0.6;
+  animation: ping 1.8s ease-out infinite;
+}
+.liveV {
+  background: var(--violet);
+}
+.liveV::after {
+  border-color: var(--violet);
+}
+.liveT {
+  background: var(--teal);
+}
+.liveT::after {
+  border-color: var(--teal);
+}
+.liveR {
+  background: var(--danger);
+}
+.liveR::after {
+  border-color: var(--danger);
+}
+@keyframes ping {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live::after {
+    animation: none;
+  }
+}
+
+/* 운영자 헤더의 이메일 칩 */
+.chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+/*
+  글자 조각. `.num`은 시안의 `.mono,.num{font-family:var(--mono)}` —
+  숫자·날짜·시각·D-day만 모노다(규칙표 「글꼴」). 크기와 색은 담는 상자가
+  `[data-num]`으로 덮는다(모듈 경계를 넘는 자식 셀렉터는 죽은 CSS가 된다).
+*/
+.num {
+  font-family: var(--mono);
+}
+.strong {
+  font-weight: 700;
+}
+.faint {
+  color: var(--faint);
+}
+.accent {
+  color: var(--accent);
+}

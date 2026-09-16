@@ -113,6 +113,22 @@
     0 8px 20px -10px rgba(255, 93, 93, 0.5);
 }
 
+/*
+  헤더 상태별 시안 v1.0의 `.btn-violet`·`.btn-gray`. hover 규칙은 시안에도 없다.
+    violet  운영 콘솔(P11) — 바이올렛은 심사·게이트·어드민 액센트
+    gray    탈락팀의 내 대시보드(P10) — 색을 거둬 「비활성 참가」를 말한다
+*/
+.violet {
+  border: 1px solid rgba(167, 139, 250, 0.5);
+  color: var(--violet);
+  background: var(--violet-dim);
+}
+.gray {
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  background: var(--surface);
+}
+
 /* 소셜 로그인. 각 서비스의 브랜드 색이라 토큰을 쓰지 않는다 */
 .kakao {
   background: #fee500;
