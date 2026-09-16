@@ -97,3 +97,37 @@
 .navLink:hover {
   color: var(--c-text-ops);
 }
+
+/*
+  시안 `.db` — 운영자도 같은 상자를 쓴다. 사이드바만 `.adm`(tone="ops")이라
+  활성 색이 바이올렛으로 바뀐다.
+*/
+.db {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+  --side-top: 56px;
+}
+
+/*
+  시안 `.ad-body` — 운영자 본문은 폭 상한을 두지 않는다. 표가 넓어서다
+  (시안 `.ad-body{flex:1;padding:32px 36px 80px;min-width:0}`, 넓은 화면에서 1120).
+*/
+.body {
+  flex: 1;
+  padding: 32px 36px 80px;
+  min-width: 0;
+  max-width: 1120px;
+}
+
+@media (max-width: 860px) {
+  .db {
+    flex-direction: column;
+  }
+
+  .body {
+    max-width: none;
+    padding: 24px 18px 72px;
+  }
+}

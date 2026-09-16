@@ -90,3 +90,37 @@
 .navLink:hover {
   color: var(--c-text);
 }
+
+/*
+  시안 `.db` — 사이드바와 본문을 가로로 둔다. 사이드바가 sticky라 형제 높이가
+  필요해서 `align-items: stretch`(기본)를 그대로 쓴다.
+
+  `--side-top`은 사이드바가 피해야 할 상단 바 높이다. 바(`.top`)만 sticky로
+  남았으므로 그 높이 하나다 — 시안의 56px에 맞춘다.
+*/
+.db {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+  --side-top: 56px;
+}
+
+/* 시안 `.db-body` — 본문은 860 상한을 둔다(읽는 폭) */
+.body {
+  flex: 1;
+  padding: 34px 38px 80px;
+  min-width: 0;
+  max-width: 860px;
+}
+
+@media (max-width: 860px) {
+  .db {
+    flex-direction: column;
+  }
+
+  .body {
+    max-width: none;
+    padding: 24px 18px 72px;
+  }
+}
