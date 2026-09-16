@@ -1,0 +1,129 @@
+/*
+  운영자 헤더 — 「헤더 상태별 시안 v1.0」 `.ad-top` `.ad-q` `.ssel`.
+  값은 그대로 옮겼다.
+*/
+.top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 60px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  position: relative;
+}
+
+/* 축소 워드마크. NavBar 모듈의 `.wm`(18px)을 특정도로 이긴다 */
+.top .wm {
+  font-size: 16px;
+}
+
+/* 시즌 셀렉트 */
+.ssel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  font-family: inherit;
+}
+
+/*
+  대기열 필. 숫자만 모노(`[data-num]`, HeaderBits의 Segs)이고 색은 톤을 따른다 —
+  b 블루 · l 라임 · w 오렌지 · t 틸 · v 바이올렛 · r 레드.
+*/
+.q {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 5px 12px;
+  background: var(--surface);
+}
+.q [data-num] {
+  font-size: 12px;
+  color: var(--text);
+}
+.qV {
+  border-color: rgba(167, 139, 250, 0.45);
+}
+.qV [data-num] {
+  color: var(--violet);
+}
+.qW {
+  border-color: rgba(255, 183, 77, 0.45);
+}
+.qW [data-num] {
+  color: var(--warn);
+}
+.qR {
+  border-color: rgba(255, 93, 93, 0.45);
+}
+.qR [data-num] {
+  color: var(--danger);
+}
+.qT {
+  border-color: rgba(69, 214, 190, 0.45);
+}
+.qT [data-num] {
+  color: var(--teal);
+}
+.qB {
+  border-color: rgba(111, 179, 255, 0.4);
+}
+.qB [data-num] {
+  color: var(--blue);
+}
+.qL {
+  border-color: rgba(200, 255, 61, 0.4);
+}
+.qL [data-num] {
+  color: var(--accent);
+}
+
+.rgt {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.email {
+  display: inline-flex;
+}
+.bdWrap {
+  display: inline-flex;
+}
+/* 모바일 전용 합친 필. 데스크톱에서는 없다 */
+.mob {
+  display: none;
+}
+
+/*
+  모바일 축약(시안 5장). 시즌 셀렉트·배지·이메일 칩을 숨기고 대기열 한 줄만
+  남긴다 — 둘째 대기열은 첫 필의 꼬리로 들어간다.
+*/
+@media (max-width: 760px) {
+  .top {
+    padding: 8px 14px;
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+  }
+  .ssel,
+  .email,
+  .bdWrap,
+  .desk {
+    display: none;
+  }
+  .mob {
+    display: inline-flex;
+    order: 3;
+    flex-basis: 100%;
+    justify-content: space-between;
+  }
+}

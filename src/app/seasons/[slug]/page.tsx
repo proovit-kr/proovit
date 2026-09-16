@@ -9,7 +9,7 @@ import { NavBar } from "@/components/NavBar";
 import { PHASE_LABEL } from "@/content/dashboard";
 import { guardPage } from "@/lib/access";
 import { loadPublicSeason } from "@/lib/public-read";
-import { getCurrentSeason, resolveNav } from "@/lib/season";
+import { loadPublicNav } from "@/lib/header-read";
 
 import styles from "./season.module.css";
 
@@ -107,14 +107,12 @@ export default async function Page({
   if (!season) notFound();
 
   const action = cta(season.phase);
-  /* 헤더 버튼은 랜딩과 같은 판정을 쓴다(resolveNav) */
-  const current = await getCurrentSeason();
   const scheduled = season.stages.some((stage) => stage.opensAt !== null);
 
   return (
     <main className={`page ${styles.page}`}>
-      <NavBar {...resolveNav(current)}
-      />
+      {/* 헤더는 랜딩과 같은 판정을 쓴다(header-state.ts) */}
+      <NavBar {...(await loadPublicNav())} />
       <div className={`container grow ${styles.wrap}`}>
         <header className={styles.head}>
           <p className={styles.meta}>

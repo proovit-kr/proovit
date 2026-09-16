@@ -54,6 +54,8 @@ const PATHS = {
       <path d="M5.6 5.6l12.8 12.8" />
     </>
   ),
+  /* 햄버거 — 헤더 상태별 시안 5장의 모바일 공개 헤더(`.hbg`) */
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;

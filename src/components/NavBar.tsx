@@ -2,28 +2,41 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+
+import {
+  resolvePublicHeader,
+  viewerFromMe,
+  type HeaderAction,
+  type HeaderViewer,
+  type PublicHeaderInput,
+} from "@/lib/header-state";
 
 import { Button, LinkButton } from "./Button";
 import { glitchClass, useGlitchTick } from "./Glitch";
+import { AdminTag, Avatar, Bell } from "./HeaderBits";
+import { Icon } from "./Icon";
 import styles from "./NavBar.module.css";
 
 /*
-  공개 헤더 — 시안 `.pub-head`.
+  공개 헤더 — 시안 `.pub-head`. 「헤더 상태별 시안 v1.0」의 P1~P11.
 
-  구조는 시안 그대로 셋이다: 워드마크 · 메뉴 · 오른쪽 끝 CTA.
+  구조는 셋이다: 워드마크 · 메뉴 · 우측 액션(`.rgt`). 무엇을 그릴지는
+  `resolvePublicHeader`(header-state.ts)가 정하고 여기서는 그리기만 한다.
 
-  ⚠️ **로그인 자리가 없다.** 시안의 공개 헤더에는 로그인 링크도 계정 메뉴도
-  없다(`<span class="wm">` + `<nav>` 3개 + `.cta` 버튼이 전부). 로그인한
-  사람은 대시보드 크롬(`.db-top`)을 보게 되어 있고, 거기에 벨과 아바타가 있다.
+  판정에 필요한 축이 둘인데 오는 길이 다르다.
+    시즌  서버가 안다. 페이지가 `publicHeaderSeason(season)`으로 만들어 내려준다.
+    유저  두 갈래다.
+          · 동적 화면(리더보드·시즌 상세·참가작)은 이미 세션을 읽었으므로
+            `viewer`로 내려준다.
+          · 랜딩은 ISR(revalidate 60)이라 세션을 읽을 수 없다. `viewer`를
+            **안 주면** 마운트 뒤 `/api/v1/me`를 읽어 채운다 — 첫 HTML은 비로그인
+            모양이고 로그인한 사람은 하이드레이션 뒤 아바타가 붙는다.
+            (그 라우트의 머리 주석이 이 결정의 이유다.)
 
-  8/28에 있던 AuthSlot·AccountMenu를 지웠다. 그래서 지금 공개 화면에서
-  로그인으로 가는 길이 없다 — **윤서에게 넘길 요구사항이다**(아래 「시즌
-  아카이브」와 함께).
-
-  「시즌 아카이브」는 ver3에서 답이 왔다. ver2는 `<a href="#">`라 죽은 링크를
-  내보내느니 빼는 쪽을 골랐는데, ver3는 `<a class="soon-nav" title="P2, 시즌
-  종료 후">`로 **href를 아예 뺐다** — 링크가 아니라 예고로 그리라는 뜻이다.
-  그대로 따른다.
+  ⚠️ **로그인 링크가 돌아왔다.** 8/28에 AuthSlot을 지운 뒤 공개 화면에서
+  로그인으로 가는 길이 없었는데, 이 시안이 그 자리를 정했다 — 모집 중부터
+  비로그인에게 「로그인」 텍스트 링크, 로그인하면 아바타.
 */
 
 /**
@@ -60,94 +73,167 @@ export function Logo({
   );
 }
 
-const HOME = { href: "/", label: "리그 소개" };
-
-/*
-  아직 화면이 없는 항목. 시안 `.soon-nav`는 스타일이 없는 표시용 클래스라
-  옮길 값이 없고, href 없는 `<a>`라 링크로도 포커스로도 잡히지 않는다.
-  `title`이 언제 열리는지 말한다.
-*/
-const SOON = { label: "시즌 아카이브", title: "P2, 시즌 종료 후" };
+export type { HeaderViewer };
 
 export interface NavBarProps {
+  /** 시즌 축. `publicHeaderSeason(season)`이 만든다 */
+  season: PublicHeaderInput["season"];
   /**
-   * 리더보드 정본 주소(`/seasons/:slug/leaderboard`).
-   * 시즌마다 따로 남아야 아카이브가 성립하므로 슬러그가 필요하고,
-   * 그 값은 서버만 안다. 시즌이 없으면 메뉴에서 아예 빠진다.
+   * 유저 축. `undefined`면 클라이언트가 `/api/v1/me`로 채운다(랜딩·정적 문서).
+   * `null`은 「비로그인이 확정」이다 — 세션을 읽은 화면이 준다.
    */
-  leaderboardHref?: string;
-  /**
-   * 메뉴를 내보이는가. 기준은 `season.ts`의 `navMenuVisible` 하나다.
-   *
-   * ⚠️ **기본값이 false다.** 빠뜨리면 안 보이는 쪽으로 틀리게 만든다 —
-   * 반대로 두면 새 화면에서 메뉴가 조용히 되살아난다.
-   */
-  showMenu?: boolean;
+  viewer?: HeaderViewer | null;
   /** 워드마크에 글리치를 건다. 시안에서는 랜딩만 그렇다 */
   glitchLogo?: boolean;
-  /** 우측 주 버튼. 시즌 상태에 따라 서버에서 정해 내려준다. */
-  cta: {
-    href: string;
-    label: string;
-    /*
-      같은 페이지 안에서 처리하는 CTA(사전신청 폼으로 이동)면 이걸 준다.
-      해시 링크로 두면 안 된다 — 한 번 눌러 URL이 #hero가 된 뒤에는 주소가
-      그대로라 브라우저가 아무 일도 하지 않아, 버튼이 죽은 것처럼 보인다.
-    */
-    onClick?: () => void;
-  };
+  /*
+    같은 페이지 안에서 처리하는 CTA(사전신청 폼으로 이동)면 이걸 준다.
+    해시 링크로 두면 안 된다 — 한 번 눌러 URL이 #hero가 된 뒤에는 주소가
+    그대로라 브라우저가 아무 일도 하지 않아, 버튼이 죽은 것처럼 보인다.
+  */
+  onPreregister?: () => void;
+  /** 지금 보고 있는 항목을 경로 대신 강제로 정한다 — `/dev/headers` 진열장용 */
+  activeHref?: string;
 }
 
-export function NavBar({
-  cta,
-  leaderboardHref,
-  showMenu = false,
-  glitchLogo,
-}: NavBarProps) {
-  const pathname = usePathname();
-  const menu = leaderboardHref
-    ? [HOME, { href: leaderboardHref, label: "리더보드" }]
-    : [HOME];
+const PREREGISTER = "/?preregister=1";
+
+export function NavBar({ season, viewer, glitchLogo, onPreregister, activeHref }: NavBarProps) {
+  const routePath = usePathname();
+  const pathname = activeHref ?? routePath;
+  const [fetched, setFetched] = useState<HeaderViewer | null>(null);
+  /*
+    햄버거 메뉴는 「어느 경로에서 열었나」를 같이 기억한다 — 경로가 바뀌면
+    값이 안 맞아 저절로 닫힌다. 이펙트로 닫으면 한 프레임 열린 채 그려진다.
+  */
+  const [openAt, setOpenAt] = useState<string | null>(null);
+  const menuOpen = openAt === pathname;
+
+  useEffect(() => {
+    if (viewer !== undefined) return;
+    let alive = true;
+    fetch("/api/v1/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body) => {
+        if (alive && body?.ok) setFetched(viewerFromMe(body.data));
+      })
+      .catch(() => {
+        /* 헤더는 비로그인 모양으로 남는다. 판정은 어차피 서버가 한다 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [viewer]);
+
+  const user = viewer === undefined ? fetched : viewer;
+  const model = resolvePublicHeader({ season, user });
+  const hasMenu = model.nav.length > 0;
+
+  const renderAction = (a: HeaderAction, i: number) => {
+    /* 결과 보기(P5)는 시안이 `.cta`를 안 붙인 보조 버튼이다. 모바일에서 숨는다 */
+    const cls = a.variant === "ghost" ? styles.sub : styles.cta;
+    /* ≤760에서는 짧은 문구. 둘 다 DOM에 있고 하나만 보인다 */
+    const label = a.short ? (
+      <>
+        <span className={styles.full}>{a.label}</span>
+        <span className={styles.short}>{a.short}</span>
+      </>
+    ) : (
+      a.label
+    );
+    if (onPreregister && a.href === PREREGISTER) {
+      return (
+        <Button key={i} size="sm" variant={a.variant} className={cls} onClick={onPreregister}>
+          {label}
+        </Button>
+      );
+    }
+    return (
+      <LinkButton key={i} href={a.href} size="sm" variant={a.variant} className={cls}>
+        {label}
+      </LinkButton>
+    );
+  };
+
+  /*
+    지금 보고 있는 항목 — 경로가 href와 같거나 그 아래인 것 중 **가장 긴 href**
+    하나. 시즌 아카이브(`/seasons/:slug`)와 리더보드(`/seasons/:slug/leaderboard`)가
+    앞부분을 공유해서, startsWith만으로는 리더보드에서 둘 다 켜진다.
+  */
+  const active = model.nav
+    .filter((i) => i.href && (pathname === i.href || (i.href !== "/" && pathname.startsWith(i.href + "/"))))
+    .sort((a, b) => (b.href?.length ?? 0) - (a.href?.length ?? 0))[0];
+
+  const navLinks = model.nav.map((item) => {
+    if (!item.href) {
+      /*
+        아직 화면이 없는 항목(시안 `.soon-nav`). href 없는 `<a>`라 링크로도
+        포커스로도 잡히지 않는다. `title`이 언제 열리는지 말한다.
+      */
+      return (
+        <a key={item.label} className={styles.soon} title={item.title}>
+          {item.label}
+        </a>
+      );
+    }
+    const on = item === active;
+    return (
+      <Link
+        key={item.label}
+        href={item.href}
+        className={on ? styles.navOn : undefined}
+        aria-current={on ? "page" : undefined}
+      >
+        {item.label}
+      </Link>
+    );
+  });
 
   return (
-    <header className={styles.head}>
+    <header className={styles.head} data-variant={model.variant}>
       <Logo glitch={glitchLogo} />
       {/*
-        ⚠️ 리그 시작 전에는 `<nav>`를 통째로 내지 않는다. 감추는(`display:none`)
+        ⚠️ 모집 전에는 `<nav>`를 통째로 내지 않는다. 감추는(`display:none`)
         것이 아니라 그리지 않는다 — 없는 메뉴가 스크린리더와 탭 순서에 남으면
-        안 된다. 시안과 다르게 한 자리이고 이유는 `navMenuVisible`에 있다.
+        안 된다. 시안 P1도 마크업에 nav가 없다.
       */}
-      {showMenu ? (
-        <nav className={styles.nav}>
-          {menu.map((item) => {
-            const on =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={on ? styles.navOn : undefined}
-                aria-current={on ? "page" : undefined}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-          <a title={SOON.title}>{SOON.label}</a>
-        </nav>
+      {hasMenu ? <nav className={styles.nav}>{navLinks}</nav> : null}
+      <span className={styles.rgt}>
+        {model.login ? (
+          <Link href="/login" className={styles.login}>
+            로그인
+          </Link>
+        ) : null}
+        {model.adminTag ? <AdminTag /> : null}
+        {model.actions.map(renderAction)}
+        {model.bell ? <Bell dot={model.bell.dot} /> : null}
+        {model.avatar ? <Avatar initial={model.avatar.initial} admin={model.avatar.admin} /> : null}
+        {/*
+          햄버거. ≤760에서만 보이고 내비와 로그인 링크를 안에 넣는다
+          (시안 5장 노트, 메뉴 디자인은 시안 ver4 `.pub-menu`).
+          사전 신청 기간에는 내비가 없으니 햄버거도 없다.
+        */}
+        {hasMenu ? (
+          <button
+            type="button"
+            className={styles.hbg}
+            aria-label={menuOpen ? "메뉴 닫기" : "메뉴 열기"}
+            aria-expanded={menuOpen}
+            onClick={() => setOpenAt(menuOpen ? null : pathname)}
+          >
+            <Icon name="menu" className={styles.hbgIc} />
+          </button>
+        ) : null}
+      </span>
+      {hasMenu && menuOpen ? (
+        <div className={styles.menu}>
+          {navLinks}
+          {model.login ? (
+            <Link href="/login" className={styles.menuLogin}>
+              로그인
+            </Link>
+          ) : null}
+        </div>
       ) : null}
-      {/* 시안의 CTA는 `padding:9px 18px; font-size:13.5px` — Button의 sm이다 */}
-      {cta.onClick ? (
-        <Button size="sm" className={styles.cta} onClick={cta.onClick}>
-          {cta.label}
-        </Button>
-      ) : (
-        <LinkButton href={cta.href} size="sm" className={styles.cta}>
-          {cta.label}
-        </LinkButton>
-      )}
     </header>
   );
 }

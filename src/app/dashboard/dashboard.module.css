@@ -9,35 +9,24 @@
   min-height: 100dvh;
 }
 
+/*
+  상단 바(`.db-top`)는 DashboardTop.module.css에 있다. 여기는 그 아래
+  네비게이션 줄과, 참가 기록이 없을 때의 워드마크 자리뿐이다.
+*/
 .head {
   border-bottom: 1px solid var(--c-line-2);
   background: var(--c-nav);
   backdrop-filter: blur(12px);
 }
 
-.headInner {
+/* 참가 기록이 없을 때 — 시안 `.db-top`의 높이·여백만 빌린다 */
+.bare {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
-  padding-block: var(--s-4);
-}
-
-.team {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-}
-
-.leader {
-  padding: 2px var(--s-2);
-  border: 1px solid var(--c-line-3);
-  border-radius: 999px;
-  color: var(--c-text-dim);
-  font-size: var(--fs-2xs);
+  height: 60px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
 }
 
 .nav {
@@ -45,7 +34,7 @@
   gap: var(--s-5);
   /* 항목이 늘면 가로로 넘긴다. 줄바꿈되면 머리가 두 줄이 되어 화면이 밀린다 */
   overflow-x: auto;
-  padding-bottom: var(--s-3);
+  padding-block: var(--s-3);
   scrollbar-width: none;
 }
 

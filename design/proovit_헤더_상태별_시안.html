@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROOVIT 헤더 상태별 시안 v1.0</title>
+<!--
+  PROOVIT 헤더 상태별 시안, proovit-header-states.html
+  v1.0 (2026-09-07, LYS_HP)
+  근거: 디자인 시안 ver3.0 토큰과 크롬(.pub-head / .db-top / 어드민 크롬), 허브 분기표 17종(HUB h1~h17),
+        종합기획서 5-2 핵심 이동 규칙(랜딩 CTA 시즌 상태별 자동 전환, 전 페이지 공통 시즌 배너),
+        심사 기준서 v0.3(게이트 2단, 48시간 대칭), 시즌 1 일정(09.28 개막, 11.01 집계 확정, 11.03 발표)
+  구성: 1장 상태 축과 조합기 / 2장 공개 헤더 P1~P11 / 3장 참가자 헤더 D1~D9 / 4장 운영자 헤더 A1~A7 / 5장 모바일 / 6장 규칙표
+  색 의미: 라임 = 지표와 CTA, 블루 = 데이터, 바이올렛 = 심사와 게이트, 틸 = 시스템 검증, 오렌지 = 경고, 레드 = 실격과 위험
+  [판단 필요] 주석은 팀 결정이 필요한 항목
+-->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============ 디자인 토큰 (ver3 동일) ============ */
+:root{
+  --bg:#0B1220; --surface:#111A2E; --surface-2:#0E1626;
+  --line:rgba(232,236,244,.09); --line-strong:rgba(232,236,244,.18);
+  --text:#E8ECF4; --muted:#8A93A6; --faint:#5A6478;
+  --accent:#C8FF3D; --accent-ink:#0B1220; --accent-dim:rgba(200,255,61,.12);
+  --danger:#FF5D5D; --warn:#FFB74D; --ok:#C8FF3D;
+  --blue:#6FB3FF; --blue-dim:rgba(111,179,255,.12);
+  --violet:#A78BFA; --violet-dim:rgba(167,139,250,.13);
+  --teal:#45D6BE; --teal-dim:rgba(69,214,190,.13);
+  --r-s:8px; --r-m:12px; --r-l:16px;
+  --font:'Pretendard Variable',Pretendard,-apple-system,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.mono,.num{font-family:var(--mono)}
+.ic{width:1.05em;height:1.05em;display:inline-block;vertical-align:-.15em;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ============ 공용 컴포넌트 (ver3 동일) ============ */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:14px;border-radius:11px;padding:11px 20px;transition:.15s;letter-spacing:-.01em}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:linear-gradient(180deg,#D9FF74,#BEF22C);color:#0A1120;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 8px 20px -10px rgba(200,255,61,.55)}
+.btn-primary:hover{background:linear-gradient(180deg,#E2FF8E,#C8F945);box-shadow:0 0 0 4px rgba(200,255,61,.12)}
+.btn-outline{border:1px solid var(--accent);color:var(--accent);background:rgba(200,255,61,.05)}
+.btn-outline:hover{background:var(--accent-dim)}
+.btn-ghost{color:var(--muted)}.btn-ghost:hover{color:var(--text)}
+.btn-danger{background:linear-gradient(180deg,#FF7A7A,#F04747);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 8px 20px -10px rgba(255,93,93,.5)}
+.btn-violet{border:1px solid rgba(167,139,250,.5);color:var(--violet);background:var(--violet-dim)}
+.btn-gray{border:1px solid var(--line-strong);color:var(--muted);background:var(--surface)}
+.btn[disabled]{background:var(--surface);color:var(--faint);border:1px solid var(--line);cursor:not-allowed;box-shadow:none}
+.btn.sm{padding:9px 18px;font-size:13.5px}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;border-radius:99px;padding:3.5px 10px;letter-spacing:.02em}
+.bd-lime{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(200,255,61,.35)}
+.bd-red{background:rgba(255,93,93,.1);color:var(--danger);border:1px solid rgba(255,93,93,.35)}
+.bd-gray{background:rgba(138,147,166,.1);color:var(--muted);border:1px solid var(--line-strong)}
+.bd-warn{background:rgba(255,183,77,.1);color:var(--warn);border:1px solid rgba(255,183,77,.35)}
+.bd-blue{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(111,179,255,.4)}
+.bd-violet{background:var(--violet-dim);color:var(--violet);border:1px solid rgba(167,139,250,.45)}
+.bd-teal{background:var(--teal-dim);color:var(--teal);border:1px solid rgba(69,214,190,.45)}
+.chip{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+.ad-tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--violet);border:1px solid rgba(167,139,250,.5);border-radius:99px;padding:3px 10px;font-weight:800}
+.ssel{background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:5px 10px;font-size:12.5px;font-family:inherit}
+
+/* 라이브 도트 (리더보드 레이스 운영중 표식과 동일 계열) */
+.live{position:relative;width:8px;height:8px;border-radius:99px;background:var(--accent);flex:none}
+.live::after{content:"";position:absolute;inset:-4px;border-radius:99px;border:1.5px solid var(--accent);opacity:.6;animation:ping 1.8s ease-out infinite}
+.live.v{background:var(--violet)}.live.v::after{border-color:var(--violet)}
+.live.t{background:var(--teal)}.live.t::after{border-color:var(--teal)}
+.live.r{background:var(--danger)}.live.r::after{border-color:var(--danger)}
+@keyframes ping{0%{transform:scale(.6);opacity:.7}100%{transform:scale(1.6);opacity:0}}
+@media (prefers-reduced-motion:reduce){.live::after{animation:none}}
+
+/* ============ 공개 헤더 (.pub-head, ver3 계승) ============ */
+.pub-head{display:flex;align-items:center;gap:26px;padding:0 40px;height:64px;border-bottom:1px solid var(--line);background:rgba(12,19,34,.78);backdrop-filter:blur(12px) saturate(1.25);position:relative}
+.pub-head .wm{font-weight:800;font-size:18px;letter-spacing:.06em}
+.wm em{color:var(--accent);font-style:normal}
+.pub-head nav{display:flex;gap:24px;font-size:14.5px;color:var(--muted)}
+.pub-head nav a:hover{color:var(--text)}
+.pub-head nav a.on{color:var(--text)}
+.pub-head nav a.soon-nav{color:var(--faint);cursor:not-allowed}
+.pub-head .rgt{margin-left:auto;display:flex;align-items:center;gap:14px}
+/* 시즌 상태 칩: 전 페이지 공통 시즌 배너의 헤더 내 축약형 */
+.sz{display:inline-flex;align-items:center;gap:9px;border:1.5px solid var(--line-strong);border-radius:99px;padding:5px 12px 5px 12px;font-size:12.5px;color:var(--muted);background:rgba(17,26,46,.6)}
+.sz b{color:var(--text);font-weight:700}
+.sz .num{font-size:12px;color:var(--accent)}
+.sz.pre .num{color:var(--blue)}
+.sz.judge{border-color:rgba(167,139,250,.45)}.sz.judge .num{color:var(--violet)}
+.sz.done{border-color:rgba(200,255,61,.35)}
+.sz.arch{opacity:.7}.sz.arch .num{color:var(--faint)}
+.sz.race{border-color:rgba(200,255,61,.45);background:rgba(200,255,61,.05)}
+.login-lnk{font-size:14px;color:var(--muted)}.login-lnk:hover{color:var(--text)}
+.bell{position:relative;color:var(--muted);display:inline-flex}
+.bell i{position:absolute;top:-2px;right:-3px;width:7px;height:7px;border-radius:99px;background:var(--accent)}
+.bell.r i{background:var(--danger)}
+.me{width:32px;height:32px;border-radius:99px;background:var(--surface);border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:800;color:var(--muted)}
+.me.adm{border-color:rgba(167,139,250,.5);color:var(--violet)}
+
+/* ============ 참가자 대시보드 헤더 (.db-top, ver3 계승) ============ */
+.db-top{display:flex;align-items:center;gap:16px;height:60px;padding:0 24px;border-bottom:1px solid var(--line);background:var(--surface-2);position:relative}
+.db-top .wm{font-weight:800;font-size:16px;letter-spacing:.06em}
+.db-ban{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:6px 8px 6px 16px;font-size:12.5px}
+.db-ban .stg-nm{font-weight:700}
+.db-ban .tm{font-family:var(--mono);font-size:11.5px;color:var(--accent)}
+.db-ban .go{font-size:11.5px;background:var(--accent);color:var(--accent-ink);border-radius:99px;padding:4px 11px;font-weight:700}
+.db-ban .go.v{background:var(--violet);color:#0B1220}
+.db-ban .go.r{background:var(--danger);color:#fff}
+.db-ban .go.g{background:var(--surface);color:var(--muted);border:1px solid var(--line-strong)}
+.db-ban.urgent{border-color:rgba(255,183,77,.45)}.db-ban.urgent .tm{color:var(--warn)}
+.db-ban.judge{border-color:rgba(167,139,250,.45);background:rgba(167,139,250,.06)}.db-ban.judge .tm{color:var(--violet)}
+.db-ban.verify{border-color:rgba(69,214,190,.45)}.db-ban.verify .tm{color:var(--teal)}
+.db-ban.elim{border-style:dashed;border-color:var(--line-strong)}.db-ban.elim .tm{color:var(--muted)}.db-ban.elim .stg-nm{color:var(--muted)}
+.db-ban.dq{border-color:rgba(255,93,93,.5);background:rgba(255,93,93,.06)}.db-ban.dq .tm{color:var(--danger)}
+.db-ban.done{border-color:rgba(200,255,61,.35)}
+.db-ban.arch{opacity:.65}.db-ban.arch .tm{color:var(--faint)}
+.db-ban.next{border-color:rgba(111,179,255,.4)}.db-ban.next .tm{color:var(--blue)}
+.db-top .rgt{margin-left:auto;display:flex;align-items:center;gap:16px}
+.db-team{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.db-team b{color:var(--text)}
+/* 상단 얇은 상태 스트립: 실격과 탈락처럼 전 화면에서 잊히면 안 되는 상태만 사용 */
+.strip{display:flex;align-items:center;gap:10px;padding:7px 24px;font-size:12.5px;border-bottom:1px solid var(--line)}
+.strip.r{background:rgba(255,93,93,.08);color:#FFB3B3;border-bottom-color:rgba(255,93,93,.25)}
+.strip.g{background:rgba(138,147,166,.07);color:var(--muted)}
+.strip.v{background:rgba(167,139,250,.07);color:#D2C4FF;border-bottom-color:rgba(167,139,250,.25)}
+.strip .num{font-size:12px}
+.strip a{margin-left:auto;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+
+/* ============ 운영자 헤더 (ver3 어드민 크롬 확장) ============ */
+.ad-top{display:flex;align-items:center;gap:14px;height:60px;padding:0 24px;border-bottom:1px solid var(--line);background:var(--surface-2);position:relative}
+.ad-top .wm{font-weight:800;font-size:16px;letter-spacing:.06em}
+.ad-top .rgt{margin-left:auto;display:flex;align-items:center;gap:14px}
+.ad-q{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:5px 12px;background:var(--surface)}
+.ad-q .num{font-size:12px;color:var(--text)}
+.ad-q.v{border-color:rgba(167,139,250,.45)}.ad-q.v .num{color:var(--violet)}
+.ad-q.w{border-color:rgba(255,183,77,.45)}.ad-q.w .num{color:var(--warn)}
+.ad-q.r{border-color:rgba(255,93,93,.45)}.ad-q.r .num{color:var(--danger)}
+.ad-q.t{border-color:rgba(69,214,190,.45)}.ad-q.t .num{color:var(--teal)}
+.ad-q.b{border-color:rgba(111,179,255,.4)}.ad-q.b .num{color:var(--blue)}
+.ad-q.l{border-color:rgba(200,255,61,.4)}.ad-q.l .num{color:var(--accent)}
+
+/* ============ 카탈로그 셸 ============ */
+.wrap{max-width:1180px;margin:0 auto;padding:44px 32px 100px}
+.hd{margin-bottom:40px}
+.hd h1{font-size:26px;font-weight:800;letter-spacing:-.01em}
+.hd h1 em{color:var(--accent);font-style:normal}
+.hd p{color:var(--muted);font-size:14px;margin-top:6px;max-width:72ch}
+h2{font-size:19px;font-weight:800;margin:56px 0 6px;padding-top:26px;border-top:1.5px solid var(--line-strong)}
+h2 small{font-family:var(--mono);font-size:12px;color:var(--faint);font-weight:700;margin-left:10px;letter-spacing:.08em}
+.lead{color:var(--muted);font-size:14px;margin-bottom:22px;max-width:76ch}
+.spec{margin:18px 0 0;border:1.5px solid var(--line-strong);border-radius:var(--r-l);overflow:hidden;background:var(--surface-2)}
+.spec .cap{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted);background:rgba(11,18,32,.5)}
+.spec .cap .id{font-family:var(--mono);font-weight:800;font-size:12px;color:var(--accent);letter-spacing:.06em}
+.spec .cap .id.d{color:var(--blue)}.spec .cap .id.a{color:var(--violet)}
+.spec .cap b{color:var(--text);font-weight:700}
+.spec .cap .cond{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.spec .note{padding:10px 16px 12px;font-size:12.5px;color:var(--muted);border-top:1px dashed var(--line);line-height:1.65}
+.spec .note b{color:var(--text);font-weight:600}
+.spec .note .jd{color:var(--warn)}
+.frame{background:var(--bg)}
+.frame.mob{width:390px;margin:0 auto;border-inline:1px solid var(--line)}
+.mobrow{display:flex;gap:18px;flex-wrap:wrap;padding:18px;background:var(--bg)}
+.mobrow .frame.mob{margin:0}
+
+/* 조합기 */
+.combo{border:1.5px solid rgba(200,255,61,.35);border-radius:var(--r-l);background:var(--surface-2);overflow:hidden;margin-top:18px}
+.combo .bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
+.combo .bar label{display:inline-flex;align-items:center;gap:8px}
+.combo .bar label b{font-size:12px;letter-spacing:.06em;color:var(--faint);font-family:var(--mono)}
+.combo .out{padding:0;background:var(--bg)}
+.combo .res{padding:10px 16px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap}
+.combo .res .num{color:var(--accent);font-size:12px}
+.combo .res .rule{color:var(--text)}
+
+/* 규칙표 */
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:14px}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--faint);font-weight:700;letter-spacing:.02em}
+td .num{font-size:12px}
+.mx td{text-align:center}
+.mx td:first-child,.mx th:first-child{text-align:left;color:var(--text);font-weight:600}
+.mx .p{color:var(--accent)}.mx .d{color:var(--blue)}.mx .a{color:var(--violet)}.mx .x{color:var(--faint)}
+
+/* 모바일 헤더 축약 (ver3 760px 규칙 이식, 프레임 폭 기준으로 적용) */
+.frame.mob .pub-head{padding:0 18px;gap:12px;height:56px}
+.frame.mob .pub-head nav{display:none}
+.frame.mob .pub-head .cta{padding:8px 14px!important;font-size:13px!important}
+.frame.mob .pub-head .sz{display:none}
+.frame.mob .pub-head .rgt{gap:10px}
+.frame.mob .pub-head .wm{font-size:16px}
+.frame.mob .db-top{padding:8px 14px;height:auto;min-height:56px;flex-wrap:wrap;gap:8px 10px}
+.frame.mob .db-top .db-team{display:none}
+.frame.mob .db-ban{font-size:12px;padding:5px 6px 5px 12px;order:3;flex-basis:100%;justify-content:space-between}
+.frame.mob .db-ban .tm{font-size:11.5px}
+.frame.mob .strip{padding:7px 14px}
+.frame.mob .ad-top{padding:8px 14px;height:auto;min-height:56px;flex-wrap:wrap;gap:8px 10px}
+.frame.mob .ad-top .ad-q{order:3}
+.frame.mob .ad-top .chip{display:none}
+.hbg{display:none;color:var(--muted)}
+.frame.mob .hbg{display:inline-flex}
+/* 모바일 시즌 스트립: 헤더 아래 한 줄로 내려감 */
+.mob-sz{display:none;align-items:center;gap:8px;padding:6px 18px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);background:rgba(17,26,46,.6)}
+.mob-sz b{color:var(--text)}
+.mob-sz .tail{margin-left:auto}.mob-sz .num{font-size:11.5px;color:var(--accent)}
+.frame.mob .mob-sz{display:flex}
+@media (max-width:760px){.wrap{padding:28px 16px 80px}.pub-head{padding:0 18px;gap:12px;height:56px}.pub-head nav,.pub-head .sz{display:none}.db-top{flex-wrap:wrap;height:auto;min-height:56px;padding:8px 14px}.db-ban{order:3;flex-basis:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hd">
+  <h1>PROO<em>✓</em>IT 헤더 상태별 시안 <span class="mono" style="font-size:13px;color:var(--faint);margin-left:8px">v1.0</span></h1>
+  <p>헤더는 세 종류(공개, 참가자, 운영자)이고, 각 헤더는 시즌 상태와 유저 상태의 조합으로 표시가 갈림. 공개 헤더는 시즌 정보를 싣지 않고 내비와 우측 액션만 바뀜. 아래는 조합기와 전체 카탈로그 27종, 모바일 축약, 규칙표 순서임. 토큰과 크롬은 시안 ver3.0을 그대로 계승함.</p>
+</div>
+
+<!-- ═══════════ 1. 상태 축과 조합기 ═══════════ -->
+<h2 style="margin-top:0;border-top:0;padding-top:0">1. 상태 축과 조합기</h2>
+<p class="lead">시즌 상태 7단계, 유저 상태 6종. 조합을 고르면 실제 표시될 헤더와 적용 규칙이 아래에 렌더됨.</p>
+
+<table class="mx">
+  <tr><th>유저 상태 ＼ 시즌 상태</th><th>모집 전</th><th>모집 중</th><th>스테이지 진행</th><th>게이트 심사 중</th><th>집계 확정</th><th>종료, 시상</th><th>아카이브</th></tr>
+  <tr><td>비로그인</td><td class="p">P1</td><td class="p">P2</td><td class="p">P3</td><td class="p">P4</td><td class="p">P4</td><td class="p">P5</td><td class="p">P6</td></tr>
+  <tr><td>로그인, 참가팀 없음</td><td class="x">P1</td><td class="p">P7</td><td class="p">P8</td><td class="p">P8</td><td class="p">P8</td><td class="p">P5</td><td class="p">P6</td></tr>
+  <tr><td>참가자 (공개 페이지)</td><td class="x">P1</td><td class="p">P9</td><td class="p">P9</td><td class="p">P9</td><td class="p">P9</td><td class="p">P9</td><td class="p">P9</td></tr>
+  <tr><td>참가자 (대시보드)</td><td class="x">없음</td><td class="d">D1</td><td class="d">D2</td><td class="d">D3</td><td class="d">D4</td><td class="d">D5</td><td class="d">D6, D9</td></tr>
+  <tr><td>탈락 / 실격</td><td class="x">없음</td><td class="x">없음</td><td class="d">D7 / D8</td><td class="d">D7 / D8</td><td class="d">D7</td><td class="d">D7</td><td class="d">D6</td></tr>
+  <tr><td>운영자</td><td class="a">A1</td><td class="a">A2</td><td class="a">A3</td><td class="a">A4</td><td class="a">A5</td><td class="a">A6</td><td class="a">A7</td></tr>
+</table>
+
+<div class="combo">
+  <div class="bar">
+    <label><b>SEASON</b><select class="ssel" id="cSeason">
+      <option value="pre">모집 전 (사전 신청)</option>
+      <option value="recruit">모집 중 (참가 신청)</option>
+      <option value="stage" selected>스테이지 진행 (s1~s4)</option>
+      <option value="judge">게이트 심사 중</option>
+      <option value="verify">s5 집계 확정</option>
+      <option value="done">종료, 시상 발표</option>
+      <option value="arch">아카이브 (다음 시즌 모집 전)</option>
+    </select></label>
+    <label><b>USER</b><select class="ssel" id="cUser">
+      <option value="guest">비로그인</option>
+      <option value="member">로그인, 참가팀 없음</option>
+      <option value="entrant" selected>참가자</option>
+      <option value="elim">탈락팀 (테스터 전환)</option>
+      <option value="dq">실격 (소명 중)</option>
+      <option value="admin">운영자</option>
+    </select></label>
+    <label><b>PAGE</b><select class="ssel" id="cPage">
+      <option value="pub" selected>공개 페이지</option>
+      <option value="app">내 화면 (대시보드 또는 콘솔)</option>
+    </select></label>
+  </div>
+  <div class="out" id="cOut"></div>
+  <div class="res" id="cRes"></div>
+</div>
+
+<!-- ═══════════ 2. 공개 헤더 ═══════════ -->
+<h2>2. 공개 헤더 <small>.pub-head, 64px</small></h2>
+<p class="lead">구조: 워드마크, 내비, 우측 액션. 시즌 상태 정보(스테이지, 팀 수, D-day)는 헤더에 두지 않고 히어로, 리더보드 상단, 대시보드 배너가 맡음. 사전 신청 기간에는 내비 없음, 모집 중부터 내비 3종 등장. 그 뒤로는 우측 액션만 상태에 따라 바뀜. 랜딩 CTA는 기획서 5-2 규칙(모집 전 사전 신청, 모집 중 참가 신청, 진행 중 리더보드)을 헤더에 그대로 적용함.</p>
+
+<div class="spec" data-id="P1"><div class="cap"><span class="id">P1</span><b>비로그인, 모집 전</b><span class="cond">season=pre, user=guest</span></div>
+<div class="frame"><header class="pub-head">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span class="rgt"><button class="btn btn-primary sm cta">사전 신청하기</button></span>
+</header></div>
+<div class="note">사전 신청 기간에는 워드마크와 사전 신청 버튼 두 개만 둠(현행 배포본과 동일). 내비도 로그인도 없음, 회원가입 자체가 모집 개시와 함께 열림. 개막일과 D-day는 히어로에서 보여줌.</div></div>
+
+<div class="spec" data-id="P2"><div class="cap"><span class="id">P2</span><b>비로그인, 모집 중</b><span class="cond">season=recruit, user=guest</span></div>
+<div class="frame"><header class="pub-head">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <nav><a class="on">리그 소개</a><a>리더보드</a><a class="soon-nav">시즌 아카이브</a></nav>
+  <span class="rgt"><a class="login-lnk">로그인</a><button class="btn btn-primary sm cta">참가 신청하기</button></span>
+</header></div>
+<div class="note">내비 3종이 이 시점부터 등장하고 CTA만 참가 신청으로 바뀜. 신청 팀 수나 마감일은 헤더에 넣지 않고 랜딩 히어로와 시즌 상세에서 다룸.</div></div>
+
+<div class="spec" data-id="P3"><div class="cap"><span class="id">P3</span><b>비로그인, 스테이지 진행 중</b><span class="cond">season=stage, user=guest</span></div>
+<div class="frame"><header class="pub-head">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <nav><a>리그 소개</a><a class="on">리더보드</a><a class="soon-nav">시즌 아카이브</a></nav>
+  <span class="rgt"><a class="login-lnk">로그인</a><button class="btn btn-outline sm cta">리더보드 보기</button></span>
+</header></div>
+<div class="note">모집 마감 후 비로그인 CTA는 리더보드로 고정됨(신청 불가). primary가 아니라 outline으로 내려 '지금 할 수 있는 행동은 관전'임을 표시. 현재 스테이지와 D-day는 리더보드 상단과 시즌 상세가 맡고, 헤더는 관여하지 않음. 지각 참가(h10) 허용으로 개막 후 s1 마감(10.04)까지는 모집이 열려 있으므로, P2와 P3의 분기는 스테이지가 아니라 <b>참가 신청 가능 여부</b>로 판별함(규칙표 참조).</div></div>
+
+<div class="spec" data-id="P4"><div class="cap"><span class="id">P4</span><b>비로그인, 게이트 심사 중 또는 집계 확정</b><span class="cond">season=judge | verify, user=guest</span></div>
+<div class="frame"><header class="pub-head">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <nav><a>리그 소개</a><a class="on">리더보드</a><a class="soon-nav">시즌 아카이브</a></nav>
+  <span class="rgt"><a class="login-lnk">로그인</a><button class="btn btn-outline sm cta">리더보드 보기</button></span>
+</header></div>
+<div class="note">P3와 헤더가 같음. 심사 중이라는 사실은 리더보드 상단의 '잠정 순위' 라벨과 시즌 상세에서 보여주고 헤더는 바꾸지 않음. 비로그인 기준으로 헤더 변형은 사실상 모집 전, 모집 중, 마감 후, 종료 후 4개임.</div></div>
+
+<div class="spec" data-id="P5"><div class="cap"><span class="id">P5</span><b>비로그인 또는 참가팀 없음, 시즌 종료와 시상 발표</b><span class="cond">season=done, user=guest | member</span></div>
+<div class="frame"><header class="pub-head">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <nav><a>리그 소개</a><a class="on">리더보드</a><a>시즌 아카이브</a></nav>
+  <span class="rgt"><button class="btn btn-ghost sm">결과 보기</button><button class="btn btn-primary sm cta">시즌 2 알림 받기</button></span>
+</header></div>
+<div class="note">시즌 아카이브 내비가 이 시점부터 활성화됨. CTA는 관전자를 다음 시즌 참가자로 전환하는 '알림 받기'(이메일 수집)로 바뀜. 결과 보기는 ghost로 곁에 둠. 리더보드가 곧 모집 퍼널이라는 기획서 5-4 원칙의 헤더 버전임.</div></div>
+
+<div class="spec" data-id="P6"><div class="cap"><span class="id">P6</span><b>아카이브 기간, 다음 시즌 모집 전</b><span class="cond">season=arch, user=guest | member</span></div>
+<div class="frame"><header class="pub-head">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <nav><a>리더보드</a><a>시즌 아카이브</a></nav>
+  <span class="rgt"><button class="btn btn-primary sm cta">시즌 2 사전 신청하기</button></span>
+</header></div>
+<div class="note">P1과 같은 사전 신청 헤더이나, 이때는 직전 시즌 결과가 존재하므로 리더보드(시즌 1 최종)와 시즌 아카이브 2개만 남김. 리그 소개는 랜딩 자체이므로 링크로 두지 않음. 시즌 2 일정은 허브 h17 기준(개막 01.05) 가정치. 로그인은 P1과 같이 없음(기존 회원은 시즌 2 모집 개시 때 다시 로그인). <span class="jd">[판단 필요]</span> 시즌 2 사전 신청 기간에도 P1처럼 내비를 전부 비울지, 기존 참가자 로그인을 열어둘지.</div></div>
+
+<div class="spec" data-id="P7"><div class="cap"><span class="id">P7</span><b>로그인, 참가팀 없음, 모집 전과 모집 중</b><span class="cond">season=pre | recruit, user=member</span></div>
+<div class="frame"><header class="pub-head">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <nav><a class="on">리그 소개</a><a>리더보드</a><a class="soon-nav">시즌 아카이브</a></nav>
+  <span class="rgt"><button class="btn btn-primary sm cta">참가 신청하기</button><span class="me">김</span></span>
+</header></div>
+<div class="note">로그인 링크가 아바타로 교체되는 것 외에는 P2와 같음. 알림 벨은 참가팀이 생긴 뒤에만 나타남. 모집 전(사전 신청 기간)에는 로그인 자체가 없으므로 이 상태는 모집 중부터만 존재함. 참가 신청 클릭 시 /apply로 감.</div></div>
+
+<div class="spec" data-id="P8"><div class="cap"><span class="id">P8</span><b>로그인, 참가팀 없음, 시즌 진행 중 (관전자)</b><span class="cond">season=stage | judge | verify, user=member</span></div>
+<div class="frame"><header class="pub-head">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <nav><a>리그 소개</a><a class="on">리더보드</a><a class="soon-nav">시즌 아카이브</a></nav>
+  <span class="rgt"><button class="btn btn-outline sm cta">시즌 2 알림 받기</button><span class="me">김</span></span>
+</header></div>
+<div class="note">모집이 끝난 뒤 가입한 회원은 이번 시즌 참가가 불가하므로 CTA를 다음 시즌 알림으로 둠. 리더보드가 현재 페이지이면 CTA를 '참가작 둘러보기'로 바꿔도 됨. <span class="jd">[판단 필요]</span> 지각 참가(허브 h10) 허용 기간 안이면 이 상태에서도 '참가 신청하기'를 유지할지.</div></div>
+
+<div class="spec" data-id="P9"><div class="cap"><span class="id">P9</span><b>참가자가 공개 페이지를 볼 때</b><span class="cond">season=any, user=entrant</span></div>
+<div class="frame"><header class="pub-head">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <nav><a>리그 소개</a><a class="on">리더보드</a><a class="soon-nav">시즌 아카이브</a></nav>
+  <span class="rgt"><button class="btn btn-outline sm cta">내 대시보드</button><span class="bell"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><i></i></span><span class="me">리</span></span>
+</header></div>
+<div class="note">참가자는 CTA가 항상 '내 대시보드'로 고정되고 벨과 아바타가 붙음. 마감 D-day는 헤더에 넣지 않고 대시보드 배너(D2)와 벨 알림이 맡음. 시즌 종료 후에도 동일(대시보드가 아카이브 읽기 전용으로 바뀔 뿐).</div></div>
+
+<div class="spec" data-id="P10"><div class="cap"><span class="id">P10</span><b>탈락팀이 공개 페이지를 볼 때</b><span class="cond">season=stage 이후, user=elim</span></div>
+<div class="frame"><header class="pub-head">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <nav><a>리그 소개</a><a class="on">리더보드</a><a class="soon-nav">시즌 아카이브</a></nav>
+  <span class="rgt"><button class="btn btn-gray sm cta">내 대시보드</button><span class="me">북</span></span>
+</header></div>
+<div class="note">P9와 같되 대시보드 버튼만 회색으로 내리고 벨을 뺌. 탈락 사실은 대시보드 진입 시 스트립(D7)으로 안내하고 공개 헤더에서는 드러내지 않음.</div></div>
+
+<div class="spec" data-id="P11"><div class="cap"><span class="id">P11</span><b>운영자가 공개 페이지를 볼 때</b><span class="cond">season=any, user=admin</span></div>
+<div class="frame"><header class="pub-head">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <nav><a>리그 소개</a><a class="on">리더보드</a><a class="soon-nav">시즌 아카이브</a></nav>
+  <span class="rgt"><span class="ad-tag">ADMIN</span><button class="btn btn-violet sm cta">운영 콘솔</button><span class="me adm">A</span></span>
+</header></div>
+<div class="note">ADMIN 태그와 바이올렛 아바타로 운영자 세션임을 항상 노출함(운영자 계정으로 공개 화면을 보다가 실수로 공개 행동을 하는 것을 방지).</div></div>
+
+<!-- ═══════════ 3. 참가자 대시보드 헤더 ═══════════ -->
+<h2>3. 참가자 대시보드 헤더 <small>.db-top, 60px</small></h2>
+<p class="lead">허브 분기표 17종을 헤더 관점에서 9개 시각 변형으로 묶음. 배너 필(.db-ban)은 스테이지명, 시간 값, 행동 버튼 3칸 구조를 유지하고 색만 바뀜. 실격과 탈락은 헤더 위 스트립을 추가해 어느 화면에서도 상태가 잊히지 않게 함.</p>
+
+<div class="spec" data-id="D1"><div class="cap"><span class="id d">D1</span><b>모집 중, 온보딩 또는 s1 대기</b><span class="cond">h1</span></div>
+<div class="frame"><div class="db-top">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span class="db-team"><b>루틴메이트</b> 2인</span>
+  <span class="db-ban"><span class="stg-nm">시즌 1, 모집 중</span><span class="tm">개막 09.28</span></span>
+  <span class="rgt"><span class="bell"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span><span class="me">리</span></span>
+</div></div>
+<div class="note">ver3 h1과 동일. 팀명과 인원을 워드마크 옆에 추가함(ver3에는 없던 요소, 대시보드는 팀 단위 화면이므로 팀 식별이 헤더에 있어야 함). 제출 버튼 없음. 벨은 있으나 미읽음 점은 없음.</div></div>
+
+<div class="spec" data-id="D2"><div class="cap"><span class="id d">D2</span><b>스테이지 진행 중, 제출 가능</b><span class="cond">h2 h3 h5 h6 h10 h13</span></div>
+<div class="frame"><div class="db-top">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span class="db-team"><b>루틴메이트</b> 2인</span>
+  <span class="db-ban"><span class="stg-nm">s3 AI 빌드와 배포</span><span class="tm">마감 10.18, D-4</span><a class="go">제출 바로가기</a></span>
+  <span class="rgt"><span class="bell"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><i></i></span><span class="me">리</span></span>
+</div></div>
+<div class="frame" style="border-top:1px dashed var(--line)"><div class="db-top">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span class="db-team"><b>루틴메이트</b> 2인</span>
+  <span class="db-ban urgent"><span class="stg-nm">s1 아이디어 등록과 고도화</span><span class="tm">마감 10.04, D-1 23:59</span><a class="go">지금 제출하기</a></span>
+  <span class="rgt"><span class="bell"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><i></i></span><span class="me">리</span></span>
+</div></div>
+<div class="note">기본형(위)과 긴급형(아래). D-1 이하이면 시간 값이 오렌지로 바뀌고 마감 시각까지 붙으며, 버튼 문구가 '지금 제출하기'로 바뀜. 지각 참가(h10)와 미배포 레이스(h13)도 이 변형을 씀. 미제출 상태에서 D-day가 지나면 D7로 자동 전환됨(h11).</div></div>
+
+<div class="spec" data-id="D3"><div class="cap"><span class="id d">D3</span><b>게이트 심사 중</b><span class="cond">h4 h7</span></div>
+<div class="frame"><div class="db-top">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span class="db-team"><b>루틴메이트</b> 2인</span>
+  <span class="db-ban judge"><span class="live v"></span><span class="stg-nm">s2 1차 심사 중</span><span class="tm">회신까지 31시간</span><a class="go v">심사 결과</a></span>
+  <span class="rgt"><span class="bell"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span><span class="me">리</span></span>
+</div></div>
+<div class="note">48시간 SLA를 남은 시간(시간 단위, 1시간 미만이면 분)으로 표시함(운영 규칙의 48시간 대칭을 참가자에게 그대로 보여줌). 제출 버튼은 사라지고 '심사 결과' 링크로 교체, 결과가 나오면 벨에 점이 켜지고 배너가 D2 또는 D7로 넘어감. 게이트 2(h7)는 '발표 11.03 내'로 표기.</div></div>
+
+<div class="spec" data-id="D4"><div class="cap"><span class="id d">D4</span><b>s5 집계 확정 대기</b><span class="cond">h15</span></div>
+<div class="frame"><div class="db-top">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span class="db-team"><b>루틴메이트</b> 2인</span>
+  <span class="db-ban verify"><span class="live t"></span><span class="stg-nm">s5 트래픽과 매출</span><span class="tm">집계 확정 11.01 24:00</span><a class="go">자동 제출 확인</a></span>
+  <span class="rgt"><span class="bell"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><i></i></span><span class="me">리</span></span>
+</div></div>
+<div class="note">틸은 시스템 검증 색. s5는 리버스 프록시 집계가 자동 제출되므로 버튼 문구가 '제출'이 아니라 '자동 제출 확인'임. 결제 증빙 등 수동 첨부가 남았으면 버튼이 라임 '증빙 추가하기'로 바뀜.</div></div>
+
+<div class="spec" data-id="D5"><div class="cap"><span class="id d">D5</span><b>시즌 종료, 시상 발표</b><span class="cond">h8</span></div>
+<div class="frame"><div class="db-top">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span class="db-team"><b>루틴메이트</b> 2인</span>
+  <span class="db-ban done"><span class="stg-nm">🏆 시즌 1 종료</span><span class="tm">최종 <span style="font-size:12px">3</span>위</span><a class="go">결과 보기</a></span>
+  <span class="rgt"><span class="bell"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><i></i></span><span class="me">리</span></span>
+</div></div>
+<div class="note">시간 값 자리에 팀의 최종 순위가 들어감. 이 헤더는 발표일부터 아카이브 전환(약 2주)까지만 유지. 시상 크레딧(C4)이 있으면 벨 점이 켜지고 혜택 탭으로 유도.</div></div>
+
+<div class="spec" data-id="D6"><div class="cap"><span class="id d">D6</span><b>아카이브, 읽기 전용</b><span class="cond">h9 h16</span></div>
+<div class="frame"><div class="db-top">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span class="db-team"><b>루틴메이트</b> 2인</span>
+  <span class="db-ban arch"><svg class="ic" viewBox="0 0 24 24" style="color:var(--faint)"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span class="stg-nm">시즌 1 아카이브</span><span class="tm">읽기 전용</span></span>
+  <span class="rgt"><button class="btn btn-outline sm">시즌 2 참가하기</button><span class="me">리</span></span>
+</div></div>
+<div class="note">배너 전체를 낮추고 자물쇠를 붙임. 종료 후 쓰기 시도(h16)는 화면 내 토스트로 막고 헤더는 바꾸지 않음. 벨은 아카이브 시즌에는 제거하고, 우측에 다음 시즌 참가 CTA를 둠(모집 중일 때만, 모집 전이면 '시즌 2 알림 받기').</div></div>
+
+<div class="spec" data-id="D7"><div class="cap"><span class="id d">D7</span><b>탈락팀, 관전 모드</b><span class="cond">h11 h12</span></div>
+<div class="frame">
+<div class="strip g"><span>s2 게이트 미제출로 <b style="color:var(--text)">시즌 1 경쟁에서 제외</b>되었어요. 리더보드와 참가작은 계속 볼 수 있어요.</span><a>안내 보기</a></div>
+<div class="db-top">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span class="db-team"><b>북클럽라이트</b> 1인</span>
+  <span class="db-ban elim"><span class="stg-nm">시즌 1 진행 중</span><span class="tm">관전 모드</span><a class="go g">리더보드 보기</a></span>
+  <span class="rgt"><span class="me">북</span></span>
+</div></div>
+<div class="note">회색 스트립은 첫 진입 시 1회 노출 후 닫을 수 있음. 배너는 점선 테두리로 '비활성 참가'를 표시하고 제출 버튼 대신 리더보드 링크를 둠. 벨 제거(이후 알림 대상 없음, 시즌 2 모집 알림은 이메일로). 사이드바의 제출과 내 지표는 ver3 elim 규칙대로 취소선.</div></div>
+
+<div class="spec" data-id="D8"><div class="cap"><span class="id d">D8</span><b>실격, 소명 기간</b><span class="cond">h14</span></div>
+<div class="frame">
+<div class="strip r"><span class="live r"></span><span>레이스 지표 어뷰징 판정으로 <b style="color:#fff">실격 처리</b>되었어요. 소명은 <span class="num">10.30 23:59</span>까지 가능해요.</span><a>소명 안내</a></div>
+<div class="db-top">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span class="db-team"><b>트래픽팜</b> 2인</span>
+  <span class="db-ban dq"><span class="stg-nm">실격 처리</span><span class="tm">소명 D-4</span><a class="go r">소명하기</a></span>
+  <span class="rgt"><span class="bell r"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><i></i></span><span class="me">트</span></span>
+</div></div>
+<div class="note">레드는 실격 전용. 스트립은 닫을 수 없음(소명 기간 동안 고정). 소명 제출 후에는 버튼이 '소명 접수됨'(회색)으로, 시간 값은 '검토 중'으로 바뀜. 소명 기각이면 D7 구조로 내려가고 스트립 문구만 '소명 기각, 실격 확정'으로 바뀜. 기한은 ver3가 채택한 운영규칙 v1.1a 제11조(5영업일)를 따르되 표기는 달력 D-day와 마감 시각으로 함(영업일 계산을 참가자에게 시키지 않음). 심사 기준서 v0.3.1의 72시간과 불일치는 문서 쪽에서 해소.</div></div>
+
+<div class="spec" data-id="D9"><div class="cap"><span class="id d">D9</span><b>다음 시즌 모집 중, 재도전</b><span class="cond">h17</span></div>
+<div class="frame"><div class="db-top">
+  <span class="wm">PROO<em>✓</em>IT</span>
+  <span class="db-team"><b>루틴메이트</b> 2인 <span class="badge bd-gray" style="font-size:11px;padding:2px 8px">시즌 1, <span class="num">3</span>위</span></span>
+  <span class="db-ban next"><span class="stg-nm">시즌 2, 모집 중</span><span class="tm">개막 01.05</span><a class="go">시즌 2 참가 신청</a></span>
+  <span class="rgt"><span class="bell"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><i></i></span><span class="me">리</span></span>
+</div></div>
+<div class="note">블루는 '아직 이번 시즌 데이터가 아님'을 뜻함. 팀명 옆에 직전 시즌 성적 칩을 붙여 재도전 동기를 줌. 참가 신청을 마치면 D1으로 넘어가고 칩은 팀 관리 화면으로 내려감.</div></div>
+
+<!-- ═══════════ 4. 운영자 헤더 ═══════════ -->
+<h2>4. 운영자 헤더 <small>어드민 크롬, 60px</small></h2>
+<p class="lead">ver3 어드민 크롬(워드마크, ADMIN 태그, 시즌 셀렉트, 이메일 칩)을 유지하고, 가운데에 <b style="color:var(--text)">지금 처리해야 할 대기열 1개</b>를 시즌 상태별로 하나만 노출함. 대기열이 여러 개여도 헤더에는 가장 급한 것 하나, 나머지는 콘솔 대시보드로.</p>
+
+<div class="spec" data-id="A1"><div class="cap"><span class="id a">A1</span><b>모집 전</b><span class="cond">season=pre</span></div>
+<div class="frame"><div class="ad-top">
+  <span class="wm">PROO<em>✓</em>IT</span><span class="ad-tag">ADMIN</span>
+  <select class="ssel"><option>시즌 1</option></select>
+  <span class="badge bd-blue">모집 전</span>
+  <span class="ad-q b">사전 신청 리드 <span class="num">137</span>명 <span style="color:var(--faint)">전환율</span> <span class="num">4.2%</span></span>
+  <span class="rgt"><span class="chip">admin@proovit.kr</span><span class="me adm">A</span></span>
+</div></div>
+<div class="note">모집 전에는 리드 수와 랜딩 전환율이 유일한 운영 지표임(지원사업 실측 데이터 확보 과제와 직결). 대기열 클릭 시 사전신청 리드 화면으로.</div></div>
+
+<div class="spec" data-id="A2"><div class="cap"><span class="id a">A2</span><b>모집 중</b><span class="cond">season=recruit</span></div>
+<div class="frame"><div class="ad-top">
+  <span class="wm">PROO<em>✓</em>IT</span><span class="ad-tag">ADMIN</span>
+  <select class="ssel"><option>시즌 1</option></select>
+  <span class="badge bd-lime">모집 중</span>
+  <span class="ad-q l">신청 <span class="num">24</span>팀 <span style="color:var(--faint)">목표 20~40</span> <span style="color:var(--faint)">마감</span> <span class="num">09.27</span></span>
+  <span class="ad-q w">온보딩 미완료 <span class="num">3</span>팀</span>
+  <span class="rgt"><span class="chip">admin@proovit.kr</span><span class="me adm">A</span></span>
+</div></div>
+<div class="note">목표 범위 대비 신청 팀 수를 상시 노출. 참가 신청은 했지만 온보딩(팀 구성, 측정 연동)을 마치지 않은 팀(허브 h1)은 오렌지 대기열로 별도 표시함. 3대 동의는 신청 단계에서 이미 강제되므로 별도 대기열이 없음. 모집 중에만 대기열 2개를 허용함(둘 다 참가 관리 화면으로 연결).</div></div>
+
+<div class="spec" data-id="A3"><div class="cap"><span class="id a">A3</span><b>스테이지 진행 중</b><span class="cond">season=stage</span></div>
+<div class="frame"><div class="ad-top">
+  <span class="wm">PROO<em>✓</em>IT</span><span class="ad-tag">ADMIN</span>
+  <select class="ssel"><option>시즌 1</option></select>
+  <span class="badge bd-lime"><span class="live" style="width:6px;height:6px"></span>s3 빌드와 배포</span>
+  <span class="ad-q t">배포 URL 검증 대기 <span class="num">8</span>건</span>
+  <span class="rgt"><span class="chip">admin@proovit.kr</span><span class="me adm">A</span></span>
+</div></div>
+<div class="note">스테이지 배지에 도트를 켜서 '시즌이 돌고 있음'을 표시. 대기열은 스테이지마다 바뀜: s1 제출 확인, s2 랜딩 제출, s3 배포 URL 검증(틸, 시스템 검증), s4 주간 지표 제출.</div></div>
+
+<div class="spec" data-id="A4"><div class="cap"><span class="id a">A4</span><b>게이트 심사 중</b><span class="cond">season=judge</span></div>
+<div class="frame"><div class="ad-top">
+  <span class="wm">PROO<em>✓</em>IT</span><span class="ad-tag">ADMIN</span>
+  <select class="ssel"><option>시즌 1</option></select>
+  <span class="badge bd-violet"><span class="live v" style="width:6px;height:6px"></span>게이트 1 심사 중</span>
+  <span class="ad-q v">심사 대기 <span class="num">18</span>건</span>
+  <span class="ad-q r">SLA 12시간 미만 <span class="num">3</span>건</span>
+  <span class="rgt"><span class="chip">admin@proovit.kr</span><span class="me adm">A</span></span>
+</div></div>
+<div class="note">48시간 회신 SLA가 12시간 미만으로 남은 건은 레드 대기열로 분리해 헤더에 고정함. 이 상태에서만 대기열 2개를 허용함. 게이트 2도 동일 구조, 배지 문구만 '게이트 2 심사 중'.</div></div>
+
+<div class="spec" data-id="A5"><div class="cap"><span class="id a">A5</span><b>s5 집계 확정</b><span class="cond">season=verify</span></div>
+<div class="frame"><div class="ad-top">
+  <span class="wm">PROO<em>✓</em>IT</span><span class="ad-tag">ADMIN</span>
+  <select class="ssel"><option>시즌 1</option></select>
+  <span class="badge bd-teal">집계 확정 중</span>
+  <span class="ad-q t">지표 검토 대기 <span class="num">20</span>팀 <span style="color:var(--faint)">확정</span> <span class="num">11.01 24:00</span></span>
+  <span class="ad-q w">어뷰징 플래그 <span class="num">2</span>건</span>
+  <span class="rgt"><span class="chip">admin@proovit.kr</span><span class="me adm">A</span></span>
+</div></div>
+<div class="note">리버스 프록시 집계와 GA4 참고치가 어긋나는 팀은 어뷰징 플래그로 오렌지 대기열에 오름. 확정 시각이 지나면 A6로 전환.</div></div>
+
+<div class="spec" data-id="A6"><div class="cap"><span class="id a">A6</span><b>종료, 시상 확정</b><span class="cond">season=done</span></div>
+<div class="frame"><div class="ad-top">
+  <span class="wm">PROO<em>✓</em>IT</span><span class="ad-tag">ADMIN</span>
+  <select class="ssel"><option>시즌 1</option></select>
+  <span class="badge bd-lime">🏆 시즌 종료</span>
+  <span class="ad-q l">시상 발표 <span class="num">11.03</span> <span style="color:var(--faint)">최종 순위</span> <span style="color:var(--accent)">확정됨</span></span>
+  <span class="ad-q v">소명 검토 <span class="num">1</span>건</span>
+  <span class="rgt"><span class="chip">admin@proovit.kr</span><span class="me adm">A</span></span>
+</div></div>
+<div class="note">순위 확정 후에는 소명 검토만 남는 대기열임. 소명 0건이면 대기열 자리가 비고 배지만 남음. 시상 크레딧 발급은 스폰서 크레딧 콘솔에서 처리.</div></div>
+
+<div class="spec" data-id="A7"><div class="cap"><span class="id a">A7</span><b>아카이브, 다음 시즌 준비</b><span class="cond">season=arch</span></div>
+<div class="frame"><div class="ad-top">
+  <span class="wm">PROO<em>✓</em>IT</span><span class="ad-tag">ADMIN</span>
+  <select class="ssel"><option>시즌 2 (준비 중)</option><option>시즌 1 (아카이브)</option></select>
+  <span class="badge bd-gray">준비 중</span>
+  <span class="ad-q b">시즌 2 사전 신청 <span class="num">41</span>명 <span style="color:var(--faint)">개막</span> <span class="num">01.05</span></span>
+  <span class="rgt"><span class="chip">admin@proovit.kr</span><span class="me adm">A</span></span>
+</div></div>
+<div class="note">시즌 셀렉트에 두 시즌이 생기는 첫 시점. 기본 선택은 준비 중인 시즌이고, 아카이브 시즌을 고르면 배지가 '아카이브'로 바뀌고 쓰기 동작이 잠김(감사 로그는 열림).</div></div>
+
+<!-- ═══════════ 5. 모바일 ═══════════ -->
+<h2>5. 모바일 축약 <small>760px 이하, 390px 프레임</small></h2>
+<p class="lead">ver3 규칙(내비 숨김, CTA 축소, 배너 필 전폭 줄바꿈)을 유지하고, 공개 헤더의 시즌 칩은 헤더 아래 한 줄 스트립으로 내림. 세 가지 헤더의 대표 상태만 예시함.</p>
+
+<div class="spec"><div class="cap"><span class="id">P3-M</span><b>공개, 비로그인, 레이스</b><span class="id d" style="margin-left:24px">D2-M</span><b>참가자, 제출 가능</b><span class="id a" style="margin-left:24px">A4-M</span><b>운영자, 심사 중</b></div>
+<div class="mobrow">
+  <div class="frame mob">
+    <header class="pub-head">
+      <span class="wm">PROO<em>✓</em>IT</span>
+      <span class="rgt"><button class="btn btn-outline sm cta">리더보드</button><button class="hbg"><svg class="ic" viewBox="0 0 24 24" style="width:1.3em;height:1.3em"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></span>
+    </header>
+  </div>
+  <div class="frame mob">
+    <div class="db-top">
+      <span class="wm">PROO<em>✓</em>IT</span>
+      <span class="rgt"><span class="bell"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><i></i></span><span class="me">리</span></span>
+      <span class="db-ban urgent"><span class="stg-nm">s1 아이디어 등록</span><span class="tm">D-1 23:59</span><a class="go">제출</a></span>
+    </div>
+  </div>
+  <div class="frame mob">
+    <div class="ad-top">
+      <span class="wm">PROO<em>✓</em>IT</span><span class="ad-tag">ADMIN</span>
+      <span class="rgt"><span class="me adm">A</span></span>
+      <span class="ad-q v" style="flex-basis:100%;justify-content:space-between"><span>심사 대기 <span class="num">18</span>건</span><span style="color:var(--danger)">SLA 임박 <span class="num">3</span></span></span>
+    </div>
+  </div>
+</div>
+<div class="note">공개 헤더는 로그인 링크를 햄버거 메뉴 안으로 넣고 CTA 하나만 남김(사전 신청 기간에는 햄버거 없이 워드마크와 버튼뿐). 참가자 배너는 스테이지명을 12자 안으로 줄이고(고도화 같은 꼬리 절삭), 버튼 문구는 두 글자. 운영자는 시즌 셀렉트와 이메일 칩을 숨기고 대기열 한 줄만 남김.</div></div>
+
+<!-- ═══════════ 6. 규칙표 ═══════════ -->
+<h2>6. 헤더 표시 규칙표 <small>구현 기준</small></h2>
+<p class="lead">개발 시 상태 판별 순서는 위에서 아래로: 유저 역할 → 참가 상태 → 시즌 상태. 앞 조건이 뒤 조건을 덮어씀. 시즌 상태는 클라이언트 날짜 계산이 아니라 서버의 시즌 레코드에서 내려받음.</p>
+
+<table>
+  <tr><th style="width:150px">요소</th><th>규칙</th></tr>
+  <tr><td>시즌 상태 값</td><td>서버 값 두 개로 판별함. registration_open(사전 신청 / 참가 신청 / 마감)과 phase(s1~s5, gate1, gate2, verify, done, archive). 조합기의 7단계는 이 두 값의 조합을 대표 케이스로 묶은 것이고, 모집 중과 s1 진행은 겹칠 수 있음(지각 참가).</td></tr>
+  <tr><td>헤더 종류</td><td>운영자는 항상 어드민 크롬. 참가자(활성, 탈락, 실격 포함)는 /dashboard 이하에서 참가자 크롬, 그 외 경로에서 공개 크롬. 나머지는 공개 크롬.</td></tr>
+  <tr><td>공개 내비와 로그인</td><td>모집 전(사전 신청 기간) 둘 다 없음, 워드마크와 사전 신청 버튼만. 모집 중부터 리그 소개, 리더보드, 시즌 아카이브(비활성). 시즌 종료 후 아카이브 활성. 다음 시즌 사전 신청 기간에는 리더보드와 아카이브만.</td></tr>
+  <tr><td>공개 CTA</td><td>모집 전 사전 신청하기, 모집 중 참가 신청하기, 모집 마감 후 리더보드 보기(outline), 종료 후 시즌 2 알림 받기, 다음 시즌 모집 전 시즌 2 사전 신청하기. 참가자는 항상 내 대시보드. 운영자는 항상 운영 콘솔.</td></tr>
+  <tr><td>공개 헤더 시즌 정보</td><td>없음. 스테이지, 팀 수, D-day는 랜딩 히어로, 리더보드 상단, 시즌 상세, 대시보드 배너에서만 표시.</td></tr>
+  <tr><td>라이브 도트</td><td>대시보드 배너의 게이트 심사 중과 s5 집계, 실격 스트립에만. 공개 헤더에는 없음.</td></tr>
+  <tr><td>참가자 배너 버튼</td><td>제출 가능이면 라임 제출 바로가기, D-1 이하 지금 제출하기. 심사 중 바이올렛 심사 결과. 집계 중 자동 제출 확인. 종료 결과 보기. 탈락 회색 리더보드 보기. 실격 레드 소명하기. 아카이브 버튼 없음.</td></tr>
+  <tr><td>상단 스트립</td><td>탈락(회색, 닫기 가능, 닫힘 여부는 서버에 저장)과 실격(레드, 닫기 불가)만 사용. 그 외 상태에는 스트립을 두지 않음.</td></tr>
+  <tr><td>벨</td><td>참가팀이 생긴 뒤부터 표시. 탈락과 아카이브에서는 제거. 실격은 레드 점. 미읽음 점은 심사 결과, 크레딧 발급, 소명 회신, 마감 24시간 전 알림에서 켜짐. <span class="jd">[판단 필요]</span> 시즌 1에 인앱 알림을 둘지, 이메일(Resend)만 쓰고 벨을 시즌 2로 미룰지.</td></tr>
+  <tr><td>아바타</td><td>이름 첫 글자. 운영자는 바이올렛 테두리와 A. 클릭 시 마이페이지(참가자) 또는 계정(운영자).</td></tr>
+  <tr><td>운영자 대기열</td><td>기본 1개. 모집 중(온보딩 미완료), 심사 중(SLA 임박), 집계 중(어뷰징 플래그), 종료(소명)에서만 2개까지. 레드와 오렌지가 항상 우측.</td></tr>
+  <tr><td>글꼴</td><td>숫자, 날짜, 시각, D-day, 이메일, 코드값만 JetBrains Mono. 한글 라벨은 Pretendard 고정.</td></tr>
+  <tr><td>이모지</td><td>🏆만 종료와 시상 상태에 사용. 그 외 시스템 이모지 없음, 기능 아이콘은 SVG.</td></tr>
+</table>
+
+<table style="margin-top:28px">
+  <tr><th style="width:150px">헤더 변형</th><th>필요한 서버 값</th></tr>
+  <tr><td>P 계열</td><td>season.registration_open, season.phase, user.role, user.entry_status(none, active, eliminated, disqualified), preregistered(사전 신청 완료 여부)</td></tr>
+  <tr><td>D1~D2</td><td>entry.team_name, entry.member_count, stage.name, stage.deadline_at, submission.status(현재 스테이지)</td></tr>
+  <tr><td>D3</td><td>submission.submitted_at(SLA 기산점), review.sla_hours(48), review.result_at</td></tr>
+  <tr><td>D4</td><td>season.verify_at(11.01 24:00), evidence.required(수동 첨부 잔여 여부)</td></tr>
+  <tr><td>D5, D9</td><td>entry.final_rank, award.exists</td></tr>
+  <tr><td>D7~D8</td><td>entry.status, entry.status_reason(문구 생성용), appeal.deadline_at, appeal.status(none, submitted, rejected), strip.dismissed_at</td></tr>
+  <tr><td>A 계열</td><td>leads.count, leads.conversion, entries.count, entries.onboarding_incomplete, submissions.pending(스테이지별), reviews.pending, reviews.sla_under_12h, metrics.pending, abuse.flags, appeals.pending, season2.leads</td></tr>
+  <tr><td>공통</td><td>notifications.unread(벨), user.initial(아바타 첫 글자)</td></tr>
+</table>
+
+<table style="margin-top:28px">
+  <tr><th style="width:150px">판단 필요</th><th>내용</th></tr>
+    <tr><td>P5</td><td>'시즌 2 알림 받기'는 마케팅 수신 동의(선택)가 붙는 이메일 수집이므로 사전 신청 폼을 재사용할지 별도 폼을 둘지</td></tr>
+  <tr><td>벨</td><td>시즌 1 인앱 알림 도입 여부(미도입 시 D 계열 헤더에서 벨 제거)</td></tr>
+  <tr><td>P8</td><td>지각 참가 허용 기간 동안 관전자 CTA를 참가 신청으로 유지할지</td></tr>
+    <tr><td>D8</td><td>소명 기한 표기 기준(5영업일 vs 72시간), 문서 간 불일치 해소 후 반영</td></tr>
+  <tr><td>D1</td><td>팀명과 인원을 헤더에 넣는 것(ver3 미포함 요소)에 대한 팀 합의</td></tr>
+</table>
+
+</div>
+
+<script>
+/* 조합기: 카탈로그의 프레임을 그대로 복제해 렌더 */
+const MAP={
+ pub:{
+  guest:{pre:'P1',recruit:'P2',stage:'P3',judge:'P4',verify:'P4',done:'P5',arch:'P6'},
+  member:{pre:'P1',recruit:'P7',stage:'P8',judge:'P8',verify:'P8',done:'P5',arch:'P6'},
+  entrant:{pre:'P1',recruit:'P9',stage:'P9',judge:'P9',verify:'P9',done:'P9',arch:'P9'},
+  elim:{pre:'P1',recruit:'P7',stage:'P10',judge:'P10',verify:'P10',done:'P10',arch:'P6'},
+  dq:{pre:'P1',recruit:'P7',stage:'P10',judge:'P10',verify:'P10',done:'P10',arch:'P6'},
+  admin:{pre:'P11',recruit:'P11',stage:'P11',judge:'P11',verify:'P11',done:'P11',arch:'P11'},
+ },
+ app:{
+  guest:null, member:null,
+  entrant:{pre:null,recruit:'D1',stage:'D2',judge:'D3',verify:'D4',done:'D5',arch:'D9'},
+  elim:{pre:null,recruit:null,stage:'D7',judge:'D7',verify:'D7',done:'D7',arch:'D6'},
+  dq:{pre:null,recruit:null,stage:'D8',judge:'D8',verify:'D8',done:'D8',arch:'D6'},
+  admin:{pre:'A1',recruit:'A2',stage:'A3',judge:'A4',verify:'A5',done:'A6',arch:'A7'},
+ }
+};
+const RULE={
+ pub:{guest:'비로그인은 시즌별 CTA만 바뀜',member:'참가팀 없는 회원은 아바타 노출, 벨 없음',entrant:'참가자는 내 대시보드 고정, 벨과 아바타',elim:'탈락팀은 회색 대시보드 버튼, 벨 없음',dq:'실격팀은 공개 페이지에서 탈락팀과 동일 표시, 대시보드 진입 시 레드 스트립',admin:'운영자는 ADMIN 태그와 운영 콘솔 고정'},
+ app:{entrant:'허브 분기표 h1~h17을 9개 시각 변형으로 매핑',elim:'탈락은 회색 스트립 1회 노출, 배너 점선',dq:'실격은 레드 스트립 고정, 소명 D-day',admin:'대기열은 기본 1개, 급한 상태에서만 2개'}
+};
+const sel=id=>document.getElementById(id);
+function render(){
+  const s=sel('cSeason').value,u=sel('cUser').value,p=sel('cPage').value;
+  const out=sel('cOut'),res=sel('cRes');
+  let id=null,why='';
+  if(p==='app'&&(u==='guest'||u==='member')){why=u==='guest'?'비로그인은 내 화면이 없음, 로그인 화면으로 리다이렉트':'참가팀이 없으면 /apply로 리다이렉트(모집 중) 또는 공개 페이지 유지';}
+  else{id=MAP[p][u][s];if(!id)why=(u==='entrant'?'모집 전에는 참가팀이 존재하지 않음, 공개 헤더(P7)':'탈락과 실격은 스테이지 진행 이후에만 발생');}
+  if(id){
+    const src=document.querySelector(`.spec[data-id="${id}"] .frame`);
+    out.innerHTML=src?src.innerHTML:'';
+    const nm=document.querySelector(`.spec[data-id="${id}"] .cap b`).textContent;
+    res.innerHTML=`<span>표시 변형 <span class="num">${id}</span> ${nm}</span><span class="rule">${(RULE[p]&&RULE[p][u])||''}</span>`;
+  }else{
+    out.innerHTML=`<div style="padding:22px 16px;color:var(--faint);font-size:13.5px">이 조합에는 해당 헤더가 없음. ${why}</div>`;
+    res.innerHTML='';
+  }
+}
+['cSeason','cUser','cPage'].forEach(i=>sel(i).addEventListener('change',render));
+render();
+</script>
+</body>
+</html>

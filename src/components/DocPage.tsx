@@ -6,7 +6,7 @@ import { Clauses } from "@/components/Clauses";
 import { Footer } from "@/components/Footer";
 import { NavBar } from "@/components/NavBar";
 import { Chip } from "@/components/Surface";
-import { getCurrentSeason, resolveNav } from "@/lib/season";
+import { getCurrentSeason, publicHeaderSeason } from "@/lib/season";
 
 import styles from "./DocPage.module.css";
 
@@ -56,7 +56,7 @@ export async function DocPage({
 
   return (
     <main className="page">
-      <NavBar {...resolveNav(season)}
+      <NavBar season={publicHeaderSeason(season)}
       />
       <div className={`${styles.wrap} ${styles.doc} grow`}>
         <nav className={styles.toc} aria-label="목차">

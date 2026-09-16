@@ -32,6 +32,7 @@ import {
   MARQUEE,
   ROADMAP,
 } from "@/content/landing";
+import type { PublicHeaderInput } from "@/lib/header-state";
 
 /*
   랜딩 — 시안 v2.1의 「랜딩(배포본 정적 재현)」을 그대로 옮긴 것.
@@ -51,10 +52,11 @@ import {
 
 export interface LandingProps {
   seasonName: string;
-  /** 시즌 슬러그. 리더보드·시즌 상세 주소가 전부 여기서 나온다. */
-  seasonSlug: string;
-  /** 헤더 메뉴를 내보이는가. 판정은 서버의 `navMenuVisible`이 한다 */
-  showMenu: boolean;
+  /**
+   * 공개 헤더의 시즌 축(`publicHeaderSeason`). 유저 축은 헤더가 클라이언트에서
+   * 채운다 — 이 페이지는 ISR이라 세션을 못 읽는다(NavBar.tsx 머리 주석).
+   */
+  headerSeason: PublicHeaderInput["season"];
   seasonTheme: string | null;
   /** 킥오프 시각(ISO). 미정이면 null. */
   startAt: string | null;
@@ -180,9 +182,8 @@ function SectionHead({
 
 export function Landing({
   seasonName,
-  seasonSlug,
   startAt,
-  showMenu,
+  headerSeason,
   preRegisterCount,
 }: LandingProps) {
   const { message, show } = useToast();
@@ -365,12 +366,7 @@ export function Landing({
         이동 대신 폼으로 스크롤한다 — 같은 문서 안이라 주소만 갈면 아무 일도
         안 일어난 것처럼 보인다. `href`는 자바스크립트가 죽었을 때의 대비다.
       */}
-      <NavBar
-        glitchLogo
-        leaderboardHref={`/seasons/${seasonSlug}/leaderboard`}
-        showMenu={showMenu}
-        cta={{ href: "/?preregister=1", label: CTA_LABEL, onClick: runCta }}
-      />
+      <NavBar glitchLogo season={headerSeason} onPreregister={runCta} />
 
       <div className={`${styles.ld} grow`}>
         {/* ═══════ 히어로 ═══════ */}
