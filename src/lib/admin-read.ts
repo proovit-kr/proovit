@@ -27,6 +27,32 @@ export type AdminSummary = {
   leads: { total: number; unsubscribed: number };
   /** 미처리 어뷰징 플래그 */
   openAbuseFlags: number;
+  /** 배포 확인이 끝난 참가작 수 — 시안 KPI 3 */
+  deployedEntries: number;
+  /** 참가작 전체의 유효 방문 합 — 시안 KPI 4 */
+  totalVisitors: number;
+  /** 답변이 안 나간 소명 */
+  openAppeals: number;
+  /** 손으로 볼 지표 플래그(수동 검토 미통과) */
+  openMetricFlags: number;
+  /**
+    다음 게이트. 시안의 「다음 게이트 배치」 카드가 쓴다 — 마감이 지나지 않은
+    게이트 중 가장 이른 것이다. 없으면 null(시즌 전이거나 둘 다 끝났다).
+  */
+  nextGate: {
+    stageKey: string;
+    name: string;
+    closesAt: Date | null;
+    /** 그 게이트가 판정할 대상 팀 수 */
+    targets: number;
+  } | null;
+  /** 최근 감사 로그 5줄 — 시안 `.minlog` */
+  recentAudit: {
+    id: string;
+    at: Date;
+    action: string;
+    reason: string;
+  }[];
 };
 
 async function countPendingJudgments(seasonId: string): Promise<number> {
@@ -58,11 +84,28 @@ export async function loadAdminSummary(): Promise<AdminSummary> {
       pendingJudgments: 0,
       leads: { total: 0, unsubscribed: 0 },
       openAbuseFlags: 0,
+      deployedEntries: 0,
+      totalVisitors: 0,
+      openAppeals: 0,
+      openMetricFlags: 0,
+      nextGate: null,
+      recentAudit: [],
     };
   }
 
-  const [byStatus, pendingJudgments, leads, unsubscribed, openAbuseFlags] =
-    await Promise.all([
+  const [
+    byStatus,
+    pendingJudgments,
+    leads,
+    unsubscribed,
+    openAbuseFlags,
+    deployedEntries,
+    visitorAgg,
+    openAppeals,
+    openMetricFlags,
+    gates,
+    recentAudit,
+  ] = await Promise.all([
       prisma.entry.groupBy({
         by: ["status"],
         where: { seasonId: season.id },
@@ -83,7 +126,39 @@ export async function loadAdminSummary(): Promise<AdminSummary> {
       prisma.abuseFlag.count({
         where: { entry: { seasonId: season.id }, status: "flagged" },
       }),
-    ]);
+          /* 배포 확인이 끝난 참가작 — 시안 KPI 3 「배포 완료 서비스」 */
+      prisma.hostname.count({
+        where: { entry: { seasonId: season.id }, deployStatus: DeployStatus.active },
+      }),
+      /* 참가작 전체 유효 방문 합 — 시안 KPI 4 「참가작 총 이용자」 */
+      prisma.metricDaily.aggregate({
+        where: { entry: { seasonId: season.id } },
+        _sum: { validVisitors: true },
+      }),
+      /* 답변이 안 나간 소명 */
+      prisma.appeal.count({
+        where: { entry: { seasonId: season.id }, respondedAt: null },
+      }),
+      /*
+        손으로 볼 지표 — `/admin/metrics`가 큐에 올리는 것과 같은 조건이다.
+        여기 숫자와 그 화면의 줄 수가 어긋나면 운영이 둘 중 뭘 믿을지 모른다.
+      */
+      prisma.metricDaily.count({
+        where: { entry: { seasonId: season.id }, manualReviewPassed: false },
+      }),
+      /* 게이트는 둘뿐이라 다 읽고 고른다 */
+      prisma.stage.findMany({
+        where: { seasonId: season.id, isGate: true },
+        select: { stageKey: true, name: true, closesAt: true },
+        orderBy: { closesAt: "asc" },
+      }),
+      /* 시안 `.minlog` — 다섯 줄 */
+      prisma.auditLog.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, createdAt: true, action: true, reason: true },
+      }),
+]);
 
   const count = (status: EntryStatus) =>
     byStatus.find((row) => row.status === status)?._count._all ?? 0;
@@ -98,6 +173,34 @@ export async function loadAdminSummary(): Promise<AdminSummary> {
     },
     pendingJudgments,
     leads: { total: leads, unsubscribed },
+    deployedEntries,
+    totalVisitors: visitorAgg._sum.validVisitors ?? 0,
+    openAppeals,
+    openMetricFlags,
+    /*
+      마감이 안 지난 게이트 중 가장 이른 것. 마감이 비어 있는 게이트는 일정이
+      아직 안 잡힌 것이라 뒤로 미룬다 — 날짜 없는 게이트를 「다음」으로 내세우면
+      운영이 SLA를 못 잡는다.
+    */
+    nextGate: (() => {
+      const now = new Date();
+      const upcoming = gates.filter((g) => g.closesAt && g.closesAt >= now);
+      const pick = upcoming[0] ?? gates.find((g) => !g.closesAt) ?? null;
+      if (!pick) return null;
+      return {
+        stageKey: pick.stageKey,
+        name: pick.name,
+        closesAt: pick.closesAt,
+        /* 판정 대상은 그 시즌에 살아 있는 팀이다 */
+        targets: count(EntryStatus.active),
+      };
+    })(),
+    recentAudit: recentAudit.map((row) => ({
+      id: String(row.id),
+      at: row.createdAt,
+      action: row.action,
+      reason: row.reason,
+    })),
     openAbuseFlags,
   };
 }

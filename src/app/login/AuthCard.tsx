@@ -1,42 +1,26 @@
-"use client";
-
 import Link from "next/link";
-import { useState } from "react";
 
 import { Button } from "@/components/Button";
-import ConsentFields, {
-  emptyConsent,
-  focusFirstMissingConsent,
-  isConsentComplete,
-  type ConsentState,
-} from "@/components/ConsentFields";
-import { SIGNUP_CONSENTS } from "@/content/consent";
 import type { AuthProviderInfo } from "@/lib/auth-providers";
 
 import styles from "./login.module.css";
 
 /*
-  인증 카드 — 시안 `#scr-auth`. 로그인·회원가입 두 상태를 한 카드가 그린다.
+  인증 카드 — 시안 ver4 `#scr-auth`의 ① 「단일 진입 화면」.
 
-  시안이 상태로 가르는 것은 넷이다: 제목, 부제, 동의 블록(가입만), 아래 전환 문장.
-  소셜 버튼과 약관 문장은 두 상태가 공유한다.
+  ⚠️ **ver3에서 통째로 바뀐 화면이다.** ver3는 로그인과 회원가입을 두 상태로
+  갈라 제목·부제·동의 블록·전환 문장 넷을 바꿔 그렸다. ver4는 그 구분을 없앴다 —
+  Auth.js가 어차피 가입과 로그인을 구분하지 않고(처음 오는 계정이면 어댑터가
+  사용자를 만든다) 화면만 둘인 것이 실제와 달랐다.
+
+  같이 사라진 것이 **동의 체크박스**다. ver3는 소셜 버튼을 누르기 전에 받았는데,
+  그 체크는 OAuth 왕복을 건너지 못해 DB에 남지 않았다. ver4는 인증을 먼저 끝내고
+  돌아온 자리에서 모달로 받는다(`ConsentGate`). 그래서 이 카드에는 상태가 없고,
+  클라이언트 상태도 없어 **서버 컴포넌트**다.
 
   ⚠️ 이 화면에는 헤더도 푸터도 없다. 시안 `#scr-auth`에 `.pub-head`·`.pub-foot`가
   아예 없고 카드 하나가 화면 가운데 놓인다.
 */
-
-const COPY = {
-  login: {
-    title: "다시 오셨네요",
-    sub: "계정으로 계속하세요.",
-    swap: { text: "처음이신가요?", href: "/signup", label: "회원가입" },
-  },
-  signup: {
-    title: "지표로 증명할 준비, 시작해요",
-    sub: "가입은 소셜 계정으로 10초면 끝나요.",
-    swap: { text: "이미 계정이 있나요?", href: "/login", label: "로그인" },
-  },
-} as const;
 
 /* 시안은 제공자 머리글자를 아이콘 자리에 끼워 넣는다 */
 const MARK: Record<AuthProviderInfo["id"], string> = {
@@ -48,12 +32,10 @@ const MARK: Record<AuthProviderInfo["id"], string> = {
 const VARIANT = { kakao: "kakao", google: "google" } as const;
 
 export function AuthCard({
-  mode,
   providers,
   errorMessage,
   onSignIn,
 }: {
-  mode: "login" | "signup";
   providers: AuthProviderInfo[];
   errorMessage: string | null;
   /**
@@ -64,27 +46,6 @@ export function AuthCard({
    */
   onSignIn: (formData: FormData) => Promise<void>;
 }) {
-  const copy = COPY[mode];
-  const [consent, setConsent] = useState<ConsentState>(() =>
-    emptyConsent(SIGNUP_CONSENTS),
-  );
-  const [showMissing, setShowMissing] = useState(false);
-
-  /*
-    가입은 필수 동의 둘을 받고서야 넘어간다.
-
-    버튼을 `disabled`로 잠그지 않는 이유는 랜딩 폼과 같다 — disabled인 버튼은
-    클릭 이벤트가 발생하지 않아 왜 안 되는지 말해줄 수 없다. 눌리게 두고
-    비어 있는 첫 항목으로 포커스를 옮긴다.
-  */
-  const blockIfMissing = (e: React.MouseEvent) => {
-    if (mode !== "signup") return;
-    if (isConsentComplete(consent, SIGNUP_CONSENTS)) return;
-    e.preventDefault();
-    setShowMissing(true);
-    focusFirstMissingConsent(consent, SIGNUP_CONSENTS);
-  };
-
   return (
     <div className={styles.wrap}>
       <div className={styles.card}>
@@ -100,8 +61,8 @@ export function AuthCard({
         <Link href="/" className={styles.wm} aria-label="PROOVIT 첫 화면">
           PROO<em className={styles.wmCheck}>✓</em>IT
         </Link>
-        <h1 className={styles.title}>{copy.title}</h1>
-        <p className={styles.sub}>{copy.sub}</p>
+        <h1 className={styles.title}>로그인 또는 회원가입</h1>
+        <p className={styles.sub}>계정이 없으면 자동으로 만들어져요.</p>
 
         {errorMessage ? (
           <p className={styles.error} role="alert">
@@ -128,7 +89,6 @@ export function AuthCard({
                   name="provider"
                   value={p.id}
                   variant={VARIANT[p.id]}
-                  onClick={blockIfMissing}
                 >
                   <span className={styles.ssoMark}>{MARK[p.id]}</span>
                   {` ${p.label}로 계속하기`}
@@ -142,40 +102,19 @@ export function AuthCard({
           </p>
         )}
 
-        {mode === "signup" ? (
-          <ConsentFields
-            items={SIGNUP_CONSENTS}
-            value={consent}
-            onChange={setConsent}
-            showMissing={showMissing}
-            missingMessage="필수 항목에 동의해야 가입할 수 있어요."
-          />
-        ) : null}
-
         {/*
-          ⚠️ **`/terms`는 아직 404다**(본문 미확정, `content/terms.ts`). 그래도
-          링크한다 — 2026-09-03 수연 판단. 사전신청 구간에는 이 화면으로 오는
-          길이 어디에도 없어서 404를 볼 사람이 없고, 시안대로 두 링크를 나란히
-          두는 편이 낫다.
+          ver4의 문장이다. ver3는 「계속하면 …에 동의하게 돼요」로 **이 자리에서
+          동의가 성립한다**고 말했는데, 실제로는 체크박스가 따로 있었고 기록도
+          남지 않았다. ver4는 동의를 받는 자리가 뒤(콜백 뒤 모달)라고 알린다.
 
-          푸터에는 약관 항목이 아예 없다. 시안이 아니라 노션 정본(「사전신청 폼
-          문안·푸터」)을 따르기 때문이고, 거기에는 개인정보처리방침 하나뿐이다.
+          ⚠️ 「동의를」과 「확인하는」 사이는 시안 그대로 보통 공백이다. ver3의
+          `&nbsp;` 처리는 「동의하게 돼요.」가 390px에서 홀로 떨어지던 자리를
+          막은 것인데, 문장이 통째로 바뀌어 그 자리가 사라졌다.
         */}
         <p className={styles.terms}>
-          {/*
-            ⚠️ 「동의하게」와 「돼요」 사이는 **줄바꿈 없는 공백**(&nbsp;)이다.
-            390·360px에서 「돼요.」만 다음 줄에 홀로 떨어졌다(2026-09-06 수연).
-            시안도 같은 폭에서 똑같이 깨진다 — 데스크톱에서만 검토된 자리다.
-
-            `text-wrap: pretty`가 세 폭(390·360·320)에서 이것과 결과가 같지만,
-            사파리에 없으면 조용히 원래대로 돌아간다. 폰에서 보는 화면이라
-            어디서나 되는 쪽을 골랐다.
-          */}
-          계속하면 <Link href="/terms">이용약관</Link>과{" "}
-          <Link href="/privacy">개인정보처리방침</Link>에 동의하게&nbsp;돼요.
-        </p>
-        <p className={styles.swap}>
-          {copy.swap.text} <Link href={copy.swap.href}>{copy.swap.label}</Link>
+          처음 로그인하면 <Link href="/terms">이용약관</Link>과{" "}
+          <Link href="/privacy">개인정보 수집과 이용</Link> 동의를 확인하는
+          화면이 한 번 이어져요.
         </p>
       </div>
     </div>

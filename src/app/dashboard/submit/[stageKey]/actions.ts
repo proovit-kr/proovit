@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { AI_CHECKS, LAUNCH_CHECKS, S1_GUIDE_CHECKS } from "@/content/submission";
-import { ChargeType, EntryStage } from "@/generated/prisma/enums";
+import { ChargeType, EntryStage, StageKey } from "@/generated/prisma/enums";
 import { canSubmitStage, loadViewerState, toAccessContext } from "@/lib/access";
 import {
   NOT_BUILDING_COUNT,
@@ -17,6 +17,20 @@ import {
   type SubmitIntent,
 } from "@/lib/submission";
 import { saveS1, saveS3 } from "@/lib/submission-store";
+
+import {
+  S2DraftSchema,
+  S2Schema,
+  S2_GUIDE_CHECKS,
+  S4DraftSchema,
+  S4Schema,
+  S4_GUIDE_CHECKS,
+  S5DraftSchema,
+  S5Schema,
+  S5_GUIDE_CHECKS,
+  guideIncomplete,
+} from "./stages";
+import { saveStagePayload } from "./stage-store";
 
 /*
   s1 제출.
@@ -256,4 +270,214 @@ export async function saveStage3(
   revalidatePath("/dashboard/submit/s3");
   revalidatePath("/dashboard");
   return { done: "submitted", values };
+}
+
+// ── s2 · s4 · s5 ─────────────────────────────────────────────
+
+/*
+  셋의 액션이 s1·s3과 다른 것은 두 가지뿐이다.
+
+  1. **지표를 받지 않는다.** 시안이 읽기 전용으로 그린 칸(s2 방문자·사전 신청자,
+     s4 주간 방문·가입, s5 최종 지표)은 폼에 없으므로 여기서 읽을 것도 없다.
+     참가자가 숫자를 입력하지 않는다는 약속이 이 자리에서 지켜진다.
+  2. **s4는 주차가 붙는다.** 같은 스테이지를 매주 내므로 `week`이 행을 가른다.
+
+  나머지 뼈대(임시 저장은 상한만, 제출은 전부 검증, 판정은 `canSubmitStage`)는
+  위의 s1·s3과 같다.
+*/
+
+function readChannels(formData: FormData): string[] {
+  /* 태그 입력은 같은 이름으로 여러 개 온다. 빈 값은 떨군다 */
+  return formData
+    .getAll("channels")
+    .map((item) => String(item).trim())
+    .filter(Boolean);
+}
+
+function readChecks(formData: FormData, count: number): boolean[] {
+  return Array.from({ length: count }, (_, i) => formData.get(`guide${i}`) === "on");
+}
+
+type StageContext =
+  | { error: SubmitState; viewer?: undefined }
+  | {
+      error?: undefined;
+      viewer: { userId: string; entryId: string; seasonId: string };
+    };
+
+async function stageContext(
+  values: Record<string, string>,
+  stage: EntryStage,
+): Promise<StageContext> {
+  const viewer = await loadViewerState();
+  if (!viewer.user) {
+    return { error: { message: "로그인이 풀렸습니다. 다시 로그인해 주세요.", values } };
+  }
+  if (!viewer.entry || !viewer.season) {
+    return { error: { message: "참가 기록이 없습니다.", values } };
+  }
+  const permission = canSubmitStage(stage, toAccessContext(viewer));
+  if (!permission.ok) {
+    return { error: { message: permission.message, values } };
+  }
+  return {
+    viewer: {
+      userId: viewer.user.id,
+      entryId: viewer.entry.id,
+      seasonId: viewer.season.id,
+    },
+  };
+}
+
+export async function saveStage2(
+  _prev: SubmitState,
+  formData: FormData,
+): Promise<SubmitState> {
+  const intent: SubmitIntent =
+    String(formData.get("intent") ?? "") === "submit" ? "submit" : "draft";
+  const text = (key: string) => String(formData.get(key) ?? "");
+  const values: Record<string, string> = {
+    landingUrl: text("landingUrl"),
+    postUrl: text("postUrl"),
+    memo: text("memo"),
+  };
+
+  const ctx = await stageContext(values, EntryStage.s2);
+  if (ctx.error) return ctx.error;
+
+  const raw = {
+    landingUrl: values.landingUrl,
+    channels: readChannels(formData),
+    postUrl: values.postUrl,
+    guideChecks: readChecks(formData, S2_GUIDE_CHECKS.length),
+    memo: values.memo,
+  };
+
+  const schema = intent === "draft" ? S2DraftSchema : S2Schema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      errors: flatten(parsed.error) as SubmitState["errors"],
+      message: intent === "draft" ? "글자수를 넘긴 칸이 있어요." : undefined,
+      values,
+    };
+  }
+  if (intent === "submit" && guideIncomplete(raw.guideChecks, S2_GUIDE_CHECKS.length)) {
+    return { message: SUBMISSION_FAILURE_MESSAGE.GUIDE_INCOMPLETE, values };
+  }
+
+  const saved = await saveStagePayload({
+    ...ctx.viewer,
+    stageKey: StageKey.s2,
+    payload: parsed.data,
+    intent,
+  });
+  if (!saved.ok) return { message: SUBMISSION_FAILURE_MESSAGE[saved.code], values };
+
+  revalidatePath("/dashboard/submit/s2");
+  revalidatePath("/dashboard");
+  return { done: intent === "draft" ? "draft" : "submitted", values };
+}
+
+export async function saveStage4(
+  _prev: SubmitState,
+  formData: FormData,
+): Promise<SubmitState> {
+  const intent: SubmitIntent =
+    String(formData.get("intent") ?? "") === "submit" ? "submit" : "draft";
+  const text = (key: string) => String(formData.get(key) ?? "");
+  const values: Record<string, string> = {
+    activity: text("activity"),
+    improved: text("improved"),
+    memo: text("memo"),
+  };
+  /* 주차는 화면이 아니라 시스템이 정한다. 폼은 계산된 값을 그대로 돌려준다 */
+  const week = Number(formData.get("week") ?? 1) || 1;
+
+  const ctx = await stageContext(values, EntryStage.s4);
+  if (ctx.error) return ctx.error;
+
+  const raw = {
+    activity: values.activity,
+    channels: readChannels(formData),
+    improved: values.improved,
+    guideChecks: readChecks(formData, S4_GUIDE_CHECKS.length),
+    memo: values.memo,
+  };
+
+  const schema = intent === "draft" ? S4DraftSchema : S4Schema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      errors: flatten(parsed.error) as SubmitState["errors"],
+      message: intent === "draft" ? "글자수를 넘긴 칸이 있어요." : undefined,
+      values,
+    };
+  }
+  if (intent === "submit" && guideIncomplete(raw.guideChecks, S4_GUIDE_CHECKS.length)) {
+    return { message: SUBMISSION_FAILURE_MESSAGE.GUIDE_INCOMPLETE, values };
+  }
+
+  const saved = await saveStagePayload({
+    ...ctx.viewer,
+    stageKey: StageKey.s4,
+    payload: parsed.data,
+    intent,
+    week,
+  });
+  if (!saved.ok) return { message: SUBMISSION_FAILURE_MESSAGE[saved.code], values };
+
+  revalidatePath("/dashboard/submit/s4");
+  revalidatePath("/dashboard");
+  return { done: intent === "draft" ? "draft" : "submitted", values };
+}
+
+export async function saveStage5(
+  _prev: SubmitState,
+  formData: FormData,
+): Promise<SubmitState> {
+  const intent: SubmitIntent =
+    String(formData.get("intent") ?? "") === "submit" ? "submit" : "draft";
+  const text = (key: string) => String(formData.get(key) ?? "");
+  const values: Record<string, string> = {
+    retro: text("retro"),
+    memo: text("memo"),
+  };
+
+  const ctx = await stageContext(values, EntryStage.s5);
+  if (ctx.error) return ctx.error;
+
+  const raw = {
+    monetized: formData.get("monetized") === "on",
+    paymentConnected: formData.get("paymentConnected") === "on",
+    retro: values.retro,
+    guideChecks: readChecks(formData, S5_GUIDE_CHECKS.length),
+    archiveConsent: formData.get("archiveConsent") === "on",
+    memo: values.memo,
+  };
+
+  const schema = intent === "draft" ? S5DraftSchema : S5Schema;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      errors: flatten(parsed.error) as SubmitState["errors"],
+      message: intent === "draft" ? "글자수를 넘긴 칸이 있어요." : undefined,
+      values,
+    };
+  }
+  if (intent === "submit" && guideIncomplete(raw.guideChecks, S5_GUIDE_CHECKS.length)) {
+    return { message: SUBMISSION_FAILURE_MESSAGE.GUIDE_INCOMPLETE, values };
+  }
+
+  const saved = await saveStagePayload({
+    ...ctx.viewer,
+    stageKey: StageKey.s5,
+    payload: parsed.data,
+    intent,
+  });
+  if (!saved.ok) return { message: SUBMISSION_FAILURE_MESSAGE[saved.code], values };
+
+  revalidatePath("/dashboard/submit/s5");
+  revalidatePath("/dashboard");
+  return { done: intent === "draft" ? "draft" : "submitted", values };
 }

@@ -111,7 +111,6 @@ export default async function Page() {
         옮겼는지는 코드에 남긴다.
       */
       chips={[`시행 ${policy.effectiveDate}`]}
-      note="ℹ️ 사전 신청, 회원가입, 참가 신청의 동의 문안이 참조하는 처리방침이에요."
       intro={<p>{policy.preamble}</p>}
       sections={sections}
     />

@@ -186,3 +186,97 @@
   font-size: var(--fs-sm);
   line-height: 1.6;
 }
+
+/*
+  s2·s4·s5에서 더 쓰는 것 — 읽기 전용 지표 상자와 채널 태그.
+
+  ⚠️ 지표 상자는 **입력처럼 보이면 안 된다.** 시안이 `.ro`에 자물쇠를 붙인 이유가
+  그것이다 — 테두리와 배경을 입력칸과 같게 두면 참가팀이 눌러보고 「왜 안 써지지」로
+  간다. 그래서 테두리를 죽이고 표면만 남긴다.
+*/
+.metrics {
+  margin: 0 0 var(--space-6);
+  padding: var(--space-4);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--radius-md);
+  background: var(--c-surface-2, rgba(255, 255, 255, 0.02));
+}
+
+.metricsNote {
+  margin: 0 0 var(--space-3);
+  font-size: 0.8125rem;
+  color: var(--c-text-muted);
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metric small {
+  font-size: 0.75rem;
+  color: var(--c-text-muted);
+}
+
+.metric strong {
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.metric span {
+  font-size: 0.75rem;
+  color: var(--c-text-faint, var(--c-text-muted));
+}
+
+/* 채널 태그. Enter로 칩을 쌓는다 — 칩 하나가 hidden input 하나다 */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--radius-sm);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--c-surface-2, rgba(255, 255, 255, 0.04));
+  font-size: 0.8125rem;
+}
+
+.tag button {
+  border: 0;
+  background: none;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.tagInput {
+  flex: 1;
+  min-width: 140px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+/* 필수 동의 표시 — 시안의 `.req` */
+.req {
+  color: var(--c-accent, var(--c-lime));
+  font-weight: 600;
+}

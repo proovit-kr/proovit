@@ -4,11 +4,9 @@ import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/Badge";
 import { Sparkline } from "@/components/Sparkline";
-import { JourneyTrack } from "@/components/StageProgress";
 import { AnchorButton } from "@/components/Button";
 import { Footer } from "@/components/Footer";
 import { NavBar } from "@/components/NavBar";
-import { SEASON_STAGES } from "@/content/landing";
 import { guardPage } from "@/lib/access";
 import { loadPublicEntry } from "@/lib/public-read";
 import { loadPublicNav } from "@/lib/header-read";
@@ -90,68 +88,74 @@ export default async function Page({
   const entry = await loadPublicEntry(entryId, season.id);
   if (!entry) notFound();
 
-  const stageIndex = SEASON_STAGES.findIndex(
-    (stage) => stage.key.toLowerCase() === entry.stage,
-  );
 
   return (
     <main className={`page ${styles.page}`}>
       <NavBar {...(await loadPublicNav())} />
       <div className={`container container--narrow grow ${styles.wrap}`}>
+        {/*
+          시안 `.pj-back` — 「← 리더보드」. 관전자가 이 화면에 오는 길이
+          리더보드뿐이라 돌아가는 길을 첫 줄에 둔다.
+        */}
+        <Link
+          href={`/seasons/${season.slug}/leaderboard`}
+          className={styles.back}
+        >
+          ← 리더보드
+        </Link>
+
         <header className={styles.head}>
-          <p className={styles.meta}>
-            <Link
-              href={`/seasons/${season.slug}/leaderboard`}
-              className={styles.back}
-            >
-              {season.title} 리더보드
-            </Link>
-          </p>
-          <h1 className={styles.title}>{entry.ideaTitle}</h1>
-          <p className={styles.team}>
-            {entry.teamName}
-            {entry.notDeployed ? <Badge tone="neutral">미배포</Badge> : null}
-          </p>
+          {/*
+            시안 `.pj-head` — **제목은 팀명**이다. 아이디어명이 아니다.
+            리더보드가 팀명으로 줄을 세우므로 거기서 넘어온 사람이 같은 이름을
+            첫 줄에서 봐야 자기가 누른 것을 확인한다.
+          */}
+          <div className={styles.headRow}>
+            <h1 className={styles.title}>{entry.teamName}</h1>
+            {/* 시즌 1은 자유 주제 단일 트랙이다 — 시안도 테마 트랙을 시즌 2로 미뤄 두었다 */}
+            <span className={styles.chip}>자유 주제 트랙</span>
+            {entry.notDeployed ? (
+              <Badge tone="neutral">미배포</Badge>
+            ) : (
+              <Badge>✓ 검증됨</Badge>
+            )}
+          </div>
+
+          {/* 아이디어명은 제목 자리를 내주고 한 줄 소개 위로 내려온다 */}
+          <p className={styles.idea}>{entry.ideaTitle}</p>
           {entry.ideaSummary ? (
             <p className={styles.summary}>{entry.ideaSummary}</p>
           ) : null}
 
-          {entry.serviceUrl && !entry.notDeployed ? (
-            <div className={styles.actions}>
-              {/*
-                남의 서비스로 나가는 링크다. rel에 noopener를 붙이지 않으면
-                열린 창이 이 페이지를 조작할 수 있다.
-              */}
-              <AnchorButton
-                href={entry.serviceUrl}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                size="lg"
-              >
-                서비스 열어보기
-              </AnchorButton>
-            </div>
-          ) : null}
+          {/*
+            시안 `.pj-cta-row` — 버튼 옆에 **주소를 글자로 같이 둔다.** 남의
+            서비스로 나가는 링크라 어디로 가는지 눌러 보기 전에 보여야 한다.
+            미배포 팀은 버튼을 숨기지 않고 비활성으로 남긴다 — 자리가 통째로
+            사라지면 「아직 안 만든 팀」인지 「화면이 깨진 것」인지 모른다.
+          */}
+          <div className={styles.ctaRow}>
+            {entry.serviceUrl && !entry.notDeployed ? (
+              <>
+                <AnchorButton
+                  href={entry.serviceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  size="lg"
+                >
+                  서비스 방문하기 ↗
+                </AnchorButton>
+                <span className={styles.url}>
+                  {entry.serviceUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                </span>
+              </>
+            ) : (
+              <span className={styles.ctaOff}>아직 배포 전이에요</span>
+            )}
+          </div>
         </header>
 
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>시즌 여정</h2>
-          {/*
-            프로토타입이 이 화면을 위해 만들어 둔 트랙을 그대로 쓴다
-            (components/StageProgress.tsx의 JourneyTrack). 목록으로 늘어놓으면
-            어디까지 왔는지가 안 보이는데, 관전자가 궁금한 것이 그것이다.
-          */}
-          <JourneyTrack
-            steps={SEASON_STAGES.map((stage, i) => ({
-              label: stage.label,
-              sub: stage.gate ? `${stage.week} · ${stage.gate}` : stage.week,
-              done: i <= stageIndex,
-            }))}
-          />
-        </section>
 
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>지표</h2>
           {!entry.metricsPublic ? (
             <p className={styles.note}>
               이 팀은 지표 공개에 동의하지 않았습니다. 심사에는 같은 기준으로
@@ -168,44 +172,47 @@ export default async function Page({
                 시안의 카드 셋 — 유효 이용자 · 현재 순위 · 최근 7일.
                 순위와 추세는 관전자가 이 화면에 오는 이유라 합계 옆에 같이 둔다.
               */}
-              <dl className={styles.metrics}>
-                <div>
-                  <dt>유효 방문</dt>
+              {/*
+                시안 `.pj-cards` — 카드 셋이다. 라벨을 영문 대문자로 두는 것도
+                시안 그대로다(VALID USERS / CURRENT RANK / LAST 7 DAYS).
+
+                ⚠️ 「가입」 칸을 두지 않는다. 시안이 세 장만 두고, 관전자에게
+                필요한 것은 규모·순위·추세 셋이다. 가입 수는 팀마다 가입이
+                있는지조차 다르라 비교가 성립하지 않는다.
+              */}
+              <dl className={styles.cards}>
+                <div className={styles.card}>
+                  <dt>VALID USERS</dt>
                   <dd>{NUM.format(entry.metrics.validVisitors)}</dd>
                 </div>
-                <div>
-                  <dt>가입</dt>
-                  <dd>{NUM.format(entry.metrics.signups)}</dd>
-                </div>
-                <div>
-                  <dt>현재 순위</dt>
+                <div className={styles.card}>
+                  <dt>CURRENT RANK</dt>
                   <dd>
                     {entry.rank ? (
                       <>
                         {String(entry.rank.position).padStart(2, "0")}
-                        <span className={styles.rankOf}>
-                          {" "}
-                          / {entry.rank.of}
-                        </span>
+                        <span className={styles.rankOf}> / {entry.rank.of}</span>
                       </>
                     ) : (
                       /* 순위는 스냅샷이 정본이다. 없으면 비운다 */
-                      <span className={styles.dash}>—</span>
+                      <span className={styles.dash}>-</span>
                     )}
                   </dd>
                 </div>
-                {entry.recentVisitors.length > 0 ? (
-                  <div>
-                    <dt>최근 7일</dt>
-                    <dd className={styles.spark}>
+                <div className={styles.card}>
+                  <dt>LAST 7 DAYS</dt>
+                  <dd className={styles.spark}>
+                    {entry.recentVisitors.length > 0 ? (
                       <Sparkline
                         values={toSparkValues(entry.recentVisitors)}
-                        width={92}
-                        height={26}
+                        width={100}
+                        height={32}
                       />
-                    </dd>
-                  </div>
-                ) : null}
+                    ) : (
+                      <span className={styles.dash}>-</span>
+                    )}
+                  </dd>
+                </div>
               </dl>
               <p className={styles.note}>
                 {DATE.format(entry.metrics.asOf)}까지 집계된 값입니다. 실시간이

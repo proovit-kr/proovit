@@ -54,7 +54,6 @@ export default async function Page() {
       title="PROOVIT 이용약관"
       chips={[terms.version, `시행 ${terms.effectiveDate}`]}
       badge="시즌 참가는 시즌 운영규칙이 우선"
-      note="ℹ️ 서비스 초기화면과 연결화면에 게시하는 약관 전문이에요."
       sections={sections}
     />
   );

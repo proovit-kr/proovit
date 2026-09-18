@@ -1,0 +1,143 @@
+/*
+  시안 `.db-side` / `.db-it` / `.db-grp`의 이식본.
+
+  시안 값: 폭 216, 세로 패딩 16, 항목 8/22, 13.5px, 활성은 좌측 3px 라임 괘선과
+  옅은 라임 배경. 운영자(`.adm`)는 같은 자리에 바이올렛을 쓴다.
+
+  ⚠️ sticky의 `top`을 시안 값(`calc(41px + 56px)`)으로 옮기지 않는다. 그 41px은
+  시안 뷰어 셸의 상태 바라 제품에는 없다(AGENTS.md 「시안은 뷰어 셸이다」).
+  여기서는 상단 바 하나만 피하면 되고, 그 높이를 레이아웃이 변수로 넘긴다.
+*/
+
+.side {
+  width: 216px;
+  flex: none;
+  border-right: 1px solid var(--c-line);
+  padding: 16px 0;
+  position: sticky;
+  top: var(--side-top, 56px);
+  align-self: flex-start;
+  max-height: calc(100dvh - var(--side-top, 56px));
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.side::-webkit-scrollbar {
+  display: none;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+.groupTitle {
+  padding: 16px 22px 4px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--c-text-faint);
+  font-weight: 700;
+  margin: 0;
+}
+
+.item,
+.hold {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 8px 22px;
+  font-size: 13.5px;
+  color: var(--c-text-muted);
+  border-left: 3px solid transparent;
+  transition: color 0.15s ease;
+}
+
+.item:hover {
+  color: var(--c-text);
+}
+
+.item[aria-current="page"] {
+  color: var(--c-text);
+  border-left-color: var(--accent);
+  background: rgba(200, 255, 61, 0.05);
+  font-weight: 700;
+}
+
+.side[data-tone="ops"] .item[aria-current="page"] {
+  border-left-color: var(--violet);
+  background: var(--violet-dim);
+}
+
+.hold {
+  opacity: 0.4;
+  cursor: not-allowed;
+  font-size: 12.5px;
+}
+
+.hold small {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--warn, #ffb74d);
+  border: 1px solid rgba(255, 183, 77, 0.35);
+  border-radius: 99px;
+  padding: 1px 6px;
+  align-self: center;
+}
+
+/*
+  폰에서는 가로 스트립으로 눕힌다 — 시안의 같은 미디어 블록이다. 세로로 두면
+  본문이 화면 밖으로 밀려 화면 이동 자체가 막힌다.
+*/
+@media (max-width: 860px) {
+  .side {
+    display: flex;
+    width: 100%;
+    max-height: none;
+    position: sticky;
+    top: var(--side-top, 56px);
+    z-index: 25;
+    border-right: 0;
+    border-bottom: 1px solid var(--c-line);
+    padding: 0 8px;
+    overflow-x: auto;
+    background: rgba(12, 19, 34, 0.92);
+    backdrop-filter: blur(10px);
+  }
+
+  .group {
+    flex-direction: row;
+  }
+
+  .groupTitle,
+  .hold {
+    display: none;
+  }
+
+  .item {
+    width: auto;
+    flex: none;
+    white-space: nowrap;
+    border-left: 0;
+    border-bottom: 3px solid transparent;
+    padding: 11px 12px;
+    font-size: 13.5px;
+    border-radius: 0;
+  }
+
+  .item[aria-current="page"] {
+    border-bottom-color: var(--accent);
+    background: none;
+  }
+
+  .side[data-tone="ops"] .item[aria-current="page"] {
+    border-bottom-color: var(--violet);
+    background: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item {
+    transition: none;
+  }
+}

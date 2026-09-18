@@ -1,9 +1,9 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { AdminTop } from "@/components/AdminTop";
 import { AdminTag } from "@/components/HeaderBits";
 import { Logo } from "@/components/NavBar";
+import { SideNav } from "@/components/SideNav";
 import { loadViewerState } from "@/lib/access";
 import { loadAdminHeader } from "@/lib/header-read";
 
@@ -15,7 +15,8 @@ import styles from "./admin.module.css";
   상단 바는 「헤더 상태별 시안 v1.0」의 어드민 크롬(A1~A7)이다 — 워드마크,
   ADMIN 태그, 시즌 셀렉트, 상태 배지, 지금 처리할 대기열, 이메일 칩, 아바타.
   판정은 header-state.ts, 재료는 header-read.ts, 그리기는 AdminTop이 한다.
-  그 아래 줄이 콘솔 네비게이션이다(시안의 사이드바는 별도 이식 항목).
+  콘솔 네비게이션은 시안대로 좌측 사이드바(`.db-side`)다 — 참가자 화면과 같은
+  `SideNav` 상자를 쓰고 `tone="ops"`로 활성 색만 바이올렛으로 바꾼다(시안 `.adm`).
 
   ⚠️ 한때 「참가자 화면과 배경·글자색을 다르게 쓴다」고 적혀 있었는데 **사실이
   아니다.** `--c-bg-ops`·`--c-surface-ops`·`--c-text-ops`는 전부 일반 토큰의
@@ -74,19 +75,17 @@ export default async function AdminLayout({
             <AdminTag />
           </div>
         )}
-        <nav
-          className={`container container--ops ${styles.nav}`}
-          aria-label="운영자 콘솔"
-        >
-          {items.map((item) => (
-            <Link key={item.href} href={item.href} className={styles.navLink}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
       </header>
 
-      <main className={`container container--ops grow`}>{children}</main>
+      <div className={styles.db}>
+        <SideNav
+          groups={[{ items }]}
+          tone="ops"
+          label="운영자 콘솔"
+          roots={["/admin"]}
+        />
+        <main className={`${styles.body} grow`}>{children}</main>
+      </div>
     </div>
   );
 }
