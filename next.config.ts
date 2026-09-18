@@ -6,9 +6,16 @@ import type { NextConfig } from "next";
     GA(@next/third-parties가 googletagmanager를 넣고, 수집은 google-analytics로 간다),
     Turnstile(스크립트와 챌린지 iframe 모두 challenges.cloudflare.com).
 */
+const isDev = process.env.NODE_ENV === "development";
+
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://challenges.cloudflare.com",
+  /*
+    'unsafe-eval'은 개발에서만 넣는다. React는 개발 모드에서 서버 쪽 호출
+    스택을 되살리려고 eval()을 쓰고, 없으면 모든 화면에 콘솔 오류를 띄운다.
+    운영 React는 eval()을 안 쓴다.
+  */
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://www.googletagmanager.com https://challenges.cloudflare.com`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https://www.googletagmanager.com https://*.google-analytics.com",
@@ -24,7 +31,7 @@ const CSP = [
     예외로 둬서 멀쩡하니, 크롬만 보면 이 문제가 안 보인다.
     운영은 HTTPS라 이 지시어가 할 일이 없다. 그래서 개발에서만 뺀다.
   */
-  ...(process.env.NODE_ENV === "development" ? [] : ["upgrade-insecure-requests"]),
+  ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
 const nextConfig: NextConfig = {
