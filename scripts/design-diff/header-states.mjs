@@ -267,14 +267,19 @@ const patchVer4Markup = (p) => p.eval(`(() => {
     rgt.prepend(a);
   }
   /*
-    모집 중(P2·P7)에는 리더보드 메뉴가 없다. 메뉴는 s4 시작일부터 연다
-    (2026-09-19 수연 지시, header-state.ts publicNav).
+    「리그 소개」는 어느 변형에도 없다 — 랜딩이라 워드마크가 그 링크다.
+    모집 중(P2·P7)에는 리더보드도 없다 — s4 시작일부터 연다.
+    (둘 다 2026-09-19 수연 지시, header-state.ts publicNav.) 비는 nav는 우리처럼 통째로 뺀다.
   */
-  for (const id of ["P2", "P7"]) {
-    document.querySelectorAll('.spec[data-id="' + id + '"] .frame nav a').forEach((a) => {
-      if (a.textContent.trim() === "리더보드") a.remove();
+  document.querySelectorAll('.spec .frame nav').forEach((nav) => {
+    const id = nav.closest('.spec')?.dataset.id;
+    /* 「시즌 아카이브」도 걷는다 — 2026-09-16에 뺐다(아래 IGNORE_TEXT와 같은 이유) */
+    [...nav.children].forEach((a) => {
+      const t = a.textContent.trim();
+      if (t === "리그 소개" || t === "시즌 아카이브" || (t === "리더보드" && (id === "P2" || id === "P7"))) a.remove();
     });
-  }
+    if (!nav.children.length) nav.remove();
+  });
   return 1;
 })()`);
 

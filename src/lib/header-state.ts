@@ -294,7 +294,10 @@ export type PublicHeaderInput = {
  * `seasons.feature_flags.archive`는 그때까지 헤더가 읽지 않는다.
  */
 function publicNav(season: NonNullable<PublicHeaderInput["season"]>): NavItem[] {
-  const home: NavItem = { href: "/", label: "리그 소개" };
+  /*
+    「리그 소개」는 두지 않는다 — 랜딩이라 워드마크가 이미 그 링크다(2026-09-19 수연 지시).
+    시안 P2~P8은 그리지만 워드마크와 같은 곳으로 간다.
+  */
   const board: NavItem = {
     href: `/seasons/${season.slug}/leaderboard`,
     label: "리더보드",
@@ -307,15 +310,12 @@ function publicNav(season: NonNullable<PublicHeaderInput["season"]>): NavItem[] 
   */
   switch (season.kind) {
     case "pre":
-      return [];
     case "recruit":
-      return [home];
+      return [];
     case "stage":
-      return season.s4Started ? [home, board] : [home];
+      return season.s4Started ? [board] : [];
     case "done":
-      return [home, board];
     case "arch":
-      /* 리그 소개는 랜딩 자체라 링크로 두지 않는다(P6 노트) */
       return [board];
   }
 }

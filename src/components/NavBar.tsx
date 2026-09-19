@@ -126,7 +126,12 @@ export function NavBar({ season, viewer, glitchLogo, onPreregister, activeHref }
 
   const user = viewer === undefined ? fetched : viewer;
   const model = resolvePublicHeader({ season, user });
-  const hasMenu = model.nav.length > 0;
+  const hasNav = model.nav.length > 0;
+  /*
+    ≤760에서는 로그인 링크가 햄버거 안에만 있다. 내비가 비어도 로그인이 있으면
+    햄버거를 남긴다 — 안 그러면 모집 중 모바일 헤더에서 로그인 진입점이 사라진다.
+  */
+  const hasMenu = hasNav || model.login;
 
   const renderAction = (a: HeaderAction, i: number) => {
     /* 결과 보기(P5)는 시안이 `.cta`를 안 붙인 보조 버튼이다. 모바일에서 숨는다 */
@@ -192,11 +197,11 @@ export function NavBar({ season, viewer, glitchLogo, onPreregister, activeHref }
     <header className={styles.head} data-variant={model.variant}>
       <Logo glitch={glitchLogo} />
       {/*
-        ⚠️ 모집 전에는 `<nav>`를 통째로 내지 않는다. 감추는(`display:none`)
+        ⚠️ 내비가 비면(모집 전·모집 중 등) `<nav>`를 통째로 내지 않는다. 감추는(`display:none`)
         것이 아니라 그리지 않는다 — 없는 메뉴가 스크린리더와 탭 순서에 남으면
         안 된다. 시안 P1도 마크업에 nav가 없다.
       */}
-      {hasMenu ? <nav className={styles.nav}>{navLinks}</nav> : null}
+      {hasNav ? <nav className={styles.nav}>{navLinks}</nav> : null}
       <span className={styles.rgt}>
         {model.login ? (
           <Link href="/login" className={styles.login}>
@@ -210,7 +215,7 @@ export function NavBar({ season, viewer, glitchLogo, onPreregister, activeHref }
         {/*
           햄버거. ≤760에서만 보이고 내비와 로그인 링크를 안에 넣는다
           (시안 5장 노트, 메뉴 디자인은 시안 ver4 `.pub-menu`).
-          사전 신청 기간에는 내비가 없으니 햄버거도 없다.
+          사전 신청 기간에는 내비도 로그인도 없으니 햄버거도 없다.
         */}
         {hasMenu ? (
           <button

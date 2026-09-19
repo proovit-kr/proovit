@@ -127,12 +127,12 @@ describe("공개 헤더 — 조합기 MAP.pub", () => {
     });
   }
 
-  it("내비는 시즌만 본다 — 모집 전 없음, 리더보드는 s4 시작일부터, 아카이브 기간은 리더보드만", () => {
+  it("내비는 시즌만 본다 — 리그 소개는 없고, 리더보드는 s4 시작일부터", () => {
     expect(pub("pre", "guest").nav).toEqual([]);
-    expect(pub("recruit", "guest").nav.map((n) => n.label)).toEqual(["리그 소개"]);
-    expect(pub("stage", "guest", { s4Started: false }).nav.map((n) => n.label)).toEqual(["리그 소개"]);
-    expect(pub("stage", "guest").nav.map((n) => n.label)).toEqual(["리그 소개", "리더보드"]);
-    expect(pub("done", "guest").nav.map((n) => n.label)).toEqual(["리그 소개", "리더보드"]);
+    expect(pub("recruit", "guest").nav).toEqual([]);
+    expect(pub("stage", "guest", { s4Started: false }).nav).toEqual([]);
+    expect(pub("stage", "guest").nav.map((n) => n.label)).toEqual(["리더보드"]);
+    expect(pub("done", "guest").nav.map((n) => n.label)).toEqual(["리더보드"]);
     expect(pub("arch", "guest").nav.map((n) => n.label)).toEqual(["리더보드"]);
     /* 운영자도 시즌을 따른다 — P11 프레임은 우측 액션만 고정이다 */
     expect(pub("pre", "admin").nav).toEqual([]);
