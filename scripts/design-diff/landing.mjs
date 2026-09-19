@@ -107,8 +107,15 @@ const ALL_PAIRS = [
   ["slot", S + ".ld-live .slot", "slot"],
   ["slot bar", S + ".ld-live .slot .bar", "slotBar"],
   ["slot rk", S + ".ld-live .slot .rk", "slotRank"],
-  /* 자간은 안 본다. 두 열일 때 한 줄에 담으려고 -0.02em으로 좁혔다(2026-09-19 수연 결정) */
-  ["live ex", S + ".ld-live .ex", "liveNote", undefined, ["letter-spacing"]],
+  /* 점수 칸은 전역 `.score`(모노·800)를 함께 받는다. 빠져 있던 것을 09-19 진행 중 작업에서 잡았다 */
+  ["slot score", S + ".ld-live .slot .score", "slotScore"],
+  /* 진행 중 LIVE 슬롯만 있는 것들 */
+  ["slot nm", S + ".ld-live .slot .nm", "slotName", ["width", "text-overflow", "white-space", "overflow-x"]],
+  /* 폭은 안 본다. 막대 칸이 점수 글자 폭을 뺀 나머지라 데이터(팀명·점수)를 따라간다 */
+  ["slot bar i", S + ".ld-live .slot .bar i", '[class*="__slotBar"] > i', ["top", "bottom", "left"]],
+  ["slot 마지막", S + ".ld-live .slot:last-of-type", '[class*="__slotLive"]:last-of-type'],
+  /* 자간은 모집 전·모집 중만 안 본다. 두 열일 때 한 줄에 담으려고 -0.02em으로 좁혔다(2026-09-19 수연 결정) */
+  ["live ex", S + ".ld-live .ex", "liveNote"],
   ["stats", S + ".ld-stats", "stats"],
   ["stat score", S + ".ld-stat .score", "@stat .score"],
   ["mq", S + ".mq", "mq"],
@@ -407,19 +414,42 @@ const FORM_PAIRS = ["form", "form fh", "consents", "consent row", "consent box",
   "consent req", "consent 보기", "신청 버튼"];
 const hasForm = STATE === "pre" || STATE === "done";
 const hasHint = STATE === "recruit" || STATE === "stage";
+const LIVE_PAIRS = ["slot nm", "slot bar i", "slot 마지막"];
+const hasLive = STATE === "stage" || STATE === "done";
 /*
   ⚠️ 모집 중·진행 중의 CTA는 시안이 `<a>`라 line-height(body 1.65)와 text-align
   (start)을 물려받아 `<button>`인 모집 전 CTA보다 6.75px 높다. 우리는 두 태그를
   똑같이 그린다(Button.module.css) — 상태가 바뀐다고 같은 자리 버튼 키가 변하지
   않게(2026-09-19, 수연이 맡겨 정함). 파이널 영역 높이도 그 버튼을 따라간다.
 */
-const ANCHOR_SKIP = STATE === "recruit" || STATE === "stage"
-  ? { "cta 버튼1": ["line-height", "text-align"], "cta 버튼2": ["line-height", "text-align"],
-      fin: ["::before height"] }
-  : {};
+const ANCHOR_SKIP = {
+  ...(STATE === "recruit" || STATE === "stage"
+    ? { "cta 버튼1": ["line-height", "text-align"], "cta 버튼2": ["line-height", "text-align"],
+        fin: ["::before height"] }
+    : {}),
+  ...(STATE === "pre" || STATE === "recruit" ? { "live ex": ["letter-spacing"] } : {}),
+};
 const PAIRS = ALL_PAIRS
-  .filter(([n]) => n === "hint" ? hasHint : FORM_PAIRS.includes(n) ? hasForm : true)
+  .filter(([n]) => n === "hint" ? hasHint : FORM_PAIRS.includes(n) ? hasForm
+    : LIVE_PAIRS.includes(n) ? hasLive : true)
   .map(([n, s, i, x, k]) => ANCHOR_SKIP[n] ? [n, s, i, x, [...(k ?? []), ...ANCHOR_SKIP[n]]] : [n, s, i, x, k]);
+/*
+  진행 중은 전광판 팀명·점수와 배지의 스테이지명, 안내 문장의 마감일이 데이터다.
+  시안은 표본(골목마켓 731명·「s4 마케팅과 유저 유입」·10.04)이고 구현은 dev DB다.
+  팀명·점수 칸은 글자를 긁기 전에 양쪽에서 비우고, 나머지 둘은 틀만 맞춰 본다.
+*/
+const DATA_BLANK = STATE === "stage" || STATE === "done"
+  ? { spec: ".ld-live .slot.only-live .nm, .ld-live .slot.only-live .score",
+      impl: '[class*="__slotLive"] > [class*="__slotName"], [class*="__slotLive"] > [class*="__slotScore"]' }
+  : null;
+const blank = (sel) => `document.querySelectorAll(${JSON.stringify(sel)}).forEach((e) => { e.textContent = ""; })`;
+/* 마감일도 데이터다 — dev DB 일정은 시안 표본을 2주 민 임시값이다(시즌 1 일정 미정) */
+if (STATE === "recruit") {
+  TEXT_IGNORE.push(/^시즌 1 참가 신청 접수 중, \d\d\.\d\d 마감$/, /마감은 \d\d\.\d\d 23:59예요\.$/);
+}
+if (STATE === "stage") {
+  TEXT_IGNORE.push(/^시즌 1 진행 중, s\d .+$/, /^참가 신청은 \d\d\.\d\d에 마감됐어요\..*$/);
+}
 const CTA_OF = {
   "사전 신청하기": "pre", "참가 신청하기": "recruit",
   "리더보드 보기": "stage", "시즌 2 알림 받기": "done",
@@ -463,9 +493,10 @@ for (const w of WIDTHS) {
     await p.resize(w, 1000);
     const naturally = await p.eval(settle, true);
     const r = await p.eval(probe(PAIRS.map(([n, s, , x, k]) => [n, s, "spec", x, k])));
+    await p.shot(`${OUT}/spec-${w}.png`);
+    if (DATA_BLANK) await p.eval(blank(DATA_BLANK.spec));
     r.text = await p.eval(textNodes("#scr-landing .ld"));
     r.naturally = naturally;
-    await p.shot(`${OUT}/spec-${w}.png`);
     return r;
   });
   const impl = await withPage(async (p) => {
@@ -473,9 +504,10 @@ for (const w of WIDTHS) {
     await p.resize(w, 1000);
     const naturally = await p.eval(settle, true);
     const r = await p.eval(probe(PAIRS.map(([n, , i, x, k]) => [n, i, "impl", x, k])));
+    await p.shot(`${OUT}/impl-${w}.png`);
+    if (DATA_BLANK) await p.eval(blank(DATA_BLANK.impl));
     r.text = await p.eval(textNodes('[class*="Landing-module"][class*="__ld"]'));
     r.naturally = naturally;
-    await p.shot(`${OUT}/impl-${w}.png`);
     return r;
   });
 

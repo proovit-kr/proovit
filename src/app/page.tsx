@@ -3,8 +3,10 @@ import type { Metadata } from "next";
 import { SeasonPhase } from "@/generated/prisma/client";
 import { Footer } from "@/components/Footer";
 import { OrganizationJsonLd } from "@/components/JsonLd";
-import { Landing } from "@/components/Landing";
+import { Landing, type LandingLive } from "@/components/Landing";
+import { currentStage } from "@/lib/header-state";
 import { prisma } from "@/lib/prisma";
+import { loadLeaderboard } from "@/lib/public-read";
 import { getCurrentSeason, publicHeaderSeason } from "@/lib/season";
 
 /*
@@ -36,6 +38,39 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
+/*
+  진행 중 전광판에 올릴 것 — 지금 스테이지, 상위 3팀, 참가팀 수.
+
+  ⚠️ 순위를 여기서 매기지 않는다. 리더보드와 같은 조회(`loadLeaderboard`)에서
+  스냅샷 순위가 있는 팀만 앞에서 셋을 자른다. 집계 전이면 빈 배열이다.
+*/
+async function loadLive(seasonId: string): Promise<LandingLive> {
+  const [board, stages] = await Promise.all([
+    loadLeaderboard(seasonId),
+    prisma.stage.findMany({
+      where: { seasonId },
+      orderBy: { stageKey: "asc" },
+      select: { stageKey: true, name: true, isGate: true, opensAt: true, closesAt: true },
+    }),
+  ]);
+  const stage = currentStage(
+    stages.map((s) => ({ ...s, key: s.stageKey })),
+    new Date(),
+  );
+  return {
+    stage: stage ? { key: stage.key, name: stage.name } : null,
+    top: board.rows
+      .filter((row) => row.rank !== null)
+      .slice(0, 3)
+      .map((row) => ({
+        entryId: row.entryId,
+        teamName: row.teamName,
+        validVisitors: row.validVisitors,
+      })),
+    teams: board.rows.length,
+  };
+}
+
 export default async function Home() {
   const season = await getCurrentSeason();
 
@@ -50,7 +85,8 @@ export default async function Home() {
     );
   }
 
-  const [preRegisterCount, racingSchedule] = await Promise.all([
+  const headerSeason = publicHeaderSeason(season);
+  const [preRegisterCount, racingSchedule, live] = await Promise.all([
     prisma.lead.count({ where: { seasonId: season.id } }),
     /* 참가 신청 마감 = 레이스로 넘어가는 예정 시각(운영 헤더와 같은 정의) */
     prisma.seasonSchedule.findFirst({
@@ -58,6 +94,7 @@ export default async function Home() {
       orderBy: { startsAt: "asc" },
       select: { startsAt: true },
     }),
+    headerSeason?.kind === "stage" ? loadLive(season.id) : null,
   ]);
 
   return (
@@ -65,11 +102,12 @@ export default async function Home() {
       <OrganizationJsonLd />
       <Landing
         seasonName={season.title}
-        headerSeason={publicHeaderSeason(season)}
+        headerSeason={headerSeason}
         seasonTheme={season.theme}
         startAt={season.startsAt?.toISOString() ?? null}
         preRegisterCount={preRegisterCount}
         recruitClosesAt={racingSchedule?.startsAt.toISOString() ?? null}
+        live={live}
         footer={<Footer />}
       />
     </>
