@@ -13,7 +13,6 @@ import {
 } from "@/app/actions/dev";
 
 import styles from "./DevBar.module.css";
-import { ViewportProbe } from "./ViewportProbe";
 
 /*
   개발용 토글 바의 화면.
@@ -114,7 +113,7 @@ export function DevBarClient({
   }
 
   return (
-    <div className={styles.bar}>
+    <div className={open ? `${styles.bar} ${styles.barOpen}` : styles.bar}>
       <button
         type="button"
         className={styles.toggle}
@@ -134,9 +133,6 @@ export function DevBarClient({
           {open ? "▾" : "▴"}
         </span>
       </button>
-
-      {/* 열지 않아도 보이게 둔다 — 스크롤하는 동안 읽어야 하는 숫자다 */}
-      <ViewportProbe />
 
       {open ? (
         <div className={styles.panel}>
