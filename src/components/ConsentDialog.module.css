@@ -25,6 +25,17 @@
   padding: 20px;
   /* 항목이 넷이라 작은 화면에서 넘칠 수 있다. 시안에는 없는 줄이다 */
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/*
+  모달이 떠 있는 동안 뒤 페이지를 스크롤하지 못하게 한다. 시안에는 없다 —
+  시안은 뷰어 셸 안의 그림이라 뒤 페이지가 따로 스크롤하지 않는다.
+  닫는 길이 두 버튼뿐인 모달이라 뒤를 굴려 볼 일이 없고, 스크롤바가 남으면
+  덮개가 그 폭(10px)만큼 모자라 오른쪽에 틈이 생긴다(auth.mjs ② 1440 대조).
+*/
+:global(html):has(.overlay) {
+  overflow: hidden;
 }
 
 .dialog {
@@ -98,18 +109,48 @@
   font-size: 13.5px;
 }
 
+/*
+  시안 `.consent .consents label.all` — 「모두 동의」 줄 밑 여백이 랜딩(9px)보다 넓다.
+  그 줄은 ConsentFields 모듈의 클래스라 여기서 이름으로 못 집는다. `selectAll`을
+  켰으므로 첫 자식이 그 줄이다.
+*/
+.consents > :first-child {
+  padding-bottom: 12px;
+}
+
 .ft {
   margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 시안 `.consent .ft .btn` — 두 버튼 다 받는다. 거부 버튼은 아래에서 덮는다 */
+.ft button,
+.declineForm button {
+  width: 100%;
+  padding: 13px;
+  font-size: 14.5px;
 }
 
 /*
   거부 버튼이 별도 폼이라 시안의 `.ft`(flex column, gap 6) 하나로 묶이지 않는다.
-  같은 간격이 나오도록 폼에 여백을 준다.
+  같은 간격이 나오도록 폼에 여백을 주고, 버튼이 `.ft` 안에서처럼 블록이
+  되도록 폼도 flex column으로 둔다.
 */
 .declineForm {
   margin-top: 6px;
+  display: flex;
+  flex-direction: column;
 }
-.declineForm button {
+
+/*
+  시안 `.consent .ft .btn-ghost`. hover에도 색이 faint로 남는다 — 시안에서 이 규칙이
+  `.btn-ghost:hover`보다 구체적이라 이긴다. 우리 `.ghost:hover:not(:disabled)`를
+  같은 식으로 이기려면 hover를 함께 적어야 한다.
+*/
+.declineForm button,
+.declineForm button:hover:not(:disabled) {
   font-size: 13px;
   padding: 9px;
   color: var(--faint);

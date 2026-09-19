@@ -42,13 +42,7 @@ function SubmitButton({ ready }: { ready: boolean }) {
     체크박스 넷이 버튼 바로 위에 모여 있어 찾을 것이 없다.
   */
   return (
-    <Button
-      type="submit"
-      variant="primary"
-      size="lg"
-      block
-      disabled={!ready || pending}
-    >
+    <Button type="submit" variant="primary" disabled={!ready || pending}>
       {pending ? "저장 중…" : "동의하고 시작하기"}
     </Button>
   );
@@ -57,7 +51,7 @@ function SubmitButton({ ready }: { ready: boolean }) {
 function DeclineButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant="ghost" block disabled={pending}>
+    <Button type="submit" variant="ghost" disabled={pending}>
       동의하지 않고 로그아웃
     </Button>
   );

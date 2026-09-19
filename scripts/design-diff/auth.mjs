@@ -1,10 +1,14 @@
 /*
   인증 — 시안 ver4 `#scr-auth`와 `/login`을 대조한다.
 
-    node scripts/design-diff/auth.mjs          # ① 로그인 또는 회원가입 (entry)
+    node scripts/design-diff/auth.mjs               # ①② 둘 다
+    STATE=entry node scripts/design-diff/auth.mjs   # ① 로그인 또는 회원가입
+    STATE=modal node scripts/design-diff/auth.mjs   # ② 콜백 뒤 동의 모달
 
-  ver4는 로그인과 회원가입을 한 화면으로 합쳤다. ②③(콜백 뒤 동의 모달)은
-  `/login`이 아니라 보던 페이지 위에 뜨므로 이 스크립트가 아직 재지 않는다.
+  ver4는 로그인과 회원가입을 한 화면으로 합쳤다. ②는 `/login`이 아니라 보던
+  페이지 위에 뜨므로 **계정 동의가 없는 세션**으로 `/`를 연다 — 세션은
+  `consent-session.mts`가 대조 전용 dev 계정으로 만든다(`.env.development.local`
+  필수). ③(동의 저장, 보던 페이지로 복귀)은 모달이 걷힌 그 페이지라 잴 것이 없다.
 
   ⚠️ **시안 마크업의 클래스를 먼저 전부 뽑아 넣었다.** 지금까지 새어나간 것
   (히어로 격자·헤더 글리치·동의 블록)이 전부 「probe에 없어서」였다.
@@ -23,9 +27,11 @@
 
   `.env*`는 gitignore라 각자 넣어야 한다.
 */
+import { execFileSync } from "node:child_process";
+
 import {
   withPage, diffTable, diffText, textNodes,
-  SPEC_URL, IMPL_URL, WIDTHS, shotDir,
+  SPEC_URL, IMPL_URL, WIDTHS, shotDir, REPO,
 } from "./cdp.mjs";
 
 const OUT = shotDir("auth");
@@ -41,9 +47,14 @@ const CSS = [
   "border-top-width", "border-top-style", "border-top-color",
 ];
 
+/* 구현본 동의 모달 요소. 모듈 이름만으로 집으면 뒤 페이지의 `.sub` 같은 것을 먼저 잡는다 */
+const D = (n) => `[class*="ConsentDialog-module"][class*="__${n}"]`;
+const F = (n) => `[class*="ConsentFields-module"][class*="__${n}"]`;
+
 /* [이름, 시안 셀렉터, 구현본(모듈 이름 또는 셀렉터), 추가 속성, 뺄 속성] */
 const pairs = (mode) => {
   const S = `#scr-auth[data-state="${mode}"] `;
+  if (mode === "modal") return modalPairs(S + ".consent");
   return [
     /*
       ⚠️ min-height는 비교하지 않는다. 시안은 `calc(100vh - 52px - 41px)`인데
@@ -79,6 +90,50 @@ const pairs = (mode) => {
       없어도 통과하므로(푸터·CTA 버튼과 같은 부류) 직접 잰다.
     */
     ["terms a", S + ".auth-card .terms a", '[class*="__terms"] a', [], ["width"]],
+  ];
+};
+
+/*
+  ② 동의 모달. 시안 마크업의 클래스 전부(1731~1748행)를 넣었다.
+
+  ⚠️ 행 구조가 다르다. 시안은 `<label>` 안에 체크박스와 `<span>`을 넣고,
+  우리는 `.row` 안에 체크박스와 `<label>`을 나란히 둔다(ConsentFields — 랜딩과
+  같은 컴포넌트). 그래서 시안 `label` ↔ 우리 `.row`, 시안 `label>span` ↔ 우리
+  `label`로 짝짓는다.
+*/
+const modalPairs = (C) => {
+  const row2 = `${D("consents")} > :nth-child(2)`;
+  return [
+    /* 시안은 absolute(뷰어 셸 안), 우리는 fixed라 position은 재지 않는다 */
+    ["ov", C + "-ov", D("overlay"), ["z-index", "backdrop-filter"]],
+    ["dialog", C, D("dialog"), ["border-top-left-radius"]],
+    ["h3", C + " h3", D("title")],
+    ["sub", C + " .sub", D("sub")],
+    ["acct", C + " .acct", D("acct"), ["flex-wrap"]],
+    ["acct pv", C + " .acct .pv", D("pv"), ["height"]],
+    /*
+      이메일 글자가 데이터라(대조 계정은 example.com) 폭과, 거기 딸린 auto 마진은
+      재지 않는다. 오른쪽 끝에 붙었는지는 ▸오른쪽 끝이 본다.
+    */
+    ["acct num", C + " .acct .num", D("num"), ["flex-basis"], ["width", "margin-left"]],
+    ["consents", C + " .consents", D("consents")],
+    ["all", C + " .consents label.all", F("all"), ["border-bottom-width", "border-bottom-color"]],
+    ["all input", C + " .consents label.all input", `${F("all")} input`, ["height"]],
+    ["row", C + " .consents label:nth-of-type(2)", row2],
+    ["row input", C + " .consents label:nth-of-type(2) input", `${row2} input`, ["height"]],
+    ["row text", C + " .consents label:nth-of-type(2) > span", `${row2} label`],
+    ["req", C + " .consents .req", F("tagRequired")],
+    ["opt", C + " .consents .opt", F("tagOptional")],
+    ["see", C + " .consents a.see", F("see"), ["border-bottom-width", "border-bottom-style", "border-bottom-color"], ["width"]],
+    /*
+      시안 `.ft`에는 두 버튼이 다 있고, 우리는 거부 버튼이 별도 폼이라(ConsentDialog
+      주석) 시작 버튼 하나다. 자식 높이 비교만 뺀다 — 간격은 아래 ▸버튼 간격이 본다.
+    */
+    ["ft", C + " .ft", D("ft"), [], ["▸자식 높이 같음"]],
+    /* 처음 열린 모습 — 필수 셋이 비어 있어 시작 버튼이 잠겨 있다 */
+    ["go(disabled)", "#consentGo", `${D("ft")} button`, ["opacity", "cursor", "height"]],
+    ["out", "#consentOut", `${D("declineForm")} button`, ["opacity", "height"]],
+    ["why", C + " .why", D("why")],
   ];
 };
 
@@ -129,6 +184,21 @@ const probe = () => `(() => {
       if (!(skip || []).includes("▸자식 높이 같음"))
         out[name + " ▸자식 높이 같음"] = hs.length > 1 ? String(new Set(hs).size === 1) : "해당없음";
     }
+    /* 두 버튼 사이 — 시안은 gap, 우리는 거부 폼의 margin-top */
+    if (name === "out") {
+      const go = el.closest("form, .ft")?.parentElement?.querySelector("#consentGo, [class*='ConsentDialog-module'][class*='__ft'] button");
+      if (go) out[name + " ▸버튼 간격"] = String(Math.round(el.getBoundingClientRect().top - go.getBoundingClientRect().bottom));
+    }
+    /* 계정 줄의 이메일이 오른쪽 끝에 붙었는가(≤760에서는 줄을 바꿔 왼쪽) */
+    if (name === "acct num") {
+      const r = el.getBoundingClientRect();
+      const pr = el.parentElement.getBoundingClientRect();
+      const pad = parseFloat(getComputedStyle(el.parentElement).paddingRight)
+        + parseFloat(getComputedStyle(el.parentElement).borderRightWidth);
+      out[name + " ▸오른쪽 끝"] = Math.abs(pr.right - pad - r.right) < 1 ? "끝" :
+        Math.abs(r.left - pr.left - parseFloat(getComputedStyle(el.parentElement).paddingLeft)
+          - parseFloat(getComputedStyle(el.parentElement).borderLeftWidth)) < 1 ? "왼쪽(줄바꿈)" : "중간";
+    }
     /* 겹침 — 불투명한 조상 수 */
     let opaque = 0;
     for (let n = el.parentElement; n && n !== document.documentElement; n = n.parentElement) {
@@ -162,15 +232,26 @@ let total = 0;
 
   `textNodes`가 `display:none`을 건너뛰므로 양쪽 다 지금 보이는 것만 잡힌다.
 */
-const TEXT_SPEC = (mode) => `#scr-auth[data-state="${mode}"] .auth-card`;
-const TEXT_IMPL = '[class*="login-module"][class*="__card"]';
+const TEXT_SPEC = (mode) =>
+  `#scr-auth[data-state="${mode}"] ${mode === "modal" ? ".consent" : ".auth-card"}`;
+const TEXT_IMPL = (mode) =>
+  mode === "modal" ? D("dialog") : '[class*="login-module"][class*="__card"]';
+/*
+  ② 모달의 계정 이메일은 데이터다. 대조 전용 계정이 example.com이라 시안의
+  `yoon***@gmail.com`과 다를 수밖에 없다 — 가림 표기(`***@`)만 확인한다.
+*/
+const TEXT_IGNORE = [/^[^@\s]{1,4}\*\*\*@/];
 
 /*
   hover로만 갈리는 것. ① 상태 고유의 규칙은 `.auth-card .terms a:hover`
   하나다. 값 대조만으로는 빠뜨렸는지 알 수 없다.
 */
 const HOVER_CSS = ["color", "border-bottom-color", "background-color", "text-decoration-line"];
-const HOVER = (mode) => [
+const HOVER = (mode) => mode === "modal" ? [
+  /* `.consents a.see:hover`가 라임이다. 거부 버튼은 `.btn-ghost:hover` */
+  ["see", "#scr-auth .consent a.see", F("see")],
+  ["out", "#consentOut", `${D("declineForm")} button`],
+] : [
   ["terms a", `#scr-auth[data-state="${mode}"] .auth-card .terms a`, '[class*="__terms"] a'],
   /*
     ⚠️ 워드마크는 시안에서 `<div>`, 우리는 `<a>`다(첫 화면으로 가는 링크).
@@ -210,7 +291,17 @@ const pickState = (state) => `(() => {
   return sec.dataset.state;
 })()`;
 
-for (const mode of ["entry"]) {
+/* ② 모달용 세션. 대조 전용 계정의 계정 동의를 지우고 새 세션을 받는다 */
+const consentToken = () =>
+  execFileSync("node", [
+    "--env-file=.env.development.local", "--import", "tsx",
+    "scripts/design-diff/consent-session.mts",
+  ], { cwd: REPO, encoding: "utf8" }).trim().split("\n").pop();
+
+const MODES = process.env.STATE ? [process.env.STATE] : ["entry", "modal"];
+const token = MODES.includes("modal") ? consentToken() : null;
+
+for (const mode of MODES) {
   for (const w of WIDTHS) {
     const list = pairs(mode);
     const spec = await withPage(async (p) => {
@@ -226,11 +317,22 @@ for (const mode of ["entry"]) {
       return r;
     });
     const impl = await withPage(async (p) => {
-      await p.goto(IMPL_URL + "/login");
+      /*
+        ⚠️ 쿠키는 브라우저 전체가 나눠 쓴다. 앞선 ② 실행의 세션이 남아 있으면
+        ①의 `/login`이 로그인된 채 열려 다른 화면으로 넘어간다 — 매번 비운다.
+      */
+      await p.send("Network.clearBrowserCookies");
+      if (mode === "modal") {
+        await p.send("Network.setCookie", {
+          name: "authjs.session-token", value: token,
+          domain: new URL(IMPL_URL).hostname, path: "/",
+        });
+      }
+      await p.goto(IMPL_URL + (mode === "modal" ? "/" : "/login"));
       await p.resize(w, 900);
       const r = await p.eval(run(list, "impl"));
       await p.shot(`${OUT}/impl-${mode}-${w}.png`);
-      r.text = await p.eval(textNodes(TEXT_IMPL));
+      r.text = await p.eval(textNodes(TEXT_IMPL(mode)));
       Object.assign(r.out, await hoverValues(p, mode, "impl"));
       return r;
     });
@@ -240,7 +342,7 @@ for (const mode of ["entry"]) {
     for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
     total += spec.missing.length + impl.missing.length;
     total += diffTable(`${mode} ${w}px — 인증`, spec.out, impl.out);
-    total += diffText(spec.text, impl.text, { label: mode });
+    total += diffText(spec.text, impl.text, { label: mode, ignore: TEXT_IGNORE });
   }
 }
 console.log(`\n═══════════════════════════\n합계 불일치 ${total}건`);
