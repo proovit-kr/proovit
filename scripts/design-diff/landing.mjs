@@ -54,8 +54,11 @@ const ALL_PAIRS = [
   */
   ["hero", S + ".ld-hero", "hero", undefined,
    ["::before inset", "::after inset"]],
+  /* 히어로 배지. 종료만 회색이고 커서(::after)가 없다 — 의사요소까지 잰다 */
+  ["hero 배지", S + ".ld-hero .badge", '#hero [class*="Badge-module"]'],
   ["h1", S + ".ld-hero h1", "title"],
-  ["sub", S + ".ld-hero .sub", "sub"],
+  /* 히어로 안으로 좁힌다. 종료 헤더(P5)는 버튼이 둘이라 NavBar의 `.sub`가 먼저 잡힌다 */
+  ["sub", S + ".ld-hero .sub", '#hero p[class*="__sub"]'],
   ["ctas", S + ".ld-ctas", "ctas"],
   /*
     ⚠️ **상자만 재면 안 된다.** `.ld-ctas`의 폭은 양쪽이 같은데 그 안의
@@ -427,6 +430,10 @@ const ANCHOR_SKIP = {
     ? { "cta 버튼1": ["line-height", "text-align"], "cta 버튼2": ["line-height", "text-align"],
         fin: ["::before height"] }
     : {}),
+  /* 종료는 두 번째 CTA만 시안이 `<a>`다(「최종 결과 보기」). 이유는 위와 같다 */
+  ...(STATE === "done"
+    ? { "cta 버튼2": ["line-height", "text-align"] }
+    : {}),
   /* 진행 중도 같은 이유로 -0.05em이다(2026-09-19 수연 결정) */
   ...(STATE !== "done" ? { "live ex": ["letter-spacing"] } : {}),
 };
@@ -450,6 +457,11 @@ if (STATE === "recruit") {
 }
 if (STATE === "stage") {
   TEXT_IGNORE.push(/^시즌 1 진행 중, s\d .+$/, /^참가 신청은 \d\d\.\d\d에 마감됐어요\..*$/);
+}
+/* 종료는 발표일(시즌 종료일)과 집계 확정 시각(s5 마감)이 데이터다 */
+if (STATE === "done") {
+  TEXT_IGNORE.push(/^시즌 1 종료, \d\d\.\d\d 최종 결과 발표$/,
+    /^\d\d\.\d\d \d\d:\d\d 집계 확정 기준 최종 순위예요\.$/);
 }
 const CTA_OF = {
   "사전 신청하기": "pre", "참가 신청하기": "recruit",

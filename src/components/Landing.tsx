@@ -32,7 +32,12 @@ import {
   MARQUEE,
   ROADMAP,
 } from "@/content/landing";
-import { fmtMD, fmtMDHM, type PublicHeaderInput } from "@/lib/header-state";
+import {
+  fmtMD,
+  fmtMDHM,
+  nextSeasonLabel,
+  type PublicHeaderInput,
+} from "@/lib/header-state";
 
 /*
   랜딩 — 시안 v2.1의 「랜딩(배포본 정적 재현)」을 그대로 옮긴 것.
@@ -51,14 +56,16 @@ import { fmtMD, fmtMDHM, type PublicHeaderInput } from "@/lib/header-state";
   허구의 실시간 숫자를 띄우면 그 주장이 무너진다.
 */
 
-/** 진행 중 전광판. `page.tsx`의 `loadLive`가 채운다 */
+/** 진행 중·시즌 종료 전광판. `page.tsx`의 `loadLive`가 채운다 */
 export interface LandingLive {
   /** 지금 스테이지 — 배지 「s4 유저 유입」. 스테이지 행이 없으면 null */
   stage: { key: string; name: string } | null;
-  /** 스냅샷 순위 상위 3팀. 집계 전이면 빈 배열 */
+  /** 스냅샷 순위 상위 3팀. 집계 전이면 빈 배열. 종료면 최종 순위다 */
   top: { entryId: string; teamName: string; validVisitors: number }[];
   /** 참가팀 수(실격·포기 제외, 리더보드와 같은 기준) */
   teams: number;
+  /** 집계 확정 = s5 마감(ISO). 종료 전광판 「11.01 24:00 집계 확정 기준」. 없으면 null */
+  finalAt: string | null;
 }
 
 export interface LandingProps {
@@ -75,7 +82,9 @@ export interface LandingProps {
   preRegisterCount: number;
   /** 참가 신청 마감 = 레이스 전환 예정 시각(ISO). 일정 행이 없으면 null */
   recruitClosesAt: string | null;
-  /** 진행 중에만 채운다. 그 밖의 상태에서는 null */
+  /** 시즌 종료 = 최종 결과 발표일(ISO). 운영 헤더 「시상 발표」와 같은 값. 미정이면 null */
+  endsAt: string | null;
+  /** 진행 중·시즌 종료에만 채운다. 그 밖의 상태에서는 null */
   live: LandingLive | null;
   /** 공개 푸터. 서버 컴포넌트라 여기서 import하지 못해 페이지가 만들어 넘긴다 */
   footer: ReactNode;
@@ -86,7 +95,7 @@ export interface LandingProps {
   배지·CTA 두 버튼·안내 문장·사전 신청 폼·전광판 캡션·파이널 CTA가 갈린다.
   (ver3까지는 분기가 없어 「사전 신청하기」 하나였다.)
 
-  지금은 ① 모집 전, ② 모집 중, ③ 진행 중을 옮겼다. ④ 시즌 종료는 ①로 그려진다.
+  넷 다 옮겼다. 아카이브(`arch`)는 시안 랜딩에 상태가 없어 ① 모집 전으로 그려진다.
 */
 
 const NUM = new Intl.NumberFormat("ko-KR");
@@ -216,12 +225,16 @@ export function Landing({
   headerSeason,
   preRegisterCount,
   recruitClosesAt,
+  endsAt,
   live,
   footer,
 }: LandingProps) {
   const { message, show } = useToast();
   const recruiting = headerSeason?.kind === "recruit";
   const racing = headerSeason?.kind === "stage" && live !== null;
+  const ended = headerSeason?.kind === "done" && live !== null;
+  /* 「시즌 2」. 종료의 알림 받기·소식 받기가 다음 시즌을 부른다 */
+  const nextSeason = nextSeasonLabel(seasonName);
   const board = headerSeason ? `/seasons/${headerSeason.slug}/leaderboard` : "/";
 
   const [email, setEmail] = useState("");
@@ -396,7 +409,9 @@ export function Landing({
   const lastMinute = recruitClosesAt
     ? new Date(new Date(recruitClosesAt).getTime() - 60_000)
     : null;
-  const badgeLabel = racing
+  const badgeLabel = ended
+    ? `${seasonName} 종료${endsAt ? `, ${fmtMD(new Date(endsAt))} 최종 결과 발표` : ""}`
+    : racing
     ? `${seasonName} 진행 중${live.stage ? `, ${live.stage.key} ${live.stage.name}` : ""}`
     : recruiting
       ? `${seasonName} 참가 신청 접수 중${lastMinute ? `, ${fmtMD(lastMinute)} 마감` : ""}`
@@ -407,7 +422,7 @@ export function Landing({
     { value: "20~40", unit: "팀", label: "모집 규모" },
     { value: "1~2", unit: "인", label: "팀 구성" },
     { value: "₩0", unit: "", label: "참가비" },
-    racing
+    racing || ended
       ? { value: NUM.format(live.teams), unit: "팀", label: "참가팀" }
       : { value: NUM.format(count), unit: "명", label: "사전 신청" },
   ];
@@ -416,7 +431,7 @@ export function Landing({
     전광판 세 자리. 막대는 1위 대비 비율이다(시안 731·455·298명 → 100·62·41%).
     순위가 없는 자리는 빈 슬롯으로 둔다 — 셋이 안 차도 지어내지 않는다.
   */
-  const top = racing ? live.top : [];
+  const top = racing || ended ? live.top : [];
   const lead = top[0]?.validVisitors ?? 0;
 
   return (
@@ -432,9 +447,14 @@ export function Landing({
         <div className={styles.hero} id="hero">
           <div>
             <Reveal>
-              <Badge tone="lime" className={styles.cur}>
-                {badgeLabel}
-              </Badge>
+              {/* 종료는 회색이고 커서가 없다 — 더 쓰이는 중이 아니다 */}
+              {ended ? (
+                <Badge tone="gray">{badgeLabel}</Badge>
+              ) : (
+                <Badge tone="lime" className={styles.cur}>
+                  {badgeLabel}
+                </Badge>
+              )}
             </Reveal>
             <Reveal index={1} step={70}>
               <h1 className={styles.title}>
@@ -449,7 +469,17 @@ export function Landing({
               </p>
             </Reveal>
             <Reveal index={3} step={70}>
-              {racing ? (
+              {ended ? (
+                /* 알림 받기는 아래 폼으로 데려간다 — 모집 전 「사전 신청하기」와 같은 동작이다 */
+                <div className={styles.ctas}>
+                  <Button size="lg" className={styles.btnPrimary} onClick={runCta}>
+                    {`${nextSeason} 알림 받기`}
+                  </Button>
+                  <LinkButton size="lg" variant="outline" href={board}>
+                    최종 결과 보기
+                  </LinkButton>
+                </div>
+              ) : racing ? (
                 /* 진행 중은 관전자가 주 대상이고, 두 번째 자리는 참가팀의 진입점이다 */
                 <div className={styles.ctas}>
                   <LinkButton size="lg" className={styles.btnPrimary} href={board}>
@@ -510,7 +540,9 @@ export function Landing({
             ) : (
             <Reveal index={4} step={70}>
               <form className={styles.form} onSubmit={onPreRegister} noValidate>
-                <div className={styles.formHead}>시즌 소식 받기</div>
+                <div className={styles.formHead}>
+                  {ended ? `${nextSeason} 소식 받기` : "시즌 소식 받기"}
+                </div>
                 {/*
                   ⚠️ ver3가 순서를 뒤집었다 — 동의가 이메일 **앞**이다.
                   ver2는 「이메일+신청 → 동의」였다. 무엇에 동의하는지 읽기 전에
@@ -560,7 +592,9 @@ export function Landing({
                 {racing ? (
                   <Badge tone="lime">LIVE</Badge>
                 ) : (
-                  <Badge tone="gray">{recruiting ? "개막 전" : "준비 중"}</Badge>
+                  <Badge tone="gray">
+                    {ended ? "최종" : recruiting ? "개막 전" : "준비 중"}
+                  </Badge>
                 )}
               </div>
               {[0, 1, 2].map((i) => {
@@ -589,7 +623,11 @@ export function Landing({
                   </div>
                 );
               })}
-              {racing ? (
+              {ended ? (
+                <p className={styles.liveNote}>
+                  {`${live.finalAt ? `${fmtMDHM(new Date(live.finalAt))} 집계 확정 기준 ` : ""}최종 순위예요.`}
+                </p>
+              ) : racing ? (
                 <p className={cx(styles.liveNote, styles.liveNoteFitLive)}>
                   {/* 한 열로 좁아져 두 줄이 될 때 끝 세 어절이 함께 넘어가게 묶는다 */}
                   유효 이용자 기준, 15분마다 갱신돼요. 전체 순위는 리더보드에서{" "}
@@ -836,7 +874,15 @@ export function Landing({
             </h2>
           </Reveal>
           <Reveal index={1} step={90}>
-            {racing ? (
+            {ended ? (
+              <Button
+                className={styles.btnPrimary}
+                style={{ padding: "14px 30px", fontSize: 15 }}
+                onClick={runCta}
+              >
+                {`${nextSeason} 알림 받기`}
+              </Button>
+            ) : racing ? (
               <LinkButton
                 className={styles.btnPrimary}
                 style={{ padding: "14px 30px", fontSize: 15 }}

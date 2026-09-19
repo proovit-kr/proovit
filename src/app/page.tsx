@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { SeasonPhase } from "@/generated/prisma/client";
+import { SeasonPhase, StageKey } from "@/generated/prisma/client";
 import { Footer } from "@/components/Footer";
 import { OrganizationJsonLd } from "@/components/JsonLd";
 import { Landing, type LandingLive } from "@/components/Landing";
@@ -40,7 +40,8 @@ export const metadata: Metadata = {
 
 /*
   개발 환경의 진행 중 목 데이터 — 전광판은 시안 표본 팀명에 수연이 준 숫자, 참가팀은
-  시안의 28팀(2026-09-19 수연 지시). 사전 신청 수는 개발 환경도 실데이터 그대로다.
+  시안의 28팀(2026-09-19 수연 지시). 시즌 종료도 같은 목을 쓴다(dev DB에 스냅샷이 없다).
+  사전 신청 수는 개발 환경도 실데이터 그대로다.
   배포본에는 절대 안 나간다: 관전자에게 가짜 순위를 보이면 이 서비스의 주장이 무너진다.
 */
 const DEV_MOCK: Pick<LandingLive, "top" | "teams"> = {
@@ -53,7 +54,8 @@ const DEV_MOCK: Pick<LandingLive, "top" | "teams"> = {
 };
 
 /*
-  진행 중 전광판에 올릴 것 — 지금 스테이지, 상위 3팀, 참가팀 수.
+  진행 중·시즌 종료 전광판에 올릴 것 — 지금 스테이지, 상위 3팀, 참가팀 수, 집계 확정 시각.
+  종료의 순위는 마지막 스냅샷(최종)이라 같은 조회로 된다.
 
   ⚠️ 순위를 여기서 매기지 않는다. 리더보드와 같은 조회(`loadLeaderboard`)에서
   스냅샷 순위가 있는 팀만 앞에서 셋을 자른다. 집계 전이면 빈 배열이다.
@@ -72,9 +74,13 @@ async function loadLive(seasonId: string): Promise<LandingLive> {
     new Date(),
   );
   const current = stage ? { key: stage.key, name: stage.name } : null;
-  if (process.env.NODE_ENV !== "production") return { stage: current, ...DEV_MOCK };
+  /* 집계 확정 = s5 마감(시안 「11.01 24:00 집계 확정 기준」, 제출 s5의 「집계 확정」과 같다) */
+  const s5 = stages.find((s) => s.stageKey === StageKey.s5);
+  const finalAt = s5?.closesAt?.toISOString() ?? null;
+  if (process.env.NODE_ENV !== "production") return { stage: current, finalAt, ...DEV_MOCK };
   return {
     stage: current,
+    finalAt,
     top: board.rows
       .filter((row) => row.rank !== null)
       .slice(0, 3)
@@ -110,7 +116,9 @@ export default async function Home() {
       orderBy: { startsAt: "asc" },
       select: { startsAt: true },
     }),
-    headerSeason?.kind === "stage" ? loadLive(season.id) : null,
+    headerSeason?.kind === "stage" || headerSeason?.kind === "done"
+      ? loadLive(season.id)
+      : null,
   ]);
 
   return (
@@ -123,6 +131,7 @@ export default async function Home() {
         startAt={season.startsAt?.toISOString() ?? null}
         preRegisterCount={preRegisterCount}
         recruitClosesAt={racingSchedule?.startsAt.toISOString() ?? null}
+        endsAt={season.endsAt?.toISOString() ?? null}
         live={live}
         footer={<Footer />}
       />
