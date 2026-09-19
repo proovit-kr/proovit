@@ -35,6 +35,7 @@ const PAIRS = [
   ["a", F + " > a", "footer > a", { all: true }],
   ["sns", F + " .sns", 'footer [class*="__sns"]', { flushRight: true }],
   ["soon", F + " .sns .soon", 'footer [class*="__soon"]', { all: true, pseudo: true }],
+  ["sns a", F + " .sns a", 'footer [class*="__sns"] a', { all: true }],
 ];
 
 const probe = (pairs) => `(() => {
@@ -71,14 +72,14 @@ const probe = (pairs) => `(() => {
   return { out, missing, hrefs };
 })()`;
 
-async function hoverValues(p, sel) {
+async function hoverValues(p, sel, label = "a") {
   await p.hover(sel);
   const v = await p.eval(`(() => {
     const cs = getComputedStyle(document.querySelector(${JSON.stringify(sel)}));
     return { color: cs.color, "text-decoration-line": cs.textDecorationLine };
   })()`);
   await p.hover();
-  return Object.fromEntries(Object.entries(v).map(([k, val]) => [`a:hover ${k}`, val]));
+  return Object.fromEntries(Object.entries(v).map(([k, val]) => [`${label}:hover ${k}`, val]));
 }
 
 /* 구현이 시즌 푸터를 그리는가 */
@@ -99,16 +100,33 @@ const pickRecruit = `(() => {
   return sec.dataset.state;
 })()`;
 
+/*
+  인스타그램은 계정이 생겨 링크로 바꿨다(2026-09-19 수연 지시). 시안의 예고
+  span을 푸터의 다른 링크와 같은 a로 바꿔 놓고 잰다 — 모양은 옆 링크들이 정본이다.
+*/
+const patchInstagram = `(() => {
+  document.querySelectorAll("#scr-landing .pub-foot .sns .soon").forEach((s) => {
+    if (s.textContent.trim() !== "Instagram") return;
+    const a = document.createElement("a");
+    a.href = "https://www.instagram.com/proovit_kr/";
+    a.textContent = "Instagram";
+    s.replaceWith(a);
+  });
+  return 1;
+})()`;
+
 let total = 0;
 for (const w of WIDTHS) {
   const spec = await withPage(async (p) => {
     await p.goto(SPEC_URL);
     if ((await p.eval(pickRecruit)) !== "recruit") throw new Error("시안 상태 전환 실패");
+    await p.eval(patchInstagram);
     await p.stripViewerShell();
     await p.resize(w, 1000);
     const r = await p.eval(probe(PAIRS.map(([n, s, , o]) => [n, s, o])));
     r.text = await p.eval(textNodes(F));
     Object.assign(r.out, await hoverValues(p, F + " > a"));
+    Object.assign(r.out, await hoverValues(p, F + " .sns a", "sns a"));
     return r;
   });
   const impl = await withPage(async (p) => {
@@ -119,6 +137,7 @@ for (const w of WIDTHS) {
     await p.eval('document.querySelector("footer").scrollIntoView({ behavior: "instant" })');
     await p.shot(`${OUT}/impl-${w}.png`);
     Object.assign(r.out, await hoverValues(p, "footer > a"));
+    Object.assign(r.out, await hoverValues(p, 'footer [class*="__sns"] a', "sns a"));
     return r;
   });
 

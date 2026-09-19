@@ -25,12 +25,13 @@ export async function Footer() {
 }
 
 /*
-  시안 ver4 `.pub-foot` — 워드마크 · 문서 링크 다섯 · SNS(준비 중).
+  시안 ver4 `.pub-foot` — 워드마크 · 문서 링크 다섯 · SNS 셋.
 
   「유효 이용자 기준」은 시안이 규칙 제4조로 보내는데, 우리 규칙서에서 그 정의는
   별표 1(지표 정의)이다.
 */
 const CONTACT = "help@proovit.kr";
+const INSTAGRAM = "https://www.instagram.com/proovit_kr/";
 
 function SeasonFooter() {
   return (
@@ -43,10 +44,15 @@ function SeasonFooter() {
       <Link href="/terms">이용약관</Link>
       <Link href="/privacy">개인정보처리방침</Link>
       <a href={`mailto:${CONTACT}`}>스폰서 문의</a>
-      {/* 계정이 아직 없다. 시안도 링크 없는 예고로 둔다 */}
+      {/*
+        계정이 없는 곳은 시안대로 링크 없는 예고로 둔다. 인스타그램은 계정이
+        생겨 연결한다(2026-09-19 수연 지시).
+      */}
       <span className={styles.sns}>
         <span className={styles.soon}>X</span>
-        <span className={styles.soon}>Instagram</span>
+        <a href={INSTAGRAM} target="_blank" rel="noopener noreferrer">
+          Instagram
+        </a>
         <span className={styles.soon}>Discord</span>
       </span>
     </footer>
