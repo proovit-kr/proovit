@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
   devImpersonate,
@@ -89,6 +89,55 @@ function PickButton({
   );
 }
 
+
+/*
+  위치 — 닫힌 줄을 끌어서 옮긴다. 이 브라우저에만 기억한다(도구 편의라 서버에
+  둘 것이 아니다).
+
+  ⚠️ state가 아니라 DOM 스타일에 직접 쓴다. 이 컴포넌트는 서버에서도 그려지는데,
+  저장된 위치를 state로 읽으면 첫 렌더가 서버와 달라 hydration이 어긋난다.
+  끄는 동안 매 프레임 다시 그리지 않는 것도 덤이다.
+
+  기준은 CSS와 같은 left·bottom이다 — 바가 위로 열리므로 아래를 붙들어야
+  열고 닫을 때 토글이 제자리에 있다.
+*/
+const POS_KEY = "pv-devbar-pos";
+const EDGE = 12;
+/* 이만큼 움직여야 끌기로 본다. 그보다 작으면 클릭(열고 닫기)이다 */
+const DRAG_SLOP = 4;
+
+type Pos = { left: number; bottom: number };
+
+function placed(el: HTMLElement): Pos | null {
+  if (!el.style.left) return null;
+  return { left: parseFloat(el.style.left), bottom: parseFloat(el.style.bottom) };
+}
+
+/* 화면 밖으로 못 나가게 — 열면 커지므로 열고 닫을 때와 창 크기가 바뀔 때도 다시 맞춘다 */
+function place(el: HTMLElement, p: Pos) {
+  const maxLeft = Math.max(EDGE, window.innerWidth - el.offsetWidth - EDGE);
+  const maxBottom = Math.max(EDGE, window.innerHeight - el.offsetHeight - EDGE);
+  el.style.left = `${Math.min(Math.max(p.left, EDGE), maxLeft)}px`;
+  el.style.bottom = `${Math.min(Math.max(p.bottom, EDGE), maxBottom)}px`;
+}
+
+function loadPos(): Pos | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(POS_KEY) ?? "null");
+    return v && typeof v.left === "number" && typeof v.bottom === "number" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function savePos(p: Pos) {
+  try {
+    localStorage.setItem(POS_KEY, JSON.stringify(p));
+  } catch {
+    /* 사생활 보호 창 등. 기억만 못 할 뿐 끌기는 된다 */
+  }
+}
+
 export function DevBarClient({
   blocked,
   me,
@@ -102,6 +151,68 @@ export function DevBarClient({
   flags = [],
 }: Props) {
   const [open, setOpen] = useState(false);
+  const barRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; y: number; from: Pos; moved: boolean } | null>(null);
+  /* 끌기를 끝낸 pointerup 뒤에 오는 click은 열고 닫기가 아니다 */
+  const swallowClick = useRef(false);
+
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const saved = loadPos();
+    if (saved) place(el, saved);
+    /* 기준은 늘 저장한 자리다 — 안쪽으로 밀린 자리를 기준으로 삼으면 되돌아오지 않는다 */
+    const onResize = () => {
+      const p = loadPos();
+      if (p) place(el, p);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  /*
+    열면 위로·오른쪽으로 커진다. 옮겨 둔 자리에서 화면 밖으로 넘치면 안쪽으로
+    민다. 닫으면 저장한 자리로 돌아간다.
+  */
+  useLayoutEffect(() => {
+    const el = barRef.current;
+    const p = loadPos();
+    if (el && p) place(el, p);
+  }, [open]);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const el = barRef.current;
+    if (!el || e.button !== 0) return;
+    const r = el.getBoundingClientRect();
+    drag.current = {
+      x: e.clientX,
+      y: e.clientY,
+      from: { left: r.left, bottom: window.innerHeight - r.bottom },
+      moved: false,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    const el = barRef.current;
+    if (!d || !el) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (!d.moved && Math.hypot(dx, dy) < DRAG_SLOP) return;
+    d.moved = true;
+    place(el, { left: d.from.left + dx, bottom: d.from.bottom - dy });
+  };
+
+  const onPointerUp = () => {
+    const d = drag.current;
+    drag.current = null;
+    const p = barRef.current && placed(barRef.current);
+    if (d?.moved && p) {
+      swallowClick.current = true;
+      savePos(p);
+    }
+  };
 
   if (blocked) {
     return (
@@ -113,7 +224,7 @@ export function DevBarClient({
   }
 
   return (
-    <div className={open ? `${styles.bar} ${styles.barOpen}` : styles.bar}>
+    <div ref={barRef} className={open ? `${styles.bar} ${styles.barOpen}` : styles.bar}>
       {/*
         패널을 토글 위에 그린다. 바가 아래에 붙어 위로 자라므로, 아래에 두면
         여는 순간 토글이 패널 높이만큼 밀려 올라가 닫으러 커서를 옮겨야 한다.
@@ -272,8 +383,19 @@ export function DevBarClient({
       <button
         type="button"
         className={styles.toggle}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (swallowClick.current) {
+            swallowClick.current = false;
+            return;
+          }
+          setOpen((v) => !v);
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         aria-expanded={open}
+        title="끌어서 옮기기"
       >
         <span className={styles.tag}>DEV</span>
         <span className={styles.who}>
