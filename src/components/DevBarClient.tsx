@@ -114,26 +114,10 @@ export function DevBarClient({
 
   return (
     <div className={open ? `${styles.bar} ${styles.barOpen}` : styles.bar}>
-      <button
-        type="button"
-        className={styles.toggle}
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <span className={styles.tag}>DEV</span>
-        <span className={styles.who}>
-          {me ? me.nickname : "비로그인"}
-          {current ? ` · ${current.teamName}` : null}
-        </span>
-        <span className={styles.summary}>
-          {current ? `${current.stage} / ${current.status}` : "참가 기록 없음"}
-          {season ? ` · ${season.phase}` : null}
-        </span>
-        <span className={styles.caret} aria-hidden>
-          {open ? "▾" : "▴"}
-        </span>
-      </button>
-
+      {/*
+        패널을 토글 위에 그린다. 바가 아래에 붙어 위로 자라므로, 아래에 두면
+        여는 순간 토글이 패널 높이만큼 밀려 올라가 닫으러 커서를 옮겨야 한다.
+      */}
       {open ? (
         <div className={styles.panel}>
           {/* ── 누구로 볼까 ─────────────────────────────────── */}
@@ -284,6 +268,26 @@ export function DevBarClient({
           </p>
         </div>
       ) : null}
+
+      <button
+        type="button"
+        className={styles.toggle}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span className={styles.tag}>DEV</span>
+        <span className={styles.who}>
+          {me ? me.nickname : "비로그인"}
+          {current ? ` · ${current.teamName}` : null}
+        </span>
+        <span className={styles.summary}>
+          {current ? `${current.stage} / ${current.status}` : "참가 기록 없음"}
+          {season ? ` · ${season.phase}` : null}
+        </span>
+        <span className={styles.caret} aria-hidden>
+          {open ? "▾" : "▴"}
+        </span>
+      </button>
     </div>
   );
 }
