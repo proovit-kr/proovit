@@ -294,9 +294,15 @@ const settle = `(async () => {
     화면 밖 요소가 영영 안 나타난다(파이널 제목이 그랬다).
   */
   const h = () => document.documentElement.scrollHeight;
-  for (let y = 0; y <= h(); y += 400) { window.scrollTo(0, y); await nap(90); }
+  /*
+    ⚠️ 즉시 스크롤한다. 페이지에 부드러운 스크롤이 걸려 있어 그냥 scrollTo는
+    애니메이션으로 따라가고, 긴 페이지(768)에서는 훑기가 끝나도 바닥에 못 닿아
+    파이널이 「안 나타남」으로 잡혔다.
+  */
+  const go = (top) => window.scrollTo({ top, behavior: "instant" });
+  for (let y = 0; y <= h(); y += 400) { go(y); await nap(90); }
   await nap(500);
-  window.scrollTo(0, 0);
+  go(0);
   await nap(1200);
 
   /*
@@ -474,6 +480,16 @@ for (const w of WIDTHS) {
   });
 
   console.log(`\n\n████ 폭 ${w}   스크롤만으로 나타난 리빌 — 시안 ${spec.naturally} / 구현 ${impl.naturally}`);
+  /*
+    ⚠️ 스크롤만으로 안 나타난 리빌은 **불일치로 센다.** 재기 전에 전부 강제로
+    켜기 때문에, 안 세면 영영 투명한 요소가 0건으로 통과한다 — 모집 중 파이널
+    「참가 신청하기」가 그랬다(LinkButton이 Reveal의 ref를 버렸다). 수연이 눈으로 잡았다.
+  */
+  const [shownN, allN] = impl.naturally.split("/").map(Number);
+  if (shownN !== allN) {
+    console.log(`  ✗ 구현본 리빌 ${allN - shownN}개가 스크롤해도 안 나타난다`);
+    total += allN - shownN;
+  }
   for (const m of spec.missing) console.log(`  ⚠️ 시안에서 못 찾음: ${m}`);
   for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
   total += spec.missing.length + impl.missing.length;
