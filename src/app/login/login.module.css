@@ -18,8 +18,10 @@
 .wrap {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 26px;
   padding: 40px 20px;
 }
 
@@ -132,15 +134,18 @@
   color: var(--accent);
   border-color: var(--accent);
 }
-
-.swap {
-  margin-top: 10px;
-  text-align: center;
-  font-size: 14px;
-  color: var(--muted);
+/*
+  「동의를」 뒤 줄바꿈(AuthCard.tsx). 앞 구절이 287px이고 카드 여백·테두리가
+  78px이라, 카드가 뷰포트에 맞춰 줄어드는 폭에서는 약 405px부터 들어간다.
+  여유를 두어 420px부터 끊는다.
+*/
+.termsBreak {
+  display: none;
 }
-.swap a {
-  color: var(--accent);
+@media (min-width: 420px) {
+  .termsBreak {
+    display: inline;
+  }
 }
 
 /*

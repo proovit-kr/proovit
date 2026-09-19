@@ -77,6 +77,9 @@
     (버튼·입력칸에서 이미 두 번 걸렸던 것과 같은 함정이다.)
   */
   font: revert;
+  /* 같은 프리플라이트 줄이 `color`·`letter-spacing`도 물려준다. 시안은 UA 기본이다 */
+  color: revert;
+  letter-spacing: revert;
   width: 17px;
   height: 17px;
   margin: 0;

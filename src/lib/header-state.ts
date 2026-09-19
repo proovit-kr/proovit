@@ -275,8 +275,6 @@ export type PublicHeaderInput = {
     slug: string;
     title: string;
     flags: { notifications: boolean };
-    /** s4 시작일이 지났다. 미정(null)이면 false */
-    s4Started: boolean;
   } | null;
   /** null이면 비로그인 */
   user: { kind: HeaderUser; initial: string; unread: number } | null;
@@ -304,20 +302,10 @@ function publicNav(season: NonNullable<PublicHeaderInput["season"]>): NavItem[] 
   };
 
   /*
-    ⚠️ **리더보드는 s4 시작일부터 연다**(2026-09-19 수연 지시). 시안은 모집 중부터
-    그리지만, 그 전에는 보여 줄 순위가 없다. 모집 중은 늘 s4 전이라 날짜를 보지
-    않고 숨기고, 진행 중은 s4 시작일로 가른다.
+    ⚠️ **리더보드 메뉴는 아카이브(P6)에만 둔다**(2026-09-19 수연 지시). 시안은 모집
+    중부터 그리지만, 모집 전·모집 중·진행 중·시즌 종료 넷 다 헤더에서 뺐다.
   */
-  switch (season.kind) {
-    case "pre":
-    case "recruit":
-      return [];
-    case "stage":
-      return season.s4Started ? [board] : [];
-    case "done":
-    case "arch":
-      return [board];
-  }
+  return season.kind === "arch" ? [board] : [];
 }
 
 /** 사전신청 폼. 「시즌 2 알림 받기」도 같은 폼을 쓴다(시안 판단 필요 P5, 이메일 수집이 같다) */

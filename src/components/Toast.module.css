@@ -1,17 +1,26 @@
+/*
+  토스트 — 시안 ver4 `#toast` (408~409행). 값은 시안 그대로다.
+
+  시안의 토스트는 하나뿐이다(`showToast`, 3604행). 크레딧·계정 동의·랜딩이
+  모두 이 모양을 쓴다.
+*/
 .toast {
   position: fixed;
-  bottom: 32px;
   left: 50%;
-  transform: translateX(-50%);
-  background: var(--c-lime);
-  color: var(--c-bg);
-  font-weight: 800;
-  font-size: var(--fs-md);
-  padding: 14px 24px;
-  border-radius: var(--r-lg);
-  box-shadow: var(--sh-toast);
-  animation: toastIn 0.25s ease-out;
-  z-index: 100;
-  max-width: calc(100vw - 48px);
-  text-align: center;
+  bottom: 34px;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  padding: 11px 22px;
+  font-size: 13.5px;
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.25s;
+  z-index: 99;
+}
+
+.on {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }

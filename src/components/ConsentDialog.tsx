@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Button } from "@/components/Button";
+import { Clauses } from "@/components/Clauses";
 import ConsentFields, {
   emptyConsent,
   isConsentComplete,
   type ConsentState,
 } from "@/components/ConsentFields";
+import { Toast, useToast } from "@/components/Toast";
 import { SIGNUP_CONSENTS } from "@/content/consent";
 
 import styles from "./ConsentDialog.module.css";
@@ -41,13 +43,7 @@ function SubmitButton({ ready }: { ready: boolean }) {
     체크박스 넷이 버튼 바로 위에 모여 있어 찾을 것이 없다.
   */
   return (
-    <Button
-      type="submit"
-      variant="primary"
-      size="lg"
-      block
-      disabled={!ready || pending}
-    >
+    <Button type="submit" variant="primary" disabled={!ready || pending}>
       {pending ? "저장 중…" : "동의하고 시작하기"}
     </Button>
   );
@@ -56,7 +52,7 @@ function SubmitButton({ ready }: { ready: boolean }) {
 function DeclineButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant="ghost" block disabled={pending}>
+    <Button type="submit" variant="ghost" disabled={pending}>
       동의하지 않고 로그아웃
     </Button>
   );
@@ -94,14 +90,18 @@ export function ConsentDialog({
           시작하기 전에 확인해 주세요
         </h2>
         <p className={styles.sub}>
-          {reconsent
-            ? /*
-                ⚠️ 개정 재동의에는 시안 문장을 그대로 쓰지 않는다. 「한 번만
-                받아요」는 처음 가입하는 사람에게 참인 말이고, 두 번째로 보는
-                사람에게는 거짓이 된다.
-              */
-              "약관이 개정되어 다시 확인이 필요해요. 바뀐 내용을 보고 동의해 주세요."
-            : "PROOVIT 계정을 만들려면 아래 항목에 동의가 필요해요. 한 번만 받아요."}
+          <Clauses
+            text={
+              reconsent
+                ? /*
+                    ⚠️ 개정 재동의에는 시안 문장을 그대로 쓰지 않는다. 「한 번만
+                    받아요」는 처음 가입하는 사람에게 참인 말이고, 두 번째로 보는
+                    사람에게는 거짓이 된다.
+                  */
+                  "약관이 개정되어 다시 확인이 필요해요. 바뀐 내용을 보고 동의해 주세요."
+                : "PROOVIT 계정을 만들려면 아래 항목에 동의가 필요해요. 한 번만 받아요."
+            }
+          />
         </p>
 
         {account ? (
@@ -159,11 +159,65 @@ export function ConsentDialog({
           <DeclineButton />
         </form>
 
+        {/*
+          문장 단위로 끊는다(2026-09-20 수연 결정 — 「물어볼게요.」 뒤). 모달 폭(389px)에서는
+          앞 두 문장(312px)이 한 줄, 390px 화면(307px)에서는 한 문장씩 한 줄이 된다.
+        */}
         <p className={styles.why}>
-          동의하지 않으면 로그아웃돼요. 다음에 로그인하면 다시 물어볼게요. 동의
-          내용은 계정 설정에서 언제든 확인하고 철회할 수 있어요.
+          <Clauses text="동의하지 않으면 로그아웃돼요. 다음에 로그인하면 다시 물어볼게요. 동의 내용은 계정 설정에서 언제든 확인하고 철회할 수 있어요." />
         </p>
       </div>
     </div>
+  );
+}
+
+/*
+  시안 ③ 「동의 저장, 보던 페이지로 복귀」. 모달이 걷히고 그 자리에 토스트가 뜬다
+  (시안 3787행). 옮겨 가는 곳은 없다 — 모달이 보던 페이지 위에 떠 있었으므로
+  걷히면 그대로 그 페이지다(`acceptAccountConsent`의 revalidate 주석).
+
+  ⚠️ 토스트는 모달 **밖**에 둔다. 저장이 끝나면 게이트가 `need`를 null로 다시
+  내려 모달이 떨어져 나가는데, 토스트가 모달 안에 있으면 함께 사라진다.
+*/
+export function AccountConsent({
+  need,
+  onAccept,
+  onDecline,
+}: {
+  need: {
+    provider: "kakao" | "google" | null;
+    maskedEmail: string;
+    reconsent: boolean;
+  } | null;
+  onAccept: (formData: FormData) => Promise<boolean>;
+  onDecline: () => Promise<void>;
+}) {
+  const { message, show } = useToast();
+  const saved = useRef(false);
+
+  /*
+    ⚠️ 액션이 끝난 순간이 아니라 **모달이 걷힌 순간**에 띄운다. 액션의 응답이 먼저
+    오고 새 레이아웃은 0.5초쯤 뒤에 붙어서, 저장 직후에 띄우면 「저장 중…」인
+    모달 밑에서 「돌아왔어요」가 먼저 뜬다.
+  */
+  useEffect(() => {
+    if (need || !saved.current) return;
+    saved.current = false;
+    show("동의를 저장했어요. 보던 페이지로 돌아왔어요");
+  }, [need, show]);
+
+  return (
+    <>
+      {need ? (
+        <ConsentDialog
+          {...need}
+          onAccept={async (formData) => {
+            saved.current = await onAccept(formData);
+          }}
+          onDecline={onDecline}
+        />
+      ) : null}
+      <Toast message={message} />
+    </>
   );
 }

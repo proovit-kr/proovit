@@ -107,6 +107,15 @@ export function NavBar({ season, viewer, glitchLogo, onPreregister, activeHref }
   */
   const [openAt, setOpenAt] = useState<string | null>(null);
   const menuOpen = openAt === pathname;
+  /*
+    로그인은 보던 페이지로 돌아온다(시안 ver4 `#scr-auth` 개발 메모 「콜백은
+    returnTo(직전 페이지, 없으면 홈)로 이동」). 홈이면 붙이지 않는다 — 기본값이 홈이다.
+    걸러내는 쪽은 로그인 화면(`safeNext`)이다.
+  */
+  const loginHref =
+    routePath && routePath !== "/"
+      ? `/login?callbackUrl=${encodeURIComponent(routePath)}`
+      : "/login";
 
   useEffect(() => {
     if (viewer !== undefined) return;
@@ -204,7 +213,7 @@ export function NavBar({ season, viewer, glitchLogo, onPreregister, activeHref }
       {hasNav ? <nav className={styles.nav}>{navLinks}</nav> : null}
       <span className={styles.rgt}>
         {model.login ? (
-          <Link href="/login" className={styles.login}>
+          <Link href={loginHref} className={styles.login}>
             로그인
           </Link>
         ) : null}
@@ -233,7 +242,7 @@ export function NavBar({ season, viewer, glitchLogo, onPreregister, activeHref }
         <div className={styles.menu}>
           {navLinks}
           {model.login ? (
-            <Link href="/login" className={styles.menuLogin}>
+            <Link href={loginHref} className={styles.menuLogin}>
               로그인
             </Link>
           ) : null}
