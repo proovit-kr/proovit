@@ -39,14 +39,18 @@ export const metadata: Metadata = {
 };
 
 /*
-  개발 환경의 전광판 목 데이터 — 시안 표본 팀명에 수연이 준 숫자(2026-09-19).
+  개발 환경의 진행 중 목 데이터 — 전광판은 시안 표본 팀명에 수연이 준 숫자, 참가팀은
+  시안의 28팀(2026-09-19 수연 지시). 사전 신청 수는 개발 환경도 실데이터 그대로다.
   배포본에는 절대 안 나간다: 관전자에게 가짜 순위를 보이면 이 서비스의 주장이 무너진다.
 */
-const DEV_MOCK_TOP: LandingLive["top"] = [
-  { entryId: "mock-1", teamName: "골목마켓", validVisitors: 328 },
-  { entryId: "mock-2", teamName: "모카브루", validVisitors: 203 },
-  { entryId: "mock-3", teamName: "두잇로그", validVisitors: 133 },
-];
+const DEV_MOCK: Pick<LandingLive, "top" | "teams"> = {
+  top: [
+    { entryId: "mock-1", teamName: "골목마켓", validVisitors: 328 },
+    { entryId: "mock-2", teamName: "모카브루", validVisitors: 203 },
+    { entryId: "mock-3", teamName: "두잇로그", validVisitors: 133 },
+  ],
+  teams: 28,
+};
 
 /*
   진행 중 전광판에 올릴 것 — 지금 스테이지, 상위 3팀, 참가팀 수.
@@ -67,19 +71,18 @@ async function loadLive(seasonId: string): Promise<LandingLive> {
     stages.map((s) => ({ ...s, key: s.stageKey })),
     new Date(),
   );
+  const current = stage ? { key: stage.key, name: stage.name } : null;
+  if (process.env.NODE_ENV !== "production") return { stage: current, ...DEV_MOCK };
   return {
-    stage: stage ? { key: stage.key, name: stage.name } : null,
-    top:
-      process.env.NODE_ENV === "production"
-        ? board.rows
-            .filter((row) => row.rank !== null)
-            .slice(0, 3)
-            .map((row) => ({
-              entryId: row.entryId,
-              teamName: row.teamName,
-              validVisitors: row.validVisitors,
-            }))
-        : DEV_MOCK_TOP,
+    stage: current,
+    top: board.rows
+      .filter((row) => row.rank !== null)
+      .slice(0, 3)
+      .map((row) => ({
+        entryId: row.entryId,
+        teamName: row.teamName,
+        validVisitors: row.validVisitors,
+      })),
     teams: board.rows.length,
   };
 }
