@@ -120,6 +120,27 @@ export function DevBarClient({
       */}
       {open ? (
         <div className={styles.panel}>
+          {/* ── 시즌 페이즈 ─────────────────────────────────── */}
+          <div className={styles.row}>
+            <span className={styles.label}>페이즈</span>
+            <div className={styles.picks}>
+              {season ? (
+                phases.map((phase) => (
+                  <PickButton
+                    key={phase.value}
+                    action={devSetPhase}
+                    fields={{ seasonId: season.id, phase: phase.value }}
+                    active={season.phase === phase.value}
+                  >
+                    {phase.label}
+                  </PickButton>
+                ))
+              ) : (
+                <span className={styles.empty}>시즌이 없습니다</span>
+              )}
+            </div>
+          </div>
+
           {/* ── 누구로 볼까 ─────────────────────────────────── */}
           <div className={styles.row}>
             <span className={styles.label}>계정</span>
@@ -184,27 +205,6 @@ export function DevBarClient({
                 ))
               ) : (
                 <span className={styles.empty}>팀을 먼저 고르세요</span>
-              )}
-            </div>
-          </div>
-
-          {/* ── 시즌 페이즈 ─────────────────────────────────── */}
-          <div className={styles.row}>
-            <span className={styles.label}>페이즈</span>
-            <div className={styles.picks}>
-              {season ? (
-                phases.map((phase) => (
-                  <PickButton
-                    key={phase.value}
-                    action={devSetPhase}
-                    fields={{ seasonId: season.id, phase: phase.value }}
-                    active={season.phase === phase.value}
-                  >
-                    {phase.label}
-                  </PickButton>
-                ))
-              ) : (
-                <span className={styles.empty}>시즌이 없습니다</span>
               )}
             </div>
           </div>
