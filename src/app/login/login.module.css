@@ -18,8 +18,10 @@
 .wrap {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 26px;
   padding: 40px 20px;
 }
 
@@ -131,16 +133,6 @@
 .terms a:hover {
   color: var(--accent);
   border-color: var(--accent);
-}
-
-.swap {
-  margin-top: 10px;
-  text-align: center;
-  font-size: 14px;
-  color: var(--muted);
-}
-.swap a {
-  color: var(--accent);
 }
 
 /*

@@ -1,14 +1,17 @@
 /*
-  인증 — 시안 `#scr-auth`(로그인·회원가입 2상태)와 `/login`·`/signup`을 대조한다.
+  인증 — 시안 ver4 `#scr-auth`와 `/login`을 대조한다.
+
+    node scripts/design-diff/auth.mjs          # ① 로그인 또는 회원가입 (entry)
+
+  ver4는 로그인과 회원가입을 한 화면으로 합쳤다. ②③(콜백 뒤 동의 모달)은
+  `/login`이 아니라 보던 페이지 위에 뜨므로 이 스크립트가 아직 재지 않는다.
 
   ⚠️ **시안 마크업의 클래스를 먼저 전부 뽑아 넣었다.** 지금까지 새어나간 것
   (히어로 격자·헤더 글리치·동의 블록)이 전부 「probe에 없어서」였다.
 
-    sed -n '1365,1391p' 시안.html | grep -oE 'class="[^"]*"'
+    sed -n '1684,1695p' 시안.html | grep -oE 'class="[^"]*"'
 
   로 나온 것 중 뷰어 크롬(screen·state-bar·sb)을 뺀 전부가 아래에 있다.
-
-    node scripts/design-diff/auth.mjs
 
   ⚠️ **카카오 키가 있어야 두 버튼이 다 나온다.** 없으면 Google 하나만 그려져
   버튼 순서와 자식 정렬을 대조할 수 없다(`auth-providers.ts`가 키 없는 제공자를
@@ -41,7 +44,6 @@ const CSS = [
 /* [이름, 시안 셀렉터, 구현본(모듈 이름 또는 셀렉터), 추가 속성, 뺄 속성] */
 const pairs = (mode) => {
   const S = `#scr-auth[data-state="${mode}"] `;
-  const only = mode === "login" ? ".only-login" : ".only-signup";
   return [
     /*
       ⚠️ min-height는 비교하지 않는다. 시안은 `calc(100vh - 52px - 41px)`인데
@@ -58,8 +60,8 @@ const pairs = (mode) => {
     */
     ["wm", S + ".auth-card .wm", "wm", [], ["width", "margin-left", "margin-right"]],
     ["wm em", S + ".auth-card .wm em", "wmCheck"],
-    ["h2", S + ".auth-card h2" + only, "title"],
-    ["sub", S + ".auth-card .sub" + only, "sub"],
+    ["h2", S + ".auth-card h2", "title"],
+    ["sub", S + ".auth-card .sub", "sub"],
     ["sso", S + ".sso", "sso", [], []],
     /*
       ⚠️ 제공자 클래스로 집는다. 카카오는 실제로 쓸 수 없지만
@@ -73,23 +75,10 @@ const pairs = (mode) => {
       ["stroke-width", "height"]],
     ["terms", S + ".auth-card .terms", "terms"],
     /*
-      ver3가 「이용약관」·「개인정보처리방침」을 링크로 만들었다. 상자만 재면
-      안의 링크가 없어도 통과하므로(푸터·CTA 버튼과 같은 부류) 직접 잰다.
+      「이용약관」·「개인정보 수집과 이용」 두 링크. 상자만 재면 안의 링크가
+      없어도 통과하므로(푸터·CTA 버튼과 같은 부류) 직접 잰다.
     */
     ["terms a", S + ".auth-card .terms a", '[class*="__terms"] a', [], ["width"]],
-    ["swap", S + ".auth-card .swap" + only, "swap"],
-    ["swap a", S + ".auth-card .swap" + only + " a", '[class*="__swap"] a'],
-    ...(mode === "signup"
-      ? [
-          ["consents", S + ".consents", '[class*="ConsentFields-module"][class*="root"]'],
-          ["consent row", S + ".consents label", '[class*="ConsentFields-module"][class*="row"]'],
-          ["consent box", S + ".consents input", '[class*="ConsentFields-module"][class*="checkbox"]',
-            [], ["font-size", "line-height", "color", "letter-spacing", "font-family"]],
-          ["consent req", S + ".consents .req", '[class*="ConsentFields-module"][class*="tagRequired"]'],
-          ["consent 보기", S + ".consents a.see", '[class*="ConsentFields-module"][class*="see"]',
-            [], ["display", "text-align", "width"]],
-        ]
-      : []),
   ];
 };
 
@@ -171,17 +160,14 @@ let total = 0;
 /*
   글자 대조. 카드 하나가 화면 전부라 카드째 긁는다.
 
-  ⚠️ 시안은 상태를 CSS(`.only-login`/`.only-signup`)로 감추는데 우리는
-  라우트가 갈린다. `textNodes`가 `display:none`을 건너뛰므로 양쪽 다
-  지금 보이는 것만 잡힌다.
+  `textNodes`가 `display:none`을 건너뛰므로 양쪽 다 지금 보이는 것만 잡힌다.
 */
 const TEXT_SPEC = (mode) => `#scr-auth[data-state="${mode}"] .auth-card`;
 const TEXT_IMPL = '[class*="login-module"][class*="__card"]';
 
 /*
-  hover로만 갈리는 것. 이 화면 고유의 규칙은 둘이다 —
-  `.auth-card .terms a:hover`와 `.consents a.see:hover`. 둘 다 ver3 신설이라
-  값 대조만으로는 빠뜨렸는지 알 수 없다.
+  hover로만 갈리는 것. ① 상태 고유의 규칙은 `.auth-card .terms a:hover`
+  하나다. 값 대조만으로는 빠뜨렸는지 알 수 없다.
 */
 const HOVER_CSS = ["color", "border-bottom-color", "background-color", "text-decoration-line"];
 const HOVER = (mode) => [
@@ -193,10 +179,6 @@ const HOVER = (mode) => [
     브라우저 기본값이 새기 쉽고, 값 대조는 기본 상태만 본다.
   */
   ["wm", `#scr-auth[data-state="${mode}"] .auth-card .wm`, '[class*="login-module"][class*="__wm"]'],
-  ...(mode === "signup"
-    ? [["보기", `#scr-auth[data-state="${mode}"] .consents a.see`,
-        '[class*="ConsentFields-module"][class*="__see"]']]
-    : []),
 ];
 
 async function hoverValues(p, mode, side) {
@@ -216,18 +198,26 @@ async function hoverValues(p, mode, side) {
   return out;
 }
 
-for (const mode of ["login", "signup"]) {
+/*
+  시안은 상태 바 버튼(`.sb[data-set]`)으로 고른다. `stripViewerShell()`이
+  상태 바를 가리기 **전에** 누른다 — data-state만 바꾸면 버튼에 딸린
+  연출(헤더 페이즈 등)이 따라오지 않는다.
+*/
+const pickState = (state) => `(() => {
+  const sec = document.getElementById("scr-auth");
+  sec.querySelector('.sb[data-set="' + ${JSON.stringify(state)} + '"]').click();
+  if (sec.dataset.state !== ${JSON.stringify(state)}) return "상태 전환 실패: " + sec.dataset.state;
+  return sec.dataset.state;
+})()`;
+
+for (const mode of ["entry"]) {
   for (const w of WIDTHS) {
     const list = pairs(mode);
     const spec = await withPage(async (p) => {
       await p.goto(SPEC_URL + "#auth");
+      const picked = await p.eval(pickState(mode));
+      if (picked !== mode) throw new Error(picked);
       await p.stripViewerShell();
-      /* 시안은 상태 바 버튼이 data-state를 바꾼다. 직접 지정한다 */
-      await p.eval(`(() => {
-        const s = document.getElementById("scr-auth");
-        s.dataset.state = ${JSON.stringify(mode)};
-        return 1;
-      })()`);
       await p.resize(w, 900);
       const r = await p.eval(run(list, "spec"));
       await p.shot(`${OUT}/spec-${mode}-${w}.png`);
@@ -236,7 +226,7 @@ for (const mode of ["login", "signup"]) {
       return r;
     });
     const impl = await withPage(async (p) => {
-      await p.goto(IMPL_URL + (mode === "login" ? "/login" : "/signup"));
+      await p.goto(IMPL_URL + "/login");
       await p.resize(w, 900);
       const r = await p.eval(run(list, "impl"));
       await p.shot(`${OUT}/impl-${mode}-${w}.png`);
