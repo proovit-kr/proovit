@@ -1,4 +1,4 @@
-import { ConsentDialog } from "@/components/ConsentDialog";
+import { AccountConsent } from "@/components/ConsentDialog";
 import { acceptAccountConsent, declineAccountConsent } from "@/app/actions/consent";
 import { getSessionUser } from "@/lib/access";
 import { loadAccountConsentNeed } from "@/lib/account-consent";
@@ -22,6 +22,10 @@ import { loadAccountConsentNeed } from "@/lib/account-consent";
   잃는다. 시안 ③이 「동의 저장, 보던 페이지로 복귀」인 이유가 그것이고,
   덮어 두면 복귀할 것도 없이 그 자리에 남는다.
 
+  ⚠️ **동의가 끝난 사람에게도 `AccountConsent`를 그린다**(모달 없이). 시안 ③의
+  토스트는 모달이 걷힌 뒤에 뜨는데, 모달과 함께 컴포넌트가 떨어져 나가면 토스트를
+  띄울 자리도 사라진다. 같은 자리에 남아 있어야 저장 전후로 상태가 이어진다.
+
   비용은 로그인 사용자 한정 조회 두어 건이다. 비로그인은 `getSessionUser`가
   세션 쿠키만 보고 곧바로 null을 내므로 DB를 읽지 않는다.
 */
@@ -30,13 +34,18 @@ export async function ConsentGate() {
   if (!user) return null;
 
   const need = await loadAccountConsentNeed(user.id);
-  if (!need.needed) return null;
 
   return (
-    <ConsentDialog
-      provider={need.provider}
-      maskedEmail={need.maskedEmail}
-      reconsent={need.reconsent}
+    <AccountConsent
+      need={
+        need.needed
+          ? {
+              provider: need.provider,
+              maskedEmail: need.maskedEmail,
+              reconsent: need.reconsent,
+            }
+          : null
+      }
       onAccept={acceptAccountConsent}
       onDecline={declineAccountConsent}
     />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Button } from "@/components/Button";
@@ -10,6 +10,7 @@ import ConsentFields, {
   isConsentComplete,
   type ConsentState,
 } from "@/components/ConsentFields";
+import { Toast, useToast } from "@/components/Toast";
 import { SIGNUP_CONSENTS } from "@/content/consent";
 
 import styles from "./ConsentDialog.module.css";
@@ -167,5 +168,56 @@ export function ConsentDialog({
         </p>
       </div>
     </div>
+  );
+}
+
+/*
+  시안 ③ 「동의 저장, 보던 페이지로 복귀」. 모달이 걷히고 그 자리에 토스트가 뜬다
+  (시안 3787행). 옮겨 가는 곳은 없다 — 모달이 보던 페이지 위에 떠 있었으므로
+  걷히면 그대로 그 페이지다(`acceptAccountConsent`의 revalidate 주석).
+
+  ⚠️ 토스트는 모달 **밖**에 둔다. 저장이 끝나면 게이트가 `need`를 null로 다시
+  내려 모달이 떨어져 나가는데, 토스트가 모달 안에 있으면 함께 사라진다.
+*/
+export function AccountConsent({
+  need,
+  onAccept,
+  onDecline,
+}: {
+  need: {
+    provider: "kakao" | "google" | null;
+    maskedEmail: string;
+    reconsent: boolean;
+  } | null;
+  onAccept: (formData: FormData) => Promise<boolean>;
+  onDecline: () => Promise<void>;
+}) {
+  const { message, show } = useToast();
+  const saved = useRef(false);
+
+  /*
+    ⚠️ 액션이 끝난 순간이 아니라 **모달이 걷힌 순간**에 띄운다. 액션의 응답이 먼저
+    오고 새 레이아웃은 0.5초쯤 뒤에 붙어서, 저장 직후에 띄우면 「저장 중…」인
+    모달 밑에서 「돌아왔어요」가 먼저 뜬다.
+  */
+  useEffect(() => {
+    if (need || !saved.current) return;
+    saved.current = false;
+    show("동의를 저장했어요. 보던 페이지로 돌아왔어요");
+  }, [need, show]);
+
+  return (
+    <>
+      {need ? (
+        <ConsentDialog
+          {...need}
+          onAccept={async (formData) => {
+            saved.current = await onAccept(formData);
+          }}
+          onDecline={onDecline}
+        />
+      ) : null}
+      <Toast message={message} />
+    </>
   );
 }

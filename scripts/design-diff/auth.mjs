@@ -4,11 +4,15 @@
     node scripts/design-diff/auth.mjs               # ①② 둘 다
     STATE=entry node scripts/design-diff/auth.mjs   # ① 로그인 또는 회원가입
     STATE=modal node scripts/design-diff/auth.mjs   # ② 콜백 뒤 동의 모달
+    STATE=back node scripts/design-diff/auth.mjs    # ③ 동의 저장, 보던 페이지로 복귀
 
   ver4는 로그인과 회원가입을 한 화면으로 합쳤다. ②는 `/login`이 아니라 보던
   페이지 위에 뜨므로 **계정 동의가 없는 세션**으로 `/`를 연다 — 세션은
   `consent-session.mts`가 대조 전용 dev 계정으로 만든다(`.env.development.local`
-  필수). ③(동의 저장, 보던 페이지로 복귀)은 모달이 걷힌 그 페이지라 잴 것이 없다.
+  필수). ③(동의 저장, 보던 페이지로 복귀)은 ②에서 필수를 체크하고 「동의하고
+  시작하기」를 **실제로 눌러** 만든다 — 시안도 상태 버튼이 아니라 `#consentGo`를
+  눌러야 토스트가 뜬다(3787행). 재는 것은 토스트와 모달이 걷혔는지다.
+  뒤 페이지·헤더(P7)는 `landing.mjs`·`header-states.mjs`가 본다.
 
   ⚠️ **시안 마크업의 클래스를 먼저 전부 뽑아 넣었다.** 지금까지 새어나간 것
   (히어로 격자·헤더 글리치·동의 블록)이 전부 「probe에 없어서」였다.
@@ -49,12 +53,28 @@ const CSS = [
 
 /* 구현본 동의 모달 요소. 모듈 이름만으로 집으면 뒤 페이지의 `.sub` 같은 것을 먼저 잡는다 */
 const D = (n) => `[class*="ConsentDialog-module"][class*="__${n}"]`;
+/* 켜진 토스트. 랜딩도 토스트를 늘 붙여 두므로(Toast.tsx) 켜진 것으로 집는다 */
+const TOAST = '[class*="Toast-module"][class*="__on"]';
 const F = (n) => `[class*="ConsentFields-module"][class*="__${n}"]`;
 
 /* [이름, 시안 셀렉터, 구현본(모듈 이름 또는 셀렉터), 추가 속성, 뺄 속성] */
 const pairs = (mode) => {
   const S = `#scr-auth[data-state="${mode}"] `;
   if (mode === "modal") return modalPairs(S + ".consent");
+  if (mode === "back") return [
+    /*
+      left·width·transform(px)은 재지 않는다. 기준이 뷰포트에서 스크롤바를 뺀 폭이라
+      우리 랜딩(길어서 스크롤바 10px)과 시안(히어로만 잘라 둔 짧은 페이지)이 5px
+      어긋난다. 자리는 ▸가운데·▸바닥 거리가 본다.
+
+      ⚠️ 폭이 화면 절반이라 390에서 두 줄이 된다. 우리는 문장 단위로 끊으므로
+      (Toast.tsx) 끊는 자리가 시안과 다르지만 줄 수는 같아야 한다 — height가 본다.
+    */
+    ["toast", "#toast.on", TOAST, [
+      "position", "bottom", "opacity", "z-index", "pointer-events",
+      "transition-duration", "border-top-left-radius", "height",
+    ], ["width"]],
+  ];
   return [
     /*
       ⚠️ min-height는 비교하지 않는다. 시안은 `calc(100vh - 52px - 41px)`인데
@@ -206,6 +226,15 @@ const probe = () => `(() => {
       if (c2.backgroundColor !== "rgba(0, 0, 0, 0)" || c2.backgroundImage !== "none") opaque++;
     }
     out[name + " ▸불투명한 조상 수"] = String(opaque);
+    /* ③ 모달이 걷혔는가 — 보이는 aria-modal 대화상자 수 */
+    if (name === "toast") {
+      const r = el.getBoundingClientRect();
+      const vw = document.documentElement.clientWidth;
+      out[name + " ▸가운데"] = Math.abs(r.left - (vw - r.right)) < 1 ? "가운데" : "치우침";
+      out[name + " ▸바닥 거리"] = String(Math.round(innerHeight - r.bottom));
+      out[name + " ▸보이는 모달"] = String([...document.querySelectorAll('[aria-modal="true"]')]
+        .filter((d) => d.getClientRects().length).length);
+    }
     /* 넘침 — 콘텐츠가 상자를 벗어났는가 */
     out[name + " ▸가로 넘침"] = String(el.scrollWidth > el.clientWidth + 1);
     /*
@@ -232,9 +261,9 @@ let total = 0;
 
   `textNodes`가 `display:none`을 건너뛰므로 양쪽 다 지금 보이는 것만 잡힌다.
 */
-const TEXT_SPEC = (mode) =>
+const TEXT_SPEC = (mode) => mode === "back" ? "#toast" :
   `#scr-auth[data-state="${mode}"] ${mode === "modal" ? ".consent" : ".auth-card"}`;
-const TEXT_IMPL = (mode) =>
+const TEXT_IMPL = (mode) => mode === "back" ? TOAST :
   mode === "modal" ? D("dialog") : '[class*="login-module"][class*="__card"]';
 /*
   ② 모달의 계정 이메일은 데이터다. 대조 전용 계정이 example.com이라 시안의
@@ -247,7 +276,7 @@ const TEXT_IGNORE = [/^[^@\s]{1,4}\*\*\*@/];
   하나다. 값 대조만으로는 빠뜨렸는지 알 수 없다.
 */
 const HOVER_CSS = ["color", "border-bottom-color", "background-color", "text-decoration-line"];
-const HOVER = (mode) => mode === "modal" ? [
+const HOVER = (mode) => mode === "back" ? [] : mode === "modal" ? [
   /* `.consents a.see:hover`가 라임이다. 거부 버튼은 `.btn-ghost:hover` */
   ["see", "#scr-auth .consent a.see", F("see")],
   ["out", "#consentOut", `${D("declineForm")} button`],
@@ -298,16 +327,37 @@ const consentToken = () =>
     "scripts/design-diff/consent-session.mts",
   ], { cwd: REPO, encoding: "utf8" }).trim().split("\n").pop();
 
-const MODES = process.env.STATE ? [process.env.STATE] : ["entry", "modal"];
-const token = MODES.includes("modal") ? consentToken() : null;
+/*
+  ③을 만든다 — 「모두 동의」를 누르고 시작 버튼을 누른 뒤 토스트가 켜질 때까지 기다린다.
+  구현본은 서버 액션이 동의를 **실제로 저장**하므로 폭마다 세션을 새로 받는다.
+*/
+const submitConsent = (master, go, toast) => `new Promise((ok, fail) => {
+  document.querySelector(${JSON.stringify(master)}).click();
+  const btn = document.querySelector(${JSON.stringify(go)});
+  if (btn.disabled) return fail(new Error("필수를 다 체크했는데 시작 버튼이 잠겨 있다"));
+  btn.click();
+  const t0 = Date.now();
+  (function wait() {
+    if (document.querySelector(${JSON.stringify(toast)})) return ok(1);
+    if (Date.now() - t0 > 8000) return fail(new Error("토스트가 안 떴다"));
+    setTimeout(wait, 50);
+  })();
+})`;
+
+const MODES = process.env.STATE ? [process.env.STATE] : ["entry", "modal", "back"];
+const needsSession = (mode) => mode === "modal" || mode === "back";
+let token = MODES.includes("modal") ? consentToken() : null;
 
 for (const mode of MODES) {
   for (const w of WIDTHS) {
     const list = pairs(mode);
     const spec = await withPage(async (p) => {
       await p.goto(SPEC_URL + "#auth");
-      const picked = await p.eval(pickState(mode));
-      if (picked !== mode) throw new Error(picked);
+      const picked = await p.eval(pickState(mode === "back" ? "modal" : mode));
+      if (picked !== mode && !(mode === "back" && picked === "modal")) throw new Error(picked);
+      if (mode === "back") {
+        await p.eval(submitConsent("#consentBox [data-master]", "#consentGo", "#toast.on"), true);
+      }
       await p.stripViewerShell();
       await p.resize(w, 900);
       const r = await p.eval(run(list, "spec"));
@@ -322,14 +372,22 @@ for (const mode of MODES) {
         ①의 `/login`이 로그인된 채 열려 다른 화면으로 넘어간다 — 매번 비운다.
       */
       await p.send("Network.clearBrowserCookies");
-      if (mode === "modal") {
+      if (mode === "back") token = consentToken();
+      if (needsSession(mode)) {
         await p.send("Network.setCookie", {
           name: "authjs.session-token", value: token,
           domain: new URL(IMPL_URL).hostname, path: "/",
         });
       }
-      await p.goto(IMPL_URL + (mode === "modal" ? "/" : "/login"));
+      await p.goto(IMPL_URL + (needsSession(mode) ? "/" : "/login"));
       await p.resize(w, 900);
+      if (mode === "back") {
+        await p.eval(submitConsent(`${F("all")} input`, `${D("ft")} button`, TOAST), true);
+        await p.settle();
+        /* 보던 페이지 그대로인가 — 동의가 다른 화면으로 튕기면 안 된다 */
+        const path = await p.eval("location.pathname");
+        if (path !== "/") throw new Error(`동의 뒤 주소가 ${path}로 바뀌었다`);
+      }
       const r = await p.eval(run(list, "impl"));
       await p.shot(`${OUT}/impl-${mode}-${w}.png`);
       r.text = await p.eval(textNodes(TEXT_IMPL(mode)));

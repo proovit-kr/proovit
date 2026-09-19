@@ -21,16 +21,18 @@ import { prisma } from "@/lib/prisma";
  *
  * ⚠️ **필수 셋을 서버에서 다시 본다.** 화면이 버튼을 잠그지만 그건 편의고,
  * 액션은 직접 호출될 수 있다. 동의 없이 행이 쌓이면 그 기록이 오히려 거짓 증빙이 된다.
+ *
+ * 저장했으면 true. 화면이 그걸 보고 시안 ③의 토스트를 띄운다.
  */
-export async function acceptAccountConsent(formData: FormData) {
+export async function acceptAccountConsent(formData: FormData): Promise<boolean> {
   const user = await getSessionUser();
   /* 세션이 끊긴 채로 눌린 경우. 조용히 끝낸다 — 모달은 다음 진입에서 다시 뜬다 */
-  if (!user) return;
+  if (!user) return false;
 
   const terms = formData.get("consent-terms") === "on";
   const privacy = formData.get("consent-privacy") === "on";
   const age = formData.get("consent-age") === "on";
-  if (!terms || !privacy || !age) return;
+  if (!terms || !privacy || !age) return false;
 
   const marketing = formData.get("consent-marketing") === "on";
 
@@ -57,6 +59,7 @@ export async function acceptAccountConsent(formData: FormData) {
     페이지만 무효화해서 모달이 그대로 남는다.
   */
   revalidatePath("/", "layout");
+  return true;
 }
 
 /**

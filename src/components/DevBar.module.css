@@ -18,7 +18,7 @@
   position: fixed;
   bottom: calc(12px + env(safe-area-inset-bottom));
   left: calc(12px + env(safe-area-inset-left));
-  /* 토스트(--sh-toast를 쓰는 것들)보다 위. 화면 위 무엇에도 가리면 안 된다 */
+  /* 토스트(z-index 99)보다 위. 화면 위 무엇에도 가리면 안 된다 */
   z-index: 9999;
   width: max-content;
   max-width: calc(100vw - 24px);
