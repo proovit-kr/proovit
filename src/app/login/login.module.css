@@ -134,6 +134,19 @@
   color: var(--accent);
   border-color: var(--accent);
 }
+/*
+  「동의를」 뒤 줄바꿈(AuthCard.tsx). 앞 구절이 287px이고 카드 여백·테두리가
+  78px이라, 카드가 뷰포트에 맞춰 줄어드는 폭에서는 약 405px부터 들어간다.
+  여유를 두어 420px부터 끊는다.
+*/
+.termsBreak {
+  display: none;
+}
+@media (min-width: 420px) {
+  .termsBreak {
+    display: inline;
+  }
+}
 
 /*
   ⚠️ 시안에 없는 것. Auth.js가 `?error=`로 돌려보내는 실패를 적는 자리다.
