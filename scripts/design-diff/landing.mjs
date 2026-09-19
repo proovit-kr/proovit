@@ -114,7 +114,7 @@ const ALL_PAIRS = [
   /* 폭은 안 본다. 막대 칸이 점수 글자 폭을 뺀 나머지라 데이터(팀명·점수)를 따라간다 */
   ["slot bar i", S + ".ld-live .slot .bar i", '[class*="__slotBar"] > i', ["top", "bottom", "left"]],
   ["slot 마지막", S + ".ld-live .slot:last-of-type", '[class*="__slotLive"]:last-of-type'],
-  /* 자간은 모집 전·모집 중만 안 본다. 두 열일 때 한 줄에 담으려고 -0.02em으로 좁혔다(2026-09-19 수연 결정) */
+  /* 자간은 모집 전·모집 중(-0.02em)·진행 중(-0.05em)에 안 본다. 두 열일 때 한 줄에 담으려고 좁혔다(2026-09-19 수연 결정) */
   ["live ex", S + ".ld-live .ex", "liveNote"],
   ["stats", S + ".ld-stats", "stats"],
   ["stat score", S + ".ld-stat .score", "@stat .score"],
@@ -427,7 +427,8 @@ const ANCHOR_SKIP = {
     ? { "cta 버튼1": ["line-height", "text-align"], "cta 버튼2": ["line-height", "text-align"],
         fin: ["::before height"] }
     : {}),
-  ...(STATE === "pre" || STATE === "recruit" ? { "live ex": ["letter-spacing"] } : {}),
+  /* 진행 중도 같은 이유로 -0.05em이다(2026-09-19 수연 결정) */
+  ...(STATE !== "done" ? { "live ex": ["letter-spacing"] } : {}),
 };
 const PAIRS = ALL_PAIRS
   .filter(([n]) => n === "hint" ? hasHint : FORM_PAIRS.includes(n) ? hasForm

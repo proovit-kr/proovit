@@ -590,8 +590,8 @@ export function Landing({
                 );
               })}
               {racing ? (
-                <p className={styles.liveNote}>
-                  {/* 두 열일 때 「있어요.」만 홀로 떨어진다(시안도 그렇다). 끝 세 어절을 묶는다 */}
+                <p className={cx(styles.liveNote, styles.liveNoteFitLive)}>
+                  {/* 한 열로 좁아져 두 줄이 될 때 끝 세 어절이 함께 넘어가게 묶는다 */}
                   유효 이용자 기준, 15분마다 갱신돼요. 전체 순위는 리더보드에서{" "}
                   {"볼\u00a0수\u00a0있어요."}
                 </p>
