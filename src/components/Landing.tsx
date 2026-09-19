@@ -15,7 +15,6 @@ import ConsentFields, {
   type ConsentState,
 } from "./ConsentFields";
 import { Input } from "./Field";
-import { Footer } from "./Footer";
 import { Glitch } from "./Glitch";
 import { NavBar } from "./NavBar";
 import { Toast, useToast } from "./Toast";
@@ -64,6 +63,8 @@ export interface LandingProps {
   preRegisterCount: number;
   /** 참가 신청 마감 = 레이스 전환 예정 시각(ISO). 일정 행이 없으면 null */
   recruitClosesAt: string | null;
+  /** 공개 푸터. 서버 컴포넌트라 여기서 import하지 못해 페이지가 만들어 넘긴다 */
+  footer: ReactNode;
 }
 
 /*
@@ -184,6 +185,7 @@ export function Landing({
   headerSeason,
   preRegisterCount,
   recruitClosesAt,
+  footer,
 }: LandingProps) {
   const { message, show } = useToast();
   const recruiting = headerSeason?.kind === "recruit";
@@ -756,7 +758,7 @@ export function Landing({
         </div>
       </div>
 
-      <Footer />
+      {footer}
       <Toast message={message} />
       <ClauseFit />
     </div>

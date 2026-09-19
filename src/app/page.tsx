@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { SeasonPhase } from "@/generated/prisma/client";
+import { Footer } from "@/components/Footer";
 import { OrganizationJsonLd } from "@/components/JsonLd";
 import { Landing } from "@/components/Landing";
 import { prisma } from "@/lib/prisma";
@@ -69,6 +70,7 @@ export default async function Home() {
         startAt={season.startsAt?.toISOString() ?? null}
         preRegisterCount={preRegisterCount}
         recruitClosesAt={racingSchedule?.startsAt.toISOString() ?? null}
+        footer={<Footer />}
       />
     </>
   );

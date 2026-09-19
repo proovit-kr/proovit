@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { SeasonPhase, StageKey, type Season } from "@/generated/prisma/client";
 import { parseFeatureFlags } from "@/lib/feature-flags";
 import { toHeaderSeason, type PublicHeaderInput } from "@/lib/header-state";
@@ -80,7 +82,11 @@ export type CurrentSeason = Season & { stages: { opensAt: Date | null }[] };
   s4 행의 시작일을 함께 싣는다 — 공개 헤더의 리더보드 메뉴가 그 날부터 열린다
   (`publicHeaderSeason`).
 */
-export async function getCurrentSeason(): Promise<CurrentSeason | null> {
+/*
+  `cache`로 요청 안에서 한 번만 조회한다 — 페이지·헤더·푸터가 각자 부른다.
+  렌더 밖(라우트 핸들러)에서는 캐시 없이 그냥 조회한다.
+*/
+export const getCurrentSeason = cache(async (): Promise<CurrentSeason | null> => {
   return prisma.season.findFirst({
     where: { phase: { not: SeasonPhase.draft } },
     orderBy: { createdAt: "desc" },
@@ -88,4 +94,4 @@ export async function getCurrentSeason(): Promise<CurrentSeason | null> {
       stages: { where: { stageKey: StageKey.s4 }, select: { opensAt: true } },
     },
   });
-}
+});
