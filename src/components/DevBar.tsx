@@ -42,12 +42,16 @@ const STATUSES: { value: EntryStatus; label: string }[] = [
   { value: EntryStatus.withdrawn, label: "포기" },
 ];
 
+/*
+  랜딩 시안의 네 상태(모집 전·모집 중·진행 중·시즌 종료)와 하나씩 맞춘다.
+  「종료」는 `awarded`다. `archived`는 시안에 랜딩 상태가 없어 뺐다
+  (2026-09-19 수연 결정 — 「종료」가 archived라 랜딩 ④ 대신 ①이 떠 헷갈렸다).
+*/
 const PHASES: { value: SeasonPhase; label: string }[] = [
   { value: SeasonPhase.pre_apply, label: "사전신청" },
   { value: SeasonPhase.recruiting, label: "모집" },
   { value: SeasonPhase.racing, label: "레이스" },
-  { value: SeasonPhase.awarded, label: "시상" },
-  { value: SeasonPhase.archived, label: "종료" },
+  { value: SeasonPhase.awarded, label: "종료" },
 ];
 
 /* 레이스 중 지금 스테이지. 페이즈가 레이스일 때만 줄이 뜬다 */
