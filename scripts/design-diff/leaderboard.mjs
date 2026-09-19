@@ -1,14 +1,14 @@
 /*
   리더보드 — 시안 `#scr-leaderboard`(3상태)와 `/seasons/:slug/leaderboard`를 대조한다.
 
-  시안 마크업의 클래스를 먼저 전부 뽑아 넣었다.
-    sed -n '1393,1444p' 시안.html | grep -oE 'class="[^"]*"'
+    STATE=lb-empty node scripts/design-diff/leaderboard.mjs   # ① 집계 전
+    STATE=lb-race  node scripts/design-diff/leaderboard.mjs   # ② 레이스 운영중
+    STATE=lb-final node scripts/design-diff/leaderboard.mjs   # ③ 시즌 종료
 
   ⚠️ 상태가 데이터로 갈린다. 시안은 패널 셋을 버튼으로 바꾸지만 우리는
-  DB 상태가 정한다 — dev DB가 어느 상태인지에 따라 비교 대상이 달라진다.
-  아래 `IMPL_STATE`가 지금 무엇을 그리는지 먼저 찍는다.
-
-    node scripts/design-diff/leaderboard.mjs
+  DB 상태가 정한다 — 구현본이 지금 무엇을 그리는지(`stateOf`) 먼저 찍고,
+  `STATE`와 다르면 재지 않고 멈춘다. STATE를 안 주면 구현본 상태를 따른다.
+  ① 집계 전은 dev DB를 racing + 집계 픽스처 none으로 만든다.
 */
 import {
   withPage, diffTable, diffText, textNodes,
@@ -109,12 +109,30 @@ const FINAL = [
   ["tbl ▸열", F + ".lb-tbl thead tr", '[class*="__table"] thead tr'],
 ];
 
-/* 집계 전 */
+/*
+  집계 전. 눈썹·제목 줄·트랙은 세 상태가 같이 쓰는 것이라 여기서도 잰다 —
+  시안 ①은 표 대신 빈 상자가 들어갈 뿐 위쪽은 ②와 같다.
+*/
+const E = S + ".pane[data-id='lb-empty'] ";
 const EMPTY = [
   ["lb-wrap", S + ".lb-wrap", "wrap", [], ["margin-left"]],
-  ["lb-empty", S + ".pane[data-id='lb-empty'] .lb-empty", "empty"],
-  ["empty big", S + ".pane[data-id='lb-empty'] .lb-empty .big", "emptyBig"],
-  ["empty p", S + ".pane[data-id='lb-empty'] .lb-empty p", '[class*="__empty"] p'],
+  ["eyebrow", S + ".lb-eyebrow", "eyebrow"],
+  ["eyebrow cur", S + ".lb-eyebrow .cur", '[class*="__eyebrow"] [class*="__cur"]', [], ["width"]],
+  ["head", S + ".lb-head", "head"],
+  ["h1", S + ".lb-head h1", "title", [], ["width"]],
+  ["upd", S + ".lb-head .upd", "upd", [], ["width", "margin-left"]],
+  ["upd i", S + ".lb-head .upd i", '[class*="__upd"] i', [], ["opacity"]],
+  ["stg-track", S + ".stg-track", "track"],
+  ["stg", S + ".stg-track .stg.done", '[class*="__done"]'],
+  ["stg .n", S + ".stg-track .stg.done .n", '[class*="__done"] [class*="__stgKey"]'],
+  ["stg.now", S + ".stg-track .stg.now", '[class*="__now"]'],
+  ["stg.gate", S + ".stg-track .stg.gate", '[class*="__gate"]'],
+  ["stg 기본", S + ".stg-track .stg:not(.done):not(.now):not(.gate)", 'li[class*="__stg"]:not([class*="__done"]):not([class*="__now"]):not([class*="__gate"])'],
+  /* 남은 시간 글자 길이가 데이터라 문장 폭은 뺀다 */
+  ["lb-empty", E + ".lb-empty", "empty"],
+  ["empty big", E + ".lb-empty .big", "emptyBig", [], ["width"]],
+  ["empty big b", E + ".lb-empty .big b", '[class*="__emptyBig"] b', [], ["width"]],
+  ["empty p", E + ".lb-empty p", '[class*="__empty"] p'],
 ];
 
 const probe = () => `(() => {
@@ -243,28 +261,43 @@ const implSel = (v) =>
 
 let total = 0;
 const implState = await withPage(async (p) => {
+  await p.send("Network.clearBrowserCookies");
   await p.goto(`${IMPL_URL}/seasons/${SLUG}/leaderboard`);
   await p.resize(1440, 900);
   return p.eval(stateOf);
 });
 console.log(`구현본이 지금 그리는 상태: ${implState}`);
 
-const plan =
-  implState === "집계 전"
-    ? [["lb-empty", EMPTY]]
-    : implState === "시즌 종료"
-      ? [["lb-final", FINAL]]
-      : [["lb-race", RACE]];
+const PANE_OF = { "집계 전": "lb-empty", "레이스 운영중": "lb-race", "시즌 종료": "lb-final" };
+const LIST_OF = { "lb-empty": EMPTY, "lb-race": RACE, "lb-final": FINAL };
+const want = process.env.STATE ?? PANE_OF[implState];
+if (!LIST_OF[want]) throw new Error(`STATE는 lb-empty·lb-race·lb-final 중 하나: ${want}`);
+if (PANE_OF[implState] !== want) {
+  throw new Error(`구현본이 ${implState}을 그린다 — ${want}를 재려면 dev DB를 먼저 바꾼다`);
+}
+const plan = [[want, LIST_OF[want]]];
+
+/*
+  시안은 상태 바 버튼(`.sb[data-pane]`)으로 고른다. `stripViewerShell()`이
+  상태 바를 가리기 **전에** 누른다 — 패널만 켜면 버튼에 딸린 헤더 페이즈가
+  따라오지 않는다(auth.mjs와 같은 방식).
+*/
+const pickPane = (pane) => `(() => {
+  const sec = document.getElementById("scr-leaderboard");
+  sec.querySelector('.sb[data-pane="' + ${JSON.stringify(pane)} + '"]').click();
+  const on = sec.querySelector(".pane.on");
+  return on ? on.dataset.id : "켜진 패널 없음";
+})()`;
 
 for (const [pane, list] of plan) {
   for (const w of WIDTHS) {
     const spec = await withPage(async (p) => {
       await p.goto(SPEC_URL + "#leaderboard");
+      const picked = await p.eval(pickPane(pane));
+      if (picked !== pane) throw new Error(`시안 상태 전환 실패: ${picked}`);
       await p.stripViewerShell();
-      /* 시안은 상태 바 버튼이 패널을 바꾼다. 직접 켠다 */
       await p.eval(`(() => {
         const sec = document.getElementById("scr-leaderboard");
-        sec.querySelectorAll(".pane").forEach(x => x.classList.toggle("on", x.dataset.id === ${JSON.stringify(pane)}));
         /*
           ⚠️ 화면 전환 애니메이션(fadeUp .3s)을 끝낸다. 안 끄면 캡처가 페이드
           도중을 찍어서 스크린샷 전체가 흐리게 나온다 — 값은 맞는데 눈으로
@@ -286,6 +319,8 @@ for (const [pane, list] of plan) {
       return r;
     });
     const impl = await withPage(async (p) => {
+      /* 공개 화면이다. auth.mjs가 남긴 세션이 있으면 로그인 헤더로 그려진다 */
+      await p.send("Network.clearBrowserCookies");
       await p.goto(`${IMPL_URL}/seasons/${SLUG}/leaderboard`);
       await p.resize(w, 900);
       const r = await p.eval(run(list, "impl", w));
