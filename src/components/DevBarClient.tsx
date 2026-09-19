@@ -9,7 +9,6 @@ import {
   devSetStage,
   devSetStatus,
   devSetTeam,
-  devToggleFlag,
 } from "@/app/actions/dev";
 
 import styles from "./DevBar.module.css";
@@ -54,7 +53,6 @@ type Props = {
   phases?: Option<string>[];
   raceStages?: Option<string>[];
   metrics?: Option<string>[];
-  flags?: { key: string; label: string; on: boolean }[];
 };
 
 /*
@@ -151,7 +149,6 @@ export function DevBarClient({
   phases = [],
   raceStages = [],
   metrics = [],
-  flags = [],
 }: Props) {
   const [open, setOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
@@ -367,34 +364,6 @@ export function DevBarClient({
                     active={season.metrics === kind.value}
                   >
                     {kind.label}
-                  </PickButton>
-                ))
-              ) : (
-                <span className={styles.empty}>시즌이 없습니다</span>
-              )}
-            </div>
-          </div>
-
-          {/* ── 기능 플래그 ─────────────────────────────────── */}
-          <div className={styles.row}>
-            <span className={styles.label}>
-              플래그
-              <em className={styles.hint}>꺼진 화면은 404</em>
-            </span>
-            <div className={styles.picks}>
-              {season ? (
-                flags.map((flag) => (
-                  <PickButton
-                    key={flag.key}
-                    action={devToggleFlag}
-                    fields={{
-                      seasonId: season.id,
-                      flag: flag.key,
-                      value: flag.on ? "0" : "1",
-                    }}
-                    active={flag.on}
-                  >
-                    {flag.label}
                   </PickButton>
                 ))
               ) : (

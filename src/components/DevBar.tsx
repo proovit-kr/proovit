@@ -10,7 +10,6 @@ import {
   hasSandboxTeam,
   loadSandboxState,
 } from "@/lib/dev-sandbox";
-import { featureFlagsSchema } from "@/lib/feature-flags";
 
 import { DevBarClient } from "./DevBarClient";
 
@@ -70,16 +69,6 @@ const METRICS: { value: string; label: string }[] = [
   { value: "final", label: "시즌 종료" },
 ];
 
-const FLAG_LABEL: Record<string, string> = {
-  leaderboard: "리더보드",
-  notifications: "알림",
-  deposit: "보증금",
-  testerAssignments: "테스터",
-  credits: "혜택",
-  sponsors: "스폰서",
-  archive: "아카이브",
-};
-
 export async function DevBar() {
   const check = checkDevSandbox();
   /*
@@ -113,11 +102,6 @@ export async function DevBar() {
       phases={PHASES}
       raceStages={RACE_STAGES}
       metrics={METRICS}
-      flags={Object.keys(featureFlagsSchema.shape).map((key) => ({
-        key,
-        label: FLAG_LABEL[key] ?? key,
-        on: state.season?.flags[key] === true,
-      }))}
     />
   );
 }

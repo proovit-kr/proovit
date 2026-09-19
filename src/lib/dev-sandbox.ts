@@ -15,7 +15,6 @@ import {
   APPLY_CONSENTS,
 } from "@/content/consent";
 import { applyConsentRows } from "@/lib/apply-store";
-import type { FeatureFlagKey } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -108,7 +107,6 @@ export type SandboxState = {
     id: string;
     slug: string;
     phase: SeasonPhase;
-    flags: Record<string, boolean>;
     /** 리더보드가 지금 어느 상태로 보이는가 */
     metrics: MetricsFixture;
     /** 지금 스테이지 — 창이 열린 것 중 마지막(`currentStage`와 같은 정의). 하나도 안 열렸으면 null */
@@ -151,7 +149,6 @@ export async function loadSandboxState(): Promise<SandboxState> {
         id: true,
         slug: true,
         phase: true,
-        featureFlags: true,
         /*
           집계 상태를 여기서 같이 읽는다. findFirst를 따로 부르면 페이지를 그릴
           때마다 왕복이 한 번 더 는다 — 이 바는 **모든 화면**에 붙어 있다.
@@ -193,7 +190,6 @@ export async function loadSandboxState(): Promise<SandboxState> {
           id: season.id,
           slug: season.slug,
           phase: season.phase,
-          flags: (season.featureFlags ?? {}) as Record<string, boolean>,
           metrics: !season.snapshots[0]
             ? "none"
             : season.snapshots[0].isFinal
@@ -455,29 +451,6 @@ export async function setSandboxTeam(args: {
         userAgent: null,
       }),
     });
-  });
-}
-
-/**
- * 기능 플래그 하나를 뒤집는다.
- *
- * JSONB를 통째로 덮어쓰지 않고 읽어서 한 키만 바꾼다 — 나중에 플래그가 늘었을 때
- * 이 함수가 모르는 키를 지워버리면 그게 제일 찾기 어려운 버그가 된다.
- */
-export async function toggleSandboxFlag(args: {
-  seasonId: string;
-  flag: FeatureFlagKey;
-  value: boolean;
-}): Promise<void> {
-  assertSandbox();
-  const season = await prisma.season.findUniqueOrThrow({
-    where: { id: args.seasonId },
-    select: { featureFlags: true },
-  });
-  const flags = (season.featureFlags ?? {}) as Prisma.InputJsonObject;
-  await prisma.season.update({
-    where: { id: args.seasonId },
-    data: { featureFlags: { ...flags, [args.flag]: args.value } },
   });
 }
 
