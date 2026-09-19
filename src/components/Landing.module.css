@@ -300,9 +300,11 @@
   padding: 15px 4px;
   border-bottom: 1px solid var(--line);
 }
-.slot:last-of-type {
-  border-bottom: 0;
-}
+/*
+  ⚠️ 빈 슬롯은 셋 다 밑줄이 있다. 시안의 `.slot:last-of-type{border-bottom:0}`은
+  ver4에서 숨은 LIVE 슬롯이 가져가, 모집 전에는 세 번째 빈 슬롯 아래에도 선이
+  그어진다(2026-09-19 수연 확인). 밑줄을 빼는 규칙은 LIVE 슬롯에만 해당한다.
+*/
 .slotRank {
   font-family: var(--mono);
   font-weight: 800;
@@ -325,6 +327,8 @@
   background-size: 220% 100%;
   background-position: 120% 0;
   animation: shim 2.4s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
 }
 @keyframes shim {
   to {
@@ -339,6 +343,16 @@
   margin-top: 14px;
   font-size: 13.5px;
   color: var(--faint);
+}
+/*
+  시안과 다르게 둔 것(2026-09-19 수연 결정). 두 열일 때 전광판 안쪽 폭 385px에
+  문장이 387px라 「표시돼요.」 한 어절만 넘어갔다. 자간을 조금 좁혀 한 줄에
+  담는다. -0.01em은 여유가 1px뿐이라 글꼴 렌더링 차이로 다시 넘어간다. 한 열(1024px 이하)은 폭이 넉넉해 시안 값 그대로다.
+*/
+@media (min-width: 1025px) {
+  .liveNote {
+    letter-spacing: -0.02em;
+  }
 }
 
 /* ═══════════════ 스탯 4칸 ═══════════════ */

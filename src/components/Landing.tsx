@@ -462,8 +462,9 @@ export function Landing({
                 </div>
               ))}
               <p className={styles.liveNote}>
-                {seasonName}이 시작되면 참가팀의 유효 이용자 수가 여기에
-                실시간으로 표시돼요.
+                {/* 줄이 나뉘어도 「표시돼요.」만 홀로 떨어지지 않게 묶는다 */}
+                {seasonName}이 시작되면 참가팀의 유효 이용자 수가 여기에{" "}
+                {"실시간으로\u00a0표시돼요."}
               </p>
             </div>
           </Reveal>
@@ -597,9 +598,8 @@ export function Landing({
                 <Card>
                   <span className={styles.threeNo}>{b.no}</span>
                   <h4>{b.title}</h4>
-                  <p>
-                    <Clauses text={b.desc} />
-                  </p>
+                  {/* 절 끊기(Clauses)를 안 쓴다. 카드가 한 줄씩 길어져 시안대로 자연 줄바꿈이다(2026-09-19 수연 결정) */}
+                  <p>{b.desc}</p>
                 </Card>
               </Reveal>
             ))}

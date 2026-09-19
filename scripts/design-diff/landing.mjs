@@ -10,13 +10,14 @@
   전부 `.in`이 되게 만든다.
 
     node scripts/design-diff/landing.mjs
+    STATE=recruit node scripts/design-diff/landing.mjs   # pre(기본)·recruit·stage·done
 */
 import {
   withPage, diffTable, diffText, textNodes,
   SPEC_URL, IMPL_URL, WIDTHS, shotDir,
 } from "./cdp.mjs";
 
-const OUT = shotDir("landing");
+const OUT = shotDir(`landing-${process.env.STATE ?? "pre"}`);
 
 const CSS = [
   "font-size", "font-weight", "line-height", "letter-spacing",
@@ -84,7 +85,12 @@ const PAIRS = [
   */
   ["consent 보기", S + ".ld-form .consents a.see", '[class*="ConsentFields-module"][class*="see"]',
     ["font-family"], ["display", "text-align", "width"]],
-  ["live", S + ".ld-live", "live"],
+  /*
+    ⚠️ 의사요소의 높이·inset은 안 본다. 전광판 높이를 따라가는 값인데, 두 열일 때
+    안내 문장이 한 줄이라(아래 「live ex」) 시안보다 한 줄 짧다.
+  */
+  ["live", S + ".ld-live", "live", undefined,
+   ["::before inset", "::before height", "::after height"]],
   /* 폼 안의 신청 버튼. 시안이 인라인으로 좁은 여백을 준다 */
   ["신청 버튼", S + ".ld-form .row .btn", '[class*="__formRow"] > *:last-child'],
   ["live cap", S + ".ld-live .cap", "liveCap"],
@@ -100,7 +106,8 @@ const PAIRS = [
   ["slot", S + ".ld-live .slot", "slot"],
   ["slot bar", S + ".ld-live .slot .bar", "slotBar"],
   ["slot rk", S + ".ld-live .slot .rk", "slotRank"],
-  ["live ex", S + ".ld-live .ex", "liveNote"],
+  /* 자간은 안 본다. 두 열일 때 한 줄에 담으려고 -0.02em으로 좁혔다(2026-09-19 수연 결정) */
+  ["live ex", S + ".ld-live .ex", "liveNote", undefined, ["letter-spacing"]],
   ["stats", S + ".ld-stats", "stats"],
   ["stat score", S + ".ld-stat .score", "@stat .score"],
   ["mq", S + ".mq", "mq"],
@@ -144,7 +151,14 @@ const PAIRS = [
   ["fin h2", S + ".ld-fin h2", "finTitle"],
   ["glitch h1", S + ".ld-hero h1 .glitch", "#hero h1 span[data-text]"],
   /* 랜딩 헤더의 워드마크에도 글리치가 붙는다 — 시안 공개 화면 중 여기만 그렇다 */
-  ["glitch wm", S + ".pub-head .wm.glitch", "header > a:first-child"],
+  /*
+    ⚠️ 크기는 안 본다. 모바일 워드마크 16px은 헤더 상태별 시안(192행)의 값이고
+    헤더는 그 시안이 정본이다 — ver4 본 시안에는 모바일 규칙이 없어 18px로 남는다.
+    크기는 `header-states.mjs`가 대조한다. 여기서는 글리치만 본다.
+  */
+  ["glitch wm", S + ".pub-head .wm.glitch", "header > a:first-child", undefined,
+   ["font-size", "line-height", "letter-spacing",
+    "::before width", "::before height", "::after width", "::after height"]],
 ];
 
 const probe = (pairs) => `(() => {
@@ -229,7 +243,10 @@ const probe = (pairs) => `(() => {
     */
     const disp = getComputedStyle(el).display;
     if (disp === "grid" || disp === "flex") {
-      const hs = [...el.children].map((c) => Math.round(c.getBoundingClientRect().height));
+      /* 숨은 칸(시안의 다른 상태 only-*)은 높이 0이라 뺀다 */
+      const hs = [...el.children]
+        .filter((c) => getComputedStyle(c).display !== "none")
+        .map((c) => Math.round(c.getBoundingClientRect().height));
       out[name + " ▸자식 높이 같음"] =
         hs.length > 1 ? String(new Set(hs).size === 1) : "해당없음";
     }
@@ -357,23 +374,53 @@ const TEXT_IGNORE = [
 ];
 
 /*
-  ⚠️ **랜딩은 이제 시즌 단계를 타지 않는다.** 버튼 셋(헤더·히어로·파이널)이
-  시안대로 「사전 신청하기」 고정이 됐고(2026-09-06), 사전신청 폼은 원래부터
-  단계와 무관하게 늘 렌더된다.
+  상태. 시안은 STATE 버튼(`.sb[data-set]`)으로 고르고, 구현은 dev DB의 시즌
+  페이즈가 정한다(개발 바의 페이즈 줄). 구현이 지금 어느 상태를 그리는지 먼저
+  찍고, 요청한 상태가 아니면 대조하지 않는다 — 다른 상태끼리 견준 0건은 거짓이다.
 
-  그래서 예전의 단계 확인 가드를 지웠다. CTA 문구로 dev 시즌이 사전 신청
-  단계인지 보던 것인데, 문구가 고정이라 무엇을 하든 통과하는 검사가 됐다.
-  리더보드 픽스처(`lbfix.mts race`)를 돌린 뒤에 이어 돌려도 0건이다.
-
-  헤더 메뉴는 모집 중부터 나오지만 대조 목록에 없다 — 시안은 메뉴를 늘 그리고
-  우리는 모집 전에 숨기는 것이 **의도적 차이**라(2026-08-31 수연 지시) 애초에
-  비교하지 않는다.
+  헤더 메뉴는 대조 목록에 없다 — 시안은 메뉴를 늘 그리고 우리는 모집 전에
+  숨기는 것이 **의도적 차이**라(2026-08-31 수연 지시) 애초에 비교하지 않는다.
 */
+const STATE = process.env.STATE ?? "pre";
+const CTA_OF = {
+  "사전 신청하기": "pre", "참가 신청하기": "recruit",
+  "리더보드 보기": "stage", "시즌 2 알림 받기": "done",
+};
+const stateOf = `(() => {
+  const b = document.querySelector('[class*="__ctas"] > *:first-child');
+  return (${JSON.stringify(CTA_OF)})[b?.textContent.trim()] ?? "알 수 없음(" + b?.textContent.trim() + ")";
+})()`;
+
+/*
+  ⚠️ 숨은 요소(`only-*`)를 걷어내지 않는다. 가려진 요소도 구조 선택자에 잡혀
+  화면을 바꾼다 — 모집 전에는 `.slot:last-of-type`을 숨은 LIVE 슬롯이 가져가
+  세 번째 빈 슬롯에 밑줄이 남는다. 그것도 시안이다(2026-09-19 수연 확인).
+  한때 걷어냈다가 그 밑줄을 대조에서 지워 버렸다.
+*/
+const pickState = (state) => `(() => {
+  const sec = document.getElementById("scr-landing");
+  sec.querySelector('.sb[data-set="' + ${JSON.stringify(state)} + '"]').click();
+  if (sec.dataset.state !== ${JSON.stringify(state)}) return "상태 전환 실패: " + sec.dataset.state;
+  return sec.dataset.state;
+})()`;
+
+const implState = await withPage(async (p) => {
+  await p.goto(IMPL_URL);
+  await p.resize(1440, 900);
+  return p.eval(stateOf);
+});
+console.log(`요청한 상태: ${STATE} / 구현본이 지금 그리는 상태: ${implState}`);
+if (implState !== STATE) {
+  console.log("⚠️ 상태가 다르다. 개발 바의 페이즈 줄로 dev DB를 바꾼 뒤 다시 돌린다.");
+  process.exit(1);
+}
 
 let total = 0;
 for (const w of WIDTHS) {
   const spec = await withPage(async (p) => {
     await p.goto(SPEC_URL);
+    const picked = await p.eval(pickState(STATE));
+    if (picked !== STATE) throw new Error(picked);
     await p.stripViewerShell();
     await p.resize(w, 1000);
     const naturally = await p.eval(settle, true);
