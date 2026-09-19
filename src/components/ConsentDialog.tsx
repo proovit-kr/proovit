@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Button } from "@/components/Button";
+import { Clauses } from "@/components/Clauses";
 import ConsentFields, {
   emptyConsent,
   isConsentComplete,
@@ -94,14 +95,18 @@ export function ConsentDialog({
           시작하기 전에 확인해 주세요
         </h2>
         <p className={styles.sub}>
-          {reconsent
-            ? /*
-                ⚠️ 개정 재동의에는 시안 문장을 그대로 쓰지 않는다. 「한 번만
-                받아요」는 처음 가입하는 사람에게 참인 말이고, 두 번째로 보는
-                사람에게는 거짓이 된다.
-              */
-              "약관이 개정되어 다시 확인이 필요해요. 바뀐 내용을 보고 동의해 주세요."
-            : "PROOVIT 계정을 만들려면 아래 항목에 동의가 필요해요. 한 번만 받아요."}
+          <Clauses
+            text={
+              reconsent
+                ? /*
+                    ⚠️ 개정 재동의에는 시안 문장을 그대로 쓰지 않는다. 「한 번만
+                    받아요」는 처음 가입하는 사람에게 참인 말이고, 두 번째로 보는
+                    사람에게는 거짓이 된다.
+                  */
+                  "약관이 개정되어 다시 확인이 필요해요. 바뀐 내용을 보고 동의해 주세요."
+                : "PROOVIT 계정을 만들려면 아래 항목에 동의가 필요해요. 한 번만 받아요."
+            }
+          />
         </p>
 
         {account ? (
@@ -159,9 +164,12 @@ export function ConsentDialog({
           <DeclineButton />
         </form>
 
+        {/*
+          문장 단위로 끊는다(2026-09-20 수연 결정 — 「물어볼게요.」 뒤). 모달 폭(389px)에서는
+          앞 두 문장(312px)이 한 줄, 390px 화면(307px)에서는 한 문장씩 한 줄이 된다.
+        */}
         <p className={styles.why}>
-          동의하지 않으면 로그아웃돼요. 다음에 로그인하면 다시 물어볼게요. 동의
-          내용은 계정 설정에서 언제든 확인하고 철회할 수 있어요.
+          <Clauses text="동의하지 않으면 로그아웃돼요. 다음에 로그인하면 다시 물어볼게요. 동의 내용은 계정 설정에서 언제든 확인하고 철회할 수 있어요." />
         </p>
       </div>
     </div>
