@@ -5,7 +5,11 @@ import {
   StageKey,
 } from "@/generated/prisma/enums";
 import { getSessionUser } from "@/lib/access";
-import { checkDevSandbox, loadSandboxState } from "@/lib/dev-sandbox";
+import {
+  checkDevSandbox,
+  hasSandboxTeam,
+  loadSandboxState,
+} from "@/lib/dev-sandbox";
 import { featureFlagsSchema } from "@/lib/feature-flags";
 
 import { DevBarClient } from "./DevBarClient";
@@ -90,6 +94,11 @@ export async function DevBar() {
 
   const user = await getSessionUser();
   const state = await loadSandboxState();
+  /* 팀원으로 들어간 팀도 친다 — 아래 `current`는 팀장인 팀만 찾는다 */
+  const hasTeam =
+    user && state.season
+      ? await hasSandboxTeam({ userId: user.id, seasonId: state.season.id })
+      : null;
   const current =
     state.teams.find((team) => team.userId === user?.id) ?? null;
 
@@ -97,6 +106,7 @@ export async function DevBar() {
     <DevBarClient
       me={user ? { nickname: user.nickname, onboarded: !!user.onboardedAt } : null}
       current={current}
+      hasTeam={hasTeam}
       season={state.season}
       stages={STAGES}
       statuses={STATUSES}

@@ -8,6 +8,7 @@ import {
   devSetPhase,
   devSetStage,
   devSetStatus,
+  devSetTeam,
   devToggleFlag,
 } from "@/app/actions/dev";
 
@@ -39,6 +40,8 @@ type Props = {
   blocked?: string;
   me?: { nickname: string; onboarded: boolean } | null;
   current?: Team | null;
+  /** 로그인한 계정이 이번 시즌 참가팀에 속했는가. 비로그인이면 null */
+  hasTeam?: boolean | null;
   season?: {
     id: string;
     slug: string;
@@ -141,6 +144,7 @@ export function DevBarClient({
   blocked,
   me,
   current,
+  hasTeam = null,
   season,
   stages = [],
   statuses = [],
@@ -272,6 +276,35 @@ export function DevBarClient({
               </div>
             </div>
           ) : null}
+
+          {/* ── 참가팀 ──────────────────────────────────────── */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              참가팀
+              <em className={styles.hint}>로그인한 계정</em>
+            </span>
+            <div className={styles.picks}>
+              {!season ? (
+                <span className={styles.empty}>시즌이 없습니다</span>
+              ) : hasTeam === null ? (
+                <span className={styles.empty}>로그인하면 바꿀 수 있어요</span>
+              ) : (
+                [
+                  { on: true, label: "있음" },
+                  { on: false, label: "없음" },
+                ].map((pick) => (
+                  <PickButton
+                    key={pick.label}
+                    action={devSetTeam}
+                    fields={{ seasonId: season.id, on: pick.on ? "1" : "0" }}
+                    active={hasTeam === pick.on}
+                  >
+                    {pick.label}
+                  </PickButton>
+                ))
+              )}
+            </div>
+          </div>
 
           {/* ── 진도 ────────────────────────────────────────── */}
           <div className={styles.row}>

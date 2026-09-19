@@ -14,10 +14,12 @@ import {
   setSandboxPhase,
   setSandboxStage,
   setSandboxStatus,
+  setSandboxTeam,
   setMetricsFixture,
   toggleSandboxFlag,
   type MetricsFixture,
 } from "@/lib/dev-sandbox";
+import { getSessionUser } from "@/lib/access";
 import { featureFlagsSchema, type FeatureFlagKey } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 
@@ -112,6 +114,25 @@ export async function devSetPhase(formData: FormData): Promise<void> {
   if (!seasonId || !phase) throw new Error("[dev] seasonId·phase가 잘못됐습니다.");
 
   await setSandboxPhase({ seasonId, phase });
+  refresh();
+}
+
+/*
+  로그인한 계정의 참가팀 있음·없음. 대상은 폼이 아니라 **세션**에서 읽는다 —
+  바가 말하는 「로그인한 계정」과 바뀌는 계정이 어긋날 수 없게.
+*/
+export async function devSetTeam(formData: FormData): Promise<void> {
+  guard();
+
+  const seasonId = String(formData.get("seasonId") ?? "");
+  const raw = String(formData.get("on") ?? "");
+  if (!seasonId || (raw !== "1" && raw !== "0")) {
+    throw new Error("[dev] seasonId·on이 잘못됐습니다.");
+  }
+  const user = await getSessionUser();
+  if (!user) throw new Error("[dev] 로그인한 계정이 없습니다.");
+
+  await setSandboxTeam({ userId: user.id, seasonId, on: raw === "1" });
   refresh();
 }
 
