@@ -10,13 +10,14 @@
   전부 `.in`이 되게 만든다.
 
     node scripts/design-diff/landing.mjs
+    STATE=recruit node scripts/design-diff/landing.mjs   # pre(기본)·recruit·stage·done
 */
 import {
   withPage, diffTable, diffText, textNodes,
   SPEC_URL, IMPL_URL, WIDTHS, shotDir,
 } from "./cdp.mjs";
 
-const OUT = shotDir("landing");
+const OUT = shotDir(`landing-${process.env.STATE ?? "pre"}`);
 
 const CSS = [
   "font-size", "font-weight", "line-height", "letter-spacing",
@@ -43,7 +44,7 @@ const CSS = [
   전부 어긋난다 — 실제로 처음에 그렇게 틀렸다.
 */
 const S = "#scr-landing ";
-const PAIRS = [
+const ALL_PAIRS = [
   ["ld", S + ".ld", "ld"],
   /*
     ⚠️ `::before`/`::after`의 **inset만** 뺀다. 세 번째 값이 히어로 높이라서다
@@ -53,8 +54,11 @@ const PAIRS = [
   */
   ["hero", S + ".ld-hero", "hero", undefined,
    ["::before inset", "::after inset"]],
+  /* 히어로 배지. 종료만 회색이고 커서(::after)가 없다 — 의사요소까지 잰다 */
+  ["hero 배지", S + ".ld-hero .badge", '#hero [class*="Badge-module"]'],
   ["h1", S + ".ld-hero h1", "title"],
-  ["sub", S + ".ld-hero .sub", "sub"],
+  /* 히어로 안으로 좁힌다. 종료 헤더(P5)는 버튼이 둘이라 NavBar의 `.sub`가 먼저 잡힌다 */
+  ["sub", S + ".ld-hero .sub", '#hero p[class*="__sub"]'],
   ["ctas", S + ".ld-ctas", "ctas"],
   /*
     ⚠️ **상자만 재면 안 된다.** `.ld-ctas`의 폭은 양쪽이 같은데 그 안의
@@ -66,6 +70,7 @@ const PAIRS = [
   */
   ["cta 버튼1", S + ".ld-ctas .btn:first-child", '[class*="__ctas"] > *:first-child', [], ["width"]],
   ["cta 버튼2", S + ".ld-ctas .btn:last-child", '[class*="__ctas"] > *:last-child', [], ["width"]],
+  ["hint", S + ".ld-hint", "hint"],
   ["form", S + ".ld-form", "form"],
   ["form fh", S + ".ld-form .fh", "formHead"],
   /* 동의 블록. §4에서 빠뜨렸다가 17개 속성이 어긋난 채로 나갔다 */
@@ -84,7 +89,12 @@ const PAIRS = [
   */
   ["consent 보기", S + ".ld-form .consents a.see", '[class*="ConsentFields-module"][class*="see"]',
     ["font-family"], ["display", "text-align", "width"]],
-  ["live", S + ".ld-live", "live"],
+  /*
+    ⚠️ 의사요소의 높이·inset은 안 본다. 전광판 높이를 따라가는 값인데, 두 열일 때
+    안내 문장이 한 줄이라(아래 「live ex」) 시안보다 한 줄 짧다.
+  */
+  ["live", S + ".ld-live", "live", undefined,
+   ["::before inset", "::before height", "::after height"]],
   /* 폼 안의 신청 버튼. 시안이 인라인으로 좁은 여백을 준다 */
   ["신청 버튼", S + ".ld-form .row .btn", '[class*="__formRow"] > *:last-child'],
   ["live cap", S + ".ld-live .cap", "liveCap"],
@@ -100,6 +110,14 @@ const PAIRS = [
   ["slot", S + ".ld-live .slot", "slot"],
   ["slot bar", S + ".ld-live .slot .bar", "slotBar"],
   ["slot rk", S + ".ld-live .slot .rk", "slotRank"],
+  /* 점수 칸은 전역 `.score`(모노·800)를 함께 받는다. 빠져 있던 것을 09-19 진행 중 작업에서 잡았다 */
+  ["slot score", S + ".ld-live .slot .score", "slotScore"],
+  /* 진행 중 LIVE 슬롯만 있는 것들 */
+  ["slot nm", S + ".ld-live .slot .nm", "slotName", ["width", "text-overflow", "white-space", "overflow-x"]],
+  /* 폭은 안 본다. 막대 칸이 점수 글자 폭을 뺀 나머지라 데이터(팀명·점수)를 따라간다 */
+  ["slot bar i", S + ".ld-live .slot .bar i", '[class*="__slotBar"] > i', ["top", "bottom", "left"]],
+  ["slot 마지막", S + ".ld-live .slot:last-of-type", '[class*="__slotLive"]:last-of-type'],
+  /* 자간은 모집 전·모집 중(-0.02em)·진행 중(-0.05em)에 안 본다. 두 열일 때 한 줄에 담으려고 좁혔다(2026-09-19 수연 결정) */
   ["live ex", S + ".ld-live .ex", "liveNote"],
   ["stats", S + ".ld-stats", "stats"],
   ["stat score", S + ".ld-stat .score", "@stat .score"],
@@ -144,7 +162,14 @@ const PAIRS = [
   ["fin h2", S + ".ld-fin h2", "finTitle"],
   ["glitch h1", S + ".ld-hero h1 .glitch", "#hero h1 span[data-text]"],
   /* 랜딩 헤더의 워드마크에도 글리치가 붙는다 — 시안 공개 화면 중 여기만 그렇다 */
-  ["glitch wm", S + ".pub-head .wm.glitch", "header > a:first-child"],
+  /*
+    ⚠️ 크기는 안 본다. 모바일 워드마크 16px은 헤더 상태별 시안(192행)의 값이고
+    헤더는 그 시안이 정본이다 — ver4 본 시안에는 모바일 규칙이 없어 18px로 남는다.
+    크기는 `header-states.mjs`가 대조한다. 여기서는 글리치만 본다.
+  */
+  ["glitch wm", S + ".pub-head .wm.glitch", "header > a:first-child", undefined,
+   ["font-size", "line-height", "letter-spacing",
+    "::before width", "::before height", "::after width", "::after height"]],
 ];
 
 const probe = (pairs) => `(() => {
@@ -167,9 +192,17 @@ const probe = (pairs) => `(() => {
     .find(el => [...el.classList].some(c => c.endsWith("__" + n)));
 
   for (const [name, sel, mode, extra, skip] of ${JSON.stringify(pairs)}) {
+    /*
+      ⚠️ 보이는 것을 먼저 집는다. 시안은 네 상태의 배지·CTA를 전부 그려 두고
+      only-*로 가린다 — 첫 매치를 집으면 모집 중에도 모집 전 CTA를 잰다.
+    */
+    const firstShown = (s) => {
+      const all = [...document.querySelectorAll(s)];
+      return all.find((e) => e.getClientRects().length) ?? all[0] ?? null;
+    };
     const el = mode === "impl" && !/[ .#>\[]/.test(sel)
       ? byModuleName(sel)
-      : document.querySelector(
+      : firstShown(
           mode === "impl" ? sel.replace(/@([A-Za-z]+)/g, (_, n) => '[class*="__' + n + '"]') : sel,
         );
     if (!el) { missing.push(name + "  ← " + sel); continue; }
@@ -229,7 +262,10 @@ const probe = (pairs) => `(() => {
     */
     const disp = getComputedStyle(el).display;
     if (disp === "grid" || disp === "flex") {
-      const hs = [...el.children].map((c) => Math.round(c.getBoundingClientRect().height));
+      /* 숨은 칸(시안의 다른 상태 only-*)은 높이 0이라 뺀다 */
+      const hs = [...el.children]
+        .filter((c) => getComputedStyle(c).display !== "none")
+        .map((c) => Math.round(c.getBoundingClientRect().height));
       out[name + " ▸자식 높이 같음"] =
         hs.length > 1 ? String(new Set(hs).size === 1) : "해당없음";
     }
@@ -268,9 +304,15 @@ const settle = `(async () => {
     화면 밖 요소가 영영 안 나타난다(파이널 제목이 그랬다).
   */
   const h = () => document.documentElement.scrollHeight;
-  for (let y = 0; y <= h(); y += 400) { window.scrollTo(0, y); await nap(90); }
+  /*
+    ⚠️ 즉시 스크롤한다. 페이지에 부드러운 스크롤이 걸려 있어 그냥 scrollTo는
+    애니메이션으로 따라가고, 긴 페이지(768)에서는 훑기가 끝나도 바닥에 못 닿아
+    파이널이 「안 나타남」으로 잡혔다.
+  */
+  const go = (top) => window.scrollTo({ top, behavior: "instant" });
+  for (let y = 0; y <= h(); y += 400) { go(y); await nap(90); }
   await nap(500);
-  window.scrollTo(0, 0);
+  go(0);
   await nap(1200);
 
   /*
@@ -357,30 +399,117 @@ const TEXT_IGNORE = [
 ];
 
 /*
-  ⚠️ **랜딩은 이제 시즌 단계를 타지 않는다.** 버튼 셋(헤더·히어로·파이널)이
-  시안대로 「사전 신청하기」 고정이 됐고(2026-09-06), 사전신청 폼은 원래부터
-  단계와 무관하게 늘 렌더된다.
+  상태. 시안은 STATE 버튼(`.sb[data-set]`)으로 고르고, 구현은 dev DB의 시즌
+  페이즈가 정한다(개발 바의 페이즈 줄). 구현이 지금 어느 상태를 그리는지 먼저
+  찍고, 요청한 상태가 아니면 대조하지 않는다 — 다른 상태끼리 견준 0건은 거짓이다.
 
-  그래서 예전의 단계 확인 가드를 지웠다. CTA 문구로 dev 시즌이 사전 신청
-  단계인지 보던 것인데, 문구가 고정이라 무엇을 하든 통과하는 검사가 됐다.
-  리더보드 픽스처(`lbfix.mts race`)를 돌린 뒤에 이어 돌려도 0건이다.
-
-  헤더 메뉴는 모집 중부터 나오지만 대조 목록에 없다 — 시안은 메뉴를 늘 그리고
-  우리는 모집 전에 숨기는 것이 **의도적 차이**라(2026-08-31 수연 지시) 애초에
-  비교하지 않는다.
+  헤더 메뉴는 대조 목록에 없다 — 시안은 메뉴를 늘 그리고 우리는 모집 전에
+  숨기는 것이 **의도적 차이**라(2026-08-31 수연 지시) 애초에 비교하지 않는다.
 */
+const STATE = process.env.STATE ?? "pre";
+
+/*
+  상태마다 없는 요소는 대조 목록에서 뺀다. 시안에는 숨은 채로 남아 있어
+  「구현본에서 못 찾음」이 되기 때문이다. 시안 규칙 그대로 —
+  사전 신청 폼은 only-form(모집 전·종료), 안내 문장은 모집 중·진행 중에만 있다.
+*/
+const FORM_PAIRS = ["form", "form fh", "consents", "consent row", "consent box",
+  "consent req", "consent 보기", "신청 버튼"];
+const hasForm = STATE === "pre" || STATE === "done";
+const hasHint = STATE === "recruit" || STATE === "stage";
+const LIVE_PAIRS = ["slot nm", "slot bar i", "slot 마지막"];
+const hasLive = STATE === "stage" || STATE === "done";
+/*
+  ⚠️ 모집 중·진행 중의 CTA는 시안이 `<a>`라 line-height(body 1.65)와 text-align
+  (start)을 물려받아 `<button>`인 모집 전 CTA보다 6.75px 높다. 우리는 두 태그를
+  똑같이 그린다(Button.module.css) — 상태가 바뀐다고 같은 자리 버튼 키가 변하지
+  않게(2026-09-19, 수연이 맡겨 정함). 파이널 영역 높이도 그 버튼을 따라간다.
+*/
+const ANCHOR_SKIP = {
+  ...(STATE === "recruit" || STATE === "stage"
+    ? { "cta 버튼1": ["line-height", "text-align"], "cta 버튼2": ["line-height", "text-align"],
+        fin: ["::before height"] }
+    : {}),
+  /* 종료는 두 번째 CTA만 시안이 `<a>`다(「최종 결과 보기」). 이유는 위와 같다 */
+  ...(STATE === "done"
+    ? { "cta 버튼2": ["line-height", "text-align"] }
+    : {}),
+  /* 진행 중도 같은 이유로 -0.05em이다(2026-09-19 수연 결정) */
+  ...(STATE !== "done" ? { "live ex": ["letter-spacing"] } : {}),
+};
+const PAIRS = ALL_PAIRS
+  .filter(([n]) => n === "hint" ? hasHint : FORM_PAIRS.includes(n) ? hasForm
+    : LIVE_PAIRS.includes(n) ? hasLive : true)
+  .map(([n, s, i, x, k]) => ANCHOR_SKIP[n] ? [n, s, i, x, [...(k ?? []), ...ANCHOR_SKIP[n]]] : [n, s, i, x, k]);
+/*
+  진행 중은 전광판 팀명·점수와 배지의 스테이지명, 안내 문장의 마감일이 데이터다.
+  시안은 표본(골목마켓 731명·「s4 마케팅과 유저 유입」·10.04)이고 구현은 dev DB다.
+  팀명·점수 칸은 글자를 긁기 전에 양쪽에서 비우고, 나머지 둘은 틀만 맞춰 본다.
+*/
+const DATA_BLANK = STATE === "stage" || STATE === "done"
+  ? { spec: ".ld-live .slot.only-live .nm, .ld-live .slot.only-live .score",
+      impl: '[class*="__slotLive"] > [class*="__slotName"], [class*="__slotLive"] > [class*="__slotScore"]' }
+  : null;
+const blank = (sel) => `document.querySelectorAll(${JSON.stringify(sel)}).forEach((e) => { e.textContent = ""; })`;
+/* 마감일도 데이터다 — dev DB 일정은 시안 표본을 2주 민 임시값이다(시즌 1 일정 미정) */
+if (STATE === "recruit") {
+  TEXT_IGNORE.push(/^시즌 1 참가 신청 접수 중, \d\d\.\d\d 마감$/, /마감은 \d\d\.\d\d 23:59예요\.$/);
+}
+if (STATE === "stage") {
+  TEXT_IGNORE.push(/^시즌 1 진행 중, s\d .+$/, /^참가 신청은 \d\d\.\d\d에 마감됐어요\..*$/);
+}
+/* 종료는 발표일(시즌 종료일)과 집계 확정 시각(s5 마감)이 데이터다 */
+if (STATE === "done") {
+  TEXT_IGNORE.push(/^시즌 1 종료, \d\d\.\d\d 최종 결과 발표$/,
+    /^\d\d\.\d\d \d\d:\d\d 집계 확정 기준 최종 순위예요\.$/);
+}
+const CTA_OF = {
+  "사전 신청하기": "pre", "참가 신청하기": "recruit",
+  "리더보드 보기": "stage", "시즌 2 알림 받기": "done",
+};
+const stateOf = `(() => {
+  const b = document.querySelector('[class*="__ctas"] > *:first-child');
+  return (${JSON.stringify(CTA_OF)})[b?.textContent.trim()] ?? "알 수 없음(" + b?.textContent.trim() + ")";
+})()`;
+
+/*
+  ⚠️ 숨은 요소(`only-*`)를 걷어내지 않는다. 가려진 요소도 구조 선택자에 잡혀
+  화면을 바꾼다 — 모집 전에는 `.slot:last-of-type`을 숨은 LIVE 슬롯이 가져가
+  세 번째 빈 슬롯에 밑줄이 남는다. 그것도 시안이다(2026-09-19 수연 확인).
+  한때 걷어냈다가 그 밑줄을 대조에서 지워 버렸다.
+*/
+const pickState = (state) => `(() => {
+  const sec = document.getElementById("scr-landing");
+  sec.querySelector('.sb[data-set="' + ${JSON.stringify(state)} + '"]').click();
+  if (sec.dataset.state !== ${JSON.stringify(state)}) return "상태 전환 실패: " + sec.dataset.state;
+  return sec.dataset.state;
+})()`;
+
+const implState = await withPage(async (p) => {
+  await p.goto(IMPL_URL);
+  await p.resize(1440, 900);
+  return p.eval(stateOf);
+});
+console.log(`요청한 상태: ${STATE} / 구현본이 지금 그리는 상태: ${implState}`);
+if (implState !== STATE) {
+  console.log("⚠️ 상태가 다르다. 개발 바의 페이즈 줄로 dev DB를 바꾼 뒤 다시 돌린다.");
+  process.exit(1);
+}
 
 let total = 0;
 for (const w of WIDTHS) {
   const spec = await withPage(async (p) => {
     await p.goto(SPEC_URL);
+    const picked = await p.eval(pickState(STATE));
+    if (picked !== STATE) throw new Error(picked);
     await p.stripViewerShell();
     await p.resize(w, 1000);
     const naturally = await p.eval(settle, true);
     const r = await p.eval(probe(PAIRS.map(([n, s, , x, k]) => [n, s, "spec", x, k])));
+    await p.shot(`${OUT}/spec-${w}.png`);
+    if (DATA_BLANK) await p.eval(blank(DATA_BLANK.spec));
     r.text = await p.eval(textNodes("#scr-landing .ld"));
     r.naturally = naturally;
-    await p.shot(`${OUT}/spec-${w}.png`);
     return r;
   });
   const impl = await withPage(async (p) => {
@@ -388,13 +517,24 @@ for (const w of WIDTHS) {
     await p.resize(w, 1000);
     const naturally = await p.eval(settle, true);
     const r = await p.eval(probe(PAIRS.map(([n, , i, x, k]) => [n, i, "impl", x, k])));
+    await p.shot(`${OUT}/impl-${w}.png`);
+    if (DATA_BLANK) await p.eval(blank(DATA_BLANK.impl));
     r.text = await p.eval(textNodes('[class*="Landing-module"][class*="__ld"]'));
     r.naturally = naturally;
-    await p.shot(`${OUT}/impl-${w}.png`);
     return r;
   });
 
   console.log(`\n\n████ 폭 ${w}   스크롤만으로 나타난 리빌 — 시안 ${spec.naturally} / 구현 ${impl.naturally}`);
+  /*
+    ⚠️ 스크롤만으로 안 나타난 리빌은 **불일치로 센다.** 재기 전에 전부 강제로
+    켜기 때문에, 안 세면 영영 투명한 요소가 0건으로 통과한다 — 모집 중 파이널
+    「참가 신청하기」가 그랬다(LinkButton이 Reveal의 ref를 버렸다). 수연이 눈으로 잡았다.
+  */
+  const [shownN, allN] = impl.naturally.split("/").map(Number);
+  if (shownN !== allN) {
+    console.log(`  ✗ 구현본 리빌 ${allN - shownN}개가 스크롤해도 안 나타난다`);
+    total += allN - shownN;
+  }
   for (const m of spec.missing) console.log(`  ⚠️ 시안에서 못 찾음: ${m}`);
   for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
   total += spec.missing.length + impl.missing.length;

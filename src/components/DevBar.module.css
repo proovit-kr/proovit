@@ -7,7 +7,8 @@
 */
 
 /*
-  왼쪽 아래 모서리에 띄운다. 화면 폭을 다 먹으면 그 밑의 콘텐츠·하단 CTA를
+  기본 자리는 왼쪽 아래 모서리다. 닫힌 줄을 끌어 옮길 수 있고, 옮긴 자리는
+  이 브라우저에 기억한다(DevBarClient.tsx — 인라인 left·bottom이 아래 값을 덮는다). 화면 폭을 다 먹으면 그 밑의 콘텐츠·하단 CTA를
   가려서, 바를 열지 않아도 화면을 시안과 다르게 보게 된다. 가운데 아래는
   토스트 자리라 비운다.
   Next 개발 표시기가 이 모서리에서 자리를 다퉜는데 next.config에서
@@ -63,6 +64,9 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  /* 터치로 끌 때 페이지가 대신 스크롤되지 않게 */
+  touch-action: none;
+  user-select: none;
 }
 
 .who {
@@ -127,8 +131,7 @@
 }
 
 .pick,
-.pickOn,
-.pickQuiet {
+.pickOn {
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
@@ -142,8 +145,7 @@
   cursor: pointer;
 }
 
-.pick:hover,
-.pickQuiet:hover {
+.pick:hover {
   border-color: rgba(255, 61, 168, 0.5);
   color: #fff;
 }
@@ -153,22 +155,6 @@
   background: rgba(255, 61, 168, 0.16);
   color: #ffd9ee;
   font-weight: 700;
-}
-
-.pickQuiet {
-  border-style: dashed;
-  color: #6b7488;
-}
-
-.sub {
-  color: #6b7488;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-style: normal;
-}
-
-.pickOn .sub {
-  color: #ffb0dd;
 }
 
 .empty {

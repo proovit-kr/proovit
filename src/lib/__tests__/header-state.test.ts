@@ -105,13 +105,14 @@ const PUB: Record<HeaderUser, string[]> = {
   admin: ["P11", "P11", "P11", "P11", "P11"],
 };
 
-function pub(kind: HeaderSeason, user: HeaderUser, extra: { unread?: number } = {}) {
+function pub(kind: HeaderSeason, user: HeaderUser, extra: { unread?: number; s4Started?: boolean } = {}) {
   return resolvePublicHeader({
     season: {
       kind,
       slug: "season-1",
       title: "시즌 1",
       flags: { notifications: true },
+      s4Started: extra.s4Started ?? true,
     },
     user: user === "guest" ? null : { kind: user, initial: "김", unread: extra.unread ?? 0 },
   });
@@ -126,9 +127,12 @@ describe("공개 헤더 — 조합기 MAP.pub", () => {
     });
   }
 
-  it("내비는 시즌만 본다 — 모집 전 없음, 모집 중부터 리그 소개·리더보드, 아카이브 기간은 리더보드만", () => {
+  it("내비는 시즌만 본다 — 리그 소개는 없고, 리더보드는 s4 시작일부터", () => {
     expect(pub("pre", "guest").nav).toEqual([]);
-    expect(pub("recruit", "guest").nav.map((n) => n.label)).toEqual(["리그 소개", "리더보드"]);
+    expect(pub("recruit", "guest").nav).toEqual([]);
+    expect(pub("stage", "guest", { s4Started: false }).nav).toEqual([]);
+    expect(pub("stage", "guest").nav.map((n) => n.label)).toEqual(["리더보드"]);
+    expect(pub("done", "guest").nav.map((n) => n.label)).toEqual(["리더보드"]);
     expect(pub("arch", "guest").nav.map((n) => n.label)).toEqual(["리더보드"]);
     /* 운영자도 시즌을 따른다 — P11 프레임은 우측 액션만 고정이다 */
     expect(pub("pre", "admin").nav).toEqual([]);
@@ -177,7 +181,7 @@ describe("공개 헤더 — 조합기 MAP.pub", () => {
 
   it("인앱 알림이 꺼진 시즌이면 참가자 벨도 없다", () => {
     const m = resolvePublicHeader({
-      season: { kind: "stage", slug: "s", title: "시즌 1", flags: { notifications: false } },
+      season: { kind: "stage", slug: "s", title: "시즌 1", flags: { notifications: false }, s4Started: true },
       user: { kind: "entrant", initial: "리", unread: 3 },
     });
     expect(m.bell).toBeNull();

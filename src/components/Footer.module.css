@@ -1,5 +1,6 @@
 /*
-  공개 푸터 — 모양은 시안 `.pub-foot`, 내용은 노션 정본(Footer.tsx 참조).
+  공개 푸터. `.pubFoot`은 모집 중부터 쓰는 시안 `.pub-foot` 그대로이고,
+  `.foot`은 모집 전의 사전 신청 푸터다 — 모양은 시안, 내용은 노션 정본(Footer.tsx).
 
   시안에서 그대로 가져온 값: border-top · padding · color · font-size,
   그리고 ≤760의 padding.
@@ -65,5 +66,52 @@
 @media (max-width: 760px) {
   .foot {
     padding: 26px 20px;
+  }
+}
+
+/* ═══════ 모집 중부터 — 시안 ver4 `.pub-foot` 그대로 ═══════ */
+.pubFoot {
+  border-top: 1px solid var(--line);
+  padding: 34px 40px;
+  display: flex;
+  gap: 22px;
+  color: var(--faint);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.pubFoot a {
+  cursor: pointer;
+}
+.pubFoot a:hover {
+  color: var(--text);
+}
+.sns {
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+}
+.soon {
+  color: var(--faint);
+  opacity: 0.55;
+  cursor: default;
+}
+.soon::after {
+  content: "준비 중";
+  font-size: 10px;
+  margin-left: 5px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 0 5px;
+  vertical-align: 1px;
+}
+
+@media (max-width: 760px) {
+  .pubFoot {
+    padding: 26px 20px;
+    gap: 12px 16px;
+  }
+  .sns {
+    margin-left: 0;
+    flex-basis: 100%;
   }
 }

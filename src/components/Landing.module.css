@@ -139,6 +139,16 @@
   font-size: 15px;
 }
 
+/* 모집 중 CTA 밑 안내 — 시안 `.ld-hint` */
+.hint {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.65;
+  max-width: 34em;
+  border-left: 2px solid var(--line-strong);
+  padding-left: 14px;
+}
+
 /* ═══════════════ 사전신청 폼 ═══════════════ */
 
 .form {
@@ -300,9 +310,11 @@
   padding: 15px 4px;
   border-bottom: 1px solid var(--line);
 }
-.slot:last-of-type {
-  border-bottom: 0;
-}
+/*
+  ⚠️ 빈 슬롯은 셋 다 밑줄이 있다. 시안의 `.slot:last-of-type{border-bottom:0}`은
+  ver4에서 숨은 LIVE 슬롯이 가져가, 모집 전에는 세 번째 빈 슬롯 아래에도 선이
+  그어진다(2026-09-19 수연 확인). 밑줄을 빼는 규칙은 LIVE 슬롯에만 해당한다.
+*/
 .slotRank {
   font-family: var(--mono);
   font-weight: 800;
@@ -325,6 +337,8 @@
   background-size: 220% 100%;
   background-position: 120% 0;
   animation: shim 2.4s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
 }
 @keyframes shim {
   to {
@@ -335,10 +349,57 @@
   color: var(--faint);
   font-size: 15px;
 }
+/* 진행 중 LIVE 슬롯 — 시안 `.ld-live .slot .nm`·`.bar i`·`.only-live` (1456~1460행) */
+.slotName {
+  font-size: 14px;
+  font-weight: 700;
+  width: 96px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.slotBar > i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 99px;
+  background: var(--accent);
+}
+.slotLive .slotScore {
+  color: var(--text);
+  font-weight: 700;
+}
+.slotLive .slotRank {
+  color: var(--accent);
+}
+/* 시안 `.slot:last-of-type{border-bottom:0}` — 진행 중에는 LIVE 슬롯이 마지막이다 */
+.slotLive:last-of-type {
+  border-bottom: 0;
+}
 .liveNote {
   margin-top: 14px;
   font-size: 13.5px;
   color: var(--faint);
+}
+/*
+  시안과 다르게 둔 것(2026-09-19 수연 결정). 두 열일 때 전광판 안쪽 폭 385px에
+  문장이 387px라 「표시돼요.」 한 어절만 넘어갔다. 자간을 조금 좁혀 한 줄에
+  담는다. -0.01em은 여유가 1px뿐이라 글꼴 렌더링 차이로 다시 넘어간다. 한 열(1024px 이하)은 폭이 넉넉해 시안 값 그대로다.
+  그 문장(모집 전·모집 중)에만 건다 — 진행 중 문장은 시안 값 그대로다.
+*/
+@media (min-width: 1025px) {
+  .liveNoteFit {
+    letter-spacing: -0.02em;
+  }
+  /*
+    진행 중 문장도 두 열에서 한 줄로(2026-09-19 수연 결정). 문장 408px / 칸 385px라
+    -0.04em은 여유 1px로 다시 넘어갈 수 있어 -0.05em(약 378px)이다.
+  */
+  .liveNoteFitLive {
+    letter-spacing: -0.05em;
+  }
 }
 
 /* ═══════════════ 스탯 4칸 ═══════════════ */

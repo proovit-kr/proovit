@@ -275,6 +275,8 @@ export type PublicHeaderInput = {
     slug: string;
     title: string;
     flags: { notifications: boolean };
+    /** s4 시작일이 지났다. 미정(null)이면 false */
+    s4Started: boolean;
   } | null;
   /** null이면 비로그인 */
   user: { kind: HeaderUser; initial: string; unread: number } | null;
@@ -292,21 +294,28 @@ export type PublicHeaderInput = {
  * `seasons.feature_flags.archive`는 그때까지 헤더가 읽지 않는다.
  */
 function publicNav(season: NonNullable<PublicHeaderInput["season"]>): NavItem[] {
-  const home: NavItem = { href: "/", label: "리그 소개" };
+  /*
+    「리그 소개」는 두지 않는다 — 랜딩이라 워드마크가 이미 그 링크다(2026-09-19 수연 지시).
+    시안 P2~P8은 그리지만 워드마크와 같은 곳으로 간다.
+  */
   const board: NavItem = {
     href: `/seasons/${season.slug}/leaderboard`,
     label: "리더보드",
   };
 
+  /*
+    ⚠️ **리더보드는 s4 시작일부터 연다**(2026-09-19 수연 지시). 시안은 모집 중부터
+    그리지만, 그 전에는 보여 줄 순위가 없다. 모집 중은 늘 s4 전이라 날짜를 보지
+    않고 숨기고, 진행 중은 s4 시작일로 가른다.
+  */
   switch (season.kind) {
     case "pre":
-      return [];
     case "recruit":
+      return [];
     case "stage":
+      return season.s4Started ? [board] : [];
     case "done":
-      return [home, board];
     case "arch":
-      /* 리그 소개는 랜딩 자체라 링크로 두지 않는다(P6 노트) */
       return [board];
   }
 }

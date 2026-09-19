@@ -2,6 +2,7 @@ import {
   EntryStage,
   EntryStatus,
   SeasonPhase,
+  StageKey,
 } from "@/generated/prisma/enums";
 import { getSessionUser } from "@/lib/access";
 import { checkDevSandbox, loadSandboxState } from "@/lib/dev-sandbox";
@@ -49,6 +50,11 @@ const PHASES: { value: SeasonPhase; label: string }[] = [
   { value: SeasonPhase.archived, label: "종료" },
 ];
 
+/* 레이스 중 지금 스테이지. 페이즈가 레이스일 때만 줄이 뜬다 */
+const RACE_STAGES: { value: StageKey; label: string }[] = [
+  StageKey.s1, StageKey.s2, StageKey.s3, StageKey.s4, StageKey.s5,
+].map((value) => ({ value, label: value }));
+
 /* 시안 리더보드의 STATE 셋과 같은 이름을 쓴다 — 대조할 때 헷갈리지 않게 */
 const METRICS: { value: string; label: string }[] = [
   { value: "none", label: "집계 전" },
@@ -86,12 +92,12 @@ export async function DevBar() {
   return (
     <DevBarClient
       me={user ? { nickname: user.nickname, onboarded: !!user.onboardedAt } : null}
-      teams={state.teams}
       current={current}
       season={state.season}
       stages={STAGES}
       statuses={STATUSES}
       phases={PHASES}
+      raceStages={RACE_STAGES}
       metrics={METRICS}
       flags={Object.keys(featureFlagsSchema.shape).map((key) => ({
         key,

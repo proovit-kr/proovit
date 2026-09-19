@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 
+import { SeasonPhase, StageKey } from "@/generated/prisma/client";
+import { Footer } from "@/components/Footer";
 import { OrganizationJsonLd } from "@/components/JsonLd";
-import { Landing } from "@/components/Landing";
+import { Landing, type LandingLive } from "@/components/Landing";
+import { currentStage } from "@/lib/header-state";
 import { prisma } from "@/lib/prisma";
+import { loadLeaderboard } from "@/lib/public-read";
 import { getCurrentSeason, publicHeaderSeason } from "@/lib/season";
 
 /*
@@ -34,6 +38,61 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
+/*
+  개발 환경의 진행 중 목 데이터 — 전광판은 시안 표본 팀명에 수연이 준 숫자, 참가팀은
+  시안의 28팀(2026-09-19 수연 지시). 시즌 종료도 같은 목을 쓴다(dev DB에 스냅샷이 없다).
+  사전 신청 수는 개발 환경도 실데이터 그대로다.
+  배포본에는 절대 안 나간다: 관전자에게 가짜 순위를 보이면 이 서비스의 주장이 무너진다.
+*/
+const DEV_MOCK: Pick<LandingLive, "top" | "teams"> = {
+  top: [
+    { entryId: "mock-1", teamName: "골목마켓", validVisitors: 328 },
+    { entryId: "mock-2", teamName: "모카브루", validVisitors: 203 },
+    { entryId: "mock-3", teamName: "두잇로그", validVisitors: 133 },
+  ],
+  teams: 28,
+};
+
+/*
+  진행 중·시즌 종료 전광판에 올릴 것 — 지금 스테이지, 상위 3팀, 참가팀 수, 집계 확정 시각.
+  종료의 순위는 마지막 스냅샷(최종)이라 같은 조회로 된다.
+
+  ⚠️ 순위를 여기서 매기지 않는다. 리더보드와 같은 조회(`loadLeaderboard`)에서
+  스냅샷 순위가 있는 팀만 앞에서 셋을 자른다. 집계 전이면 빈 배열이다.
+*/
+async function loadLive(seasonId: string): Promise<LandingLive> {
+  const [board, stages] = await Promise.all([
+    loadLeaderboard(seasonId),
+    prisma.stage.findMany({
+      where: { seasonId },
+      orderBy: { stageKey: "asc" },
+      select: { stageKey: true, name: true, isGate: true, opensAt: true, closesAt: true },
+    }),
+  ]);
+  const stage = currentStage(
+    stages.map((s) => ({ ...s, key: s.stageKey })),
+    new Date(),
+  );
+  const current = stage ? { key: stage.key, name: stage.name } : null;
+  /* 집계 확정 = s5 마감(시안 「11.01 24:00 집계 확정 기준」, 제출 s5의 「집계 확정」과 같다) */
+  const s5 = stages.find((s) => s.stageKey === StageKey.s5);
+  const finalAt = s5?.closesAt?.toISOString() ?? null;
+  if (process.env.NODE_ENV !== "production") return { stage: current, finalAt, ...DEV_MOCK };
+  return {
+    stage: current,
+    finalAt,
+    top: board.rows
+      .filter((row) => row.rank !== null)
+      .slice(0, 3)
+      .map((row) => ({
+        entryId: row.entryId,
+        teamName: row.teamName,
+        validVisitors: row.validVisitors,
+      })),
+    teams: board.rows.length,
+  };
+}
+
 export default async function Home() {
   const season = await getCurrentSeason();
 
@@ -48,19 +107,33 @@ export default async function Home() {
     );
   }
 
-  const preRegisterCount = await prisma.lead.count({
-    where: { seasonId: season.id },
-  });
+  const headerSeason = publicHeaderSeason(season);
+  const [preRegisterCount, racingSchedule, live] = await Promise.all([
+    prisma.lead.count({ where: { seasonId: season.id } }),
+    /* 참가 신청 마감 = 레이스로 넘어가는 예정 시각(운영 헤더와 같은 정의) */
+    prisma.seasonSchedule.findFirst({
+      where: { seasonId: season.id, phase: SeasonPhase.racing },
+      orderBy: { startsAt: "asc" },
+      select: { startsAt: true },
+    }),
+    headerSeason?.kind === "stage" || headerSeason?.kind === "done"
+      ? loadLive(season.id)
+      : null,
+  ]);
 
   return (
     <>
       <OrganizationJsonLd />
       <Landing
         seasonName={season.title}
-        headerSeason={publicHeaderSeason(season)}
+        headerSeason={headerSeason}
         seasonTheme={season.theme}
         startAt={season.startsAt?.toISOString() ?? null}
         preRegisterCount={preRegisterCount}
+        recruitClosesAt={racingSchedule?.startsAt.toISOString() ?? null}
+        endsAt={season.endsAt?.toISOString() ?? null}
+        live={live}
+        footer={<Footer />}
       />
     </>
   );
