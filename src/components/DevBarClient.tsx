@@ -3,12 +3,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
-  devImpersonate,
+  devSetCurrentStage,
   devSetMetrics,
   devSetPhase,
   devSetStage,
   devSetStatus,
-  devSignOut,
   devToggleFlag,
 } from "@/app/actions/dev";
 
@@ -32,7 +31,6 @@ type Team = {
   ideaTitle: string;
   stage: string;
   status: string;
-  email: string;
 };
 
 type Option<T extends string> = { value: T; label: string };
@@ -40,17 +38,18 @@ type Option<T extends string> = { value: T; label: string };
 type Props = {
   blocked?: string;
   me?: { nickname: string; onboarded: boolean } | null;
-  teams?: Team[];
   current?: Team | null;
   season?: {
     id: string;
     slug: string;
     phase: string;
     metrics: string;
+    stage: string | null;
   } | null;
   stages?: Option<string>[];
   statuses?: Option<string>[];
   phases?: Option<string>[];
+  raceStages?: Option<string>[];
   metrics?: Option<string>[];
   flags?: { key: string; label: string; on: boolean }[];
 };
@@ -141,12 +140,12 @@ function savePos(p: Pos) {
 export function DevBarClient({
   blocked,
   me,
-  teams = [],
   current,
   season,
   stages = [],
   statuses = [],
   phases = [],
+  raceStages = [],
   metrics = [],
   flags = [],
 }: Props) {
@@ -252,28 +251,27 @@ export function DevBarClient({
             </div>
           </div>
 
-          {/* ── 누구로 볼까 ─────────────────────────────────── */}
-          <div className={styles.row}>
-            <span className={styles.label}>계정</span>
-            <div className={styles.picks}>
-              {teams.map((team) => (
-                <PickButton
-                  key={team.userId}
-                  action={devImpersonate}
-                  fields={{ userId: team.userId }}
-                  active={current?.userId === team.userId}
-                >
-                  {team.teamName}
-                  <em className={styles.sub}>{team.stage}</em>
-                </PickButton>
-              ))}
-              <form action={devSignOut}>
-                <button type="submit" className={styles.pickQuiet}>
-                  로그아웃
-                </button>
-              </form>
+          {/* ── 레이스 중 지금 스테이지 ──────────────────────── */}
+          {season?.phase === "racing" ? (
+            <div className={styles.row}>
+              <span className={styles.label}>
+                스테이지
+                <em className={styles.hint}>일정을 옮겨요</em>
+              </span>
+              <div className={styles.picks}>
+                {raceStages.map((stage) => (
+                  <PickButton
+                    key={stage.value}
+                    action={devSetCurrentStage}
+                    fields={{ seasonId: season.id, stage: stage.value }}
+                    active={season.stage === stage.value}
+                  >
+                    {stage.label}
+                  </PickButton>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
 
           {/* ── 진도 ────────────────────────────────────────── */}
           <div className={styles.row}>
@@ -294,7 +292,7 @@ export function DevBarClient({
                   </PickButton>
                 ))
               ) : (
-                <span className={styles.empty}>팀을 먼저 고르세요</span>
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
               )}
             </div>
           </div>
@@ -315,7 +313,7 @@ export function DevBarClient({
                   </PickButton>
                 ))
               ) : (
-                <span className={styles.empty}>팀을 먼저 고르세요</span>
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
               )}
             </div>
           </div>

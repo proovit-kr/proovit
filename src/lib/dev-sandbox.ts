@@ -98,8 +98,6 @@ export type SandboxTeam = {
   ideaTitle: string;
   stage: EntryStage;
   status: EntryStatus;
-  /** 이 팀 팀장의 이메일. 어느 계정으로 들어가는지 알려준다 */
-  email: string;
 };
 
 export type SandboxState = {
@@ -111,14 +109,15 @@ export type SandboxState = {
     flags: Record<string, boolean>;
     /** 리더보드가 지금 어느 상태로 보이는가 */
     metrics: MetricsFixture;
+    /** 지금 스테이지 — 창이 열린 것 중 마지막(`currentStage`와 같은 정의). 하나도 안 열렸으면 null */
+    stage: StageKey | null;
   } | null;
 };
 
 /**
- * 고를 수 있는 팀 목록.
+ * 팀 목록과 시즌 상태. 바는 로그인한 계정이 팀장인 팀을 이 목록에서 찾는다.
  *
- * **팀장이 있는 팀만** 준다. 팀원 계정으로 들어가면 쓰기 화면이 전부 잠겨
- * (leaderOnly) 검토할 것이 절반으로 준다.
+ * **팀장이 있는 팀만** 준다. 진도·상태 줄이 제출물을 팀장 이름으로 만든다.
  */
 export async function loadSandboxState(): Promise<SandboxState> {
   assertSandbox();
@@ -137,7 +136,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
             members: {
               where: { role: "leader" },
               take: 1,
-              select: { userId: true, user: { select: { email: true } } },
+              select: { userId: true },
             },
           },
         },
@@ -161,9 +160,14 @@ export async function loadSandboxState(): Promise<SandboxState> {
           take: 1,
           select: { isFinal: true },
         },
+        stages: {
+          orderBy: { stageKey: "asc" },
+          select: { stageKey: true, opensAt: true },
+        },
       },
     }),
   ]);
+  const now = Date.now();
 
   const teams: SandboxTeam[] = entries.flatMap((entry) => {
     const leader = entry.team.members[0];
@@ -176,7 +180,6 @@ export async function loadSandboxState(): Promise<SandboxState> {
         ideaTitle: entry.ideaTitle,
         stage: entry.stage,
         status: entry.status,
-        email: leader.user.email,
       },
     ];
   });
@@ -194,6 +197,10 @@ export async function loadSandboxState(): Promise<SandboxState> {
             : season.snapshots[0].isFinal
               ? "final"
               : "race",
+          stage:
+            season.stages
+              .filter((s) => s.opensAt && s.opensAt.getTime() <= now)
+              .at(-1)?.stageKey ?? null,
         }
       : null,
   };
@@ -620,35 +627,28 @@ export async function setMetricsFixture(args: {
   ]);
 }
 
-// ═════════════════════════════════════════════════════════════
-// 팀 시점으로 갈아타기
-// ═════════════════════════════════════════════════════════════
-
 /*
-  세션 전략이 DB라(auth.ts) 세션 행 하나를 만들고 쿠키를 그 토큰으로 바꾸면
-  그 사람으로 들어간 것과 **완전히 같다.** 판정 경로(access.ts)에 "~인 척한다"는
-  분기를 넣지 않는 것이 핵심이다 — 거기는 접근 판정의 입력이라 개발용 우회로가
-  하나라도 생기면 안 된다.
+  레이스 중 지금 스테이지를 고른다. 고른 스테이지가 이틀 전 열려 진행 중이
+  되도록 다섯 스테이지 날짜를 한꺼번에 옮긴다 — 앞은 닫히고 뒤는 아직 안 열린다.
+  주 단위·「다음 스테이지 열리기 1분 전 마감」은 `fixtureStageDates`와 같다.
 
-  ⚠️ 쿠키 이름은 Auth.js 규약이다. https에서는 `__Secure-` 접두사가 붙는데
-  이 도구는 dev(http)에서만 열리므로 접두사 없는 쪽만 쓴다.
+  ⚠️ 집계 픽스처도 스테이지 날짜를 옮긴다(s4). 둘 중 나중에 누른 쪽이 남는다.
 */
-export const DEV_SESSION_COOKIE = "authjs.session-token";
-
-/** 이 팀 팀장으로 로그인한다. 돌려주는 값은 쿠키에 심을 세션 토큰 */
-export async function impersonate(userId: string): Promise<{
-  token: string;
-  expires: Date;
-}> {
+export async function setSandboxCurrentStage(args: {
+  seasonId: string;
+  stage: StageKey;
+}): Promise<void> {
   assertSandbox();
-
-  const token = crypto.randomUUID();
-  /* 짧게 잡는다. 개발 도구가 만든 세션이 오래 살아 있을 이유가 없다 */
-  const expires = new Date(Date.now() + 12 * 60 * 60 * 1000);
-
-  await prisma.session.create({
-    data: { sessionToken: token, userId, expires },
-  });
-
-  return { token, expires };
+  const KEYS = [StageKey.s1, StageKey.s2, StageKey.s3, StageKey.s4, StageKey.s5];
+  const at = KEYS.indexOf(args.stage);
+  const opensNow = Date.now() - 2 * 86_400_000;
+  await prisma.$transaction(
+    KEYS.map((stageKey, i) => {
+      const opensAt = new Date(opensNow + (i - at) * WEEK_MS);
+      return prisma.stage.updateMany({
+        where: { seasonId: args.seasonId, stageKey },
+        data: { opensAt, closesAt: new Date(opensAt.getTime() + WEEK_MS - MIN_MS) },
+      });
+    }),
+  );
 }

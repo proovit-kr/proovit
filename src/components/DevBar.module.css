@@ -131,8 +131,7 @@
 }
 
 .pick,
-.pickOn,
-.pickQuiet {
+.pickOn {
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
@@ -146,8 +145,7 @@
   cursor: pointer;
 }
 
-.pick:hover,
-.pickQuiet:hover {
+.pick:hover {
   border-color: rgba(255, 61, 168, 0.5);
   color: #fff;
 }
@@ -157,22 +155,6 @@
   background: rgba(255, 61, 168, 0.16);
   color: #ffd9ee;
   font-weight: 700;
-}
-
-.pickQuiet {
-  border-style: dashed;
-  color: #6b7488;
-}
-
-.sub {
-  color: #6b7488;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-style: normal;
-}
-
-.pickOn .sub {
-  color: #ffb0dd;
 }
 
 .empty {

@@ -1,17 +1,16 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 import {
   EntryStage,
   EntryStatus,
   SeasonPhase,
+  StageKey,
 } from "@/generated/prisma/enums";
 import {
-  DEV_SESSION_COOKIE,
   checkDevSandbox,
-  impersonate,
+  setSandboxCurrentStage,
   setSandboxPhase,
   setSandboxStage,
   setSandboxStatus,
@@ -30,8 +29,7 @@ import { prisma } from "@/lib/prisma";
   (dev-sandbox.ts의 쓰기 함수들도 각자 한 번 더 본다. 세 겹이다.)
 
   ⚠️ 여기 있는 것은 **권한 판정이 아니다.** 운영자 권한을 확인하지 않는 이유는
-  이 도구가 애초에 운영 DB에서 안 열리기 때문이고, dev에서는 아무나 아무 팀으로
-  갈아탈 수 있는 것이 목적이다.
+  이 도구가 애초에 운영 DB에서 안 열리기 때문이다.
 
   ⚠️ 인자가 **FormData 하나**다. `<form action={fn}>`은 fn을 formData 한 개로
   부른다 — useActionState에 물릴 때만 (prevState, formData) 두 개가 된다.
@@ -64,46 +62,6 @@ function guard(): void {
 */
 function refresh(): void {
   revalidatePath("/", "layout");
-}
-
-/** 이 팀 팀장으로 갈아탄다 */
-export async function devImpersonate(formData: FormData): Promise<void> {
-  guard();
-
-  const userId = String(formData.get("userId") ?? "");
-  if (!userId) throw new Error("[dev] userId가 없습니다.");
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, nickname: true },
-  });
-  if (!user) throw new Error("[dev] 그 계정이 없습니다.");
-
-  const { token, expires } = await impersonate(user.id);
-  const jar = await cookies();
-  jar.set(DEV_SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    expires,
-  });
-
-  refresh();
-}
-
-/** 로그아웃. 갈아탄 세션을 버린다 */
-export async function devSignOut(): Promise<void> {
-  guard();
-
-  const jar = await cookies();
-  const token = jar.get(DEV_SESSION_COOKIE)?.value;
-  if (token) {
-    /* 쿠키만 지우면 세션 행이 dev DB에 계속 쌓인다 */
-    await prisma.session.deleteMany({ where: { sessionToken: token } });
-    jar.delete(DEV_SESSION_COOKIE);
-  }
-
-  refresh();
 }
 
 export async function devSetStage(formData: FormData): Promise<void> {
@@ -154,6 +112,18 @@ export async function devSetPhase(formData: FormData): Promise<void> {
   if (!seasonId || !phase) throw new Error("[dev] seasonId·phase가 잘못됐습니다.");
 
   await setSandboxPhase({ seasonId, phase });
+  refresh();
+}
+
+/** 레이스 중 지금 스테이지를 고른다 — 스테이지 날짜를 옮긴다 */
+export async function devSetCurrentStage(formData: FormData): Promise<void> {
+  guard();
+
+  const seasonId = String(formData.get("seasonId") ?? "");
+  const stage = toEnum(StageKey, formData.get("stage"));
+  if (!seasonId || !stage) throw new Error("[dev] seasonId·stage가 잘못됐습니다.");
+
+  await setSandboxCurrentStage({ seasonId, stage });
   refresh();
 }
 
