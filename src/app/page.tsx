@@ -39,6 +39,16 @@ export const metadata: Metadata = {
 };
 
 /*
+  개발 환경의 전광판 목 데이터 — 시안 표본 팀명에 수연이 준 숫자(2026-09-19).
+  배포본에는 절대 안 나간다: 관전자에게 가짜 순위를 보이면 이 서비스의 주장이 무너진다.
+*/
+const DEV_MOCK_TOP: LandingLive["top"] = [
+  { entryId: "mock-1", teamName: "골목마켓", validVisitors: 328 },
+  { entryId: "mock-2", teamName: "모카브루", validVisitors: 203 },
+  { entryId: "mock-3", teamName: "두잇로그", validVisitors: 133 },
+];
+
+/*
   진행 중 전광판에 올릴 것 — 지금 스테이지, 상위 3팀, 참가팀 수.
 
   ⚠️ 순위를 여기서 매기지 않는다. 리더보드와 같은 조회(`loadLeaderboard`)에서
@@ -59,14 +69,17 @@ async function loadLive(seasonId: string): Promise<LandingLive> {
   );
   return {
     stage: stage ? { key: stage.key, name: stage.name } : null,
-    top: board.rows
-      .filter((row) => row.rank !== null)
-      .slice(0, 3)
-      .map((row) => ({
-        entryId: row.entryId,
-        teamName: row.teamName,
-        validVisitors: row.validVisitors,
-      })),
+    top:
+      process.env.NODE_ENV === "production"
+        ? board.rows
+            .filter((row) => row.rank !== null)
+            .slice(0, 3)
+            .map((row) => ({
+              entryId: row.entryId,
+              teamName: row.teamName,
+              validVisitors: row.validVisitors,
+            }))
+        : DEV_MOCK_TOP,
     teams: board.rows.length,
   };
 }
