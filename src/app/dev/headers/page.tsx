@@ -167,7 +167,8 @@ export default function Page() {
       {PUB.map((p) => (
         <Frame key={p.id} id={p.id}>
           <NavBar
-            season={{ kind: p.season, slug: SEASON.slug, title: SEASON.title, flags: SEASON.flags }}
+            /* 진행 중 표본은 s4가 시작된 뒤의 모습이다 — 시안 프레임이 리더보드 메뉴를 켜 둔다 */
+            season={{ kind: p.season, slug: SEASON.slug, title: SEASON.title, flags: SEASON.flags, s4Started: true }}
             viewer={p.user === "guest" ? null : { kind: p.user, initial: p.initial ?? "?", unread: p.user === "entrant" ? 1 : 0 }}
             /* 시안 프레임의 `.on`과 같은 항목을 켠다. 진열장 경로로는 어느 것도 안 켜진다 */
             activeHref={p.on ?? "/dev/headers"}

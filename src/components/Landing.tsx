@@ -7,7 +7,7 @@ import { Badge } from "./Badge";
 import { ClauseFit } from "./ClauseFit";
 import { Clauses } from "./Clauses";
 import { Card } from "./Surface";
-import { Button } from "./Button";
+import { Button, LinkButton } from "./Button";
 import ConsentFields, {
   EMPTY_CONSENT,
   focusFirstMissingConsent,
@@ -32,7 +32,7 @@ import {
   MARQUEE,
   ROADMAP,
 } from "@/content/landing";
-import type { PublicHeaderInput } from "@/lib/header-state";
+import { fmtMD, fmtMDHM, type PublicHeaderInput } from "@/lib/header-state";
 
 /*
   랜딩 — 시안 v2.1의 「랜딩(배포본 정적 재현)」을 그대로 옮긴 것.
@@ -62,19 +62,17 @@ export interface LandingProps {
   startAt: string | null;
   /** 실제 사전 신청자 수 (DB 집계) */
   preRegisterCount: number;
+  /** 참가 신청 마감 = 레이스 전환 예정 시각(ISO). 일정 행이 없으면 null */
+  recruitClosesAt: string | null;
 }
 
 /*
-  ⚠️ **랜딩의 버튼 셋은 시즌 상태를 따르지 않는다.** 헤더(1439행)·히어로
-  (1451행)·파이널(1566행) 모두 시안에 「사전 신청하기」 하나로 그려져 있고,
-  분기가 없다. 셋 다 같은 폼을 향한다.
+  시즌 상태별 랜딩. 시안 ver4 `#scr-landing`의 STATE 넷(`only-*`)을 따른다 —
+  배지·CTA 두 버튼·안내 문장·사전 신청 폼·전광판 캡션·파이널 CTA가 갈린다.
+  (ver3까지는 분기가 없어 「사전 신청하기」 하나였다.)
 
-  상태별 셋(`only-pre`·`only-recruit`·`only-racing`)이 있는 곳은 **시즌 상세
-  화면**(`#scr-season` 1712행)이다. 한때 그것을 랜딩으로 옮겨 놨었다 —
-  2026-09-06에 되돌렸다. `resolveLandingCta`는 시즌 상세(§8)가 쓸 값이라
-  season.ts에 그대로 둔다.
+  지금은 ① 모집 전과 ② 모집 중만 옮겼다. 나머지 상태는 ①로 그려진다.
 */
-const CTA_LABEL = "사전 신청하기";
 
 const cx = (...v: (string | undefined | false)[]) =>
   v.filter(Boolean).join(" ");
@@ -185,8 +183,10 @@ export function Landing({
   startAt,
   headerSeason,
   preRegisterCount,
+  recruitClosesAt,
 }: LandingProps) {
   const { message, show } = useToast();
+  const recruiting = headerSeason?.kind === "recruit";
 
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState<ConsentState>(EMPTY_CONSENT);
@@ -352,6 +352,18 @@ export function Landing({
         .replace(/\.$/, "")} 개막`
     : "일정 확정 중";
 
+  /*
+    참가 신청 마감. 저장된 값은 레이스로 넘어가는 시각(10.05 00:00)이라 그대로
+    적으면 「10.05 마감」「10.04 24:00」이 된다. 시안은 「10.04 마감」「10.04
+    23:59」다 — 마지막으로 신청할 수 있는 1분으로 적는다.
+  */
+  const lastMinute = recruitClosesAt
+    ? new Date(new Date(recruitClosesAt).getTime() - 60_000)
+    : null;
+  const badgeLabel = recruiting
+    ? `${seasonName} 참가 신청 접수 중${lastMinute ? `, ${fmtMD(lastMinute)} 마감` : ""}`
+    : `${seasonName}, ${openingLabel}`;
+
   /* 시안의 스탯 4칸. 앞 셋은 고정값이고 마지막만 DB에서 온다 */
   const stats = [
     { value: "20~40", unit: "팀", label: "모집 규모" },
@@ -374,7 +386,7 @@ export function Landing({
           <div>
             <Reveal>
               <Badge tone="lime" className={styles.cur}>
-                {seasonName}, {openingLabel}
+                {badgeLabel}
               </Badge>
             </Reveal>
             <Reveal index={1} step={70}>
@@ -390,20 +402,42 @@ export function Landing({
               </p>
             </Reveal>
             <Reveal index={3} step={70}>
-              <div className={styles.ctas}>
-                <Button size="lg" className={styles.btnPrimary} onClick={runCta}>
-                  {CTA_LABEL}
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => scrollTo("how")}
-                >
-                  작동 방식 보기
-                </Button>
-              </div>
+              {recruiting ? (
+                /* 참가 신청이 로그인을 거치므로 두 번째 자리가 로그인 진입점이다 */
+                <div className={styles.ctas}>
+                  <LinkButton size="lg" className={styles.btnPrimary} href="/apply">
+                    참가 신청하기
+                  </LinkButton>
+                  <LinkButton size="lg" variant="outline" href="/login">
+                    로그인
+                  </LinkButton>
+                </div>
+              ) : (
+                <div className={styles.ctas}>
+                  <Button size="lg" className={styles.btnPrimary} onClick={runCta}>
+                    사전 신청하기
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => scrollTo("how")}
+                  >
+                    작동 방식 보기
+                  </Button>
+                </div>
+              )}
             </Reveal>
 
+            {recruiting ? (
+              <Reveal index={4} step={70}>
+                {/* 절 끊기(Clauses)를 안 쓴다. 시안과 같은 자리에서 줄이 나뉜다(2026-09-19, 수연이 맡겨 정함) */}
+                <p className={styles.hint}>
+                  참가 신청은 로그인 뒤 바로 이어져요. 계정이 없으면 소셜 로그인으로
+                  10초면 만들어져요.
+                  {lastMinute ? ` 마감은 ${fmtMDHM(lastMinute)}예요.` : null}
+                </p>
+              </Reveal>
+            ) : (
             <Reveal index={4} step={70}>
               <form className={styles.form} onSubmit={onPreRegister} noValidate>
                 <div className={styles.formHead}>시즌 소식 받기</div>
@@ -445,6 +479,7 @@ export function Landing({
                 ) : null}
               </form>
             </Reveal>
+            )}
           </div>
 
           {/* 라이브 전광판. 참가팀이 0이라 순위 대신 「준비 중」이다 */}
@@ -452,7 +487,7 @@ export function Landing({
             <div className={styles.live}>
               <div className={styles.liveCap}>
                 <span className={styles.cur}>LIVE LEADERBOARD</span>
-                <Badge tone="gray">준비 중</Badge>
+                <Badge tone="gray">{recruiting ? "개막 전" : "준비 중"}</Badge>
               </div>
               {[1, 2, 3].map((rank) => (
                 <div className={styles.slot} key={rank}>
@@ -700,13 +735,23 @@ export function Landing({
             </h2>
           </Reveal>
           <Reveal index={1} step={90}>
-            <Button
-              className={styles.btnPrimary}
-              style={{ padding: "14px 30px", fontSize: 15 }}
-              onClick={runCta}
-            >
-              {CTA_LABEL}
-            </Button>
+            {recruiting ? (
+              <LinkButton
+                className={styles.btnPrimary}
+                style={{ padding: "14px 30px", fontSize: 15 }}
+                href="/apply"
+              >
+                참가 신청하기
+              </LinkButton>
+            ) : (
+              <Button
+                className={styles.btnPrimary}
+                style={{ padding: "14px 30px", fontSize: 15 }}
+                onClick={runCta}
+              >
+                사전 신청하기
+              </Button>
+            )}
           </Reveal>
         </div>
       </div>

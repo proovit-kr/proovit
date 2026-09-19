@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { SeasonPhase } from "@/generated/prisma/client";
 import { OrganizationJsonLd } from "@/components/JsonLd";
 import { Landing } from "@/components/Landing";
 import { prisma } from "@/lib/prisma";
@@ -48,9 +49,15 @@ export default async function Home() {
     );
   }
 
-  const preRegisterCount = await prisma.lead.count({
-    where: { seasonId: season.id },
-  });
+  const [preRegisterCount, racingSchedule] = await Promise.all([
+    prisma.lead.count({ where: { seasonId: season.id } }),
+    /* 참가 신청 마감 = 레이스로 넘어가는 예정 시각(운영 헤더와 같은 정의) */
+    prisma.seasonSchedule.findFirst({
+      where: { seasonId: season.id, phase: SeasonPhase.racing },
+      orderBy: { startsAt: "asc" },
+      select: { startsAt: true },
+    }),
+  ]);
 
   return (
     <>
@@ -61,6 +68,7 @@ export default async function Home() {
         seasonTheme={season.theme}
         startAt={season.startsAt?.toISOString() ?? null}
         preRegisterCount={preRegisterCount}
+        recruitClosesAt={racingSchedule?.startsAt.toISOString() ?? null}
       />
     </>
   );

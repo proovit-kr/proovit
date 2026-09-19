@@ -139,6 +139,16 @@
   font-size: 15px;
 }
 
+/* 모집 중 CTA 밑 안내 — 시안 `.ld-hint` */
+.hint {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.65;
+  max-width: 34em;
+  border-left: 2px solid var(--line-strong);
+  padding-left: 14px;
+}
+
 /* ═══════════════ 사전신청 폼 ═══════════════ */
 
 .form {

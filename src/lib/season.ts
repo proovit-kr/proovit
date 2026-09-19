@@ -1,4 +1,4 @@
-import { SeasonPhase, type Season } from "@/generated/prisma/client";
+import { SeasonPhase, StageKey, type Season } from "@/generated/prisma/client";
 import { parseFeatureFlags } from "@/lib/feature-flags";
 import { toHeaderSeason, type PublicHeaderInput } from "@/lib/header-state";
 import { phaseAtLeast } from "@/lib/season-phase";
@@ -53,15 +53,19 @@ export function resolveLandingCta(season: Season): LandingCta {
  * 오면서 다시 갈랐다 — 이번에는 판정표가 시안에 있다(header-state.ts).
  */
 export function publicHeaderSeason(
-  season: Season | null,
+  season: CurrentSeason | null,
+  now: Date = new Date(),
 ): PublicHeaderInput["season"] {
   if (!season) return null;
   const flags = parseFeatureFlags(season.featureFlags);
+  /* s4 시작일이 비어 있으면(미정) 아직 시작 전으로 본다 */
+  const s4OpensAt = season.stages[0]?.opensAt ?? null;
   return {
     kind: toHeaderSeason(season.phase),
     slug: season.slug,
     title: season.title,
     flags: { notifications: flags.notifications },
+    s4Started: !!s4OpensAt && s4OpensAt.getTime() <= now.getTime(),
   };
 }
 
@@ -70,9 +74,18 @@ export function publicHeaderSeason(
   draft는 운영자만 보는 상태이므로 공개 조회에서 제외한다.
   여러 개가 열려 있으면 가장 최근에 만든 것을 쓴다.
 */
-export async function getCurrentSeason(): Promise<Season | null> {
+export type CurrentSeason = Season & { stages: { opensAt: Date | null }[] };
+
+/*
+  s4 행의 시작일을 함께 싣는다 — 공개 헤더의 리더보드 메뉴가 그 날부터 열린다
+  (`publicHeaderSeason`).
+*/
+export async function getCurrentSeason(): Promise<CurrentSeason | null> {
   return prisma.season.findFirst({
     where: { phase: { not: SeasonPhase.draft } },
     orderBy: { createdAt: "desc" },
+    include: {
+      stages: { where: { stageKey: StageKey.s4 }, select: { opensAt: true } },
+    },
   });
 }

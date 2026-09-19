@@ -275,6 +275,8 @@ export type PublicHeaderInput = {
     slug: string;
     title: string;
     flags: { notifications: boolean };
+    /** s4 시작일이 지났다. 미정(null)이면 false */
+    s4Started: boolean;
   } | null;
   /** null이면 비로그인 */
   user: { kind: HeaderUser; initial: string; unread: number } | null;
@@ -298,11 +300,18 @@ function publicNav(season: NonNullable<PublicHeaderInput["season"]>): NavItem[] 
     label: "리더보드",
   };
 
+  /*
+    ⚠️ **리더보드는 s4 시작일부터 연다**(2026-09-19 수연 지시). 시안은 모집 중부터
+    그리지만, 그 전에는 보여 줄 순위가 없다. 모집 중은 늘 s4 전이라 날짜를 보지
+    않고 숨기고, 진행 중은 s4 시작일로 가른다.
+  */
   switch (season.kind) {
     case "pre":
       return [];
     case "recruit":
+      return [home];
     case "stage":
+      return season.s4Started ? [home, board] : [home];
     case "done":
       return [home, board];
     case "arch":

@@ -266,6 +266,15 @@ const patchVer4Markup = (p) => p.eval(`(() => {
     a.textContent = '로그인';
     rgt.prepend(a);
   }
+  /*
+    모집 중(P2·P7)에는 리더보드 메뉴가 없다. 메뉴는 s4 시작일부터 연다
+    (2026-09-19 수연 지시, header-state.ts publicNav).
+  */
+  for (const id of ["P2", "P7"]) {
+    document.querySelectorAll('.spec[data-id="' + id + '"] .frame nav a').forEach((a) => {
+      if (a.textContent.trim() === "리더보드") a.remove();
+    });
+  }
   return 1;
 })()`);
 

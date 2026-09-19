@@ -44,7 +44,7 @@ const CSS = [
   전부 어긋난다 — 실제로 처음에 그렇게 틀렸다.
 */
 const S = "#scr-landing ";
-const PAIRS = [
+const ALL_PAIRS = [
   ["ld", S + ".ld", "ld"],
   /*
     ⚠️ `::before`/`::after`의 **inset만** 뺀다. 세 번째 값이 히어로 높이라서다
@@ -67,6 +67,7 @@ const PAIRS = [
   */
   ["cta 버튼1", S + ".ld-ctas .btn:first-child", '[class*="__ctas"] > *:first-child', [], ["width"]],
   ["cta 버튼2", S + ".ld-ctas .btn:last-child", '[class*="__ctas"] > *:last-child', [], ["width"]],
+  ["hint", S + ".ld-hint", "hint"],
   ["form", S + ".ld-form", "form"],
   ["form fh", S + ".ld-form .fh", "formHead"],
   /* 동의 블록. §4에서 빠뜨렸다가 17개 속성이 어긋난 채로 나갔다 */
@@ -181,9 +182,17 @@ const probe = (pairs) => `(() => {
     .find(el => [...el.classList].some(c => c.endsWith("__" + n)));
 
   for (const [name, sel, mode, extra, skip] of ${JSON.stringify(pairs)}) {
+    /*
+      ⚠️ 보이는 것을 먼저 집는다. 시안은 네 상태의 배지·CTA를 전부 그려 두고
+      only-*로 가린다 — 첫 매치를 집으면 모집 중에도 모집 전 CTA를 잰다.
+    */
+    const firstShown = (s) => {
+      const all = [...document.querySelectorAll(s)];
+      return all.find((e) => e.getClientRects().length) ?? all[0] ?? null;
+    };
     const el = mode === "impl" && !/[ .#>\[]/.test(sel)
       ? byModuleName(sel)
-      : document.querySelector(
+      : firstShown(
           mode === "impl" ? sel.replace(/@([A-Za-z]+)/g, (_, n) => '[class*="__' + n + '"]') : sel,
         );
     if (!el) { missing.push(name + "  ← " + sel); continue; }
@@ -382,6 +391,29 @@ const TEXT_IGNORE = [
   숨기는 것이 **의도적 차이**라(2026-08-31 수연 지시) 애초에 비교하지 않는다.
 */
 const STATE = process.env.STATE ?? "pre";
+
+/*
+  상태마다 없는 요소는 대조 목록에서 뺀다. 시안에는 숨은 채로 남아 있어
+  「구현본에서 못 찾음」이 되기 때문이다. 시안 규칙 그대로 —
+  사전 신청 폼은 only-form(모집 전·종료), 안내 문장은 모집 중·진행 중에만 있다.
+*/
+const FORM_PAIRS = ["form", "form fh", "consents", "consent row", "consent box",
+  "consent req", "consent 보기", "신청 버튼"];
+const hasForm = STATE === "pre" || STATE === "done";
+const hasHint = STATE === "recruit" || STATE === "stage";
+/*
+  ⚠️ 모집 중·진행 중의 CTA는 시안이 `<a>`라 line-height(body 1.65)와 text-align
+  (start)을 물려받아 `<button>`인 모집 전 CTA보다 6.75px 높다. 우리는 두 태그를
+  똑같이 그린다(Button.module.css) — 상태가 바뀐다고 같은 자리 버튼 키가 변하지
+  않게(2026-09-19, 수연이 맡겨 정함). 파이널 영역 높이도 그 버튼을 따라간다.
+*/
+const ANCHOR_SKIP = STATE === "recruit" || STATE === "stage"
+  ? { "cta 버튼1": ["line-height", "text-align"], "cta 버튼2": ["line-height", "text-align"],
+      fin: ["::before height"] }
+  : {};
+const PAIRS = ALL_PAIRS
+  .filter(([n]) => n === "hint" ? hasHint : FORM_PAIRS.includes(n) ? hasForm : true)
+  .map(([n, s, i, x, k]) => ANCHOR_SKIP[n] ? [n, s, i, x, [...(k ?? []), ...ANCHOR_SKIP[n]]] : [n, s, i, x, k]);
 const CTA_OF = {
   "사전 신청하기": "pre", "참가 신청하기": "recruit",
   "리더보드 보기": "stage", "시즌 2 알림 받기": "done",
