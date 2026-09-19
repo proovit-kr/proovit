@@ -488,11 +488,14 @@ export function Landing({
 
             {racing ? (
               <Reveal index={4} step={70}>
-                {/* 절 끊기(Clauses)를 안 쓴다. 모집 중 안내와 같이 시안과 같은 자리에서 줄이 나뉜다 */}
+                {/*
+                  절 끊기를 쓴다 — 시안은 「처음 / 오셨다면」에서 나뉘는데, 「이동하고,」 뒤에서
+                  나뉘게 했다(2026-09-19 수연 결정). 모집 중 안내는 시안 그대로다.
+                */}
                 <p className={styles.hint}>
-                  {lastMinute ? `참가 신청은 ${fmtMD(lastMinute)}에 마감됐어요. ` : null}
-                  참가팀은 로그인하면 대시보드로 이동하고, 처음 오셨다면 리더보드에서
-                  참가작을 둘러볼 수 있어요.
+                  <Clauses
+                    text={`${lastMinute ? `참가 신청은 ${fmtMD(lastMinute)}에 마감됐어요. ` : ""}참가팀은 로그인하면 대시보드로 이동하고, 처음 오셨다면 리더보드에서 참가작을 둘러볼 수 있어요.`}
+                  />
                 </p>
               </Reveal>
             ) : recruiting ? (
