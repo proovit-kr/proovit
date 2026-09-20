@@ -287,9 +287,19 @@
   color: var(--faint);
 }
 
+/*
+  배지 칸(수상·상태). **셀 안에서 가운데**다(2026-09-20 수연 결정) — 시안은
+  오른쪽에 붙이지만(1782행), 폭이 제각각인 배지가 오른쪽 끝에 매달리면
+  줄마다 시작점이 달라 읽는 눈이 흔들린다.
+*/
 .table .bd {
   width: 100px;
-  text-align: right;
+  text-align: center;
+}
+/* 배지 안의 글자도 가운데 — 좁은 폭에서 두 줄이 될 때 갈린다 */
+.cellBadge {
+  justify-content: center;
+  text-align: center;
 }
 
 .note {

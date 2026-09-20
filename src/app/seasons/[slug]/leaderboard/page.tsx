@@ -234,7 +234,9 @@ function Row({
         {isFinal ? (
           /* 시안의 「수상」 칸. 확정된 상이 있는 팀에만 붙는다 */
           row.award ? (
-            <Badge tone="lime">{row.award.label}</Badge>
+            <Badge tone="lime" className={styles.cellBadge}>
+              {row.award.label}
+            </Badge>
           ) : null
         ) : /*
           미배포는 숨기지 않는다 — 지표가 0인 이유를 밝히는 것이 0을 그냥
@@ -242,7 +244,9 @@ function Row({
           하나만 그린다(3554행).
         */
         row.notDeployed ? (
-          <Badge tone="gray">미배포</Badge>
+          <Badge tone="gray" className={styles.cellBadge}>
+            미배포
+          </Badge>
         ) : null}
       </td>
     </tr>
@@ -271,22 +275,22 @@ function Table({ board }: { board: Leaderboard }) {
       열 폭이 시안과 달라진다.
     */
     <table className={styles.table}>
+      {/*
+        ⚠️ **머리글은 전부 왼쪽이다**(2026-09-20 수연 결정). 시안은 뒤 세 칸에
+        `text-align:right`를 준다(1782행) — 값의 정렬을 머리글에도 그대로 물린
+        것인데, 머리글 줄만 보면 왼쪽 셋·오른쪽 둘로 꺾여 어색하다.
+
+        값은 제 성질을 따른다. 숫자는 오른쪽(자릿수가 맞아야 읽힌다), 배지는
+        가운데다.
+      */}
       <thead>
         <tr>
           <th scope="col">RANK</th>
           <th scope="col">TEAM</th>
           <th scope="col">SERVICE</th>
-          <th scope="col" style={{ textAlign: "right" }}>
-            {isFinal ? "최종 유효 이용자" : "유효 이용자"}
-          </th>
-          {isFinal ? null : (
-            <th scope="col" style={{ textAlign: "right" }}>
-              전일 대비
-            </th>
-          )}
-          <th scope="col" style={{ textAlign: "right" }}>
-            {isFinal ? "수상" : "상태"}
-          </th>
+          <th scope="col">{isFinal ? "최종 유효 이용자" : "유효 이용자"}</th>
+          {isFinal ? null : <th scope="col">전일 대비</th>}
+          <th scope="col">{isFinal ? "수상" : "상태"}</th>
         </tr>
       </thead>
       <tbody>
