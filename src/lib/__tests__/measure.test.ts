@@ -7,6 +7,7 @@ import {
   isCountableRequest,
   parseVisitorCookie,
   seoulDate,
+  seoulDateOnly,
   serializeVisitorCookie,
 } from "@/lib/measure";
 
@@ -127,5 +128,24 @@ describe("한국 날짜", () => {
   it("자정 직후도 그날로 센다", () => {
     expect(seoulDate(new Date("2026-10-20T00:10:00+09:00"))).toBe("2026-10-20");
     expect(seoulDate(new Date("2026-10-20T23:50:00+09:00"))).toBe("2026-10-20");
+  });
+
+  /*
+    하루치 표의 날짜 칸이 이 값이다. 수집·롤업·참가작 상세가 **같은 하루**를
+    봐야 한다 — 한쪽만 UTC로 자르면 한국 시간 오전 9시 전에 하루가 어긋나고,
+    그러면 「최근 7일」의 끝 칸이 빈다(실제로 그랬다).
+  */
+  it("서울 자정을 그 날짜의 UTC 0시로 적는다", () => {
+    const iso = (d: Date) => d.toISOString();
+    expect(iso(seoulDateOnly(new Date("2026-10-20T00:10:00+09:00")))).toBe(
+      "2026-10-20T00:00:00.000Z",
+    );
+    /* 오전 9시 전 — UTC로는 아직 전날이지만 서울로는 같은 날이다 */
+    expect(iso(seoulDateOnly(new Date("2026-10-20T08:59:00+09:00")))).toBe(
+      "2026-10-20T00:00:00.000Z",
+    );
+    expect(iso(seoulDateOnly(new Date("2026-10-20T23:50:00+09:00")))).toBe(
+      "2026-10-20T00:00:00.000Z",
+    );
   });
 });

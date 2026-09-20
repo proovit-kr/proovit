@@ -15,6 +15,7 @@ import {
   APPLY_CONSENTS,
 } from "@/content/consent";
 import { applyConsentRows } from "@/lib/apply-store";
+import { seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -748,9 +749,14 @@ export async function setMetricsFixture(args: {
     return;
   }
 
-  /* 오늘은 빼고 어제까지 14일. 화면이 전일까지만 공개하기 때문이다 */
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  /*
+    오늘은 빼고 어제까지 14일. 화면이 전일까지만 공개하기 때문이다.
+
+    ⚠️ 하루의 기준은 **서울 날짜**다(`seoulDateOnly`). UTC로 자르면 한국 시간
+    오전 9시 전에 하루가 밀려서, 화면이 찾는 마지막 날에 행이 없다 — 「최근
+    7일」의 끝 칸이 빈 채로 대조를 돌게 된다(실제로 그랬다).
+  */
+  const today = seoulDateOnly(new Date());
 
   const daily = entries.flatMap((entry, index) =>
     Array.from({ length: 14 }, (_, day) => {

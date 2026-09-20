@@ -62,6 +62,18 @@ export function seoulDate(at: Date): string {
   return kst.toISOString().slice(0, 10);
 }
 
+/**
+ * 서울 날짜의 자정(그 날짜의 UTC 0시로 적는다). `metric_daily.metric_date`가
+ * date 칸이라 시각이 없고, 수집·롤업·화면이 **같은 하루**를 봐야 한다 —
+ * 한쪽만 UTC로 자르면 한국 시간 오전 9시 전에는 하루가 어긋난다.
+ */
+export function seoulDateOnly(at: Date): Date {
+  const kst = new Date(at.getTime() + 9 * 60 * 60 * 1000);
+  return new Date(
+    Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()),
+  );
+}
+
 /** 시간 버킷(정시). `metric_hourly`의 `bucket_at`이 이 값이다 */
 export function hourBucket(at: Date): Date {
   const d = new Date(at);

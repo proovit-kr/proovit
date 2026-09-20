@@ -1,6 +1,7 @@
 import { cache } from "react";
 
 import { AwardType, DeployStatus, EntryStatus } from "@/generated/prisma/enums";
+import { seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -358,8 +359,13 @@ export async function loadPublicEntry(
   /* append-only 로그라 가장 최근 행이 최종 상태다(스키마 consents 주석) */
   const metricsPublic = entry.consents[0]?.granted ?? false;
 
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  /*
+    ⚠️ 「오늘」은 **서울 날짜**다. `metric_daily`를 쌓는 쪽(`measure-ingest`)도
+    롤업도 서울 기준으로 하루를 끊는데 여기만 UTC 자정으로 자르고 있었다 —
+    그러면 한국 시간 자정부터 오전 9시 사이에 **어제치가 통째로 빠져**
+    최근 7일 그래프의 끝 칸이 비고 누적도 하루만큼 적게 나왔다.
+  */
+  const today = seoulDateOnly(new Date());
 
   const daily = metricsPublic
     ? await prisma.metricDaily.findMany({
