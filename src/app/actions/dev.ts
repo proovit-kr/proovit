@@ -19,6 +19,7 @@ import {
   type MetricsFixture,
 } from "@/lib/dev-sandbox";
 import { getSessionUser } from "@/lib/access";
+import { setDevToday } from "@/lib/dev-clock";
 import { parkSession, restoreSession } from "@/lib/dev-session";
 import { prisma } from "@/lib/prisma";
 
@@ -193,4 +194,16 @@ export async function devSetAuth(formData: FormData): Promise<void> {
     할 일이 겹치는데, `revalidatePath("/", "layout")`가 레이아웃 전체를 다시
     그리느라 dev에서 버튼 한 번에 20초가 걸렸다(2026-09-21 측정).
   */
+}
+
+/*
+  가정한 「오늘」을 끈다 — 진짜 오늘로 되돌린다.
+
+  정하는 쪽은 스테이지 줄(`devSetCurrentStage`)이다. 거기서 s2를 누르면 오늘이
+  10.19가 된다. 일정은 어느 쪽도 건드리지 않는다(2026-09-21 수연 지시).
+*/
+export async function devClearToday(): Promise<void> {
+  guard();
+  setDevToday(null);
+  refresh();
 }

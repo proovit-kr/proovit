@@ -11,19 +11,20 @@
   그 셋을 만든다. 개발 바의 페이즈 줄로도 되지만 대조는 폭마다 다시 도는
   일이라 손으로 누르면 중간에 어긋난 상태로 재게 된다(lb-state.mts와 같은 이유).
 
-  ③만 `setMetricsFixture`를 같이 부른다. 그래야 둘이 생긴다 —
+  ③만 `setSandboxCurrentStage(s4)`를 같이 부른다. 그래야 둘이 생긴다 —
     ① 리더보드 플래그가 켜져 히어로 CTA 「리더보드 보기」가 나온다.
-    ② s4가 이틀 전 열려 **지금 도는 스테이지**가 된다(시안 ③의 라임 카드).
-  지금 dev DB의 임시 일정(10.12~11.17)으로는 오늘이 든 스테이지가 없어서
-  ③의 핵심인 그 카드를 아예 못 잰다.
+    ② **오늘이 s4 안이라고 가정**해 s4가 지금 도는 스테이지가 된다(시안 ③의
+       라임 카드). 일정은 건드리지 않는다 — 움직이는 것은 오늘뿐이다
+       (2026-09-21 수연 지시, `src/lib/dev-clock.ts`).
 
   ⚠️ `restore`를 빠뜨리면 다음 사람이 픽스처를 정본으로 착각한다. 리더보드
   플래그는 s4 전까지 꺼 두는 것이 기본값이다.
 
   ⚠️ **`save`는 지금 들어 있는 것을 그대로 뜬다 — 그게 남의 픽스처여도 그렇다.**
   2026-09-21에 지난 세션이 흘린 픽스처 일정을 떠서 `restore`가 그걸 되돌려
-  놓았다. 그래서 둘 다 스테이지 날짜를 찍는다. 뜰 때 s4가 오늘을 물고 있으면
-  픽스처다 — 정본은 수연의 임시 일정(s1 10.12 …)이다.
+  놓았다. 그래서 둘 다 스테이지 날짜를 찍는다. 이제 일정을 옮기는 자리는
+  없앴지만(위), 그전에 흘린 dev DB가 있을 수 있어 확인 줄은 남긴다 —
+  정본은 수연의 임시 일정(s1 10.12 …)이다.
 
   ⚠️ **반드시 .env.development.local로 돌린다.** `.env`는 운영 DB다
   (lb-state.mts와 같은 가드).
@@ -32,11 +33,13 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { SeasonPhase } from "../../src/generated/prisma/enums";
+import { SeasonPhase, StageKey } from "../../src/generated/prisma/enums";
 import { prisma } from "../../src/lib/prisma";
+import { setDevToday } from "../../src/lib/dev-clock";
 import {
   checkDevSandbox,
   setMetricsFixture,
+  setSandboxCurrentStage,
   setSandboxPhase,
 } from "../../src/lib/dev-sandbox";
 
@@ -88,9 +91,10 @@ if (mode === "save") {
   printStages(stages);
 } else if (mode in PHASE) {
   await setSandboxPhase({ seasonId: season.id, phase: PHASE[mode] });
-  /* ③만 — 플래그를 켜고 s4를 지금 도는 스테이지로 만든다 */
+  /* ③만 — 플래그를 켜고 오늘이 s4 안이라고 가정한다(일정은 그대로) */
   if (mode === "racing") {
-    await setMetricsFixture({ seasonId: season.id, kind: "race" });
+    await setSandboxCurrentStage({ seasonId: season.id, stage: StageKey.s4 });
+    await setMetricsFixture({ seasonId: season.id, kind: "race", keepStageDates: true });
   }
   console.log(`${mode}(${PHASE[mode]})로 바꿈`);
 } else if (mode === "restore") {
@@ -103,8 +107,10 @@ if (mode === "save") {
       closesAt: string | null;
     }[];
   };
-  /* 픽스처가 만든 스냅샷·일별 지표를 먼저 걷어낸다 */
-  await setMetricsFixture({ seasonId: season.id, kind: "none" });
+  /* 픽스처가 만든 스냅샷·일별 지표를 먼저 걷어낸다. 일정은 아무도 안 옮긴다 */
+  await setMetricsFixture({ seasonId: season.id, kind: "none", keepStageDates: true });
+  /* 가정한 오늘도 끈다 — 안 끄면 다음 사람이 옮겨진 오늘을 진짜로 본다 */
+  setDevToday(null);
 
   await prisma.$transaction([
     prisma.season.update({

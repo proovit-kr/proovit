@@ -9,6 +9,7 @@ import { NavBar } from "@/components/NavBar";
 import { Card } from "@/components/Surface";
 import { SEASON_GATE_TAIL, SEASON_STAGE_DETAIL } from "@/content/landing";
 import { guardPage } from "@/lib/access";
+import { devNow } from "@/lib/dev-clock";
 import { loadPublicSeason } from "@/lib/public-read";
 import { loadPublicNav } from "@/lib/header-read";
 
@@ -170,10 +171,13 @@ export default async function Page({
     ①②에서는 붙지 않는다 — 시안에서 `.only-racing`이 배지를 지운다.
 
     ⚠️ `Date.now()`를 쓰지 않는다. `react-hooks/purity`가 렌더 중 호출을 막는다
-    (리더보드의 UpdatedAt.tsx에 같은 사정이 적혀 있다). 리더보드가 쓰는
-    `new Date()` 관용구를 그대로 따른다.
+    (리더보드의 UpdatedAt.tsx에 같은 사정이 적혀 있다).
+
+    개발 환경에서는 개발 바가 정한 「가정한 오늘」이다(`lib/dev-clock.ts`).
+    dev DB의 시즌은 10.12에 시작해서 진짜 오늘로는 어느 스테이지에도 안 든다.
+    운영에서는 그냥 지금이다.
   */
-  const today = new Date();
+  const today = devNow();
   const current =
     season.phase === "racing"
       ? (season.stages.find(

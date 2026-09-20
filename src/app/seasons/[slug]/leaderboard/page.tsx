@@ -7,6 +7,7 @@ import { Badge } from "@/components/Badge";
 import { Footer } from "@/components/Footer";
 import { NavBar } from "@/components/NavBar";
 import { guardPage } from "@/lib/access";
+import { devNow } from "@/lib/dev-clock";
 import { loadLeaderboard, loadPublicSeason } from "@/lib/public-read";
 import type {
   Leaderboard,
@@ -398,7 +399,7 @@ export default async function Page({
 
         <StageTrack
           stages={season.stages}
-          currentIndex={currentStageIndex(season.stages, new Date())}
+          currentIndex={currentStageIndex(season.stages, devNow())}
           isFinal={board.isFinal}
         />
 

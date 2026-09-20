@@ -28,6 +28,7 @@ import {
   type StageInfo,
 } from "@/lib/header-state";
 import { prisma } from "@/lib/prisma";
+import { devNow } from "@/lib/dev-clock";
 import { getCurrentSeason, publicHeaderSeason } from "@/lib/season";
 
 /*
@@ -122,7 +123,7 @@ export async function loadDashboardHeader(
   const { user, season, team, entry } = viewer;
   if (!user || !season || !team || !entry) return null;
 
-  const now = new Date();
+  const now = devNow();
   const gateKey = entry.stage === EntryStage.s5 ? StageKey.s5 : StageKey.s2;
   const [seasonRow, stages, unread, gateSubmission, sanction, finalSnapshot, members, store] =
     await Promise.all([
@@ -216,7 +217,7 @@ export async function loadAdminHeader(viewer: ViewerState): Promise<AdminHeaderM
   const { user } = viewer;
   if (!user || !user.roles.includes("admin")) return null;
 
-  const now = new Date();
+  const now = devNow();
   const [seasons, email] = await Promise.all([
     prisma.season.findMany({
       orderBy: { createdAt: "desc" },

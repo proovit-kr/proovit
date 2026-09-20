@@ -7,6 +7,7 @@ import {
 } from "@/generated/prisma/enums";
 import { stageAtLeast } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
+import { devNow } from "@/lib/dev-clock";
 import {
   SINGLE_WEEK,
   type S1Payload,
@@ -85,7 +86,7 @@ export async function loadStageView(
 
   if (!stage || !entry) return null;
 
-  const now = new Date();
+  const now = devNow();
   const locked = submission?.status === SubmissionStatus.locked;
   /*
     마감이 지나도 보완 재제출 기한이 남아 있으면 열어둔다 — 그게 보완의 뜻이다.

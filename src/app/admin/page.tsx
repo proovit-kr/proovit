@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/Badge";
 import { guardPage } from "@/lib/access";
+import { devNow } from "@/lib/dev-clock";
 import { loadAdminSummary } from "@/lib/admin-read";
 
 import styles from "./admin.module.css";
@@ -55,7 +56,7 @@ function dday(closesAt: Date, today: Date): string {
 export default async function Page() {
   await guardPage("admin", "/admin");
   const summary = await loadAdminSummary();
-  const today = new Date();
+  const today = devNow();
 
   return (
     <section className={styles.root}>

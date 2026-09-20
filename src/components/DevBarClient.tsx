@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
+  devClearToday,
   devSetAuth,
   devSetCurrentStage,
   devSetMetrics,
@@ -25,6 +26,14 @@ import styles from "./DevBar.module.css";
   보고 있는 값"이 유지된다. 이 둘이 어긋나는 순간 도구가 함정이 된다.
 */
 
+/* 가정한 오늘을 찍는 모양 — 헤더 배너와 같은 `09.28` 꼴 */
+const DAY = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 type Team = {
   entryId: string;
   userId: string;
@@ -41,6 +50,8 @@ type Props = {
   me?: { nickname: string; onboarded: boolean } | null;
   /** 비로그인으로 빼 둔 세션이 있는가. 없으면 「로그인」으로 돌아올 수 없다 */
   parked?: boolean;
+  /** 가정한 「오늘」(ISO). null이면 진짜 오늘 */
+  today?: string | null;
   current?: Team | null;
   /** 로그인한 계정이 이번 시즌 참가팀에 속했는가. 비로그인이면 null */
   hasTeam?: boolean | null;
@@ -184,6 +195,7 @@ export function DevBarClient({
   blocked,
   me,
   parked = false,
+  today = null,
   current,
   hasTeam = null,
   season,
@@ -313,6 +325,26 @@ export function DevBarClient({
                     {stage.label}
                   </PickButton>
                 ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/*
+            ── 오늘 ─────────────────────────────────────────────
+            스테이지 줄이 정한 「가정한 오늘」. 일정은 정본 그대로 두고 이 값만
+            움직인다(2026-09-21 수연 지시, lib/dev-clock.ts).
+          */}
+          {today ? (
+            <div className={styles.row}>
+              <span className={styles.label}>
+                오늘
+                <em className={styles.hint}>일정은 그대로예요</em>
+              </span>
+              <div className={styles.picks}>
+                <span className={styles.empty}>{DAY.format(new Date(today))}로 가정 중</span>
+                <PickButton action={devClearToday} fields={{}}>
+                  진짜 오늘로
+                </PickButton>
               </div>
             </div>
           ) : null}
@@ -487,6 +519,7 @@ export function DevBarClient({
         <span className={styles.summary}>
           {current ? `${current.stage} / ${current.status}` : "참가 기록 없음"}
           {season ? ` · ${season.phase}` : null}
+          {today ? ` · 오늘 ${DAY.format(new Date(today))}` : null}
         </span>
         <span className={styles.caret} aria-hidden>
           {open ? "▾" : "▴"}

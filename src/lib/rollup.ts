@@ -1,6 +1,7 @@
 import { SeasonPhase, StageKey } from "@/generated/prisma/enums";
 import { seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
+import { devNow } from "@/lib/dev-clock";
 import { rankProvisional } from "@/lib/rollup-rank";
 
 /*
@@ -68,7 +69,7 @@ export async function runRollup(args: {
   now?: Date;
 }): Promise<RollupResult> {
   const { seasonId } = args;
-  const now = args.now ?? new Date();
+  const now = args.now ?? devNow();
 
   const season = await prisma.season.findUniqueOrThrow({
     where: { id: seasonId },
