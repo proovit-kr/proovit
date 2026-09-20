@@ -1,26 +1,22 @@
+import { Fragment } from "react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
-import { Clauses } from "@/components/Clauses";
-import {
-  DocBlocks,
-  DocPage,
-  DocRowTable,
-  Em,
-  type DocSection,
-} from "@/components/DocPage";
+import { ClauseParts, Clauses } from "@/components/Clauses";
+import { DocPage, DocRowTable, Em, type DocSection } from "@/components/DocPage";
 import { TERMS } from "@/content/terms";
+import type { RuleLine } from "@/content/rules";
+import { notFound } from "next/navigation";
 
 /*
   이용약관 — 시안 `#scr-terms`.
 
-  ⚠️ **시안이 주는 것은 레이아웃이고 문안의 정본은 `content/terms.ts`다.**
-  시안 스스로 「장과 조 구조만 시안에 표시, 본문은 노션 정본(이용약관 v1.1)에서
-  그대로 가져옴」이라고 적어 두었다 — 방침과 같고, 시안이 문안까지 들고 있는
-  규칙 화면과 다르다.
+  ⚠️ **여기는 요약 게시본이고 시안이 문안의 정본이다**(2026-09-21 수연 결정).
+  규칙 화면과 같고, 「구조만 표시」인 방침과 다르다 — 어긋나는 시안 메모까지
+  `content/terms.ts` 머리에 적어 두었다.
 
-  ⚠️ 정본이 아직 없으면 열지 않는다. 동의만 받아 두고 동의 대상이 없는 화면은
-  안 하느니만 못하다 — 회원가입의 필수 동의가 이 문서를 가리킨다.
+  ⚠️ **회원가입의 필수 동의가 이 문서를 가리킨다.** 동의할 대상이 화면에
+  없으면 그 동의가 성립하지 않고, 정본 제3조 ①도 서비스 초기화면 또는
+  연결화면 게시를 요구한다.
 */
 
 export const metadata: Metadata = {
@@ -29,6 +25,19 @@ export const metadata: Metadata = {
     "PROOVIT 서비스 이용 조건과 이용자·운영자의 권리와 의무를 정한 약관입니다.",
   alternates: { canonical: "/terms" },
 };
+
+/* 한 줄. 절은 `.em` 조각을 건너뛰어 묶인다 — 이유는 `Clauses.tsx`에 있다 */
+function Line({ line }: { line: RuleLine }) {
+  return (
+    <ClauseParts
+      parts={line.map((seg) =>
+        typeof seg === "string"
+          ? seg
+          : { text: seg.em, node: <Em>{seg.em}</Em> },
+      )}
+    />
+  );
+}
 
 export default async function Page() {
   if (!TERMS) notFound();
@@ -40,20 +49,16 @@ export default async function Page() {
     num: c.label,
     title: c.title,
     tocLabel: `제${c.no}장 ${c.title}`,
+    /* 시안은 한 장의 조를 `<br>`로 이어 한 단락에 넣는다 */
     body: (
-      <>
-        {c.articles.map((a) => (
-          <DocBlocks
-            key={a.no}
-            blocks={a.blocks}
-            lead={
-              <Em>
-                제{a.no}조 {a.title}
-              </Em>
-            }
-          />
+      <p>
+        {c.lines.map((line, i) => (
+          <Fragment key={i}>
+            {i > 0 ? <br /> : null}
+            <Line line={line} />
+          </Fragment>
         ))}
-      </>
+      </p>
     ),
   }));
 
@@ -77,7 +82,7 @@ export default async function Page() {
     <DocPage
       title="PROOVIT 이용약관"
       chips={[terms.version, `시행 ${terms.effectiveDate}`]}
-      badge="시즌 참가는 시즌 운영규칙이 우선"
+      badge={terms.badge}
       sections={sections}
     />
   );
