@@ -46,8 +46,13 @@ const DOCS = {
     scr: "#scr-rules",
     path: "/rules",
     lists: true,
-    /* 판번호를 뺀 이유는 방침과 같다. 배지(「시즌 중 개정 없음」)는 옮겼다 */
-    textIgnore: [/^v1\.1$/],
+    /*
+      ⚠️ **규칙은 본문까지 대조한다.** 방침·약관은 시안이 「구조만 표시」라고
+      밝혀 본문의 정본이 `content/`이지만, 규칙 화면은 시안이 스스로
+      「요약 게시본」이라 적고 문안을 다 들고 있다 — 여기서는 시안이 정본이다.
+    */
+    bodyText: true,
+    textIgnore: [],
   },
 };
 
@@ -181,6 +186,10 @@ const TEXT_PAIRS = [
   ["제목", S + ".ru h1", '[class*="__doc"] h1'],
   ["버전 칩", S + ".ru-ver", '[class*="__ver"]', DOC.textIgnore],
 ];
+/* 목차 옆 본문 칸. 시안도 우리도 `<nav>` 다음의 `<div>` 하나다 */
+if (DOC.bodyText) {
+  TEXT_PAIRS.push(["본문", S + ".ru-wrap > div", '[class*="__wrap"] > div']);
+}
 
 let total = 0;
 for (const w of WIDTHS) {

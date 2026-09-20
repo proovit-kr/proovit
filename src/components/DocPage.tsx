@@ -35,24 +35,6 @@ export function Em({ children }: { children: ReactNode }) {
   return <span className={styles.em}>{children}</span>;
 }
 
-/**
- * 조 하나를 감싸 앵커를 단다. 목차에 없는 자리라도 다른 화면이 조문으로 바로
- * 건너뛴다(푸터의 「유효 이용자 기준」이 별표 1을 가리킨다).
- */
-export function DocArticle({
-  id,
-  children,
-}: {
-  id: string;
-  children: ReactNode;
-}) {
-  return (
-    <div id={id} className={styles.art}>
-      {children}
-    </div>
-  );
-}
-
 /** 정본의 블록 배열을 그대로 그린다. `/privacy`와 `/rules`가 같은 모양을 쓴다 */
 export function DocBlocks({
   blocks,

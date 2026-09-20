@@ -53,6 +53,7 @@ const PROBE = `(() => {
 
     /* 텍스트 노드를 순서대로 모아 문자열 하나와 「offset → (노드, 위치)」 지도를 만든다 */
     const nodes = [];
+    const brAt = [];
     let full = "";
     const walk = (n) => {
       for (const c of n.childNodes) {
@@ -60,6 +61,9 @@ const PROBE = `(() => {
           if (!c.nodeValue) continue;
           nodes.push({ node: c, at: full.length, len: c.nodeValue.length });
           full += c.nodeValue;
+        } else if (c.nodeName === "BR") {
+          /* ⚠️ br은 글자를 안 보태서 앞뒤 줄이 붙어 버린다 — 가짜 절이 생긴다 */
+          brAt.push(full.length);
         } else if (c.nodeType === 1 && getComputedStyle(c).display !== "none") {
           walk(c);
         }
@@ -88,11 +92,12 @@ const PROBE = `(() => {
     if (!(avail > 0)) continue;
 
     /* 문장 끝과 쉼표 뒤에서 자른다. 뒤에 공백이 올 때만 — 「팀명.proovit.kr」을 지킨다 */
-    const bounds = [0];
+    const bounds = [0, ...brAt];
     for (let i = 0; i < full.length - 1; i++) {
       if (/[.?!,]/.test(full[i]) && /\\s/.test(full[i + 1])) bounds.push(i + 1);
     }
     bounds.push(full.length);
+    bounds.sort((a2, b2) => a2 - b2);
     if (bounds.length < 3) continue;
 
     const r = document.createRange();

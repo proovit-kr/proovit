@@ -40,7 +40,7 @@ function SeasonFooter() {
         PROO<em className={styles.wmCheck}>✓</em>IT
       </span>
       <Link href="/rules">시즌 규칙</Link>
-      <Link href="/rules#appendix-1">유효 이용자 기준</Link>
+      <Link href="/rules#ru-4">유효 이용자 기준</Link>
       <Link href="/terms">이용약관</Link>
       <Link href="/privacy">개인정보처리방침</Link>
       <a href={`mailto:${CONTACT}`}>스폰서 문의</a>
