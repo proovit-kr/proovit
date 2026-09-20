@@ -269,6 +269,27 @@ export async function withPage(fn) {
       })()`);
     },
 
+    /**
+     * 셀렉터가 나타날 때까지 기다린다. **클라이언트가 채우는 자리** 때문에 있다 —
+     * `goto`는 `document.fonts.ready`까지만 기다리므로, 마운트 뒤 fetch로 그려지는
+     * 것(계정 동의 모달·헤더의 유저 축)은 그 시점에 아직 없다.
+     *
+     * 못 찾으면 던진다. 조용히 넘어가면 「대조할 것이 없음」이 0건으로 통과한다.
+     */
+    async waitFor(selector, timeoutMs = 5000) {
+      const until = Date.now() + timeoutMs;
+      for (;;) {
+        const found = await this.eval(
+          `!!document.querySelector(${JSON.stringify(selector)})`,
+        );
+        if (found) return;
+        if (Date.now() > until) {
+          throw new Error(`${timeoutMs}ms 안에 안 나타났다: ${selector}`);
+        }
+        await this.eval("new Promise(r => setTimeout(r, 100))", true);
+      }
+    },
+
     async eval(expression, awaitPromise = false) {
       const { result, exceptionDetails } = await this.send("Runtime.evaluate", {
         expression, returnByValue: true, awaitPromise,

@@ -12,6 +12,8 @@ import {
   type PublicHeaderInput,
 } from "@/lib/header-state";
 
+import { fetchMe } from "@/lib/me-client";
+
 import { Button, LinkButton } from "./Button";
 import { glitchClass, useGlitchTick } from "./Glitch";
 import { AdminTag, Avatar, Bell } from "./HeaderBits";
@@ -120,14 +122,11 @@ export function NavBar({ season, viewer, glitchLogo, onPreregister, activeHref }
   useEffect(() => {
     if (viewer !== undefined) return;
     let alive = true;
-    fetch("/api/v1/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body) => {
-        if (alive && body?.ok) setFetched(viewerFromMe(body.data));
-      })
-      .catch(() => {
-        /* 헤더는 비로그인 모양으로 남는다. 판정은 어차피 서버가 한다 */
-      });
+    /* 동의 게이트도 같은 응답을 본다 — `me-client`가 문서당 한 번으로 묶는다 */
+    void fetchMe().then((body) => {
+      /* 실패하면 null이다. 헤더는 비로그인 모양으로 남는다 — 판정은 서버가 한다 */
+      if (alive && body) setFetched(viewerFromMe(body));
+    });
     return () => {
       alive = false;
     };

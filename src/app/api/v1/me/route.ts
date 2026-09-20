@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 
+import { loadAccountConsentNeed } from "@/lib/account-consent";
 import { isOnboardingComplete, loadViewerState } from "@/lib/access";
 import { apiOk } from "@/lib/api";
 import { resolveDashboardState } from "@/lib/dashboard-state";
@@ -58,11 +59,20 @@ const EMPTY_BODY = {
   entry: null,
   onboarding: null,
   unread: 0,
+  /*
+    계정 동의 모달을 띄워야 하는가. 루트 레이아웃의 `ConsentGate`가 이 값을 본다 —
+    **서버에서 읽으면 레이아웃이 동적이 되어 앱 전체의 정적 렌더가 꺼진다**
+    (2026-09-20에 랜딩 ISR이 그렇게 죽어 있었다). 여기 얹는 것은 요청을 늘리지
+    않는다: 헤더가 이미 이 응답을 부르고, 비로그인은 위에서 쿠키만 보고 끝난다.
+  */
+  consent: null,
 };
 
 async function buildBody() {
   const viewer = await loadViewerState();
   if (!viewer.user) return EMPTY_BODY;
+
+  const need = await loadAccountConsentNeed(viewer.user.id);
 
   const complete = isOnboardingComplete(viewer.onboarding);
   const dashboard = viewer.season
@@ -111,5 +121,13 @@ async function buildBody() {
             where: { userId: viewer.user.id, readAt: null },
           })
         : 0,
+    /* 띄울 필요가 없으면 null이다 — 화면이 「needed」를 다시 판정하지 않게 */
+    consent: need.needed
+      ? {
+          provider: need.provider,
+          maskedEmail: need.maskedEmail,
+          reconsent: need.reconsent,
+        }
+      : null,
   };
 }

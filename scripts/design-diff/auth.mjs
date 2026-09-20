@@ -380,6 +380,12 @@ for (const mode of MODES) {
         });
       }
       await p.goto(IMPL_URL + (needsSession(mode) ? "/" : "/login"));
+      /*
+        ⚠️ 모달은 **첫 그림에 없다.** `ConsentGate`가 클라이언트에서
+        `/api/v1/me`를 읽고 나서 그린다(그 컴포넌트 머리 주석 — 서버에서 읽으면
+        루트 레이아웃이 동적이 되어 앱 전체의 정적 렌더가 꺼진다).
+      */
+      if (needsSession(mode)) await p.waitFor('[aria-modal="true"]');
       await p.resize(w, 900);
       if (mode === "back") {
         await p.eval(submitConsent(`${F("all")} input`, `${D("ft")} button`, TOAST), true);
