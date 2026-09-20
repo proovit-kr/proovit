@@ -9,6 +9,7 @@ import {
   type DocSection,
 } from "@/components/DocPage";
 import { privacyPolicyAt } from "@/content/privacy";
+import { devNow } from "@/lib/dev-clock";
 
 /*
   개인정보처리방침 — 시안 `#scr-privacy`.
@@ -56,7 +57,13 @@ export default async function Page() {
     「방침 공개로 별도 동의를 갈음」 요건이 깨져서, 방침을 올려두고도 국외
     이전의 근거가 없는 상태가 된다.
   */
-  const policy = privacyPolicyAt(new Date());
+  /*
+    ⚠️ **`new Date()`가 아니라 `devNow()`다.** 개발 바에서 오늘을 옮겨도 이
+    화면만 진짜 오늘을 보면, 시행일이 지난 뒤의 방침을 확인할 길이 없다.
+    오늘을 옮기는 것은 레이스 페이즈의 스테이지 줄이다(`dev-sandbox.ts`).
+    운영 빌드에서는 `devNow()`가 곧바로 지금을 돌려준다.
+  */
+  const policy = privacyPolicyAt(devNow());
   if (!policy) notFound();
 
   const summary = policy.summary;
