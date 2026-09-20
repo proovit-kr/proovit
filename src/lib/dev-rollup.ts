@@ -24,42 +24,79 @@ import { ROLLUP_MINUTES } from "./rollup-period";
   `runRollup`이 확정된 스냅샷을 건드리지 않으므로(`skipped: "finalized"`)
   영향이 없고, 대조는 보통 한 주기 안에 끝난다.
 
-  ⚠️ **첫 실행을 즉시 하지 않는다.** 개발 서버를 띄울 때마다 픽스처를 덮으면
-  방금 만든 상태로 화면을 여는 일 자체가 안 된다. 한 주기 뒤부터 돈다.
+  ⚠️ **배포 크론과 같은 격자로 돈다** — :00 :15 :30 :45. 개발 서버 기동
+  시각부터 15분을 세면 서버를 다시 띄울 때마다 처음부터 세게 되고, 개발 중에는
+  그게 곧 「한 번도 안 도는 것」이다(실제로 그랬다 — 붙여 놓고도 「53분 전
+  갱신」이 떴다).
+
+  ⚠️ 기동 때는 **마지막 집계가 한 주기보다 낡았을 때만** 한 번 돌린다. 방금
+  픽스처를 깔고 서버를 다시 띄운 경우를 덮지 않으려는 것이다 — 그 경우 마지막
+  집계는 몇 분 전이라 그냥 다음 격자를 기다린다.
 */
 
 const PERIOD_MS = ROLLUP_MINUTES * 60_000;
+
+/*
+  ⚠️ `console.log`를 쓰지 않는다. Next의 개발 서버는 로그를 요청에 묶어
+  다시 내보내는데, **요청 컨텍스트 밖**(여기처럼 타이머 안)에서 부른 것은
+  터미널에 나오지 않는다. 기동 때 한 줄은 보이고 15분마다의 결과만 조용히
+  사라져서, 도는지 안 도는지 알 수 없었다(2026-09-20에 실제로 그랬다 —
+  DB는 갱신됐는데 로그만 없었다).
+*/
+const say = (line: string) => process.stdout.write(`${line}\n`);
 
 /*
   HMR로 이 모듈이 다시 평가돼도 타이머가 겹치지 않게 전역에 둔다
   (`prisma.ts`가 커넥션을 붙들어 두는 것과 같은 이유).
 */
 const store = globalThis as unknown as {
-  __devRollupTimer?: ReturnType<typeof setInterval>;
+  __devRollupOn?: boolean;
 };
 
 export function startDevRollup(): void {
-  if (store.__devRollupTimer) return;
+  if (store.__devRollupOn) return;
 
   if (process.env.NODE_ENV === "production") return;
   if (process.env.DEV_ROLLUP === "0") {
-    console.log("[dev-rollup] DEV_ROLLUP=0 — 롤업 타이머를 켜지 않는다");
+    say("[dev-rollup] DEV_ROLLUP=0 — 롤업 타이머를 켜지 않는다");
     return;
   }
 
   const check = checkDevSandbox();
   if (!check.ok) {
-    console.log(`[dev-rollup] 켜지 않는다: ${check.reason}`);
+    say(`[dev-rollup] 켜지 않는다: ${check.reason}`);
     return;
   }
 
-  const timer = setInterval(() => void tick(), PERIOD_MS);
-  /* 타이머가 개발 서버의 종료를 붙잡지 않게 한다 */
-  timer.unref();
-  store.__devRollupTimer = timer;
-  console.log(
-    `[dev-rollup] ${ROLLUP_MINUTES}분마다 집계를 돌린다. 끄려면 DEV_ROLLUP=0`,
+  store.__devRollupOn = true;
+  say(
+    `[dev-rollup] ${ROLLUP_MINUTES}분 격자로 집계를 돌린다. 끄려면 DEV_ROLLUP=0`,
   );
+  void schedule();
+}
+
+/** 마지막 집계가 한 주기보다 낡았는가 */
+async function isStale(): Promise<boolean> {
+  const latest = await prisma.leaderboardSnapshot.findFirst({
+    orderBy: { updatedAt: "desc" },
+    select: { updatedAt: true },
+  });
+  if (!latest) return true;
+  return Date.now() - latest.updatedAt.getTime() >= PERIOD_MS;
+}
+
+async function schedule(): Promise<void> {
+  /* 기동 직후: 이미 낡았으면 다음 격자를 기다리지 않는다 */
+  if (await isStale()) await tick();
+
+  /* 다음 격자까지 기다렸다가, 그 뒤로는 한 주기마다 */
+  const untilNext = PERIOD_MS - (Date.now() % PERIOD_MS);
+  const first = setTimeout(() => {
+    void tick();
+    /* 타이머가 개발 서버의 종료를 붙잡지 않게 한다 */
+    setInterval(() => void tick(), PERIOD_MS).unref();
+  }, untilNext);
+  first.unref();
 }
 
 async function tick(): Promise<void> {
@@ -76,13 +113,13 @@ async function tick(): Promise<void> {
     if (!season) return;
 
     const result = await runRollup({ seasonId: season.id });
-    console.log(
+    say(
       result.skipped
         ? `[dev-rollup] 건너뜀 (${result.skipped})`
         : `[dev-rollup] ${result.ranked}팀 갱신 — ${result.snapshotDate}`,
     );
   } catch (error) {
     /* 개발 편의 도구다. 여기서 죽어도 개발 서버는 살아 있어야 한다 */
-    console.error("[dev-rollup] 실패", error);
+    say(`[dev-rollup] 실패 — ${String(error)}`);
   }
 }
