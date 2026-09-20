@@ -2,6 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 
+import { ROLLUP_MINUTES } from "@/lib/rollup-period";
+
 /*
   갱신 시각 — 시안 `.upd`(1617행) 「12분 전 갱신, 롤업 주기 15분」.
 
@@ -74,8 +76,13 @@ export function UpdatedAt({
   return <span suppressHydrationWarning>{ago(iso, now)} 갱신</span>;
 }
 
-/** 롤업 주기(분). 갱신 줄의 「롤업 주기 15분」과 첫 갱신 시각이 같은 값을 쓴다 */
-export const ROLLUP_MINUTES = 15;
+/*
+  롤업 주기(분). 갱신 줄의 「롤업 주기 15분」과 첫 갱신 시각이 같은 값을 쓴다.
+  정의는 `lib/rollup-period.ts`에 있다 — 서버 타이머와 나눠 쓰는 값이라
+  `"use client"`인 이 파일에 둘 수 없다. 부르는 쪽이 여기서 가져다 쓰던 것을
+  그대로 두려고 다시 내보낸다.
+*/
+export { ROLLUP_MINUTES };
 
 /*
   첫 갱신까지 남은 시간 — 시안 `.lb-empty .big`(1624행)
