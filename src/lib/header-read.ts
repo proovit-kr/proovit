@@ -169,7 +169,10 @@ export async function loadDashboardHeader(
       phase: season.phase,
       startsAt: seasonRow?.startsAt ?? null,
       endsAt: seasonRow?.endsAt ?? null,
-      flags: { notifications: season.flags.notifications },
+      flags: {
+        notifications: season.flags.notifications,
+        leaderboard: season.flags.leaderboard,
+      },
     },
     team: { name: team.name, members },
     entry: { stage: entry.stage, status: entry.status },

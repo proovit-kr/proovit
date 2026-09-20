@@ -236,6 +236,12 @@ export function Landing({
   /* 「시즌 2」. 종료의 알림 받기·소식 받기가 다음 시즌을 부른다 */
   const nextSeason = nextSeasonLabel(seasonName);
   const board = headerSeason ? `/seasons/${headerSeason.slug}/leaderboard` : "/";
+  /*
+    ⚠️ 리더보드가 꺼진 동안에는 랜딩에서도 그리로 가는 길을 모두 지운다
+    (2026-09-20 수연 지시). 진행 중 히어로·파이널 CTA는 「참가팀 로그인」 하나만
+    남고(수연 결정), 전광판 안내와 히어로 안내에서도 그 절이 빠진다.
+  */
+  const boardOn = headerSeason?.flags.leaderboard ?? false;
 
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState<ConsentState>(EMPTY_CONSENT);
@@ -475,18 +481,27 @@ export function Landing({
                   <Button size="lg" className={styles.btnPrimary} onClick={runCta}>
                     {`${nextSeason} 알림 받기`}
                   </Button>
-                  <LinkButton size="lg" variant="outline" href={board}>
-                    최종 결과 보기
-                  </LinkButton>
+                  {boardOn ? (
+                    <LinkButton size="lg" variant="outline" href={board}>
+                      최종 결과 보기
+                    </LinkButton>
+                  ) : null}
                 </div>
               ) : racing ? (
                 /* 진행 중은 관전자가 주 대상이고, 두 번째 자리는 참가팀의 진입점이다 */
                 <div className={styles.ctas}>
-                  <LinkButton size="lg" className={styles.btnPrimary} href={board}>
-                    리더보드 보기
-                  </LinkButton>
+                  {boardOn ? (
+                    <LinkButton size="lg" className={styles.btnPrimary} href={board}>
+                      리더보드 보기
+                    </LinkButton>
+                  ) : null}
                   {/* 안내 문장이 「로그인하면 대시보드로 이동」이라 행선지를 못박는다 */}
-                  <LinkButton size="lg" variant="outline" href="/login?callbackUrl=/dashboard">
+                  <LinkButton
+                    size="lg"
+                    variant={boardOn ? "outline" : undefined}
+                    className={boardOn ? undefined : styles.btnPrimary}
+                    href="/login?callbackUrl=/dashboard"
+                  >
                     참가팀 로그인
                   </LinkButton>
                 </div>
@@ -524,7 +539,7 @@ export function Landing({
                 */}
                 <p className={styles.hint}>
                   <Clauses
-                    text={`${lastMinute ? `참가 신청은 ${fmtMD(lastMinute)}에 마감됐어요. ` : ""}참가팀은 로그인하면 대시보드로 이동하고, 처음 오셨다면 리더보드에서 참가작을 둘러볼 수 있어요.`}
+                    text={`${lastMinute ? `참가 신청은 ${fmtMD(lastMinute)}에 마감됐어요. ` : ""}참가팀은 로그인하면 대시보드로 이동해요.${boardOn ? " 처음 오셨다면 리더보드에서 참가작을 둘러볼 수 있어요." : ""}`}
                   />
                 </p>
               </Reveal>
@@ -628,10 +643,15 @@ export function Landing({
                   {`${live.finalAt ? `${fmtMDHM(new Date(live.finalAt))} 집계 확정 기준 ` : ""}최종 순위예요.`}
                 </p>
               ) : racing ? (
-                <p className={cx(styles.liveNote, styles.liveNoteFitLive)}>
+                <p className={cx(styles.liveNote, boardOn && styles.liveNoteFitLive)}>
                   {/* 한 열로 좁아져 두 줄이 될 때 끝 세 어절이 함께 넘어가게 묶는다 */}
-                  유효 이용자 기준, 15분마다 갱신돼요. 전체 순위는 리더보드에서{" "}
-                  {"볼\u00a0수\u00a0있어요."}
+                  유효 이용자 기준, 15분마다 갱신돼요.
+                  {boardOn ? (
+                    <>
+                      {" 전체 순위는 리더보드에서 "}
+                      {"볼\u00a0수\u00a0있어요."}
+                    </>
+                  ) : null}
                 </p>
               ) : (
                 <p className={cx(styles.liveNote, styles.liveNoteFit)}>
@@ -886,9 +906,9 @@ export function Landing({
               <LinkButton
                 className={styles.btnPrimary}
                 style={{ padding: "14px 30px", fontSize: 15 }}
-                href={board}
+                href={boardOn ? board : "/login?callbackUrl=/dashboard"}
               >
-                리더보드 보기
+                {boardOn ? "리더보드 보기" : "참가팀 로그인"}
               </LinkButton>
             ) : recruiting ? (
               <LinkButton

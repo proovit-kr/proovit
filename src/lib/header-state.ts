@@ -274,7 +274,12 @@ export type PublicHeaderInput = {
     /** 리더보드 정본 주소를 만들 슬러그 */
     slug: string;
     title: string;
-    flags: { notifications: boolean };
+    /*
+      ⚠️ `leaderboard`가 꺼져 있으면 **모든 화면에서 리더보드 진입점을 숨긴다**
+      (2026-09-20 수연 지시 — 시즌1은 s4 시작 전까지 끈다). 화면은 접근 판정에서
+      이미 404가 되므로(access-policy), 링크만 남으면 눌러서 404를 만나게 된다.
+    */
+    flags: { notifications: boolean; leaderboard: boolean };
   } | null;
   /** null이면 비로그인 */
   user: { kind: HeaderUser; initial: string; unread: number } | null;
@@ -305,7 +310,7 @@ function publicNav(season: NonNullable<PublicHeaderInput["season"]>): NavItem[] 
     ⚠️ **리더보드 메뉴는 아카이브(P6)에만 둔다**(2026-09-19 수연 지시). 시안은 모집
     중부터 그리지만, 모집 전·모집 중·진행 중·시즌 종료 넷 다 헤더에서 뺐다.
   */
-  return season.kind === "arch" ? [board] : [];
+  return season.kind === "arch" && season.flags.leaderboard ? [board] : [];
 }
 
 /** 사전신청 폼. 「시즌 2 알림 받기」도 같은 폼을 쓴다(시안 판단 필요 P5, 이메일 수집이 같다) */
@@ -341,6 +346,7 @@ export function resolvePublicHeader(input: PublicHeaderInput): PublicHeaderModel
   const variant = PUB_MAP[userKind][season.kind];
   const nav = publicNav(season);
   const board = `/seasons/${season.slug}/leaderboard`;
+  const boardOn = season.flags.leaderboard;
   const next = nextSeasonLabel(season.title);
   const avatar = user ? { initial: user.initial, admin: false } : null;
 
@@ -359,7 +365,13 @@ export function resolvePublicHeader(input: PublicHeaderInput): PublicHeaderModel
     case "P4":
       return {
         variant, nav, login: true, adminTag: false, bell: null, avatar: null,
-        actions: [{ kind: "leaderboard", label: "리더보드 보기", short: "리더보드", href: board, variant: "outline" }],
+        /*
+          리더보드가 꺼진 진행 중에는 CTA 자리를 비운다 — 로그인 링크만 남는다
+          (2026-09-20 수연 결정). 참가팀의 진입점은 그 링크다.
+        */
+        actions: boardOn
+          ? [{ kind: "leaderboard", label: "리더보드 보기", short: "리더보드", href: board, variant: "outline" }]
+          : [],
       };
     case "P5":
       /*
@@ -374,7 +386,9 @@ export function resolvePublicHeader(input: PublicHeaderInput): PublicHeaderModel
       return {
         variant, nav, login: true, adminTag: false, bell: null, avatar: null,
         actions: [
-          { kind: "result", label: "결과 보기", href: board, variant: "ghost" },
+          ...(boardOn
+            ? [{ kind: "result" as const, label: "결과 보기", href: board, variant: "ghost" as const }]
+            : []),
           { kind: "notify", label: `${next} 알림 받기`, href: PREREGISTER, variant: "primary" },
         ],
       };
@@ -456,7 +470,7 @@ export type DashboardHeaderInput = {
     startsAt: Date | null;
     /** 시상 발표 시각으로 쓴다(D3 게이트 2 「발표 11.03 내」) */
     endsAt: Date | null;
-    flags: { notifications: boolean };
+    flags: { notifications: boolean; leaderboard: boolean };
   };
   team: { name: string; members: number };
   entry: { stage: EntryStage; status: EntryStatus };
@@ -551,6 +565,7 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
   const avatar = { initial: input.initial };
   const base = { team: { ...team, chip: null }, strip: null, action: null, avatar };
   const board = `/seasons/${season.slug}/leaderboard`;
+  const boardOn = season.flags.leaderboard;
   const stageOf = (key: StageKey) => stages.find((s) => s.key === key) ?? null;
 
   // ── 생존 상태가 먼저다 ─────────────────────────────────────
@@ -612,7 +627,11 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
             text: [
               ...(why ? [{ text: why }] : []),
               { text: `${season.title} 경쟁에서 제외`, strong: true },
-              { text: "되었어요. 리더보드와 참가작은 계속 볼 수 있어요." },
+              {
+                text: boardOn
+                  ? "되었어요. 리더보드와 참가작은 계속 볼 수 있어요."
+                  : "되었어요. 참가작은 계속 볼 수 있어요.",
+              },
             ],
             link: { label: "안내 보기", href: "/dashboard/judgments" },
             dismissible: true,
@@ -621,7 +640,8 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
         tone: "elim",
         stage: seasonKind === "done" ? `${season.title} 종료` : `${season.title} 진행 중`,
         time: [{ text: "관전 모드" }],
-        go: { label: "리더보드 보기", href: board, tone: "gray" },
+        /* 리더보드가 꺼져 있으면 갈 곳이 없다 — 띠만 남긴다 */
+        go: boardOn ? { label: "리더보드 보기", href: board, tone: "gray" } : null,
       },
       /* 벨 제거 — 이후 알림 대상이 없다(D7 노트) */
       bell: null,

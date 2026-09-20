@@ -127,6 +127,8 @@ export default async function Page({
   const action = cta(season.phase);
   const scheduled = season.stages.some((stage) => stage.opensAt !== null);
   const range = seasonRange(season.stages);
+  /* 헤더와 「리더보드 보기」가 같은 플래그를 본다 — 한 번만 읽는다 */
+  const nav = await loadPublicNav();
   /*
     오늘이 든 스테이지 — 시안의 「진행 중」 배지 자리.
 
@@ -147,7 +149,7 @@ export default async function Page({
   return (
     <main className={`page ${styles.page}`}>
       {/* 헤더는 랜딩과 같은 판정을 쓴다(header-state.ts) */}
-      <NavBar {...(await loadPublicNav())} />
+      <NavBar {...nav} />
       <div className={`container grow ${styles.wrap}`}>
         <header className={styles.head}>
           {/*
@@ -170,13 +172,16 @@ export default async function Page({
                 {action.label}
               </LinkButton>
             ) : null}
-            <LinkButton
-              href={`/seasons/${season.slug}/leaderboard`}
-              variant="outline"
-              size="lg"
-            >
-              리더보드 보기
-            </LinkButton>
+            {/* 리더보드가 꺼진 동안에는 이 버튼도 없다(2026-09-20 수연 지시) */}
+            {nav.season?.flags.leaderboard ? (
+              <LinkButton
+                href={`/seasons/${season.slug}/leaderboard`}
+                variant="outline"
+                size="lg"
+              >
+                리더보드 보기
+              </LinkButton>
+            ) : null}
           </div>
         </header>
 

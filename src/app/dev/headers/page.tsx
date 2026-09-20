@@ -34,7 +34,7 @@ const KST = (s: string) => new Date(`${s}+09:00`);
 const SEASON = {
   title: "시즌 1",
   slug: "season-1",
-  flags: { notifications: true },
+  flags: { notifications: true, leaderboard: true },
 };
 
 /* ── 공개 헤더: 시안 조합기의 대표 칸. 아바타 글자도 시안 표본 그대로 ── */
@@ -69,7 +69,7 @@ const DASH_BASE: DashboardHeaderInput = {
     phase: SeasonPhase.racing,
     startsAt: KST("2026-09-28T00:00:00"),
     endsAt: KST("2026-11-03T00:00:00"),
-    flags: { notifications: true },
+    flags: { notifications: true, leaderboard: true },
   },
   team: { name: "루틴메이트", members: 2 },
   entry: { stage: EntryStage.s3, status: EntryStatus.active },
