@@ -77,18 +77,32 @@ describe("시즌1 게시본이 시안과 다르게 쓴 자리", () => {
     expect(country["Resend, Inc."]).toBe("미국");
   });
 
-  /*
-    시안 본문은 「2026. 08. 31.부터 적용되며」인데 이 방침은 9/28부터
-    적용된다. 칩과 본문이 다른 날을 가리키면 어느 쪽이 시행일인지 알 수 없다.
-  */
-  it("제18조 본문의 시행일이 칩과 같은 날이다", () => {
-    expect(policy?.effectiveDate).toBe("2026-09-28");
+  /* 시안의 배지는 뺐다(09-21 수연 지시) — 약관·규칙 화면과 같다 */
+  it("배지를 들고 있지 않다", () => {
+    expect(policy).not.toHaveProperty("badge");
+  });
+});
 
-    const closing = policy?.articles.find((a) => a.no === 14)?.blocks[0];
+/*
+  **개정이 아니라 같은 방침의 다른 모양이다**(09-21 수연 지시). 그래서 두
+  모양의 시행일이 같아야 하고, 제18조 ②의 변경 공지도 걸리지 않는다. 한쪽만
+  고치면 화면에 따라 시행일이 달라 보인다.
+*/
+describe("두 모양의 시행일", () => {
+  it("칩이 두 모양에서 같은 날을 가리킨다", () => {
+    expect(SEASON1_PRIVACY_POLICY?.effectiveDate).toBe("2026-08-31");
+    expect(PRELAUNCH_PRIVACY_POLICY?.effectiveDate).toBe(
+      SEASON1_PRIVACY_POLICY?.effectiveDate,
+    );
+  });
+
+  it("게시본 본문의 시행일도 같은 날이다", () => {
+    const closing = SEASON1_PRIVACY_POLICY?.articles.find(
+      (a) => a.no === 14,
+    )?.blocks[0];
     expect(closing?.kind).toBe("para");
     if (closing?.kind !== "para") return;
-    expect(closing.text).toContain("2026. 09. 28.부터 적용되며");
-    expect(closing.text).not.toContain("2026. 08. 31.");
+    expect(closing.text).toContain("2026. 08. 31.부터 적용되며");
   });
 });
 

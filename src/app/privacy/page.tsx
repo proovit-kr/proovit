@@ -90,8 +90,9 @@ export default async function Page() {
     <DocPage
       title="PROOVIT 개인정보처리방침"
       /*
-        ⚠️ 시안(1870줄)에 있는 버전 칩을 **일부러 뺐다**(2026-09-07 수연 지시).
-        `doc.mjs` 대조에 한 건이 남는 것은 이 결정 때문이지 이식 누락이 아니다.
+        ⚠️ 시안(1870줄)의 버전 칩과 배지를 **둘 다 일부러 뺐다**(칩은 2026-09-07,
+        배지는 09-21 수연 지시). `doc.mjs` 대조에 두 건이 남는 것은 이 결정
+        때문이지 이식 누락이 아니다 — 약관·규칙 화면과 같아졌다.
 
         버전 칩 v3.1은 노션 정본 문서의 판번호다. 게시본 제18조는 시행일을
         「최초 제정」과 같은 날로 말하므로, 대외 화면에 판번호가 붙으면 개정이
@@ -99,7 +100,6 @@ export default async function Page() {
         두어 어느 정본을 옮겼는지는 코드에 남긴다.
       */
       chips={[`시행 ${policy.effectiveDate}`]}
-      badge={policy.badge}
       intro={policy.preamble ? <p>{policy.preamble}</p> : undefined}
       sections={sections}
     />
