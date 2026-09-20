@@ -323,23 +323,34 @@ export default async function Page({
         </div>
         <div className={styles.head}>
           <h1 className={styles.title}>{season.title} 리더보드</h1>
-          <span className={styles.upd}>
-            <i />
-            {/*
-              ⚠️ 「집계 대기」는 **시안에 없는 문구다.** 시안은 갱신 시각이 늘
-              있는 상태 하나만 그린다(1617행). 스냅샷이 아직 없을 때 이 줄을
-              통째로 비울 수는 없어서 채웠다 — 2026-09-06 수연 확인.
-            */}
-            {board.rolledUpAt ? (
-              <UpdatedAt
-                iso={board.rolledUpAt.toISOString()}
-                renderedAt={board.loadedAt}
-              />
-            ) : (
-              "집계 대기"
-            )}
-            , 롤업 주기 {ROLLUP_MINUTES}분
-          </span>
+          {/*
+            ⚠️ **시즌 종료에서는 이 줄을 그리지 않는다**(2026-09-20 수연 결정).
+            최종 확정과 함께 롤업이 멈추는데 「롤업 주기 15분」은 아직 도는
+            중이라고 말하고, 깜빡이는 점도 같은 거짓이다. 확정 시각은 아래 FINAL
+            배너가 든다.
+
+            시안은 상태 셋을 한 머리에 붙여 전환기로 보여 주므로(1764행) 이 줄이
+            종료에서도 남아 있다. 화면 하나에는 상태 하나만 오니 갈랐다.
+          */}
+          {board.isFinal ? null : (
+            <span className={styles.upd}>
+              <i />
+              {/*
+                ⚠️ 「집계 대기」는 **시안에 없는 문구다.** 시안은 갱신 시각이 늘
+                있는 상태 하나만 그린다(1617행). 스냅샷이 아직 없을 때 이 줄을
+                통째로 비울 수는 없어서 채웠다 — 2026-09-06 수연 확인.
+              */}
+              {board.rolledUpAt ? (
+                <UpdatedAt
+                  iso={board.rolledUpAt.toISOString()}
+                  renderedAt={board.loadedAt}
+                />
+              ) : (
+                "집계 대기"
+              )}
+              , 롤업 주기 {ROLLUP_MINUTES}분
+            </span>
+          )}
         </div>
 
         <StageTrack
