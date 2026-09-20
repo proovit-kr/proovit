@@ -276,21 +276,28 @@ function Table({ board }: { board: Leaderboard }) {
     */
     <table className={styles.table}>
       {/*
-        ⚠️ **머리글은 전부 왼쪽이다**(2026-09-20 수연 결정). 시안은 뒤 세 칸에
-        `text-align:right`를 준다(1782행) — 값의 정렬을 머리글에도 그대로 물린
-        것인데, 머리글 줄만 보면 왼쪽 셋·오른쪽 둘로 꺾여 어색하다.
+        머리글 뒤 세 칸은 시안대로 오른쪽이다(1782행). 2026-09-20에 전부 왼쪽으로
+        옮겨 봤다가 같은 날 되돌렸다 — 수연 결정.
 
-        값은 제 성질을 따른다. 숫자는 오른쪽(자릿수가 맞아야 읽힌다), 배지는
-        가운데다.
+        ⚠️ 그래서 **「수상」 머리글은 오른쪽, 배지는 셀 가운데**다. 어긋난 것이
+        아니라 각각 정한 값이다(모듈의 `.table .bd` 주석).
       */}
       <thead>
         <tr>
           <th scope="col">RANK</th>
           <th scope="col">TEAM</th>
           <th scope="col">SERVICE</th>
-          <th scope="col">{isFinal ? "최종 유효 이용자" : "유효 이용자"}</th>
-          {isFinal ? null : <th scope="col">전일 대비</th>}
-          <th scope="col">{isFinal ? "수상" : "상태"}</th>
+          <th scope="col" style={{ textAlign: "right" }}>
+            {isFinal ? "최종 유효 이용자" : "유효 이용자"}
+          </th>
+          {isFinal ? null : (
+            <th scope="col" style={{ textAlign: "right" }}>
+              전일 대비
+            </th>
+          )}
+          <th scope="col" style={{ textAlign: "right" }}>
+            {isFinal ? "수상" : "상태"}
+          </th>
         </tr>
       </thead>
       <tbody>
