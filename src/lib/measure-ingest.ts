@@ -1,5 +1,5 @@
 import { MetricSource } from "@/generated/prisma/enums";
-import { hourBucket } from "@/lib/measure";
+import { hourBucket, seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -58,14 +58,6 @@ async function entryByHostname(
   return new Map(rows.map((r) => [r.hostname, r.entryId]));
 }
 
-/** 하루치 표의 날짜 칸(date)은 서울 날짜의 자정이다 */
-function dateOnly(iso: string): Date {
-  const kst = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
-  return new Date(
-    Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()),
-  );
-}
-
 export async function ingestVisits(
   visits: EdgeVisit[],
   now: Date = new Date(),
@@ -88,7 +80,7 @@ export async function ingestVisits(
     }
     accepted += 1;
 
-    const metricDate = dateOnly(visit.at);
+    const metricDate = seoulDateOnly(new Date(visit.at));
     const bucketAt = hourBucket(new Date(visit.at));
     const visitors = visit.newVisitor ? 1 : 0;
     const sessions = visit.newSession ? 1 : 0;

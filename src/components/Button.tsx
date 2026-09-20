@@ -138,6 +138,7 @@ export function AnchorButton({
   size,
   block,
   className,
+  style,
   children,
 }: AnchorButtonProps) {
   return (
@@ -146,6 +147,9 @@ export function AnchorButton({
       target={target}
       rel={rel}
       className={classes({ variant, size, block, className })}
+      /* ⚠️ Button·LinkButton과 달리 이 줄이 빠져 있었다 — 시안이 자리마다
+         인라인으로 주는 padding·font-size가 통째로 무시됐다 */
+      style={style}
     >
       {children}
     </a>

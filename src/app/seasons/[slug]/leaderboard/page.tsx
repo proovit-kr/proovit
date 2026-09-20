@@ -16,6 +16,7 @@ import type {
 import { loadPublicNav } from "@/lib/header-read";
 import { fmtYMD } from "@/lib/header-state";
 
+import { RowLink } from "./RowLink";
 import { FirstRollup, ROLLUP_MINUTES, UpdatedAt } from "./UpdatedAt";
 import styles from "./leaderboard.module.css";
 
@@ -187,12 +188,23 @@ function Row({
   index: number;
   isFinal: boolean;
 }) {
+  /*
+    행 전체가 그 팀의 참가작 상세로 가는 링크다(2026-09-20 수연 지시).
+    시안에는 없다 — 시안의 표에서 나가는 길은 서비스 주소뿐이다.
+
+    링크는 **팀명 칸의 `<a>` 하나**이고, `RowLink`가 행 아무 데나 눌러도
+    그 링크를 따라가게 한다. 서비스 주소는 제 갈 길로 간다.
+  */
+  const href = `/projects/${row.entryId}`;
+
   return (
-    <tr className={index < 3 ? styles.top : undefined}>
+    <RowLink href={href} className={index < 3 ? styles.top : undefined}>
       <td className={styles.rank}>{rankLabel(row.rank)}</td>
       <td className={styles.team}>
-        {row.teamName}
-        <small>{row.ideaTitle}</small>
+        <Link href={href}>
+          {row.teamName}
+          <small>{row.ideaTitle}</small>
+        </Link>
       </td>
       <td className={styles.service}>
         {row.serviceUrl && !row.notDeployed ? (
@@ -249,7 +261,7 @@ function Row({
           </Badge>
         ) : null}
       </td>
-    </tr>
+    </RowLink>
   );
 }
 

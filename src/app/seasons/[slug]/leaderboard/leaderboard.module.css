@@ -232,6 +232,18 @@
   font-weight: 700;
   font-size: 15.5px;
 }
+/*
+  행 전체가 참가작 상세로 가는 링크다(2026-09-20 수연 지시, 시안에 없는 것).
+  누르는 일은 `RowLink`가 맡는다 — 왜 CSS 덮개를 버렸는지는 그 파일에 있다.
+  글자는 시안 그대로 물려받아야 하므로 색과 밑줄을 새로 주지 않는다.
+*/
+.table tbody tr {
+  cursor: pointer;
+}
+.table .team a {
+  display: block;
+  color: inherit;
+}
 .table .team small {
   display: block;
   font-weight: 400;

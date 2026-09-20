@@ -1,4 +1,5 @@
 import { SeasonPhase, StageKey } from "@/generated/prisma/enums";
+import { seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
 import { rankProvisional } from "@/lib/rollup-rank";
 
@@ -40,17 +41,6 @@ export type RollupResult = {
   /** 돌지 않았으면 그 이유 */
   skipped?: "not-racing" | "no-entries" | "finalized" | "no-race-window";
 };
-
-/**
- * KST 기준 오늘 00:00. 스냅샷의 날짜 칸은 date라 시각이 없고, 우리 운영 시간대는
- * 서울이다 — UTC로 자르면 오전 9시 전 집계가 전날로 들어간다.
- */
-function seoulDateOnly(now: Date): Date {
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return new Date(
-    Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()),
-  );
-}
 
 /*
   집계 구간 — 레이스 기간이다. s4가 열린 때부터 s5 마감까지, 그리고 지금까지.
