@@ -20,7 +20,11 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { SeasonPhase } from "../../src/generated/prisma/enums";
+import {
+  DeployStatus,
+  EntryStatus,
+  SeasonPhase,
+} from "../../src/generated/prisma/enums";
 import { prisma } from "../../src/lib/prisma";
 import {
   checkDevSandbox,
@@ -43,21 +47,74 @@ const season = await prisma.season.findUniqueOrThrow({
 
 const mode = process.argv[2];
 
+/*
+  ⚠️ **배포 상태도 맞춰야 표가 시안 모양이 된다.**
+
+  `notDeployed`는 `hostname`이 active이고 소유 검증이 끝났는가로 갈린다
+  (public-read.ts). dev DB에는 hostname 행이 거의 없어서 ②는 전 행에 「미배포」
+  배지가 붙고, ③은 미배포 팀을 빼므로 표가 한 줄로 줄어든다 — 그러면 마지막
+  행 규칙(`tr:last-child td{border-bottom:0}`)이 전 행에 걸려 대조가 통째로
+  어긋난다. 시안 목업은 12팀 중 하나만 미배포다(3533행).
+
+  그래서 **서비스 주소가 있는 팀만** 배포된 것으로 만든다. 주소가 없는 팀
+  (수연의 개발용 계정)이 시안의 미배포 한 팀 자리를 맡는다. 공용 픽스처를
+  건드리지 않는 것은 개발 바가 같은 함수를 쓰기 때문이다.
+*/
+async function fakeHostnames(seasonId: string): Promise<void> {
+  const entries = await prisma.entry.findMany({
+    where: { seasonId, status: EntryStatus.active, serviceUrl: { not: null } },
+    select: { id: true, serviceUrl: true },
+  });
+  const now = new Date();
+  for (const entry of entries) {
+    const host = new URL(entry.serviceUrl as string).host;
+    await prisma.hostname.upsert({
+      where: { entryId: entry.id },
+      create: {
+        entryId: entry.id,
+        hostname: host,
+        deployStatus: DeployStatus.active,
+        ownershipVerifiedAt: now,
+      },
+      update: {
+        deployStatus: DeployStatus.active,
+        ownershipVerifiedAt: now,
+      },
+    });
+  }
+  console.log(`  배포됨으로 둔 팀 ${entries.length}개`);
+}
+
 if (mode === "save") {
   const stages = await prisma.stage.findMany({
     where: { seasonId: season.id },
     select: { stageKey: true, opensAt: true, closesAt: true },
   });
+  const hostnames = await prisma.hostname.findMany({
+    select: {
+      entryId: true,
+      hostname: true,
+      deployStatus: true,
+      ownershipVerifiedAt: true,
+    },
+  });
   writeFileSync(
     SNAP,
     JSON.stringify(
-      { phase: season.phase, featureFlags: season.featureFlags, stages },
+      {
+        phase: season.phase,
+        featureFlags: season.featureFlags,
+        stages,
+        hostnames,
+      },
       null,
       2,
     ),
   );
   console.log(`저장 → ${SNAP}`);
-  console.log(`  페이즈 ${season.phase}, 스테이지 ${stages.length}개`);
+  console.log(
+    `  페이즈 ${season.phase}, 스테이지 ${stages.length}개, hostname ${hostnames.length}개`,
+  );
 } else if (mode === "race" || mode === "final") {
   await setSandboxPhase({
     seasonId: season.id,
@@ -65,6 +122,7 @@ if (mode === "save") {
   });
   /* 픽스처가 리더보드 플래그를 켜고 스테이지 날짜도 옮긴다 */
   await setMetricsFixture({ seasonId: season.id, kind: mode });
+  await fakeHostnames(season.id);
   console.log(`${mode}로 바꿈`);
 } else if (mode === "restore") {
   const snap = JSON.parse(readFileSync(SNAP, "utf8")) as {
@@ -75,9 +133,32 @@ if (mode === "save") {
       opensAt: string | null;
       closesAt: string | null;
     }[];
+    hostnames: {
+      entryId: string;
+      hostname: string;
+      deployStatus: DeployStatus;
+      ownershipVerifiedAt: string | null;
+    }[];
   };
   /* 픽스처가 만든 스냅샷·일별 지표·수상을 먼저 걷어낸다 */
   await setMetricsFixture({ seasonId: season.id, kind: "none" });
+
+  /* 내가 만든 hostname은 지우고, 원래 있던 것은 값을 되돌린다 */
+  const kept = snap.hostnames.map((h) => h.entryId);
+  await prisma.hostname.deleteMany({ where: { entryId: { notIn: kept } } });
+  for (const h of snap.hostnames) {
+    await prisma.hostname.update({
+      where: { entryId: h.entryId },
+      data: {
+        deployStatus: h.deployStatus,
+        ownershipVerifiedAt: h.ownershipVerifiedAt
+          ? new Date(h.ownershipVerifiedAt)
+          : null,
+      },
+    });
+  }
+  console.log(`  hostname ${snap.hostnames.length}개만 남김`);
+
   await prisma.$transaction([
     prisma.season.update({
       where: { id: season.id },

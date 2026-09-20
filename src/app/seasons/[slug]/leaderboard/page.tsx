@@ -14,6 +14,7 @@ import type {
   PublicSeason,
 } from "@/lib/public-read";
 import { loadPublicNav } from "@/lib/header-read";
+import { fmtYMD } from "@/lib/header-state";
 
 import { FirstRollup, ROLLUP_MINUTES, UpdatedAt } from "./UpdatedAt";
 import styles from "./leaderboard.module.css";
@@ -67,11 +68,6 @@ export async function generateMetadata({
   };
 }
 
-const DATE = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: "Asia/Seoul",
-  month: "long",
-  day: "numeric",
-});
 const NUM = new Intl.NumberFormat("ko-KR");
 
 /*
@@ -237,15 +233,20 @@ function Row({
 }
 
 /*
-  ⚠️ 시즌 종료에서 미배포 팀을 빼지 않는다.
+  ⚠️ 시즌 종료에서는 미배포 팀을 뺀다(시안 3561행 `TEAMS.filter(t=>!t[5])`).
+  2026-09-20 수연 결정 — 최종 표는 수상 명단에 가까우니 배포도 안 된 팀은
+  내린다. 레이스 중에는 그대로 두고 「미배포」 배지로 이유를 밝힌다.
 
-  시안의 최종 표는 미배포 팀을 걸러내지만(`TEAMS.filter(t=>!t[5])`), 그건 손으로
-  적은 목업 배열의 사정이지 규칙으로 적힌 것이 아니다. 순위는 스냅샷이 정본이고
-  화면이 계산하지 않는다는 이 파일의 원칙상, 등수가 매겨진 팀을 화면에서 빼면
-  그게 곧 「우리가 뺀 순위」가 된다. 윤서에게 확인받을 것.
+  ⚠️ **빼는 것은 화면에 그리는 행뿐이고 등수는 손대지 않는다.** 순위는
+  스냅샷이 정본이고 화면이 계산하지 않는다 — 그래서 뺀 자리의 번호는 비어
+  보인다(02가 빠지면 01·03·04). 번호를 다시 매기면 그게 곧 「우리가 매긴
+  순위」가 된다.
 */
 function Table({ board }: { board: Leaderboard }) {
   const isFinal = board.isFinal;
+  const rows = isFinal
+    ? board.rows.filter((row) => !row.notDeployed)
+    : board.rows;
   return (
     /*
       ⚠️ 가로 스크롤 상자를 두지 않는다. 시안은 좁아져도 표를 그대로 두고
@@ -272,7 +273,7 @@ function Table({ board }: { board: Leaderboard }) {
         </tr>
       </thead>
       <tbody>
-        {board.rows.map((row, i) => (
+        {rows.map((row, i) => (
           <Row key={row.entryId} row={row} index={i} isFinal={isFinal} />
         ))}
       </tbody>
@@ -303,6 +304,15 @@ export default async function Page({
 
   const board = await loadLeaderboard(season.id);
   const ranked = board.rows.some((row) => row.rank !== null);
+
+  /*
+    배너의 확정일은 **집계가 닫힌 시각 = s5 마감**이다. 랜딩 ④의 「집계 확정
+    기준」과 같은 값이라야 두 화면이 다른 날을 말하지 않는다. 마지막 스냅샷
+    날짜(`board.snapshotDate`)를 쓰면 롤업이 늦게 돈 날로 밀린다.
+    2026-09-20 수연 결정.
+  */
+  const finalAt =
+    season.stages.find((stage) => stage.stageKey === "s5")?.closesAt ?? null;
 
   return (
     <main className="page">
@@ -371,10 +381,8 @@ export default async function Page({
                   FINAL
                 </Badge>
                 최종 순위 확정
-                {board.snapshotDate
-                  ? `, ${DATE.format(board.snapshotDate)}`
-                  : ""}
-                , 2차 심사(최종) 검증 반영 완료
+                {finalAt ? `, ${fmtYMD(finalAt)}` : ""}, 2차 심사(최종) 검증
+                반영 완료
               </p>
             ) : null}
             {/* ② 레이스 운영중 */}
