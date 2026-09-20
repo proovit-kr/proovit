@@ -3,7 +3,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
-  devClearToday,
   devSetAuth,
   devSetCurrentStage,
   devSetMetrics,
@@ -26,13 +25,25 @@ import styles from "./DevBar.module.css";
   보고 있는 값"이 유지된다. 이 둘이 어긋나는 순간 도구가 함정이 된다.
 */
 
-/* 가정한 오늘을 찍는 모양 — 헤더 배너와 같은 `09.28` 꼴 */
+/*
+  가정한 오늘을 닫힌 줄에 찍는다 — 헤더 배너와 같은 `10.12` 꼴.
+
+  패널에 줄을 두지 않는 이유: 정하는 것은 스테이지 줄이고, 레이스를 벗어나면
+  저절로 풀린다(`setSandboxPhase`). 끄는 버튼을 따로 두면 무엇을 끄는 것인지
+  설명해야 하는데, 그 설명이 필요한 버튼이면 없는 편이 낫다(09-21 수연 지적).
+*/
 const DAY = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul",
-  year: "numeric",
   month: "2-digit",
   day: "2-digit",
 });
+
+/** `10. 12.` → `10.12` */
+const day = (iso: string) =>
+  DAY.formatToParts(new Date(iso))
+    .filter((p) => p.type === "month" || p.type === "day")
+    .map((p) => p.value)
+    .join(".");
 
 type Team = {
   entryId: string;
@@ -330,26 +341,6 @@ export function DevBarClient({
           ) : null}
 
           {/*
-            ── 오늘 ─────────────────────────────────────────────
-            스테이지 줄이 정한 「가정한 오늘」. 일정은 정본 그대로 두고 이 값만
-            움직인다(2026-09-21 수연 지시, lib/dev-clock.ts).
-          */}
-          {today ? (
-            <div className={styles.row}>
-              <span className={styles.label}>
-                오늘
-                <em className={styles.hint}>일정은 그대로예요</em>
-              </span>
-              <div className={styles.picks}>
-                <span className={styles.empty}>{DAY.format(new Date(today))}로 가정 중</span>
-                <PickButton action={devClearToday} fields={{}}>
-                  진짜 오늘로
-                </PickButton>
-              </div>
-            </div>
-          ) : null}
-
-          {/*
             ── 로그인 ───────────────────────────────────────────
             공개 화면이 관전자에게 어떻게 보이는지 보는 줄이다. 아래 세 줄이
             전부 「로그인한 계정」 기준이라 그 위에 둔다.
@@ -519,7 +510,7 @@ export function DevBarClient({
         <span className={styles.summary}>
           {current ? `${current.stage} / ${current.status}` : "참가 기록 없음"}
           {season ? ` · ${season.phase}` : null}
-          {today ? ` · 오늘 ${DAY.format(new Date(today))}` : null}
+          {today ? ` · 오늘 ${day(today)}` : null}
         </span>
         <span className={styles.caret} aria-hidden>
           {open ? "▾" : "▴"}
