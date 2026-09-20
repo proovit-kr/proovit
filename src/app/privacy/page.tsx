@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { Clauses } from "@/components/Clauses";
-import { DocPage, DocTable, type DocSection } from "@/components/DocPage";
-import { PRIVACY_POLICY, type PolicyBlock } from "@/content/privacy";
+import {
+  DocBlocks,
+  DocPage,
+  DocTable,
+  type DocSection,
+} from "@/components/DocPage";
+import { PRIVACY_POLICY } from "@/content/privacy";
 
 /*
   개인정보처리방침 — 시안 `#scr-privacy`.
@@ -29,41 +33,6 @@ export const metadata: Metadata = {
     "PROOVIT이 수집하는 개인정보의 항목과 이용 목적, 보관 기간, 제3자 제공과 이용자의 권리를 안내합니다.",
   alternates: { canonical: "/privacy" },
 };
-
-function Blocks({ blocks }: { blocks: PolicyBlock[] }) {
-  return (
-    <>
-      {blocks.map((b, i) => {
-        if (b.kind === "para")
-          return (
-            <p key={i}>
-              <Clauses text={b.text} />
-            </p>
-          );
-        if (b.kind === "list") {
-          const items = b.items.map((t, j) => (
-            <li key={j}>
-              <Clauses text={t} />
-            </li>
-          ));
-          return b.ordered ? (
-            <ol key={i}>{items}</ol>
-          ) : (
-            <ul key={i}>{items}</ul>
-          );
-        }
-        return (
-          <DocTable
-            key={i}
-            head={b.table.head}
-            rows={b.table.rows}
-            note={b.table.note}
-          />
-        );
-      })}
-    </>
-  );
-}
 
 export default async function Page() {
   /*
@@ -94,7 +63,7 @@ export default async function Page() {
       num: String(a.no),
       title: a.title,
       tocLabel: `${a.no}. ${a.short ?? a.title}`,
-      body: <Blocks blocks={a.blocks} />,
+      body: <DocBlocks blocks={a.blocks} />,
     })),
   ];
 

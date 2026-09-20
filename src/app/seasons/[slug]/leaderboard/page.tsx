@@ -451,12 +451,12 @@ export default async function Page({
                   줄바꿈 없는 공백으로 묶었다(위 ① 빈 상자와 같은 처리). 서술부는
                   190px이라 360px 칸(294px)에도 들어간다.
 
-                  시안은 링크에 `href="#rules" data-rule="4"`로 규칙 제4조를
-                  가리킨다. 우리 규칙 화면에는 아직 조문 앵커가 없어 문서까지만
-                  보낸다.
+                  시안은 링크에 `href="#rules" data-rule="4"`로 규칙 화면의 네 번째
+                  꼭지(지표 검증)를 가리킨다. 규칙 화면이 시안대로 여섯 꼭지가
+                  되면서 그 앵커가 생겼다(2026-09-21).
                 */}
                 {"유효 이용자 기준은 "}
-                <Link className="mono" href="/rules">
+                <Link className="mono" href="/rules#ru-4">
                   /rules
                 </Link>
                 {" 제4조 참조"}

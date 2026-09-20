@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import styles from "./Clauses.module.css";
 
@@ -57,6 +57,74 @@ export function Clauses({ text }: { text: string }) {
     <Fragment key={i}>
       {i > 0 ? " " : null}
       <span className={styles.c}>{part}</span>
+    </Fragment>
+  ));
+}
+
+/**
+ * 강조 조각(`.em` 등)이 섞인 줄. 문자열만 자르고 조각은 통으로 둔다.
+ *
+ * ⚠️ **조각마다 `Clauses`를 부르면 절이 조각 경계에서 끊긴다.** 규칙 화면의
+ * 「심사 관문은 <em>…마감 10.11</em>과 <em>s5 2차 심사(최종)…</em>」이 그랬다 —
+ * 절 하나가 세 노드에 걸쳐 있어 붙들 상자가 없었고, 1440에서 「…10.11과」
+ * 뒤가 갈라졌다. 절 경계는 **이어 붙인 글 전체**에서 구해야 한다.
+ */
+export type ClausePart = string | { text: string; node: ReactNode };
+
+export function ClauseParts({ parts }: { parts: ClausePart[] }) {
+  const full = parts.map((p) => (typeof p === "string" ? p : p.text)).join("");
+
+  /* 문장 끝과 쉼표 뒤. 뒤에 공백이 올 때만 자른다(`splitClauses`와 같은 규칙) */
+  const cuts: number[] = [];
+  for (let i = 0; i < full.length - 1; i++) {
+    if (/[.?!,]/.test(full[i]) && /\s/.test(full[i + 1])) cuts.push(i + 1);
+  }
+
+  /* 조각 안으로 떨어지는 경계는 버린다 — 조각은 쪼개지 않는다 */
+  const clauses: ClausePart[][] = [[]];
+  let at = 0;
+  for (const part of parts) {
+    if (typeof part !== "string") {
+      clauses[clauses.length - 1].push(part);
+      at += part.text.length;
+      continue;
+    }
+    let from = 0;
+    for (const cut of cuts) {
+      if (cut <= at + from || cut >= at + part.length) continue;
+      clauses[clauses.length - 1].push(part.slice(from, cut - at));
+      clauses.push([]);
+      from = cut - at;
+    }
+    clauses[clauses.length - 1].push(part.slice(from));
+    at += part.length;
+  }
+
+  const boxes = clauses
+    .map((pieces) => {
+      const trimmed = pieces.map((p, i) => {
+        if (typeof p !== "string") return p;
+        let t = p;
+        if (i === 0) t = t.trimStart();
+        if (i === pieces.length - 1) t = t.trimEnd();
+        return t;
+      });
+      return trimmed.filter((p) => p !== "");
+    })
+    .filter((pieces) => pieces.length);
+
+  const render = (pieces: ClausePart[]) =>
+    pieces.map((p, i) => (
+      <Fragment key={i}>{typeof p === "string" ? p : p.node}</Fragment>
+    ));
+
+  /* 절이 하나뿐이면 상자를 만들지 않는다 — `Clauses`와 같은 이유다 */
+  if (boxes.length < 2) return <>{render(boxes[0] ?? [])}</>;
+
+  return boxes.map((pieces, i) => (
+    <Fragment key={i}>
+      {i > 0 ? " " : null}
+      <span className={styles.c}>{render(pieces)}</span>
     </Fragment>
   ));
 }

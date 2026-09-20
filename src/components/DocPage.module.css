@@ -14,6 +14,14 @@
 .wrap {
   max-width: 1020px;
   margin: 0 auto;
+  /*
+    ⚠️ 시안에 없는 줄. 우리 `.page`는 세로 플렉스이고, 가로 `margin: auto`가
+    있는 플렉스 아이템은 stretch가 꺼져 크기가 fit-content가 된다 — 안에 든
+    것이 좁으면 칸도 같이 좁아진다. 방침 화면은 6열짜리 표가 칸을 1020px까지
+    밀어 우연히 가려져 있었고, 규칙 화면이 시안대로 여섯 꼭지가 되면서
+    1440에서 963px로 드러났다.
+  */
+  width: 100%;
   padding: 44px 40px 80px;
   display: grid;
   grid-template-columns: 210px 1fr;
@@ -95,8 +103,24 @@
   line-height: 1.85;
   max-width: 66ch;
 }
-.doc ol {
+/*
+  ⚠️ **`list-style`을 다시 적는다.** Tailwind preflight가 `ol,ul{list-style:none}`을
+  넣어 번호가 통째로 사라진다 — 시안에는 없는 리셋이다(지금까지 되돌린 네 번째).
+  규칙 제2조 용어 여섯 줄, 제3조 효력 네 줄처럼 번호로 서로를 가리키는 목록이
+  번호 없는 줄 더미로 그려지고 있었다. computed 값 대조로는 안 잡혔다 — 양쪽 다
+  재지 않던 속성이라 `doc.mjs`에 넣었다.
+
+  `ul`은 시안에 없다(규칙 제15조 하나뿐이다). 들여쓰기만 `ol`과 맞춘다.
+*/
+.doc ol,
+.doc ul {
   padding-left: 22px;
+}
+.doc ol {
+  list-style: decimal;
+}
+.doc ul {
+  list-style: disc;
 }
 .doc ol li {
   padding: 4px 0;
@@ -126,26 +150,6 @@
   background: var(--surface-2);
   font-weight: 700;
   white-space: nowrap;
-}
-
-/*
-  문서 머리에 붙는 안내 상자.
-
-  ⚠️ `.doc`으로 한 겹 감싼다. 맨몸 `.note`(0,1,0)는 `.doc p`(0,1,1)에 져서
-  글자 크기와 색이 본문 값으로 덮인다. 시안도 `.ru .doc-note`로 두 겹이라
-  같은 구조다.
-*/
-.doc .note {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  background: var(--blue-dim);
-  border: 1px solid rgba(111, 179, 255, 0.4);
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 13px;
-  color: var(--text);
-  margin-bottom: 22px;
 }
 
 /*

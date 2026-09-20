@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { DocPage, type DocSection } from "@/components/DocPage";
+import {
+  DocBlocks,
+  DocPage,
+  Em,
+  type DocSection,
+} from "@/components/DocPage";
 import { TERMS } from "@/content/terms";
 
 /*
@@ -35,15 +40,15 @@ export default async function Page() {
     body: (
       <>
         {c.articles.map((a) => (
-          <p key={a.no}>
-            <span className="em">
-              제{a.no}조 {a.title}
-            </span>{" "}
-            {a.blocks
-              .map((b) => (b.kind === "para" ? b.text : ""))
-              .filter(Boolean)
-              .join(" ")}
-          </p>
+          <DocBlocks
+            key={a.no}
+            blocks={a.blocks}
+            lead={
+              <Em>
+                제{a.no}조 {a.title}
+              </Em>
+            }
+          />
         ))}
       </>
     ),
