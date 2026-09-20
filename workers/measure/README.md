@@ -5,8 +5,12 @@
 
 ## 지금 상태
 
-**배포 전이다.** `proovit.kr`의 네임서버가 가비아에 있고 루트는 Vercel을 본다
-(2026-09-20 확인). 워커 route는 클라우드플레어 zone에서만 걸린다.
+**2026-09-20에 배포했다.** 네임서버를 가비아에서 클라우드플레어로 옮기면서
+zone이 생겼고, `*.proovit.kr/*` route가 `proovit-measure`를 가리킨다. 루트와
+www는 그대로 Vercel을 본다.
+
+다만 **도는 것과 세는 것은 다르다.** 등록·소유 확인이 끝난 참가작이 아직 없어서
+지금은 모든 서브도메인이 랜딩으로 302된다. 그게 정상이다.
 
 ## 배포 절차
 
@@ -18,6 +22,17 @@
 3. 앱에 `MEASURE_SECRET`을 넣고(`vercel env add`), 같은 값을 워커에도 넣는다.
 
        npx wrangler secret put MEASURE_SECRET
+
+   ⚠️ Vercel의 Secret 타입은 **저장 뒤 값을 못 읽는다.** 양쪽 값이 갈리면 워커가
+   라우트 표를 못 받아 참가작이 전부 랜딩으로 튕긴다 — 그런데 그 증상이 「참가작이
+   아직 없을 때」와 똑같아 안 드러난다. 넣은 뒤에는 `npx wrangler secret list`로
+   반드시 한 번 확인한다.
+
+   ⚠️ `npx wrangler`를 처음 돌리면 macOS Gatekeeper가 esbuild 바이너리를 막는다.
+   **「휴지통으로 이동」을 누르지 않는다** — 바이너리가 지워져 wrangler가 아예 안
+   돌게 된다. 「완료」를 누른 뒤 격리 속성을 지운다.
+
+       xattr -dr com.apple.quarantine "$(npm config get cache)/_npx"
 
 4. 배포.
 
