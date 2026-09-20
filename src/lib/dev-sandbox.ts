@@ -574,6 +574,23 @@ export async function setMetricsFixture(args: {
     prisma.award.deleteMany({ where: { seasonId } }),
   ];
 
+  /*
+    ⚠️ 셋 다 **리더보드 플래그를 켠다.** 이 줄은 리더보드 세 상태를 보려고
+    누르는 것인데, s1~s3에서 눌렀으면 플래그가 꺼져 있어(스테이지 줄) 화면이
+    404가 된다. 「집계 전」도 마찬가지다 — 그 상태 자체가 「플래그는 켜졌고
+    숫자만 아직 없는」 화면이다.
+  */
+  const flags = (
+    await prisma.season.findUniqueOrThrow({
+      where: { id: seasonId },
+      select: { featureFlags: true },
+    })
+  ).featureFlags as Prisma.InputJsonObject | null;
+  const flagOn = prisma.season.update({
+    where: { id: seasonId },
+    data: { featureFlags: { ...(flags ?? {}), leaderboard: true } },
+  });
+
   /* 셋 다 스테이지 날짜를 옮긴다 — 「집계 전」도 그 나름의 순간이 있다 */
   const stageDates = fixtureStageDates(kind, Date.now()).map((s) =>
     prisma.stage.updateMany({
@@ -583,7 +600,7 @@ export async function setMetricsFixture(args: {
   );
 
   if (kind === "none" || entries.length === 0) {
-    await prisma.$transaction([...clear, ...stageDates]);
+    await prisma.$transaction([...clear, ...stageDates, flagOn]);
     return;
   }
 
@@ -706,6 +723,7 @@ export async function setMetricsFixture(args: {
   await prisma.$transaction([
     ...clear,
     ...stageDates,
+    flagOn,
     prisma.award.createMany({ data: awards, skipDuplicates: true }),
     prisma.metricDaily.createMany({ data: daily, skipDuplicates: true }),
     prisma.leaderboardSnapshot.createMany({
@@ -716,12 +734,38 @@ export async function setMetricsFixture(args: {
   ]);
 }
 
+/**
+ * 리더보드 플래그 한 칸만 바꾼다.
+ *
+ * JSONB를 통째로 덮어쓰지 않고 읽어서 한 키만 고친다 — 이 함수가 모르는 키를
+ * 지워버리면 그게 제일 찾기 어려운 버그가 된다.
+ */
+async function setLeaderboardFlag(
+  tx: Prisma.TransactionClient,
+  seasonId: string,
+  on: boolean,
+): Promise<void> {
+  const season = await tx.season.findUniqueOrThrow({
+    where: { id: seasonId },
+    select: { featureFlags: true },
+  });
+  const flags = (season.featureFlags ?? {}) as Prisma.InputJsonObject;
+  await tx.season.update({
+    where: { id: seasonId },
+    data: { featureFlags: { ...flags, leaderboard: on } },
+  });
+}
+
 /*
   레이스 중 지금 스테이지를 고른다. 고른 스테이지가 이틀 전 열려 진행 중이
   되도록 다섯 스테이지 날짜를 한꺼번에 옮긴다 — 앞은 닫히고 뒤는 아직 안 열린다.
   주 단위·「다음 스테이지 열리기 1분 전 마감」은 `fixtureStageDates`와 같다.
 
   ⚠️ 집계 픽스처도 스테이지 날짜를 옮긴다(s4). 둘 중 나중에 누른 쪽이 남는다.
+
+  **리더보드 플래그도 같이 옮긴다**(2026-09-20 수연 지시). 시즌1은 s4 시작 전까지
+  플래그를 끄기로 했으므로(`leaderboard-flag-off-until-s4`), s4·s5를 고르면 켜지고
+  s1~s3을 고르면 꺼진다 — 스테이지만 옮기면 바가 말하는 상태와 화면이 어긋난다.
 */
 export async function setSandboxCurrentStage(args: {
   seasonId: string;
@@ -731,13 +775,14 @@ export async function setSandboxCurrentStage(args: {
   const KEYS = [StageKey.s1, StageKey.s2, StageKey.s3, StageKey.s4, StageKey.s5];
   const at = KEYS.indexOf(args.stage);
   const opensNow = Date.now() - 2 * 86_400_000;
-  await prisma.$transaction(
-    KEYS.map((stageKey, i) => {
+  await prisma.$transaction(async (tx) => {
+    for (const [i, stageKey] of KEYS.entries()) {
       const opensAt = new Date(opensNow + (i - at) * WEEK_MS);
-      return prisma.stage.updateMany({
+      await tx.stage.updateMany({
         where: { seasonId: args.seasonId, stageKey },
         data: { opensAt, closesAt: new Date(opensAt.getTime() + WEEK_MS - MIN_MS) },
       });
-    }),
-  );
+    }
+    await setLeaderboardFlag(tx, args.seasonId, at >= KEYS.indexOf(StageKey.s4));
+  });
 }
