@@ -948,10 +948,6 @@ export async function setSandboxCurrentStage(args: {
   }
   setDevToday(new Date(stage.opensAt.getTime() + 12 * 3_600_000));
 
-  await prisma.$transaction(async (tx) => {
-    await setLeaderboardFlag(tx, args.seasonId, at >= KEYS.indexOf(StageKey.s4));
-  });
-
   /*
     **집계 상태도 같이 옮긴다**(2026-09-20 수연 지시). 고를 것이 있는 스테이지는
     s4뿐이라 바에서 집계 줄도 거기서만 뜬다 — 나머지는 여기서 정해 준다.
@@ -976,4 +972,14 @@ export async function setSandboxCurrentStage(args: {
       keepStageDates: true,
     });
   }
+
+  /*
+    ⚠️ **플래그는 픽스처 뒤에 쓴다.** `setMetricsFixture`는 무엇을 부르든 리더보드
+    플래그를 켠다(그 줄은 리더보드 상태를 보려고 누르는 자리라서다). 먼저 꺼 두면
+    바로 뒤에서 도로 켜져, s1~s3을 골라도 「리더보드 보기」가 남았다
+    (2026-09-21 수연 지적). 스테이지 줄이 마지막에 말한다.
+  */
+  await prisma.$transaction(async (tx) => {
+    await setLeaderboardFlag(tx, args.seasonId, at >= KEYS.indexOf(StageKey.s4));
+  });
 }
