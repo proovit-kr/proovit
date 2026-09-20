@@ -20,6 +20,11 @@
   ⚠️ `restore`를 빠뜨리면 다음 사람이 픽스처를 정본으로 착각한다. 리더보드
   플래그는 s4 전까지 꺼 두는 것이 기본값이다.
 
+  ⚠️ **`save`는 지금 들어 있는 것을 그대로 뜬다 — 그게 남의 픽스처여도 그렇다.**
+  2026-09-21에 지난 세션이 흘린 픽스처 일정을 떠서 `restore`가 그걸 되돌려
+  놓았다. 그래서 둘 다 스테이지 날짜를 찍는다. 뜰 때 s4가 오늘을 물고 있으면
+  픽스처다 — 정본은 수연의 임시 일정(s1 10.12 …)이다.
+
   ⚠️ **반드시 .env.development.local로 돌린다.** `.env`는 운영 DB다
   (lb-state.mts와 같은 가드).
 */
@@ -54,6 +59,15 @@ const PHASE: Record<string, SeasonPhase> = {
   racing: SeasonPhase.racing,
 };
 
+/** 뜬 것·되돌린 것이 정본인지 눈으로 가릴 수 있게 찍는다 */
+function printStages(
+  stages: { stageKey: string; opensAt: Date | string | null; closesAt: Date | string | null }[],
+): void {
+  const f = (d: Date | string | null) =>
+    d ? new Date(d).toLocaleString("sv-SE", { timeZone: "Asia/Seoul" }).slice(0, 16) : "없음";
+  for (const s of stages) console.log(`   ${s.stageKey}  ${f(s.opensAt)} ~ ${f(s.closesAt)}`);
+}
+
 const mode = process.argv[2];
 
 if (mode === "save") {
@@ -71,6 +85,7 @@ if (mode === "save") {
   );
   console.log(`저장 → ${SNAP}`);
   console.log(`  페이즈 ${season.phase}, 스테이지 ${stages.length}개`);
+  printStages(stages);
 } else if (mode in PHASE) {
   await setSandboxPhase({ seasonId: season.id, phase: PHASE[mode] });
   /* ③만 — 플래그를 켜고 s4를 지금 도는 스테이지로 만든다 */
@@ -110,6 +125,7 @@ if (mode === "save") {
     ),
   ]);
   console.log(`되돌림: 페이즈 ${snap.phase}, 스테이지 ${snap.stages.length}개`);
+  printStages(snap.stages);
 } else {
   throw new Error("save · pre · recruit · racing · restore 중 하나를 준다");
 }
