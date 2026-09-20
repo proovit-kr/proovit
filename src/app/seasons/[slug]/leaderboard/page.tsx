@@ -323,13 +323,16 @@ export default async function Page({
   const ranked = board.rows.some((row) => row.rank !== null);
 
   /*
-    배너의 확정일은 **집계가 닫힌 시각 = s5 마감**이다. 랜딩 ④의 「집계 확정
-    기준」과 같은 값이라야 두 화면이 다른 날을 말하지 않는다. 마지막 스냅샷
-    날짜(`board.snapshotDate`)를 쓰면 롤업이 늦게 돈 날로 밀린다.
-    2026-09-20 수연 결정.
+    배너의 날짜는 **2차 심사(최종)가 끝난 날 = 시상 확정 시각**이다
+    (`board.finalizedAt`, 2026-09-20 수연 지시). 배너가 말하는 것이 「검증 반영
+    완료」이므로 그 일이 실제로 일어난 때를 적는다.
+
+    한때 s5 마감(집계가 닫힌 시각)을 썼다 — 랜딩 ④의 「집계 확정 기준」과 같은
+    값으로 맞추려던 것인데, 집계가 닫힌 날과 심사가 끝난 날은 다르다. 그 사이가
+    곧 2차 심사 기간이다. 마지막 스냅샷 날짜(`board.snapshotDate`)도 아니다 —
+    그건 롤업이 마지막으로 돈 날이다.
   */
-  const finalAt =
-    season.stages.find((stage) => stage.stageKey === "s5")?.closesAt ?? null;
+  const finalAt = board.finalizedAt;
 
   return (
     <main className="page">

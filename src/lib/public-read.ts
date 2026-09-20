@@ -124,6 +124,12 @@ export type Leaderboard = {
   loadedAt: number;
   /** 최종 확정 순위인가. 확정되면 더 안 바뀐다는 사실 자체가 정보다 */
   isFinal: boolean;
+  /*
+    **2차 심사(최종)가 끝난 시각** — 운영이 시상을 확정한 때다(`awards.awardedAt`).
+    그 한 트랜잭션이 스냅샷을 FINAL로 바꾸고 수상을 기록한다
+    (`admin/awards/actions.ts`). 확정 전에는 null이다.
+  */
+  finalizedAt: Date | null;
   rows: LeaderboardRow[];
 };
 
@@ -172,6 +178,7 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
       snapshotDate: null,
       rolledUpAt: null,
       isFinal: false,
+      finalizedAt: null,
       rows: [],
       loadedAt: Date.now(),
     };
@@ -225,7 +232,7 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
   */
   const awards = await prisma.award.findMany({
     where: { seasonId, awardType: AwardType.overall, awardedAt: { not: null } },
-    select: { entryId: true, rank: true, prizeDesc: true },
+    select: { entryId: true, rank: true, prizeDesc: true, awardedAt: true },
   });
   const awardByEntry = new Map(awards.map((a) => [a.entryId, a]));
 
@@ -270,11 +277,22 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
     null,
   );
 
+  /*
+    확정 시각. 수상은 한 트랜잭션에서 한꺼번에 기록되므로 값이 다 같지만,
+    운영이 나중에 상을 더한 경우를 대비해 **가장 이른 것**을 확정 시각으로 본다.
+  */
+  const finalizedAt = awards.reduce<Date | null>(
+    (first, a) =>
+      a.awardedAt && (first === null || a.awardedAt < first) ? a.awardedAt : first,
+    null,
+  );
+
   return {
     snapshotDate: latest?.snapshotDate ?? null,
     rolledUpAt,
     /* 한 장이라도 최종이면 그 집계가 최종이다 — 롤업이 통째로 찍는 값이다 */
     isFinal: snapshots.some((s) => s.isFinal),
+    finalizedAt,
     rows,
     loadedAt: Date.now(),
   };
