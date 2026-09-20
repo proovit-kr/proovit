@@ -110,6 +110,13 @@ export type Leaderboard = {
   /** 이 순위가 언제 것인가. 스냅샷이 없으면 null */
   snapshotDate: Date | null;
   /*
+    마지막으로 롤업이 돈 시각. 화면의 「12분 전 갱신」이 이 값을 쓴다.
+
+    ⚠️ `snapshotDate`는 **날짜**다(하루 한 행을 15분마다 덮어쓴다). 그걸로
+    상대 시각을 만들면 자정 기준이 되어 「14시간 전 갱신」처럼 나온다.
+  */
+  rolledUpAt: Date | null;
+  /*
     이 표를 읽은 시각. 「12분 전 갱신」의 기준이다.
 
     ⚠️ 화면에서 `Date.now()`를 부를 수 없어서 여기서 준다 — 렌더 중의 impure
@@ -163,7 +170,13 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
     },
   });
   if (entries.length === 0) {
-    return { snapshotDate: null, isFinal: false, rows: [], loadedAt: Date.now() };
+    return {
+      snapshotDate: null,
+      rolledUpAt: null,
+      isFinal: false,
+      rows: [],
+      loadedAt: Date.now(),
+    };
   }
 
   /* 가장 최근 집계일 하나를 잡고 그날 것만 읽는다 — 날짜가 섞이면 순위가 섞인다 */
@@ -184,6 +197,7 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
           revenueTotal: true,
           isAwardEligible: true,
           isFinal: true,
+          updatedAt: true,
         },
       })
     : [];
@@ -253,8 +267,15 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
     return a.rank - b.rank;
   });
 
+  /* 그날 행 중 가장 나중에 고쳐진 것이 마지막 롤업이다 */
+  const rolledUpAt = snapshots.reduce<Date | null>(
+    (last, s) => (last === null || s.updatedAt > last ? s.updatedAt : last),
+    null,
+  );
+
   return {
     snapshotDate: latest?.snapshotDate ?? null,
+    rolledUpAt,
     /* 한 장이라도 최종이면 그 집계가 최종이다 — 롤업이 통째로 찍는 값이다 */
     isFinal: snapshots.some((s) => s.isFinal),
     rows,

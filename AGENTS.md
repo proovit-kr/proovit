@@ -364,6 +364,18 @@ set -a; source .env.development.local; set +a; npx prisma migrate deploy
 
 (2026-08-27에 그냥 돌려 운영 DB의 기능 플래그를 켰다.)
 
+## 리더보드 롤업
+
+15분마다 밖에서 `POST /api/v1/cron/rollup`을 부른다. `CRON_SECRET`이 없으면
+404로 닫혀 있다. Vercel 무료 플랜의 크론은 하루 한 번이라 못 쓰고, 비공개 리포의
+GitHub Actions는 15분 주기면 무료 분(월 2,000)을 넘는다 — 그래서 외부 무료
+크론 서비스가 부른다.
+
+    curl -X POST https://<도메인>/api/v1/cron/rollup -H "Authorization: Bearer $CRON_SECRET"
+
+순위는 **유효 이용자 누적** 순이다(잠정). 심사 기준서의 최종 산식 S는 증빙 검증
+뒤 확정 단계에서 쓰고, 확정된 시즌은 롤업이 건드리지 않는다.
+
 ## 세션 기록
 
 **세션을 끝낼 때 그날 「데일리 스크럼」 문서에 그 세션에서 한 일을 적는다.**

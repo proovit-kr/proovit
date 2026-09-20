@@ -316,9 +316,9 @@ export default async function Page({
               있는 상태 하나만 그린다(1617행). 스냅샷이 아직 없을 때 이 줄을
               통째로 비울 수는 없어서 채웠다 — 2026-09-06 수연 확인.
             */}
-            {board?.snapshotDate ? (
+            {board?.rolledUpAt ? (
               <UpdatedAt
-                iso={board.snapshotDate.toISOString()}
+                iso={board.rolledUpAt.toISOString()}
                 renderedAt={board.loadedAt}
               />
             ) : (

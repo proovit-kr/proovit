@@ -1162,6 +1162,9 @@ model LeaderboardSnapshot {
   entry  Entry  @relation(fields: [entryId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// 마지막으로 롤업이 이 행을 고친 시각. 하루 한 행을 15분마다 덮어쓰므로
+  /// snapshot_date(날짜)만으로는 "N분 전 갱신"을 말할 수 없다.
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([seasonId, entryId, snapshotDate])
   @@index([seasonId, snapshotDate, rank])
