@@ -78,6 +78,17 @@ export function fmtMDHM(date: Date): string {
   return `${fmtMD(date)} ${pad(hh)}:${pad(mm)}`;
 }
 
+/**
+ * 「2026-11-01」. 리더보드 배너의 확정일 표기다(시안 1789행). 자정 마감은
+ * `fmtMDHM`과 같이 **전날**로 적는다 — 「2026-11-02」면 하루 앞선 것처럼 읽힌다.
+ */
+export function fmtYMD(date: Date): string {
+  const { hh, mm } = kst(date);
+  const at = hh === 0 && mm === 0 ? new Date(date.getTime() - 60_000) : date;
+  const { y, m, d } = kst(at);
+  return `${y}-${pad(m)}-${pad(d)}`;
+}
+
 /** 「23:59」 */
 export function fmtHM(date: Date): string {
   const { hh, mm } = kst(date);

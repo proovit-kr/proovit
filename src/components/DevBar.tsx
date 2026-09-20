@@ -62,11 +62,16 @@ const RACE_STAGES: { value: StageKey; label: string }[] = [
   StageKey.s1, StageKey.s2, StageKey.s3, StageKey.s4, StageKey.s5,
 ].map((value) => ({ value, label: value }));
 
-/* 시안 리더보드의 STATE 셋과 같은 이름을 쓴다 — 대조할 때 헷갈리지 않게 */
+/*
+  시안 리더보드의 STATE와 같은 이름을 쓴다 — 대조할 때 헷갈리지 않게.
+
+  ⚠️ **둘뿐이다.** 「시즌 종료」는 집계가 아니라 **페이즈**가 정한다(페이즈 줄의
+  「종료」). 스테이지가 s4 진행 중인데 집계만 종료로 두는 조합은 실제로 생기지
+  않는데, 줄에 남겨 두면 그 조합을 만들 수 있었다. 2026-09-20 수연 지시.
+*/
 const METRICS: { value: string; label: string }[] = [
   { value: "none", label: "집계 전" },
   { value: "race", label: "레이스 운영중" },
-  { value: "final", label: "시즌 종료" },
 ];
 
 export async function DevBar() {

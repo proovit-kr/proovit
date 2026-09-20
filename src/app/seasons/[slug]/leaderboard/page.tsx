@@ -14,6 +14,7 @@ import type {
   PublicSeason,
 } from "@/lib/public-read";
 import { loadPublicNav } from "@/lib/header-read";
+import { fmtYMD } from "@/lib/header-state";
 
 import { FirstRollup, ROLLUP_MINUTES, UpdatedAt } from "./UpdatedAt";
 import styles from "./leaderboard.module.css";
@@ -67,11 +68,6 @@ export async function generateMetadata({
   };
 }
 
-const DATE = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: "Asia/Seoul",
-  month: "long",
-  day: "numeric",
-});
 const NUM = new Intl.NumberFormat("ko-KR");
 
 /*
@@ -223,31 +219,34 @@ function Row({
           row.award ? (
             <Badge tone="lime">{row.award.label}</Badge>
           ) : null
-        ) : (
-          <>
-            {/*
-              미배포는 숨기지 않는다 — 지표가 0인 이유를 밝히는 것이 0을 그냥
-              보여주는 것보다 정확하다(PLN3 2장).
-            */}
-            {row.notDeployed ? <Badge tone="gray">미배포</Badge> : null}
-            {row.awardIneligible ? <Badge tone="warn">시상 제외</Badge> : null}
-          </>
-        )}
+        ) : /*
+          미배포는 숨기지 않는다 — 지표가 0인 이유를 밝히는 것이 0을 그냥
+          보여주는 것보다 정확하다(PLN3 2장). 시안의 「상태」 칸도 이 배지
+          하나만 그린다(3554행).
+        */
+        row.notDeployed ? (
+          <Badge tone="gray">미배포</Badge>
+        ) : null}
       </td>
     </tr>
   );
 }
 
 /*
-  ⚠️ 시즌 종료에서 미배포 팀을 빼지 않는다.
+  ⚠️ 시즌 종료에서는 미배포 팀을 뺀다(시안 3561행 `TEAMS.filter(t=>!t[5])`).
+  2026-09-20 수연 결정 — 최종 표는 수상 명단에 가까우니 배포도 안 된 팀은
+  내린다. 레이스 중에는 그대로 두고 「미배포」 배지로 이유를 밝힌다.
 
-  시안의 최종 표는 미배포 팀을 걸러내지만(`TEAMS.filter(t=>!t[5])`), 그건 손으로
-  적은 목업 배열의 사정이지 규칙으로 적힌 것이 아니다. 순위는 스냅샷이 정본이고
-  화면이 계산하지 않는다는 이 파일의 원칙상, 등수가 매겨진 팀을 화면에서 빼면
-  그게 곧 「우리가 뺀 순위」가 된다. 윤서에게 확인받을 것.
+  ⚠️ **빼는 것은 화면에 그리는 행뿐이고 등수는 손대지 않는다.** 순위는
+  스냅샷이 정본이고 화면이 계산하지 않는다 — 그래서 뺀 자리의 번호는 비어
+  보인다(02가 빠지면 01·03·04). 번호를 다시 매기면 그게 곧 「우리가 매긴
+  순위」가 된다.
 */
 function Table({ board }: { board: Leaderboard }) {
   const isFinal = board.isFinal;
+  const rows = isFinal
+    ? board.rows.filter((row) => !row.notDeployed)
+    : board.rows;
   return (
     /*
       ⚠️ 가로 스크롤 상자를 두지 않는다. 시안은 좁아져도 표를 그대로 두고
@@ -274,7 +273,7 @@ function Table({ board }: { board: Leaderboard }) {
         </tr>
       </thead>
       <tbody>
-        {board.rows.map((row, i) => (
+        {rows.map((row, i) => (
           <Row key={row.entryId} row={row} index={i} isFinal={isFinal} />
         ))}
       </tbody>
@@ -296,9 +295,24 @@ export default async function Page({
   const season = await loadPublicSeason(slug);
   if (!season) notFound();
 
-  /* 잠김(레이스 전)은 404가 아니다 — 언제 열리는지 말해야 관전자가 다시 온다 */
-  const board = access.ok ? await loadLeaderboard(season.id) : null;
-  const ranked = board?.rows.some((row) => row.rank !== null) ?? false;
+  /*
+    레이스 전에는 `canAccess`가 409(STAGE_LOCKED)를 준다. 시안에 잠김 화면이
+    없으므로 그 자리를 404로 보낸다 — 플래그가 꺼졌을 때와 같은 결과다.
+    2026-09-20 수연 결정(시안에 없는 상태를 지운다).
+  */
+  if (!access.ok) notFound();
+
+  const board = await loadLeaderboard(season.id);
+  const ranked = board.rows.some((row) => row.rank !== null);
+
+  /*
+    배너의 확정일은 **집계가 닫힌 시각 = s5 마감**이다. 랜딩 ④의 「집계 확정
+    기준」과 같은 값이라야 두 화면이 다른 날을 말하지 않는다. 마지막 스냅샷
+    날짜(`board.snapshotDate`)를 쓰면 롤업이 늦게 돈 날로 밀린다.
+    2026-09-20 수연 결정.
+  */
+  const finalAt =
+    season.stages.find((stage) => stage.stageKey === "s5")?.closesAt ?? null;
 
   return (
     <main className="page">
@@ -316,7 +330,7 @@ export default async function Page({
               있는 상태 하나만 그린다(1617행). 스냅샷이 아직 없을 때 이 줄을
               통째로 비울 수는 없어서 채웠다 — 2026-09-06 수연 확인.
             */}
-            {board?.rolledUpAt ? (
+            {board.rolledUpAt ? (
               <UpdatedAt
                 iso={board.rolledUpAt.toISOString()}
                 renderedAt={board.loadedAt}
@@ -333,34 +347,21 @@ export default async function Page({
           currentIndex={currentStageIndex(season.stages, new Date())}
         />
 
-        {!access.ok ? (
-          /* ⚠️ 시안에 없는 상태. 레이스 전에는 canAccess가 409를 준다 */
-          <div className={styles.locked}>
-            리더보드는 레이스가 시작되면 열려요.
-            <br />
-            그때부터 참가팀의 유효 이용자 수가 여기에 실시간으로 표시돼요.
-          </div>
-        ) : !board || !ranked ? (
+        {!ranked ? (
           /* ① 집계 전 */
           <div className={styles.empty}>
             <div className={`${styles.emptyBig} ${styles.cur}`}>
               {/*
                 기준 시각은 표를 읽은 때다(`loadedAt`). 화면에서 `Date.now()`를
                 부를 수 없어서다 — 위 `UpdatedAt`과 같은 이유다.
-
-                `board`는 접근이 허용된 경우에만 채워지고 그 아닌 경우는 위
-                가지에서 이미 걸러진다. 그래도 타입은 null을 허용하므로,
-                기준 시각을 모르면 남은 시간을 지어내지 않고 iso를 비운다.
               */}
               <FirstRollup
                 iso={
-                  board
-                    ? (season.stages
-                        .find((stage) => stage.stageKey === "s4")
-                        ?.opensAt?.toISOString() ?? null)
-                    : null
+                  season.stages
+                    .find((stage) => stage.stageKey === "s4")
+                    ?.opensAt?.toISOString() ?? null
                 }
-                renderedAt={board?.loadedAt ?? 0}
+                renderedAt={board.loadedAt}
               />
             </div>
             {/*
@@ -380,18 +381,29 @@ export default async function Page({
                   FINAL
                 </Badge>
                 최종 순위 확정
-                {board.snapshotDate
-                  ? `, ${DATE.format(board.snapshotDate)}`
-                  : ""}
-                , 2차 심사(최종) 검증 반영 완료
+                {finalAt ? `, ${fmtYMD(finalAt)}` : ""}, 2차 심사(최종) 검증
+                반영 완료
               </p>
             ) : null}
             {/* ② 레이스 운영중 */}
             <Table board={board} />
             {board.isFinal ? null : (
               <p className={styles.note}>
-                실격 처리된 팀은 목록에서 제외됨, 유효 이용자 기준은{" "}
-                <Link href="/rules">/rules</Link> 참조
+                실격 처리된 팀은 목록에서 제외됨,{" "}
+                {/*
+                  390에서 「참조」만 떨어지던 줄을 쉼표 뒤에서 끊는다 — 서술부를
+                  줄바꿈 없는 공백으로 묶었다(위 ① 빈 상자와 같은 처리). 서술부는
+                  190px이라 360px 칸(294px)에도 들어간다.
+
+                  시안은 링크에 `href="#rules" data-rule="4"`로 규칙 제4조를
+                  가리킨다. 우리 규칙 화면에는 아직 조문 앵커가 없어 문서까지만
+                  보낸다.
+                */}
+                {"유효 이용자 기준은 "}
+                <Link className="mono" href="/rules">
+                  /rules
+                </Link>
+                {" 제4조 참조"}
               </p>
             )}
           </>

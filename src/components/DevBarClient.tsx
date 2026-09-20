@@ -348,11 +348,18 @@ export function DevBarClient({
             </div>
           </div>
 
-          {/* ── 집계 데이터 ─────────────────────────────────── */}
+          {/*
+            ── 집계 데이터 ─────────────────────────────────────
+            **s4에서만 고를 수 있다**(2026-09-20 수연 지시). 나머지 스테이지는
+            상태가 하나로 정해져 있어서 고를 것이 없다 — s1~s3은 집계 전,
+            s5는 레이스 운영중이고, 스테이지 줄이 그 값을 같이 옮긴다.
+            「시즌 종료」는 페이즈 줄의 「종료」가 만든다.
+          */}
+          {season?.phase === "racing" && season.stage === "s4" ? (
           <div className={styles.row}>
             <span className={styles.label}>
               집계
-              <em className={styles.hint}>리더보드 세 상태</em>
+              <em className={styles.hint}>s4에서만</em>
             </span>
             <div className={styles.picks}>
               {season ? (
@@ -371,11 +378,12 @@ export function DevBarClient({
               )}
             </div>
           </div>
+          ) : null}
 
           <p className={styles.foot}>
             dev DB에만 붙습니다. 여기서 만든 제출물은 「[개발용]」으로, 지표는
             「운영자 보정」으로 표시돼요. 리더보드는 페이즈가 레이스 이상이고
-            스테이지가 s4부터일 때 열려요 — 집계 줄을 누르면 함께 켜져요.
+            스테이지가 s4부터일 때 열려요 — 스테이지 줄이 함께 켜요.
           </p>
         </div>
       ) : null}

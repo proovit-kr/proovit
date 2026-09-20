@@ -42,6 +42,7 @@ const RACE = [
   */
   ["lb-wrap", S + ".lb-wrap", "wrap", [], ["margin-left"]],
   ["eyebrow", S + ".lb-eyebrow", "eyebrow"],
+  ["eyebrow cur", S + ".lb-eyebrow .cur", '[class*="__eyebrow"] [class*="__cur"]', [], ["width"]],
   ["head", S + ".lb-head", "head"],
   /* 제목·갱신 문구도 글자가 달라 폭이 다르다 */
   ["h1", S + ".lb-head h1", "title", [], ["width"]],
@@ -57,21 +58,33 @@ const RACE = [
   ["stg .n", S + ".stg-track .stg.done .n", '[class*="__done"] [class*="__stgKey"]'],
   ["stg.now", S + ".stg-track .stg.now", '[class*="__now"]'],
   ["stg.gate", S + ".stg-track .stg.gate", '[class*="__gate"]'],
+  ["stg 기본", S + ".stg-track .stg:not(.done):not(.now):not(.gate)", 'li[class*="__stg"]:not([class*="__done"]):not([class*="__now"]):not([class*="__gate"])'],
   ["tbl", S + ".pane[data-id='lb-race'] .lb-tbl", "table"],
   ["th", S + ".pane[data-id='lb-race'] .lb-tbl thead th", '[class*="__table"] thead th'],
   ["td", S + ".pane[data-id='lb-race'] .lb-tbl td", '[class*="__table"] tbody td'],
   ["rk", S + ".pane[data-id='lb-race'] .lb-tbl .rk", '[class*="__rank"]'],
   ["top rk", S + ".pane[data-id='lb-race'] .lb-tbl tr.top .rk", '[class*="__top"] [class*="__rank"]'],
-  /* 팀명·참가작 이름이 달라 폭이 다르다 */
-  ["tm", S + ".pane[data-id='lb-race'] .lb-tbl .tm", '[class*="__team"]', [], ["width"]],
-  ["tm small", S + ".pane[data-id='lb-race'] .lb-tbl .tm small", '[class*="__team"] small', [], ["width"]],
+  /* 팀명·참가작도 시안 값이라 폭까지 본다 — `spec-teams.mts`가 심는다 */
+  ["tm", S + ".pane[data-id='lb-race'] .lb-tbl .tm", '[class*="__team"]'],
+  ["tm small", S + ".pane[data-id='lb-race'] .lb-tbl .tm small", '[class*="__team"] small'],
   ["sv a", S + ".pane[data-id='lb-race'] .lb-tbl .sv a", '[class*="__service"] a'],
   ["usr", S + ".pane[data-id='lb-race'] .lb-tbl .usr", '[class*="__usr"]'],
-  ["usr score", S + ".pane[data-id='lb-race'] .lb-tbl .usr .score", '[class*="__usr"] .score', [], ["width"]],
+  ["usr score", S + ".pane[data-id='lb-race'] .lb-tbl .usr .score", '[class*="__usr"] .score'],
   ["usr small", S + ".pane[data-id='lb-race'] .lb-tbl .usr small", '[class*="__usr"] small'],
   ["dt", S + ".pane[data-id='lb-race'] .lb-tbl .dt", '[class*="__dt"]'],
   ["bd", S + ".pane[data-id='lb-race'] .lb-tbl .bd", '[class*="__bd"]'],
+  /*
+    「미배포」 배지. 글자가 같으니 폭도 본다.
+
+    ⚠️ 조상 수는 빼야 한다 — 첫 매치가 상위 3행에 걸리면 `tr.top td`의 라임
+    그라디언트가 하나 더 세어진다. 어느 팀이 미배포인지는 데이터가 정한다
+    (시안 목업은 하위 행, dev 픽스처는 상위 행).
+  */
+  ["bd badge", S + ".pane[data-id='lb-race'] .lb-tbl .bd .badge", '[class*="__bd"] [class*="__badge"]', [], ["▸불투명한 조상 수"]],
   ["note", S + ".pane[data-id='lb-race'] .lb-note", "note"],
+  ["note a", S + ".pane[data-id='lb-race'] .lb-note a", '[class*="__note"] a', [], ["width"]],
+  /* 열 개수는 값이 아니라 구조다 — 시안이 여섯 열이면 여섯 열이어야 한다 */
+  ["tbl ▸열", S + ".pane[data-id='lb-race'] .lb-tbl thead tr", '[class*="__table"] thead tr'],
 ];
 
 /*
@@ -97,11 +110,11 @@ const FINAL = [
   ["td", F + ".lb-tbl td", '[class*="__table"] tbody td'],
   ["rk", F + ".lb-tbl .rk", '[class*="__rank"]'],
   ["top rk", F + ".lb-tbl tr.top .rk", '[class*="__top"] [class*="__rank"]'],
-  ["tm", F + ".lb-tbl .tm", '[class*="__team"]', [], ["width"]],
-  ["tm small", F + ".lb-tbl .tm small", '[class*="__team"] small', [], ["width"]],
+  ["tm", F + ".lb-tbl .tm", '[class*="__team"]'],
+  ["tm small", F + ".lb-tbl .tm small", '[class*="__team"] small'],
   ["sv a", F + ".lb-tbl .sv a", '[class*="__service"] a'],
   ["usr", F + ".lb-tbl .usr", '[class*="__usr"]'],
-  ["usr score", F + ".lb-tbl .usr .score", '[class*="__usr"] .score', [], ["width"]],
+  ["usr score", F + ".lb-tbl .usr .score", '[class*="__usr"] .score'],
   ["usr small", F + ".lb-tbl .usr small", '[class*="__usr"] small'],
   ["bd", F + ".lb-tbl .bd", '[class*="__bd"]'],
   ["bd badge", F + ".lb-tbl .bd .badge", '[class*="__bd"] [class*="__badge"]', [], ["width"]],
@@ -179,7 +192,9 @@ const probe = () => `(() => {
       const c2 = getComputedStyle(n);
       if (c2.backgroundColor !== "rgba(0, 0, 0, 0)" || c2.backgroundImage !== "none") opaque++;
     }
-    out[name + " ▸불투명한 조상 수"] = String(opaque);
+    if (!(skip || []).includes("▸불투명한 조상 수")) {
+      out[name + " ▸불투명한 조상 수"] = String(opaque);
+    }
     out[name + " ▸가로 넘침"] = String(el.scrollWidth > el.clientWidth + 1);
     if (name.endsWith("▸열")) out[name + " 개수"] = String(el.children.length);
     if (name === "lb-wrap") {
@@ -214,7 +229,7 @@ const run = (list, side, w) =>
 /* 구현본이 지금 어느 상태를 그리는지 */
 const stateOf = `(() => {
   const has = (n) => !!document.querySelector('[class*="__' + n + '"]');
-  return has("locked") ? "잠김" : has("empty") ? "집계 전"
+  return has("empty") ? "집계 전"
        : has("finalBanner") ? "시즌 종료" : has("table") ? "레이스 운영중" : "알 수 없음";
 })()`;
 

@@ -338,6 +338,37 @@ export async function setSandboxPhase(args: {
     where: { id: args.seasonId },
     data: { phase: args.phase },
   });
+
+  /*
+    **「시즌 종료」는 이 줄이 만든다**(2026-09-20 수연 지시). 집계 줄에서 그
+    선택지를 뺐으므로, 페이즈를 종료로 옮길 때 마지막 스냅샷을 확정으로
+    바꿔 주지 않으면 리더보드 ③(FINAL 배너)을 만들 길이 없다.
+
+    되돌아올 때도 같다 — 종료에서 레이스로 옮기면 확정을 풀어야 한다.
+    안 그러면 페이즈는 레이스인데 화면은 계속 ③을 그린다.
+
+    ⚠️ `keepStageDates`를 준다. 페이즈 줄은 일정을 손대는 자리가 아니다.
+  */
+  const snapshot = await prisma.leaderboardSnapshot.findFirst({
+    where: { seasonId: args.seasonId },
+    orderBy: { snapshotDate: "desc" },
+    select: { isFinal: true },
+  });
+  if (!snapshot) return;
+
+  const want =
+    args.phase === SeasonPhase.awarded
+      ? "final"
+      : args.phase === SeasonPhase.racing
+        ? "race"
+        : null;
+  if (!want || snapshot.isFinal === (want === "final")) return;
+
+  await setMetricsFixture({
+    seasonId: args.seasonId,
+    kind: want,
+    keepStageDates: true,
+  });
 }
 
 /*
@@ -476,10 +507,65 @@ export async function setSandboxTeam(args: {
 */
 export type MetricsFixture = "none" | "race" | "final";
 
-/** 팀 순서로 정해지는 값. 앞 팀일수록 많다 — 순위가 눈에 보이게 */
+/**
+ * 시안 리더보드(3533행 `TEAMS`)의 12팀. 순서가 곧 순위다.
+ *
+ * ⚠️ **화면이 이 값을 계산으로 만들어 낸다.** 롤업이 `metric_daily`를 합산해
+ * 스냅샷을 다시 쓰므로(`lib/rollup.ts`), 여기 적은 누적·증감이 그대로 나오려면
+ * 일별 지표가 그 합이 되어야 한다 — `specDaily()`가 그 일을 한다.
+ *
+ * 팀·참가작·주소를 dev DB에 심는 것은 `scripts/design-diff/spec-teams.mts`다.
+ */
+export const SPEC_TEAMS = [
+  { team: "새벽창고", idea: "새벽 배송 재고 공유 보드", host: "dawn-depot", visitors: 1248, delta: 86 },
+  { team: "리틀포션", idea: "1인 카페 시그니처 레시피 구독", host: "little-potion", visitors: 1102, delta: 64 },
+  { team: "오늘의루틴", idea: "작심삼일 방지 인증 루틴", host: "todays-routine", visitors: 987, delta: 51 },
+  { team: "밥값하는AI", idea: "점심 메뉴 사다리 정산 봇", host: "babgap-ai", visitors: 842, delta: 38 },
+  { team: "골목마켓", idea: "동네 소상공인 공동구매", host: "golmok-market", visitors: 731, delta: 29 },
+  { team: "페이지원", idea: "전자책 첫 장 미리보기 큐레이션", host: "page-one", visitors: 668, delta: 44 },
+  { team: "두잇로그", idea: "사이드프로젝트 공개 회고 피드", host: "doit-log", visitors: 512, delta: 17 },
+  { team: "모카브루", idea: "홈카페 원두 취향 매칭", host: "mocha-brew", visitors: 455, delta: 22 },
+  { team: "러닝메이트", idea: "러닝 크루 즉석 매칭", host: "running-mate", visitors: 389, delta: 9 },
+  { team: "시들지마", idea: "화분 급수 알림 위젯", host: "sidljima", visitors: 214, delta: 6 },
+  { team: "북클럽라이트", idea: "3줄 독서 노트 공유", host: "bookclub-lite", visitors: 157, delta: 3 },
+  /* 마지막 한 팀은 미배포다 — 「미배포」 배지와 「-」 증감이 그 자리에서 나온다 */
+  { team: "혼밥연구소", idea: "1인분 장보기 리스트", host: "honbap-lab", visitors: 0, delta: 0 },
+] as const;
+
+/** 픽스처가 만드는 일별 지표의 날수. 화면은 전일까지만 공개한다 */
+const DAYS = 14;
+
+/**
+ * 한 팀의 14일치 일별 유효 이용자.
+ *
+ * **마지막 날에 증감을 그대로 담고**, 앞 13일에 나머지를 완만히 늘어나는
+ * 곡선으로 나눈다. 그래야 스냅샷 둘(어제·그제)의 차이가 시안의 「전일 대비」와
+ * 정확히 같아진다 — 그제 스냅샷은 앞 13일 합, 어제 것은 14일 합이다.
+ *
+ * 반올림 오차는 13번째 날에 몰아 보정한다. 앞 13일의 합이 어긋나면 증감이
+ * 1~2씩 흔들려서, 시안 값과 대조할 수 없게 된다.
+ */
+function specDaily(index: number): number[] | null {
+  const spec = SPEC_TEAMS[index];
+  if (!spec) return null;
+  if (spec.visitors === 0) return Array<number>(DAYS).fill(0);
+
+  const head = spec.visitors - spec.delta;
+  const weights = Array.from({ length: DAYS - 1 }, (_, day) => 0.6 + day * 0.06);
+  const sum = weights.reduce((a, b) => a + b, 0);
+  const values = weights.map((w) => Math.max(1, Math.round((head * w) / sum)));
+  values[values.length - 1] += head - values.reduce((a, b) => a + b, 0);
+  return [...values, spec.delta];
+}
+
+/**
+ * 팀 순서로 정해지는 값. 시안에 없는 자리(13번째 팀부터)는 옛 곡선을 쓴다 —
+ * dev DB에 팀이 더 있어도 숫자가 비지 않게.
+ */
 function fixtureVisitors(index: number, day: number): number {
+  const series = specDaily(index);
+  if (series) return series[day] ?? 0;
   const base = 320 - index * 38;
-  /* 뒤로 갈수록 늘어나는 완만한 곡선. day는 0(가장 옛날)부터 */
   return Math.max(4, Math.round(base * (0.45 + day * 0.045)));
 }
 
@@ -525,6 +611,12 @@ function fixtureStageDates(kind: MetricsFixture, now: number) {
 export async function setMetricsFixture(args: {
   seasonId: string;
   kind: MetricsFixture;
+  /**
+   * 스테이지 날짜를 옮기지 않는다. **스테이지 줄이 부를 때** 준다 —
+   * 그쪽이 방금 날짜를 정해 놓았는데 여기서 다시 옮기면 고른 스테이지가
+   * s4로 되돌아간다(둘 다 `fixtureStageDates`를 쓰기 때문이다).
+   */
+  keepStageDates?: boolean;
 }): Promise<void> {
   assertSandbox();
   const { seasonId, kind } = args;
@@ -585,12 +677,14 @@ export async function setMetricsFixture(args: {
   });
 
   /* 셋 다 스테이지 날짜를 옮긴다 — 「집계 전」도 그 나름의 순간이 있다 */
-  const stageDates = fixtureStageDates(kind, Date.now()).map((s) =>
-    prisma.stage.updateMany({
-      where: { seasonId, stageKey: s.stageKey },
-      data: { opensAt: s.opensAt, closesAt: s.closesAt },
-    }),
-  );
+  const stageDates = args.keepStageDates
+    ? []
+    : fixtureStageDates(kind, Date.now()).map((s) =>
+        prisma.stage.updateMany({
+          where: { seasonId, stageKey: s.stageKey },
+          data: { opensAt: s.opensAt, closesAt: s.closesAt },
+        }),
+      );
 
   if (kind === "none" || entries.length === 0) {
     await prisma.$transaction([...clear, ...stageDates, flagOn]);
@@ -778,4 +872,29 @@ export async function setSandboxCurrentStage(args: {
     }
     await setLeaderboardFlag(tx, args.seasonId, at >= KEYS.indexOf(StageKey.s4));
   });
+
+  /*
+    **집계 상태도 같이 옮긴다**(2026-09-20 수연 지시). 고를 것이 있는 스테이지는
+    s4뿐이라 바에서 집계 줄도 거기서만 뜬다 — 나머지는 여기서 정해 준다.
+
+      s1~s3  아직 집계가 시작되지 않았다 → 집계 전
+      s4     고르는 자리다 → 지금 값을 그대로 둔다
+      s5     레이스가 돌고 있다 → 레이스 운영중
+
+    ⚠️ `keepStageDates`를 준다. 방금 정한 날짜를 픽스처가 다시 s4로 옮기면
+    누른 스테이지가 되돌아간다.
+  */
+  const kind: MetricsFixture | null =
+    args.stage === StageKey.s5
+      ? "race"
+      : args.stage === StageKey.s4
+        ? null
+        : "none";
+  if (kind) {
+    await setMetricsFixture({
+      seasonId: args.seasonId,
+      kind,
+      keepStageDates: true,
+    });
+  }
 }
