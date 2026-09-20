@@ -10,6 +10,7 @@ import {
   hasSandboxTeam,
   loadSandboxState,
 } from "@/lib/dev-sandbox";
+import { hasParkedSession } from "@/lib/dev-session";
 
 import { DevBarClient } from "./DevBarClient";
 
@@ -87,6 +88,8 @@ export async function DevBar() {
   }
 
   const user = await getSessionUser();
+  /* 비로그인으로 둔 세션이 있는가 — 있으면 「로그인」 줄로 돌아올 수 있다 */
+  const parked = await hasParkedSession();
   const state = await loadSandboxState();
   /* 팀원으로 들어간 팀도 친다 — 아래 `current`는 팀장인 팀만 찾는다 */
   const hasTeam =
@@ -99,6 +102,7 @@ export async function DevBar() {
   return (
     <DevBarClient
       me={user ? { nickname: user.nickname, onboarded: !!user.onboardedAt } : null}
+      parked={parked}
       current={current}
       hasTeam={hasTeam}
       season={state.season}

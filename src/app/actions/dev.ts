@@ -19,6 +19,7 @@ import {
   type MetricsFixture,
 } from "@/lib/dev-sandbox";
 import { getSessionUser } from "@/lib/access";
+import { parkSession, restoreSession } from "@/lib/dev-session";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -162,4 +163,34 @@ export async function devSetMetrics(formData: FormData): Promise<void> {
 
   await setMetricsFixture({ seasonId, kind: raw as MetricsFixture });
   refresh();
+}
+
+/*
+  로그인 ↔ 비로그인. 공개 화면이 관전자에게 어떻게 보이는지 보려고 매번
+  로그아웃했다가 소셜 로그인을 다시 타는 일을 없앤다.
+
+  세션은 **만들지 않는다** — 쿠키를 빼 뒀다 돌려놓을 뿐이다(dev-session.ts).
+  그래서 처음 한 번은 평소대로 로그인해야 하고, 그 뒤부터 이 줄로 오간다.
+*/
+export async function devSetAuth(formData: FormData): Promise<void> {
+  guard();
+
+  const raw = String(formData.get("on") ?? "");
+  if (raw !== "1" && raw !== "0") throw new Error("[dev] on이 잘못됐습니다.");
+
+  if (raw === "1") await restoreSession();
+  else await parkSession();
+  /*
+    ⚠️ **이 액션만 화면을 다시 부른다**(DevBarClient의 `AuthPick`).
+    서버 액션이 같은 요청 안에서 다시 그리는데 그 렌더가 읽는 `cookies()`는
+    바꾸기 전의 것이라, 여기서 끝내면 비로그인으로 바꿔 놓고도 바에 내 닉네임이
+    그대로 찍힌다 — 바에 찍힌 값과 화면이 어긋나는 순간 도구가 함정이 된다.
+
+    `redirect()`로 해결하려다 되돌렸다. 리다이렉트를 걸면 여기서 쓴 쿠키가
+    아예 반영되지 않는다(2026-09-21 확인).
+
+    그래서 `refresh()`도 부르지 않는다 — 어차피 화면을 통째로 다시 부르므로
+    할 일이 겹치는데, `revalidatePath("/", "layout")`가 레이아웃 전체를 다시
+    그리느라 dev에서 버튼 한 번에 20초가 걸렸다(2026-09-21 측정).
+  */
 }
