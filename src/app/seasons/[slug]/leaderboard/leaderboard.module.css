@@ -143,6 +143,26 @@
   color: var(--violet);
   font-size: 11.5px;
 }
+/*
+  시즌 종료의 마지막 게이트 — 최종 순위를 만든 심사라 여기가 트랙의 끝이다.
+
+  `.now`(라임)를 쓰지 않는다. 게이트는 바이올렛이라는 팔레트 규칙이 있고
+  (globals.css), `.stg.gate`가 색·테두리를 나중에 덮어 라임 배경에 바이올렛
+  글자가 된다. 그래서 같은 강조를 바이올렛으로 다시 쓴다 — 시안이 바이올렛을
+  채울 때 쓰는 `--violet-dim`에 실선 테두리와 글로우를 얹었다(`.bd-violet`
+  ·`.cr .cond`가 같은 조합).
+
+  ⚠️ 세 겹(0,3,0)이다. `.stg.gate`의 점선·색을 이겨야 한다.
+*/
+.stg.gate.gateNow {
+  border-style: solid;
+  border-color: rgba(167, 139, 250, 0.55);
+  background: var(--violet-dim);
+  font-weight: 700;
+  box-shadow:
+    0 0 0 3px rgba(167, 139, 250, 0.12),
+    0 8px 18px -8px rgba(167, 139, 250, 0.45);
+}
 
 /* ═══════════ 표 ═══════════ */
 
@@ -267,9 +287,22 @@
   color: var(--faint);
 }
 
+/*
+  배지 칸(수상·상태). **셀 안에서 가운데**다(2026-09-20 수연 결정) — 시안은
+  오른쪽에 붙이지만(1782행), 폭이 제각각인 배지가 오른쪽 끝에 매달리면
+  줄마다 시작점이 달라 읽는 눈이 흔들린다.
+
+  ⚠️ 머리글은 시안대로 오른쪽이다. 같은 칸에서 머리글과 값이 다른 정렬을
+  쓰는 것은 그렇게 정한 것이다(page.tsx의 thead 주석).
+*/
 .table .bd {
   width: 100px;
-  text-align: right;
+  text-align: center;
+}
+/* 배지 안의 글자도 가운데 — 좁은 폭에서 두 줄이 될 때 갈린다 */
+.cellBadge {
+  justify-content: center;
+  text-align: center;
 }
 
 .note {

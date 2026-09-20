@@ -106,17 +106,27 @@ function currentStageIndex(stages: Stage[], now: Date): number {
 function StageTrack({
   stages,
   currentIndex,
+  isFinal,
 }: {
   stages: Stage[];
   currentIndex: number;
+  isFinal: boolean;
 }) {
+  /*
+    마지막 게이트 = 2차 심사(최종). **시즌 종료에서 트랙의 끝은 이 게이트다**
+    (2026-09-20 수연 지시) — 스테이지는 s5까지 다 끝났고, 최종 순위를 만든 것이
+    이 심사다. 그래서 스테이지 전부가 done이 되고 강조는 여기로 옮겨진다.
+    시안 트랙은 상태 하나(s4 운영 중)만 그려서 이 모양이 없다(3524행).
+  */
+  const lastGateKey = stages.filter((s) => s.isGate).at(-1)?.stageKey ?? null;
   let gateNo = 0;
   return (
     <ul className={styles.track}>
       {stages.map((stage, i) => {
-        /* 지난 단계는 done, 지금이 now, 나머지는 기본 */
-        const state =
-          currentIndex < 0 || i > currentIndex
+        /* 지난 단계는 done, 지금이 now, 나머지는 기본. 종료면 전부 done */
+        const state = isFinal
+          ? styles.done
+          : currentIndex < 0 || i > currentIndex
             ? ""
             : i < currentIndex
               ? styles.done
@@ -124,6 +134,9 @@ function StageTrack({
         const gateLabel = stage.isGate
           ? (GATE_LABEL[++gateNo] ?? "심사")
           : null;
+        /* 종료의 마지막 게이트만 강조하고, 그 앞 게이트는 통과 표시를 받는다 */
+        const gateActive = isFinal && stage.stageKey === lastGateKey;
+        const gatePassed = isFinal ? !gateActive : currentIndex > i;
         /*
           ⚠️ **게이트는 자기 `<li>`를 갖는다.** 스테이지와 한 `<li>`에 담으면
           플렉스 아이템이 그 `<li>` 하나라서, 안의 알약 둘이 세로로 쌓여
@@ -139,7 +152,11 @@ function StageTrack({
               {stage.name}
             </li>
             {gateLabel ? (
-              <li className={`${styles.stg} ${styles.gate}`}>
+              <li
+                className={`${styles.stg} ${styles.gate}${
+                  gateActive ? ` ${styles.gateNow}` : ""
+                }`}
+              >
                 {/*
                   지난 게이트는 통과 표시가 붙는다.
 
@@ -147,7 +164,7 @@ function StageTrack({
                   텍스트 노드가 둘이 되고 브라우저가 각 조각의 폭을 따로
                   반올림해 0.016px이 어긋난다.
                 */}
-                {`${gateLabel}${currentIndex > i ? " ✓" : ""}`}
+                {`${gateLabel}${gatePassed ? " ✓" : ""}`}
               </li>
             ) : null}
           </Fragment>
@@ -217,7 +234,9 @@ function Row({
         {isFinal ? (
           /* 시안의 「수상」 칸. 확정된 상이 있는 팀에만 붙는다 */
           row.award ? (
-            <Badge tone="lime">{row.award.label}</Badge>
+            <Badge tone="lime" className={styles.cellBadge}>
+              {row.award.label}
+            </Badge>
           ) : null
         ) : /*
           미배포는 숨기지 않는다 — 지표가 0인 이유를 밝히는 것이 0을 그냥
@@ -225,7 +244,9 @@ function Row({
           하나만 그린다(3554행).
         */
         row.notDeployed ? (
-          <Badge tone="gray">미배포</Badge>
+          <Badge tone="gray" className={styles.cellBadge}>
+            미배포
+          </Badge>
         ) : null}
       </td>
     </tr>
@@ -254,6 +275,13 @@ function Table({ board }: { board: Leaderboard }) {
       열 폭이 시안과 달라진다.
     */
     <table className={styles.table}>
+      {/*
+        머리글 뒤 세 칸은 시안대로 오른쪽이다(1782행). 2026-09-20에 전부 왼쪽으로
+        옮겨 봤다가 같은 날 되돌렸다 — 수연 결정.
+
+        ⚠️ 그래서 **「수상」 머리글은 오른쪽, 배지는 셀 가운데**다. 어긋난 것이
+        아니라 각각 정한 값이다(모듈의 `.table .bd` 주석).
+      */}
       <thead>
         <tr>
           <th scope="col">RANK</th>
@@ -306,13 +334,16 @@ export default async function Page({
   const ranked = board.rows.some((row) => row.rank !== null);
 
   /*
-    배너의 확정일은 **집계가 닫힌 시각 = s5 마감**이다. 랜딩 ④의 「집계 확정
-    기준」과 같은 값이라야 두 화면이 다른 날을 말하지 않는다. 마지막 스냅샷
-    날짜(`board.snapshotDate`)를 쓰면 롤업이 늦게 돈 날로 밀린다.
-    2026-09-20 수연 결정.
+    배너의 날짜는 **2차 심사(최종)가 끝난 날 = 시상 확정 시각**이다
+    (`board.finalizedAt`, 2026-09-20 수연 지시). 배너가 말하는 것이 「검증 반영
+    완료」이므로 그 일이 실제로 일어난 때를 적는다.
+
+    한때 s5 마감(집계가 닫힌 시각)을 썼다 — 랜딩 ④의 「집계 확정 기준」과 같은
+    값으로 맞추려던 것인데, 집계가 닫힌 날과 심사가 끝난 날은 다르다. 그 사이가
+    곧 2차 심사 기간이다. 마지막 스냅샷 날짜(`board.snapshotDate`)도 아니다 —
+    그건 롤업이 마지막으로 돈 날이다.
   */
-  const finalAt =
-    season.stages.find((stage) => stage.stageKey === "s5")?.closesAt ?? null;
+  const finalAt = board.finalizedAt;
 
   return (
     <main className="page">
@@ -323,28 +354,40 @@ export default async function Page({
         </div>
         <div className={styles.head}>
           <h1 className={styles.title}>{season.title} 리더보드</h1>
-          <span className={styles.upd}>
-            <i />
-            {/*
-              ⚠️ 「집계 대기」는 **시안에 없는 문구다.** 시안은 갱신 시각이 늘
-              있는 상태 하나만 그린다(1617행). 스냅샷이 아직 없을 때 이 줄을
-              통째로 비울 수는 없어서 채웠다 — 2026-09-06 수연 확인.
-            */}
-            {board.rolledUpAt ? (
-              <UpdatedAt
-                iso={board.rolledUpAt.toISOString()}
-                renderedAt={board.loadedAt}
-              />
-            ) : (
-              "집계 대기"
-            )}
-            , 롤업 주기 {ROLLUP_MINUTES}분
-          </span>
+          {/*
+            ⚠️ **시즌 종료에서는 이 줄을 그리지 않는다**(2026-09-20 수연 결정).
+            최종 확정과 함께 롤업이 멈추는데 「롤업 주기 15분」은 아직 도는
+            중이라고 말하고, 깜빡이는 점도 같은 거짓이다. 확정 시각은 아래 FINAL
+            배너가 든다.
+
+            시안은 상태 셋을 한 머리에 붙여 전환기로 보여 주므로(1764행) 이 줄이
+            종료에서도 남아 있다. 화면 하나에는 상태 하나만 오니 갈랐다.
+          */}
+          {board.isFinal ? null : (
+            <span className={styles.upd}>
+              <i />
+              {/*
+                ⚠️ 「집계 대기」는 **시안에 없는 문구다.** 시안은 갱신 시각이 늘
+                있는 상태 하나만 그린다(1617행). 스냅샷이 아직 없을 때 이 줄을
+                통째로 비울 수는 없어서 채웠다 — 2026-09-06 수연 확인.
+              */}
+              {board.rolledUpAt ? (
+                <UpdatedAt
+                  iso={board.rolledUpAt.toISOString()}
+                  renderedAt={board.loadedAt}
+                />
+              ) : (
+                "집계 대기"
+              )}
+              , 롤업 주기 {ROLLUP_MINUTES}분
+            </span>
+          )}
         </div>
 
         <StageTrack
           stages={season.stages}
           currentIndex={currentStageIndex(season.stages, new Date())}
+          isFinal={board.isFinal}
         />
 
         {!ranked ? (
