@@ -1,6 +1,9 @@
 /*
-  법령 문서 화면 — 시안 `#scr-privacy`와 `/privacy`를 대조한다.
-  같은 껍데기를 `/terms`와 `/rules`도 쓴다(시안이 셋에 같은 `.ru`를 건다).
+  법령 문서 화면 — 시안의 `.ru` 화면과 우리 문서 화면을 대조한다.
+  셋이 같은 껍데기(`DocPage`)를 쓰고 시안도 셋에 같은 `.ru`를 건다.
+
+    node scripts/design-diff/doc.mjs            # /privacy (기본)
+    DOC=rules node scripts/design-diff/doc.mjs  # /rules
 
   ⚠️ **시안 마크업의 클래스를 먼저 전부 뽑아 넣었다.**
 
@@ -13,15 +16,48 @@
   시안 스스로 「18개 조 구조를 보여 주고 본문은 정본에서 가져온다」고 적어 둔
   대로다. 그래서 **조의 개수와 목차 항목 수는 대조하지 않는다.** 시안이 주는
   것은 레이아웃이고, 조 목록은 content/privacy.ts가 정본이다.
-
-    node scripts/design-diff/doc.mjs
 */
 import {
   withPage, diffTable, diffText, textNodes,
   SPEC_URL, IMPL_URL, WIDTHS, shotDir,
 } from "./cdp.mjs";
 
-const OUT = shotDir("doc");
+/*
+  대조할 문서. 시안 해시·시안 섹션 id·우리 경로와, **시안에만 남은 글자**다.
+  마지막 것은 이식 누락이 아니라 수연이 뺀 것이라 글자 대조에서 제외한다.
+*/
+const DOCS = {
+  privacy: {
+    hash: "#privacy",
+    scr: "#scr-privacy",
+    path: "/privacy",
+    tables: true,
+    /*
+      ⚠️ 시안에만 남은 두 글자. 구현본에서 일부러 뺐다(2026-09-07 수연 지시).
+
+      v3.1은 노션 정본 문서의 판번호다. 게시본 제18조가 「2026. 08. 31. 최초 제정」
+      이라 대외 화면에 붙으면 개정이 두 번 있었던 것처럼 읽힌다. 배지는 아래 PAIRS의
+      설명과 같은 이유로 뺐다. 시안이 갱신되면 이 목록을 지운다.
+    */
+    textIgnore: [/^v3\.1$/, /^계약과 다르면 정보주체에게 유리한 쪽 적용$/],
+  },
+  rules: {
+    hash: "#rules",
+    scr: "#scr-rules",
+    path: "/rules",
+    lists: true,
+    /* 판번호를 뺀 이유는 방침과 같다. 배지(「시즌 중 개정 없음」)는 옮겼다 */
+    textIgnore: [/^v1\.1$/],
+  },
+};
+
+const DOC = DOCS[process.env.DOC ?? "privacy"];
+if (!DOC) {
+  console.error(`DOC은 ${Object.keys(DOCS).join("·")} 중 하나다`);
+  process.exit(1);
+}
+
+const OUT = shotDir(`doc-${process.env.DOC ?? "privacy"}`);
 
 const CSS = [
   "font-size", "font-weight", "line-height", "letter-spacing",
@@ -32,10 +68,12 @@ const CSS = [
   "flex-wrap", "align-items", "justify-content", "text-align",
   "width", "max-width", "font-family", "position", "grid-template-columns",
   "white-space", "vertical-align", "scroll-margin-top", "overflow-x",
+  /* preflight가 지우는 자리다. 안 재면 번호가 사라진 줄 모른다 */
+  "list-style-type", "list-style-position",
   "border-top-width", "border-top-color", "border-left-width", "border-left-color",
 ];
 
-const S = "#scr-privacy ";
+const S = DOC.scr + " ";
 
 /* [이름, 시안 셀렉터, 구현본 셀렉터, 뺄 속성] */
 const PAIRS = [
@@ -51,16 +89,40 @@ const PAIRS = [
     시안 1871줄의 `계약과 다르면 정보주체에게 유리한 쪽 적용`이다. 남겨 두면
     시안에만 있는 요소라 속성 하나하나가 전부 불일치로 찍혀 폭마다 38건씩,
     합계 114건이 쌓인다. 진짜 누락이 그 안에 묻힌다.
+
+    ⚠️ **안내 상자(`.doc-note`)의 짝은 지웠다.** ver4가 세 화면 모두에서 마크업을
+    빼서 CSS 규칙(`.ru .doc-note`)만 남았다 — 양쪽 다 못 찾는 짝이라 폭마다
+    2건씩 쌓이기만 했다. 우리 쪽 `.note`도 같이 지웠다(`dead-css.mjs`가 잡았다).
+    시안이 상자를 되살리면 여기에 짝을 다시 넣는다.
   */
-  ["doc-note", S + ".doc-note", '[class*="__note"]', ["width", "height"]],
   ["h3", S + ".ru h3", '[class*="__doc"] h3', ["width"]],
   ["h3 .n", S + ".ru h3 .n", '[class*="__doc"] h3 [class*="__n"]', ["width"]],
   /* ⚠️ `.doc-note`도 `<p>`다. 빼지 않으면 본문 대신 안내 상자를 잰다 */
   ["p", S + ".ru p:not(.doc-note)", '[class*="__doc"] section p', ["width"]],
+];
+
+/*
+  ⚠️ **시안이 표와 번호 목록을 각각 한 화면에서만 그린다.** 표는 방침 화면에만,
+  번호 목록은 규칙 화면(실격 기준 아홉 줄)에만 있다. 짝이 없는 쪽에서 재면
+  「시안에서 못 찾음」이 폭마다 쌓이기만 한다 — 같은 껍데기이므로 그리는
+  화면에서 한 번 재면 된다.
+
+  표. **시안이 그리는 것은 방침 화면뿐이다** — 규칙 화면은 조를 여섯 꼭지로
+  줄여 그리느라 별표의 표가 들어갈 자리가 없다. 우리 규칙 화면에는 있으므로
+  (`content/rules.ts`가 정본) 값은 같은 껍데기에서 방침으로 잰다.
+*/
+const LIST_PAIRS = [
+  ["ol", S + ".ru ol", '[class*="__doc"] ol', ["width"]],
+  ["ol li", S + ".ru ol li", '[class*="__doc"] ol li', ["width"]],
+];
+if (DOC.lists) PAIRS.push(...LIST_PAIRS);
+
+const TABLE_PAIRS = [
   ["table", S + ".ru table", '[class*="__doc"] table', ["width"]],
   ["th", S + ".ru th", '[class*="__doc"] th', ["width"]],
   ["td", S + ".ru td", '[class*="__doc"] td', ["width"]],
 ];
+if (DOC.tables) PAIRS.push(...TABLE_PAIRS);
 
 /* hover로만 갈리는 것 */
 const HOVER = [["toc a", S + ".ru-toc a", '[class*="__toc"] a']];
@@ -115,24 +177,15 @@ async function hoverValues(p, side) {
   대신 **시안이 직접 적은 것**만 본다 — 제목과 버전 칩과 배지다.
   이 셋은 시안이 값을 박아 두었고 우리가 그대로 옮겨야 하는 자리다.
 */
-/*
-  ⚠️ 시안에만 남은 두 글자. 구현본에서 일부러 뺐다(2026-09-07 수연 지시).
-
-  v3.1은 노션 정본 문서의 판번호다. 게시본 제18조가 「2026. 08. 31. 최초 제정」
-  이라 대외 화면에 붙으면 개정이 두 번 있었던 것처럼 읽힌다. 배지는 위 PAIRS의
-  설명과 같은 이유로 뺐다. 시안이 갱신되면 이 목록을 지운다.
-*/
-const TEXT_IGNORE = [/^v3\.1$/, /^계약과 다르면 정보주체에게 유리한 쪽 적용$/];
-
 const TEXT_PAIRS = [
   ["제목", S + ".ru h1", '[class*="__doc"] h1'],
-  ["버전 칩", S + ".ru-ver", '[class*="__ver"]', TEXT_IGNORE],
+  ["버전 칩", S + ".ru-ver", '[class*="__ver"]', DOC.textIgnore],
 ];
 
 let total = 0;
 for (const w of WIDTHS) {
   const spec = await withPage(async (p) => {
-    await p.goto(SPEC_URL + "#privacy");
+    await p.goto(SPEC_URL + DOC.hash);
     await p.stripViewerShell();
     await p.resize(w);
     const r = await p.eval(probe(PAIRS.map(([n, s, , k]) => [n, s, k])));
@@ -143,7 +196,7 @@ for (const w of WIDTHS) {
     return r;
   });
   const impl = await withPage(async (p) => {
-    await p.goto(IMPL_URL + "/privacy");
+    await p.goto(IMPL_URL + DOC.path);
     await p.resize(w);
     const r = await p.eval(probe(PAIRS.map(([n, , i, k]) => [n, i, k])));
     await p.shot(`${OUT}/impl-${w}.png`);
@@ -153,11 +206,11 @@ for (const w of WIDTHS) {
     return r;
   });
 
-  console.log(`\n\n████ 폭 ${w}`);
+  console.log(`\n\n████ ${DOC.path} 폭 ${w}`);
   for (const m of spec.missing) console.log(`  ⚠️ 시안에서 못 찾음: ${m}`);
   for (const m of impl.missing) console.log(`  ⚠️ 구현본에서 못 찾음: ${m}`);
   total += spec.missing.length + impl.missing.length;
-  total += diffTable(`${w}px — 문서 화면`, spec.out, impl.out);
+  total += diffTable(`${w}px — ${DOC.path}`, spec.out, impl.out);
   for (const [n, , , ignore] of TEXT_PAIRS) {
     total += diffText(spec.text[n], impl.text[n], { label: n, ignore });
   }

@@ -88,6 +88,14 @@
   font-size: 14px;
 }
 
+/*
+  조 하나. 시안에는 없는 상자다 — 시안이 조를 줄여 그리느라 조마다 앵커를
+  달 일이 없다. 여기서는 `.doc h3`과 같은 이유로 여백만 준다.
+*/
+.art {
+  scroll-margin-top: 80px;
+}
+
 .doc p,
 .doc li {
   font-size: 16px;
@@ -95,8 +103,24 @@
   line-height: 1.85;
   max-width: 66ch;
 }
-.doc ol {
+/*
+  ⚠️ **`list-style`을 다시 적는다.** Tailwind preflight가 `ol,ul{list-style:none}`을
+  넣어 번호가 통째로 사라진다 — 시안에는 없는 리셋이다(지금까지 되돌린 네 번째).
+  규칙 제2조 용어 여섯 줄, 제3조 효력 네 줄처럼 번호로 서로를 가리키는 목록이
+  번호 없는 줄 더미로 그려지고 있었다. computed 값 대조로는 안 잡혔다 — 양쪽 다
+  재지 않던 속성이라 `doc.mjs`에 넣었다.
+
+  `ul`은 시안에 없다(규칙 제15조 하나뿐이다). 들여쓰기만 `ol`과 맞춘다.
+*/
+.doc ol,
+.doc ul {
   padding-left: 22px;
+}
+.doc ol {
+  list-style: decimal;
+}
+.doc ul {
+  list-style: disc;
 }
 .doc ol li {
   padding: 4px 0;
@@ -126,26 +150,6 @@
   background: var(--surface-2);
   font-weight: 700;
   white-space: nowrap;
-}
-
-/*
-  문서 머리에 붙는 안내 상자.
-
-  ⚠️ `.doc`으로 한 겹 감싼다. 맨몸 `.note`(0,1,0)는 `.doc p`(0,1,1)에 져서
-  글자 크기와 색이 본문 값으로 덮인다. 시안도 `.ru .doc-note`로 두 겹이라
-  같은 구조다.
-*/
-.doc .note {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  background: var(--blue-dim);
-  border: 1px solid rgba(111, 179, 255, 0.4);
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 13px;
-  color: var(--text);
-  margin-bottom: 22px;
 }
 
 /*
