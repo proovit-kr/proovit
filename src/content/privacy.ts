@@ -134,15 +134,9 @@ export interface PolicyArticle {
  * 행마다 왼쪽에 서는 표다. 마크업이 달라서(`DocTable` / `DocRowTable`) 한
  * 타입으로 뭉개지 않는다.
  */
-export type PolicySummary = {
-  /** 꼭지 제목. 전문은 「…처리 항목」, 시안 게시본은 「…처리 표시」다 */
-  title: string;
-  /** 목차에 적을 이름 */
-  tocLabel: string;
-} & (
+export type PolicySummary =
   | ({ kind: "table" } & PolicyTable)
-  | { kind: "rows"; rows: [string, string][] }
-);
+  | { kind: "rows"; rows: [string, string][] };
 
 export interface PrivacyPolicy {
   /** 제18조 ③의 버전 표기 */
@@ -189,8 +183,6 @@ export const PRELAUNCH_PRIVACY_POLICY: PrivacyPolicy | null = {
 
   summary: {
     kind: "table",
-    title: "주요 개인정보 처리 항목",
-    tocLabel: "요약",
     head: ["구분", "요약"],
     rows: [
       [
@@ -778,8 +770,14 @@ export const PRELAUNCH_PRIVACY_POLICY: PrivacyPolicy | null = {
  * 정정한 값을 그대로 가져왔다(2026-09-21 수연 확인). 바로 앞 단락의 「모두
  * 미국 소재 사업자이며」는 **법인 얘기라 사실이므로 건드리지 않았다.**
  *
- * ⚠️ 시안의 배지(「계약과 다르면 정보주체에게 유리한 쪽 적용」)는 **뺐다**
- * (2026-09-21 수연 지시). 약관·규칙 화면과 같아졌다.
+ * 나머지 두 곳은 **시안과 다르지만 사실이 아니라 표기 문제**이고, 둘 다
+ * 2026-09-21 수연 지시다.
+ *
+ * - 배지(「계약과 다르면 정보주체에게 유리한 쪽 적용」)를 **뺐다.** 약관·규칙
+ *   화면과 같아졌다.
+ * - 요약 꼭지 이름은 시안이 「주요 개인정보 처리 표시」·목차 「요약 표시」인데
+ *   **전문과 같은 말을 쓴다**(「…처리 항목」·「요약」). 이름은 `/privacy`의
+ *   섹션 구성 자리에 있다 — 두 모양이 같은 글자를 쓰므로 여기 두지 않았다.
  *
  * ⚠️ **시안이 스스로 「판단 필요」라고 남긴 자리 둘은 그대로 두었다.** 문구는
  * 팀장 소관이라 개발이 고치지 않는다(`consent.ts`와 같은 원칙).
@@ -797,8 +795,6 @@ export const SEASON1_PRIVACY_POLICY: PrivacyPolicy | null = {
   /* 시안은 제목 다음에 바로 요약표를 둔다 — 머리말이 없다 */
   summary: {
     kind: "rows",
-    title: "주요 개인정보 처리 표시",
-    tocLabel: "요약 표시",
     rows: [
       [
         "수집 항목",

@@ -63,8 +63,13 @@ export default async function Page() {
     {
       id: "pv-0",
       num: "요약",
-      title: summary.title,
-      tocLabel: summary.tocLabel,
+      /*
+        ⚠️ 시안 게시본은 이 자리를 「주요 개인정보 처리 **표시**」, 목차를
+        「요약 표시」로 적는다. **전문과 같은 말을 쓴다**(2026-09-21 수연 지시) —
+        같은 방침의 두 모양이라 꼭지 이름이 갈릴 이유가 없다.
+      */
+      title: "주요 개인정보 처리 항목",
+      tocLabel: "요약",
       body:
         summary.kind === "table" ? (
           <DocTable
