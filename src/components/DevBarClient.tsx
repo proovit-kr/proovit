@@ -8,7 +8,7 @@ import {
   devSetPhase,
   devSetStage,
   devSetStatus,
-  devToggleFlag,
+  devSetTeam,
 } from "@/app/actions/dev";
 
 import styles from "./DevBar.module.css";
@@ -39,6 +39,8 @@ type Props = {
   blocked?: string;
   me?: { nickname: string; onboarded: boolean } | null;
   current?: Team | null;
+  /** 로그인한 계정이 이번 시즌 참가팀에 속했는가. 비로그인이면 null */
+  hasTeam?: boolean | null;
   season?: {
     id: string;
     slug: string;
@@ -51,7 +53,6 @@ type Props = {
   phases?: Option<string>[];
   raceStages?: Option<string>[];
   metrics?: Option<string>[];
-  flags?: { key: string; label: string; on: boolean }[];
 };
 
 /*
@@ -141,13 +142,13 @@ export function DevBarClient({
   blocked,
   me,
   current,
+  hasTeam = null,
   season,
   stages = [],
   statuses = [],
   phases = [],
   raceStages = [],
   metrics = [],
-  flags = [],
 }: Props) {
   const [open, setOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
@@ -273,6 +274,35 @@ export function DevBarClient({
             </div>
           ) : null}
 
+          {/* ── 참가팀 ──────────────────────────────────────── */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              참가팀
+              <em className={styles.hint}>로그인한 계정</em>
+            </span>
+            <div className={styles.picks}>
+              {!season ? (
+                <span className={styles.empty}>시즌이 없습니다</span>
+              ) : hasTeam === null ? (
+                <span className={styles.empty}>로그인하면 바꿀 수 있어요</span>
+              ) : (
+                [
+                  { on: true, label: "있음" },
+                  { on: false, label: "없음" },
+                ].map((pick) => (
+                  <PickButton
+                    key={pick.label}
+                    action={devSetTeam}
+                    fields={{ seasonId: season.id, on: pick.on ? "1" : "0" }}
+                    active={hasTeam === pick.on}
+                  >
+                    {pick.label}
+                  </PickButton>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* ── 진도 ────────────────────────────────────────── */}
           <div className={styles.row}>
             <span className={styles.label}>
@@ -342,38 +372,10 @@ export function DevBarClient({
             </div>
           </div>
 
-          {/* ── 기능 플래그 ─────────────────────────────────── */}
-          <div className={styles.row}>
-            <span className={styles.label}>
-              플래그
-              <em className={styles.hint}>꺼진 화면은 404</em>
-            </span>
-            <div className={styles.picks}>
-              {season ? (
-                flags.map((flag) => (
-                  <PickButton
-                    key={flag.key}
-                    action={devToggleFlag}
-                    fields={{
-                      seasonId: season.id,
-                      flag: flag.key,
-                      value: flag.on ? "0" : "1",
-                    }}
-                    active={flag.on}
-                  >
-                    {flag.label}
-                  </PickButton>
-                ))
-              ) : (
-                <span className={styles.empty}>시즌이 없습니다</span>
-              )}
-            </div>
-          </div>
-
           <p className={styles.foot}>
             dev DB에만 붙습니다. 여기서 만든 제출물은 「[개발용]」으로, 지표는
-            「운영자 보정」으로 표시돼요. 리더보드를 보려면 페이즈가 레이스
-            이상이어야 해요.
+            「운영자 보정」으로 표시돼요. 리더보드는 페이즈가 레이스 이상이고
+            스테이지가 s4부터일 때 열려요 — 집계 줄을 누르면 함께 켜져요.
           </p>
         </div>
       ) : null}

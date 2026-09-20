@@ -88,21 +88,29 @@ export default async function Page({
   const entry = await loadPublicEntry(entryId, season.id);
   if (!entry) notFound();
 
+  /* 헤더와 「← 리더보드」가 같은 플래그를 본다 — 한 번만 읽는다 */
+  const nav = await loadPublicNav();
+
 
   return (
     <main className={`page ${styles.page}`}>
-      <NavBar {...(await loadPublicNav())} />
+      <NavBar {...nav} />
       <div className={`container container--narrow grow ${styles.wrap}`}>
         {/*
           시안 `.pj-back` — 「← 리더보드」. 관전자가 이 화면에 오는 길이
           리더보드뿐이라 돌아가는 길을 첫 줄에 둔다.
+
+          ⚠️ 리더보드가 꺼져 있으면 이 줄도 없다(2026-09-20 수연 결정). 참가작은
+          계속 열리지만 돌아갈 곳이 404다.
         */}
-        <Link
-          href={`/seasons/${season.slug}/leaderboard`}
-          className={styles.back}
-        >
-          ← 리더보드
-        </Link>
+        {nav.season?.flags.leaderboard ? (
+          <Link
+            href={`/seasons/${season.slug}/leaderboard`}
+            className={styles.back}
+          >
+            ← 리더보드
+          </Link>
+        ) : null}
 
         <header className={styles.head}>
           {/*

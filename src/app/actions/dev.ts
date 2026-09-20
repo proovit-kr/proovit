@@ -14,11 +14,11 @@ import {
   setSandboxPhase,
   setSandboxStage,
   setSandboxStatus,
+  setSandboxTeam,
   setMetricsFixture,
-  toggleSandboxFlag,
   type MetricsFixture,
 } from "@/lib/dev-sandbox";
-import { featureFlagsSchema, type FeatureFlagKey } from "@/lib/feature-flags";
+import { getSessionUser } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -57,8 +57,8 @@ function guard(): void {
 }
 
 /*
-  바꾼 뒤 **레이아웃까지** 무효화한다. 대시보드·운영 콘솔 내비가 플래그를 읽어
-  항목을 그리므로(layout.tsx), 페이지만 갱신하면 메뉴가 옛 상태로 남는다.
+  바꾼 뒤 **레이아웃까지** 무효화한다. 헤더와 대시보드 내비가 페이즈·참가팀을
+  읽어 그리므로(layout.tsx), 페이지만 갱신하면 메뉴가 옛 상태로 남는다.
 */
 function refresh(): void {
   revalidatePath("/", "layout");
@@ -115,6 +115,25 @@ export async function devSetPhase(formData: FormData): Promise<void> {
   refresh();
 }
 
+/*
+  로그인한 계정의 참가팀 있음·없음. 대상은 폼이 아니라 **세션**에서 읽는다 —
+  바가 말하는 「로그인한 계정」과 바뀌는 계정이 어긋날 수 없게.
+*/
+export async function devSetTeam(formData: FormData): Promise<void> {
+  guard();
+
+  const seasonId = String(formData.get("seasonId") ?? "");
+  const raw = String(formData.get("on") ?? "");
+  if (!seasonId || (raw !== "1" && raw !== "0")) {
+    throw new Error("[dev] seasonId·on이 잘못됐습니다.");
+  }
+  const user = await getSessionUser();
+  if (!user) throw new Error("[dev] 로그인한 계정이 없습니다.");
+
+  await setSandboxTeam({ userId: user.id, seasonId, on: raw === "1" });
+  refresh();
+}
+
 /** 레이스 중 지금 스테이지를 고른다 — 스테이지 날짜를 옮긴다 */
 export async function devSetCurrentStage(formData: FormData): Promise<void> {
   guard();
@@ -142,26 +161,5 @@ export async function devSetMetrics(formData: FormData): Promise<void> {
   }
 
   await setMetricsFixture({ seasonId, kind: raw as MetricsFixture });
-  refresh();
-}
-
-export async function devToggleFlag(formData: FormData): Promise<void> {
-  guard();
-
-  const seasonId = String(formData.get("seasonId") ?? "");
-  const raw = String(formData.get("flag") ?? "");
-  const value = formData.get("value") === "1";
-
-  /* 플래그 이름은 스키마에 있는 것만 받는다 — 오타가 조용히 JSONB에 남지 않게 */
-  const known = Object.keys(featureFlagsSchema.shape);
-  if (!seasonId || !known.includes(raw)) {
-    throw new Error("[dev] seasonId·flag가 잘못됐습니다.");
-  }
-
-  await toggleSandboxFlag({
-    seasonId,
-    flag: raw as FeatureFlagKey,
-    value,
-  });
   refresh();
 }

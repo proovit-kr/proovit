@@ -5,8 +5,11 @@ import {
   StageKey,
 } from "@/generated/prisma/enums";
 import { getSessionUser } from "@/lib/access";
-import { checkDevSandbox, loadSandboxState } from "@/lib/dev-sandbox";
-import { featureFlagsSchema } from "@/lib/feature-flags";
+import {
+  checkDevSandbox,
+  hasSandboxTeam,
+  loadSandboxState,
+} from "@/lib/dev-sandbox";
 
 import { DevBarClient } from "./DevBarClient";
 
@@ -66,16 +69,6 @@ const METRICS: { value: string; label: string }[] = [
   { value: "final", label: "시즌 종료" },
 ];
 
-const FLAG_LABEL: Record<string, string> = {
-  leaderboard: "리더보드",
-  notifications: "알림",
-  deposit: "보증금",
-  testerAssignments: "테스터",
-  credits: "혜택",
-  sponsors: "스폰서",
-  archive: "아카이브",
-};
-
 export async function DevBar() {
   const check = checkDevSandbox();
   /*
@@ -90,6 +83,11 @@ export async function DevBar() {
 
   const user = await getSessionUser();
   const state = await loadSandboxState();
+  /* 팀원으로 들어간 팀도 친다 — 아래 `current`는 팀장인 팀만 찾는다 */
+  const hasTeam =
+    user && state.season
+      ? await hasSandboxTeam({ userId: user.id, seasonId: state.season.id })
+      : null;
   const current =
     state.teams.find((team) => team.userId === user?.id) ?? null;
 
@@ -97,17 +95,13 @@ export async function DevBar() {
     <DevBarClient
       me={user ? { nickname: user.nickname, onboarded: !!user.onboardedAt } : null}
       current={current}
+      hasTeam={hasTeam}
       season={state.season}
       stages={STAGES}
       statuses={STATUSES}
       phases={PHASES}
       raceStages={RACE_STAGES}
       metrics={METRICS}
-      flags={Object.keys(featureFlagsSchema.shape).map((key) => ({
-        key,
-        label: FLAG_LABEL[key] ?? key,
-        on: state.season?.flags[key] === true,
-      }))}
     />
   );
 }

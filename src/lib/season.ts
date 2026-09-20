@@ -63,7 +63,10 @@ export function publicHeaderSeason(
     kind: toHeaderSeason(season.phase),
     slug: season.slug,
     title: season.title,
-    flags: { notifications: flags.notifications },
+    flags: {
+      notifications: flags.notifications,
+      leaderboard: flags.leaderboard,
+    },
   };
 }
 

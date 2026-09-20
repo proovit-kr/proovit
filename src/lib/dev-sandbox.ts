@@ -12,8 +12,9 @@ import {
 import {
   ACCOUNT_PRIVACY_CONSENT_VERSION,
   ACCOUNT_TERMS_CONSENT_VERSION,
+  APPLY_CONSENTS,
 } from "@/content/consent";
-import type { FeatureFlagKey } from "@/lib/feature-flags";
+import { applyConsentRows } from "@/lib/apply-store";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -106,7 +107,6 @@ export type SandboxState = {
     id: string;
     slug: string;
     phase: SeasonPhase;
-    flags: Record<string, boolean>;
     /** 리더보드가 지금 어느 상태로 보이는가 */
     metrics: MetricsFixture;
     /** 지금 스테이지 — 창이 열린 것 중 마지막(`currentStage`와 같은 정의). 하나도 안 열렸으면 null */
@@ -149,7 +149,6 @@ export async function loadSandboxState(): Promise<SandboxState> {
         id: true,
         slug: true,
         phase: true,
-        featureFlags: true,
         /*
           집계 상태를 여기서 같이 읽는다. findFirst를 따로 부르면 페이지를 그릴
           때마다 왕복이 한 번 더 는다 — 이 바는 **모든 화면**에 붙어 있다.
@@ -191,7 +190,6 @@ export async function loadSandboxState(): Promise<SandboxState> {
           id: season.id,
           slug: season.slug,
           phase: season.phase,
-          flags: (season.featureFlags ?? {}) as Record<string, boolean>,
           metrics: !season.snapshots[0]
             ? "none"
             : season.snapshots[0].isFinal
@@ -342,26 +340,117 @@ export async function setSandboxPhase(args: {
   });
 }
 
-/**
- * 기능 플래그 하나를 뒤집는다.
- *
- * JSONB를 통째로 덮어쓰지 않고 읽어서 한 키만 바꾼다 — 나중에 플래그가 늘었을 때
- * 이 함수가 모르는 키를 지워버리면 그게 제일 찾기 어려운 버그가 된다.
- */
-export async function toggleSandboxFlag(args: {
+/*
+  로그인한 계정이 이번 시즌 참가팀에 속했는가 — 헤더(P7 「참가팀 없음」과 D 계열)·
+  대시보드·신청 화면이 이것으로 갈린다. 판정은 access.ts와 같다: 이 시즌에
+  참가(entry)한 팀의 멤버인가.
+
+  ⚠️ **「없음」은 아무것도 지우지 않는다.** 참가를 지우려면 제출물·지표·동의 등
+  참가에 매달린 표를 전부 훑어 지워야 하고, 로그인한 계정이 시드 팀의 팀장이면
+  그 팀의 데이터가 사라진다. 대신 그 계정의 멤버 자리를 **보관용 dev 계정**으로
+  옮긴다. 팀·참가·팀원 수는 그대로라 다른 화면이 안 흔들리고, 「있음」을 누르면
+  보관해 둔 자리를 그대로 돌려받는다.
+
+  보관해 둔 것이 없으면 새로 만든다. 이미 팀장인 팀이 있으면 그 팀으로 참가한다
+  — 팀은 시즌을 넘어 유지된다는 apply-store.ts의 규칙과 같다.
+*/
+const parkedEmail = (userId: string) => `devbar-parked-${userId}@example.com`;
+
+export async function hasSandboxTeam(args: {
+  userId: string;
   seasonId: string;
-  flag: FeatureFlagKey;
-  value: boolean;
+}): Promise<boolean> {
+  assertSandbox();
+  const found = await prisma.teamMember.findFirst({
+    where: {
+      userId: args.userId,
+      team: { entries: { some: { seasonId: args.seasonId } } },
+    },
+    select: { id: true },
+  });
+  return !!found;
+}
+
+export async function setSandboxTeam(args: {
+  userId: string;
+  seasonId: string;
+  on: boolean;
 }): Promise<void> {
   assertSandbox();
-  const season = await prisma.season.findUniqueOrThrow({
-    where: { id: args.seasonId },
-    select: { featureFlags: true },
-  });
-  const flags = (season.featureFlags ?? {}) as Prisma.InputJsonObject;
-  await prisma.season.update({
-    where: { id: args.seasonId },
-    data: { featureFlags: { ...flags, [args.flag]: args.value } },
+  const { userId, seasonId, on } = args;
+  const inSeason = { team: { entries: { some: { seasonId } } } };
+
+  await prisma.$transaction(async (tx) => {
+    const parked = await tx.user.upsert({
+      where: { email: parkedEmail(userId) },
+      update: {},
+      create: {
+        email: parkedEmail(userId),
+        name: "[개발용] 보관",
+        nickname: "[개발용] 보관",
+        onboardedAt: new Date(),
+      },
+      select: { id: true },
+    });
+
+    if (!on) {
+      await tx.teamMember.updateMany({
+        where: { userId, ...inSeason },
+        data: { userId: parked.id },
+      });
+      return;
+    }
+
+    if (await tx.teamMember.findFirst({ where: { userId, ...inSeason } })) return;
+
+    /* 보관해 둔 자리부터 돌려준다 */
+    const back = await tx.teamMember.updateMany({
+      where: { userId: parked.id, ...inSeason },
+      data: { userId },
+    });
+    if (back.count > 0) return;
+
+    const user = await tx.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { nickname: true },
+    });
+    const leading = await tx.teamMember.findFirst({
+      where: { userId, role: MemberRole.leader },
+      select: { teamId: true },
+    });
+    const teamId =
+      leading?.teamId ??
+      (
+        await tx.team.create({
+          data: {
+            name: `[개발용] ${user.nickname}`.slice(0, 60),
+            isSolo: true,
+            members: { create: { userId, role: MemberRole.leader } },
+          },
+          select: { id: true },
+        })
+      ).id;
+
+    const entry = await tx.entry.create({
+      data: {
+        seasonId,
+        teamId,
+        ideaTitle: "[개발용] 개발 바가 만든 참가작",
+        appliedAt: new Date(),
+      },
+      select: { id: true },
+    });
+
+    /* 신청 화면이 남기는 참가 동의 3종과 같은 행 — 버전도 진짜 값이다 */
+    await tx.consent.createMany({
+      data: applyConsentRows({
+        userId,
+        entryId: entry.id,
+        consent: Object.fromEntries(APPLY_CONSENTS.map((c) => [c.key, true])),
+        ipHash: null,
+        userAgent: null,
+      }),
+    });
   });
 }
 
@@ -414,23 +503,16 @@ const MIN_MS = 60_000;
 
 function fixtureStageDates(kind: MetricsFixture, now: number) {
   /*
-    집계 전  — s3가 방금 닫히고 s4가 14분 뒤 열린다. 첫 갱신 기준이 s4 시작이라
+    집계 전  — s4가 **1분 전 열렸다.** 첫 갱신은 s4 시작 한 주기(15분) 뒤라
               화면에 「첫 갱신까지 14분」이 뜬다(시안 1624행과 같은 문장).
+              2026-09-20에 기준이 s4 시작 → s4 시작+15분으로 바뀌면서 이 값도
+              +14분에서 -1분으로 옮겼다. 「집계 시작됨」이라는 문장과도 맞다.
     나머지  — s4가 이틀 전 열려 진행 중이다.
   */
-  const s4OpensAt = kind === "none" ? now + 14 * MIN_MS : now - 2 * 86_400_000;
-  /*
-    ⚠️ **s4가 열리기 전에도 s4가 「지금」이어야 한다.** 집계가 s4부터 시작하니
-    집계 전 화면의 네온 알약도 s4다(2026-09-06 수연 지적).
-
-    `currentStageIndex`는 마감이 지난 스테이지 수로 센다. 그래서 앞 블록을
-    15분 당겨 s3를 **이미 닫힌** 상태로 만든다 — 그러면 s3까지 셋이 지나
-    s4가 지금이 된다. 당기지 않으면 s3 마감이 13분 남아 s3가 네온이 된다.
-  */
-  const gap = kind === "none" ? 15 * MIN_MS : 0;
+  const s4OpensAt = kind === "none" ? now - MIN_MS : now - 2 * 86_400_000;
   const KEYS = [StageKey.s1, StageKey.s2, StageKey.s3, StageKey.s4, StageKey.s5];
   return KEYS.map((stageKey, i) => {
-    const opensAt = new Date(s4OpensAt + (i - 3) * WEEK_MS - (i < 3 ? gap : 0));
+    const opensAt = new Date(s4OpensAt + (i - 3) * WEEK_MS);
     return {
       stageKey,
       opensAt,
@@ -485,6 +567,23 @@ export async function setMetricsFixture(args: {
     prisma.award.deleteMany({ where: { seasonId } }),
   ];
 
+  /*
+    ⚠️ 셋 다 **리더보드 플래그를 켠다.** 이 줄은 리더보드 세 상태를 보려고
+    누르는 것인데, s1~s3에서 눌렀으면 플래그가 꺼져 있어(스테이지 줄) 화면이
+    404가 된다. 「집계 전」도 마찬가지다 — 그 상태 자체가 「플래그는 켜졌고
+    숫자만 아직 없는」 화면이다.
+  */
+  const flags = (
+    await prisma.season.findUniqueOrThrow({
+      where: { id: seasonId },
+      select: { featureFlags: true },
+    })
+  ).featureFlags as Prisma.InputJsonObject | null;
+  const flagOn = prisma.season.update({
+    where: { id: seasonId },
+    data: { featureFlags: { ...(flags ?? {}), leaderboard: true } },
+  });
+
   /* 셋 다 스테이지 날짜를 옮긴다 — 「집계 전」도 그 나름의 순간이 있다 */
   const stageDates = fixtureStageDates(kind, Date.now()).map((s) =>
     prisma.stage.updateMany({
@@ -494,7 +593,7 @@ export async function setMetricsFixture(args: {
   );
 
   if (kind === "none" || entries.length === 0) {
-    await prisma.$transaction([...clear, ...stageDates]);
+    await prisma.$transaction([...clear, ...stageDates, flagOn]);
     return;
   }
 
@@ -617,6 +716,7 @@ export async function setMetricsFixture(args: {
   await prisma.$transaction([
     ...clear,
     ...stageDates,
+    flagOn,
     prisma.award.createMany({ data: awards, skipDuplicates: true }),
     prisma.metricDaily.createMany({ data: daily, skipDuplicates: true }),
     prisma.leaderboardSnapshot.createMany({
@@ -627,12 +727,38 @@ export async function setMetricsFixture(args: {
   ]);
 }
 
+/**
+ * 리더보드 플래그 한 칸만 바꾼다.
+ *
+ * JSONB를 통째로 덮어쓰지 않고 읽어서 한 키만 고친다 — 이 함수가 모르는 키를
+ * 지워버리면 그게 제일 찾기 어려운 버그가 된다.
+ */
+async function setLeaderboardFlag(
+  tx: Prisma.TransactionClient,
+  seasonId: string,
+  on: boolean,
+): Promise<void> {
+  const season = await tx.season.findUniqueOrThrow({
+    where: { id: seasonId },
+    select: { featureFlags: true },
+  });
+  const flags = (season.featureFlags ?? {}) as Prisma.InputJsonObject;
+  await tx.season.update({
+    where: { id: seasonId },
+    data: { featureFlags: { ...flags, leaderboard: on } },
+  });
+}
+
 /*
   레이스 중 지금 스테이지를 고른다. 고른 스테이지가 이틀 전 열려 진행 중이
   되도록 다섯 스테이지 날짜를 한꺼번에 옮긴다 — 앞은 닫히고 뒤는 아직 안 열린다.
   주 단위·「다음 스테이지 열리기 1분 전 마감」은 `fixtureStageDates`와 같다.
 
   ⚠️ 집계 픽스처도 스테이지 날짜를 옮긴다(s4). 둘 중 나중에 누른 쪽이 남는다.
+
+  **리더보드 플래그도 같이 옮긴다**(2026-09-20 수연 지시). 시즌1은 s4 시작 전까지
+  플래그를 끄기로 했으므로(`leaderboard-flag-off-until-s4`), s4·s5를 고르면 켜지고
+  s1~s3을 고르면 꺼진다 — 스테이지만 옮기면 바가 말하는 상태와 화면이 어긋난다.
 */
 export async function setSandboxCurrentStage(args: {
   seasonId: string;
@@ -642,13 +768,14 @@ export async function setSandboxCurrentStage(args: {
   const KEYS = [StageKey.s1, StageKey.s2, StageKey.s3, StageKey.s4, StageKey.s5];
   const at = KEYS.indexOf(args.stage);
   const opensNow = Date.now() - 2 * 86_400_000;
-  await prisma.$transaction(
-    KEYS.map((stageKey, i) => {
+  await prisma.$transaction(async (tx) => {
+    for (const [i, stageKey] of KEYS.entries()) {
       const opensAt = new Date(opensNow + (i - at) * WEEK_MS);
-      return prisma.stage.updateMany({
+      await tx.stage.updateMany({
         where: { seasonId: args.seasonId, stageKey },
         data: { opensAt, closesAt: new Date(opensAt.getTime() + WEEK_MS - MIN_MS) },
       });
-    }),
-  );
+    }
+    await setLeaderboardFlag(tx, args.seasonId, at >= KEYS.indexOf(StageKey.s4));
+  });
 }

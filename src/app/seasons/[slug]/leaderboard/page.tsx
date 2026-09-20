@@ -15,7 +15,7 @@ import type {
 } from "@/lib/public-read";
 import { loadPublicNav } from "@/lib/header-read";
 
-import { FirstRollup, UpdatedAt } from "./UpdatedAt";
+import { FirstRollup, ROLLUP_MINUTES, UpdatedAt } from "./UpdatedAt";
 import styles from "./leaderboard.module.css";
 
 /*
@@ -316,15 +316,15 @@ export default async function Page({
               있는 상태 하나만 그린다(1617행). 스냅샷이 아직 없을 때 이 줄을
               통째로 비울 수는 없어서 채웠다 — 2026-09-06 수연 확인.
             */}
-            {board?.snapshotDate ? (
+            {board?.rolledUpAt ? (
               <UpdatedAt
-                iso={board.snapshotDate.toISOString()}
+                iso={board.rolledUpAt.toISOString()}
                 renderedAt={board.loadedAt}
               />
             ) : (
               "집계 대기"
             )}
-            , 롤업 주기 15분
+            , 롤업 주기 {ROLLUP_MINUTES}분
           </span>
         </div>
 
@@ -363,7 +363,13 @@ export default async function Page({
                 renderedAt={board?.loadedAt ?? 0}
               />
             </div>
-            <p>참가팀의 유효 이용자 수가 여기에 실시간으로 표시돼요.</p>
+            {/*
+              좁은 폭에서 「표시돼요.」만 떨어지던 줄을 주어 뒤에서 끊는다 —
+              서술부를 줄바꿈 없는 공백으로 묶었다. 시안은 폭대로 흐른다(390px에서
+              「실시간으로 / 표시돼요.」). 서술부는 약 190px라 360px 칸(294px)에도
+              들어간다. 2026-09-20 수연 지침(의미 단위 줄바꿈).
+            */}
+            <p>참가팀의 유효 이용자 수가 여기에{" "}실시간으로{" "}표시돼요.</p>
           </div>
         ) : (
           <>

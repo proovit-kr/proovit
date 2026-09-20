@@ -105,13 +105,17 @@ const PUB: Record<HeaderUser, string[]> = {
   admin: ["P11", "P11", "P11", "P11", "P11"],
 };
 
-function pub(kind: HeaderSeason, user: HeaderUser, extra: { unread?: number } = {}) {
+function pub(
+  kind: HeaderSeason,
+  user: HeaderUser,
+  extra: { unread?: number; leaderboard?: boolean } = {},
+) {
   return resolvePublicHeader({
     season: {
       kind,
       slug: "season-1",
       title: "시즌 1",
-      flags: { notifications: true },
+      flags: { notifications: true, leaderboard: extra.leaderboard ?? true },
     },
     user: user === "guest" ? null : { kind: user, initial: "김", unread: extra.unread ?? 0 },
   });
@@ -179,10 +183,30 @@ describe("공개 헤더 — 조합기 MAP.pub", () => {
 
   it("인앱 알림이 꺼진 시즌이면 참가자 벨도 없다", () => {
     const m = resolvePublicHeader({
-      season: { kind: "stage", slug: "s", title: "시즌 1", flags: { notifications: false } },
+      season: { kind: "stage", slug: "s", title: "시즌 1", flags: { notifications: false, leaderboard: true } },
       user: { kind: "entrant", initial: "리", unread: 3 },
     });
     expect(m.bell).toBeNull();
+  });
+
+  /*
+    리더보드 플래그는 시즌1에서 s4 시작 전까지 꺼진다(2026-09-20 수연 지시).
+    그동안 헤더에는 리더보드로 가는 길이 하나도 없어야 한다 — 화면이 404라서다.
+  */
+  it("리더보드가 꺼진 시즌이면 헤더에 진입점이 없다", () => {
+    for (const season of SEASONS) {
+      for (const user of Object.keys(PUB) as HeaderUser[]) {
+        const m = pub(season, user, { leaderboard: false });
+        expect(m.nav.some((n) => n.href?.endsWith("/leaderboard")), `${user}/${season} 메뉴`).toBe(false);
+        expect(m.actions.some((a) => a.href.endsWith("/leaderboard")), `${user}/${season} CTA`).toBe(false);
+      }
+    }
+  });
+
+  it("리더보드가 켜져 있으면 진행 중 CTA와 아카이브 메뉴가 산다", () => {
+    expect(pub("stage", "guest").actions[0]).toMatchObject({ kind: "leaderboard" });
+    expect(pub("arch", "guest").nav[0]?.label).toBe("리더보드");
+    expect(pub("done", "guest").actions[0]).toMatchObject({ kind: "result" });
   });
 
   it("열린 시즌이 없으면 홈 버튼만", () => {
@@ -202,8 +226,10 @@ const STAGES: StageInfo[] = [
   { key: StageKey.s5, name: "트래픽과 매출", isGate: true, opensAt: new Date("2026-10-26T00:00:00+09:00"), closesAt: new Date("2026-11-02T00:00:00+09:00") },
 ];
 
-function dash(over: Partial<DashboardHeaderInput> & { phase?: SeasonPhase } = {}) {
-  const { phase = SeasonPhase.racing, ...rest } = over;
+function dash(
+  over: Partial<DashboardHeaderInput> & { phase?: SeasonPhase; leaderboard?: boolean } = {},
+) {
+  const { phase = SeasonPhase.racing, leaderboard = true, ...rest } = over;
   const input: DashboardHeaderInput = {
     now: NOW,
     season: {
@@ -212,7 +238,7 @@ function dash(over: Partial<DashboardHeaderInput> & { phase?: SeasonPhase } = {}
       phase,
       startsAt: new Date("2026-09-28T00:00:00+09:00"),
       endsAt: new Date("2026-11-03T00:00:00+09:00"),
-      flags: { notifications: true },
+      flags: { notifications: true, leaderboard },
     },
     team: { name: "루틴메이트", members: 2 },
     entry: { stage: EntryStage.s3, status: EntryStatus.active },
@@ -341,6 +367,17 @@ describe("참가자 헤더 — 조합기 MAP.app", () => {
     expect(m3.strip?.text[0]).toMatchObject({ strong: true });
     /* 자진 포기도 관전 모드다 */
     expect(dash({ entry: { stage: EntryStage.s2, status: EntryStatus.withdrawn } }).variant).toBe("D7");
+  });
+
+  it("리더보드가 꺼져 있으면 D7 관전 버튼과 안내 문장에서 빠진다", () => {
+    const m = dash({
+      entry: { stage: EntryStage.s2, status: EntryStatus.eliminated },
+      leaderboard: false,
+    });
+    expect(m.banner.go).toBeNull();
+    expect(m.strip?.text.map((t) => t.text).join("")).toBe(
+      "시즌 1 경쟁에서 제외되었어요. 참가작은 계속 볼 수 있어요.",
+    );
   });
 
   it("실격 → D8 (레드 스트립 고정, 소명 D-day, 레드 벨)", () => {

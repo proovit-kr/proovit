@@ -74,18 +74,24 @@ export function UpdatedAt({
   return <span suppressHydrationWarning>{ago(iso, now)} 갱신</span>;
 }
 
+/** 롤업 주기(분). 갱신 줄의 「롤업 주기 15분」과 첫 갱신 시각이 같은 값을 쓴다 */
+export const ROLLUP_MINUTES = 15;
+
 /*
   첫 갱신까지 남은 시간 — 시안 `.lb-empty .big`(1624행)
   「집계 시작됨, 첫 갱신까지 <b>14분</b>」.
 
-  ⚠️ **기준은 s4가 열리는 시각이다**(2026-09-06 수연 결정). 트래픽이 그때부터
-  쌓여서 첫 집계가 그때 돈다. 시안의 「14분」은 롤업이 곧 돌 순간을 그린 것이고,
+  ⚠️ **기준은 s4가 열리고 한 주기(15분) 뒤다**(2026-09-20 수연 지시). 트래픽은
+  s4부터 쌓이고 롤업이 15분마다 도니까, 첫 집계 결과는 s4 시작 15분 뒤에 나온다.
   s4가 며칠 뒤면 「7일」처럼 단위가 커진다.
 
-  ⚠️ 롤업은 아직 없다. 주기 15분은 결정된 값이고 구현만 남았다 —
-  `leaderboardSnapshot`을 쓰는 코드는 dev 샌드박스뿐이다.
+  ⚠️ 그 시각이 지났는데도 집계가 없으면 **다음 주기를 가리킨다**(2026-09-20 수연
+  지시). 한때 「첫 갱신을 기다려요」로만 뒀는데, 그때는 롤업이 구현 전이라
+  남은 시간을 말하면 거짓이 되기 때문이었다. 지금은 15분마다 실제로 돌므로
+  (`lib/rollup.ts`, 외부 크론) 다음 롤업 시각이 곧 사실이다.
 
-  그 시각이 지났는데도 스냅샷이 없으면 숫자를 지어내지 않고 기다린다고만 쓴다.
+  그래서 이 화면이 오래 머물러 있으면 그 자체가 **크론이 멈췄다는 신호**다 —
+  롤업은 지표가 0이어도 스냅샷을 쓰고, 그 순간 이 화면은 순위표로 바뀐다.
 */
 export function FirstRollup({
   iso,
@@ -96,11 +102,31 @@ export function FirstRollup({
   renderedAt: number;
 }) {
   const now = useSyncExternalStore(subscribe, () => current, () => renderedAt);
-  const left = iso ? new Date(iso).getTime() - now : -1;
-  if (left <= 0) return <>집계 시작됨, 첫 갱신을 기다려요</>;
+  if (!iso) return <>집계 시작됨, 첫 갱신을 기다려요</>;
+
+  const left = untilNextRollup(new Date(iso).getTime(), now);
   return (
     <span suppressHydrationWarning>
       집계 시작됨, 첫 갱신까지 <b>{span(left / 1000)}</b>
     </span>
   );
+}
+
+/**
+ * 다음 롤업까지 남은 밀리초. s4가 열리기 전이면 **첫 롤업(열린 뒤 한 주기)**까지,
+ * 이미 지났으면 그 뒤로 이어지는 15분 격자의 다음 칸까지다.
+ */
+export function untilNextRollup(
+  opensAt: number,
+  now: number,
+  periodMinutes: number = ROLLUP_MINUTES,
+): number {
+  const period = periodMinutes * 60_000;
+  const elapsed = now - opensAt;
+  /*
+    격자는 s4가 열린 시각에서 시작한다 — 첫 칸이 곧 첫 갱신이다.
+    아직 안 열렸으면 첫 칸(한 주기)을 가리킨다.
+  */
+  const cycles = Math.max(1, Math.floor(elapsed / period) + 1);
+  return opensAt + cycles * period - now;
 }
