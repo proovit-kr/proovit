@@ -580,12 +580,41 @@ function fixtureVisitors(index: number, day: number): number {
   주 단위(7일)와 「다음 스테이지 열리기 1분 전 마감」은 실제 캘린더 규칙 그대로다
   — 시즌 9/28~11/1을 5주로 끊은 것과 같은 모양이라, 옮겨도 구조는 안 망가진다.
 
-  ⚠️ 「시즌 종료」도 s4를 진행 중으로 둔다. 어색해 보이지만 시안이 세 상태에서
-  **같은 트랙**을 그리기 때문이다(`#lbTrack` 하나를 세 pane이 공유한다).
-  여기서 s5까지 끝내 놓으면 트랙만 시안과 어긋난다.
+  ⚠️ **「시즌 종료」는 예외다** — 시즌 자체의 일정을 쓴다(`scheduleStageDates`).
+  2026-09-20까지는 종료도 s4를 진행 중으로 뒀는데, 시안이 세 상태에서 같은
+  트랙을 그리기 때문이었다(`#lbTrack` 하나를 세 pane이 공유한다). 같은 날
+  종료 트랙이 「스테이지 전부 통과 + 마지막 게이트가 현재」로 갈리면서 그
+  이유가 없어졌다.
+
+  ⚠️ 그리고 종료 화면에는 **지금 기준의 값이 하나도 없다** — 갱신 줄도
+  내렸다. 그런데도 날짜를 지금 기준으로 옮기면 수연의 임시 일정(시즌 10.12~
+  11.17)만 덮어써서, 확정일이 오늘로 보이고 다른 화면과 어긋난다
+  (2026-09-20 수연 지적).
 */
 const WEEK_MS = 7 * 86_400_000;
 const MIN_MS = 60_000;
+
+/**
+ * 시즌이 제 일정대로 끝난 모양. 시작일에서 한 주씩 끊고 s5 마감만 시즌
+ * 종료일에 맞춘다 — 수연의 임시 일정(s1 10.12 ~ s5 11.16 24:00)이 그 모양이다.
+ * 시작일이 없으면 옮길 근거가 없으니 그대로 둔다.
+ */
+function scheduleStageDates(startsAt: Date | null, endsAt: Date | null) {
+  if (!startsAt) return [];
+  const KEYS = [StageKey.s1, StageKey.s2, StageKey.s3, StageKey.s4, StageKey.s5];
+  return KEYS.map((stageKey, i) => {
+    const opensAt = new Date(startsAt.getTime() + i * WEEK_MS);
+    const last = i === KEYS.length - 1;
+    return {
+      stageKey,
+      opensAt,
+      /* 마감은 다음 스테이지가 열리기 1분 전, 마지막은 시즌 종료 시각 */
+      closesAt: last
+        ? (endsAt ?? new Date(opensAt.getTime() + WEEK_MS))
+        : new Date(opensAt.getTime() + WEEK_MS - MIN_MS),
+    };
+  });
+}
 
 function fixtureStageDates(kind: MetricsFixture, now: number) {
   /*
@@ -665,21 +694,37 @@ export async function setMetricsFixture(args: {
     404가 된다. 「집계 전」도 마찬가지다 — 그 상태 자체가 「플래그는 켜졌고
     숫자만 아직 없는」 화면이다.
   */
-  const flags = (
-    await prisma.season.findUniqueOrThrow({
-      where: { id: seasonId },
-      select: { featureFlags: true },
-    })
-  ).featureFlags as Prisma.InputJsonObject | null;
+  const season = await prisma.season.findUniqueOrThrow({
+    where: { id: seasonId },
+    select: {
+      featureFlags: true,
+      startsAt: true,
+      endsAt: true,
+      /* 시상 페이즈로 넘어가는 시각 = 2차 심사(최종)가 끝나는 때 */
+      schedules: {
+        where: { phase: SeasonPhase.awarded },
+        take: 1,
+        select: { startsAt: true },
+      },
+    },
+  });
+  const flags = season.featureFlags as Prisma.InputJsonObject | null;
   const flagOn = prisma.season.update({
     where: { id: seasonId },
     data: { featureFlags: { ...(flags ?? {}), leaderboard: true } },
   });
 
-  /* 셋 다 스테이지 날짜를 옮긴다 — 「집계 전」도 그 나름의 순간이 있다 */
+  /*
+    스테이지 날짜를 옮긴다 — 「집계 전」도 그 나름의 순간이 있다. 종료만
+    지금이 아니라 시즌 제 일정을 쓴다(`scheduleStageDates` 위 주석).
+  */
+  const dates =
+    kind === "final"
+      ? scheduleStageDates(season.startsAt, season.endsAt)
+      : fixtureStageDates(kind, Date.now());
   const stageDates = args.keepStageDates
     ? []
-    : fixtureStageDates(kind, Date.now()).map((s) =>
+    : dates.map((s) =>
         prisma.stage.updateMany({
           where: { seasonId, stageKey: s.stageKey },
           data: { opensAt: s.opensAt, closesAt: s.closesAt },
@@ -803,7 +848,12 @@ export async function setMetricsFixture(args: {
           seasonId,
           entryId: entry.id,
           rank: index + 1,
-          awardedAt: new Date(),
+          /*
+            확정 시각이 곧 배너의 날짜다(`public-read`의 `finalizedAt`).
+            지금을 쓰면 시즌이 11월에 끝나는데 확정일만 오늘로 보인다.
+          */
+          awardedAt:
+            season.schedules[0]?.startsAt ?? season.endsAt ?? new Date(),
         }))
       : [];
 
