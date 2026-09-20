@@ -3,53 +3,49 @@ import { describe, expect, it } from "vitest";
 import {
   PRELAUNCH_PRIVACY_POLICY,
   SEASON1_PRIVACY_POLICY,
-  privacyPolicyAt,
+  privacyPolicyFor,
 } from "@/content/privacy";
+import { isRecruitingOrLater } from "@/lib/season-phase";
+import { SeasonPhase } from "@/generated/prisma/client";
 
 /*
-  개인정보처리방침이 둘이고 시행일로 갈린다(2026-09-21 수연 결정).
+  개인정보처리방침이 둘이고 시즌 페이즈로 갈린다(2026-09-21 수연 결정).
 
-  여기서 지키는 것은 두 가지다. **언제 무엇이 보이는가**와, 시안을 다시
+  여기서 지키는 것은 두 가지다. **어느 구간에 무엇이 보이는가**와, 시안을 다시
   이식할 때 **일부러 다르게 쓴 자리가 되돌아가지 않는가**.
 */
 
-const kst = (s: string) => new Date(`${s}+09:00`);
+const policyIn = (phase: SeasonPhase) =>
+  privacyPolicyFor(isRecruitingOrLater(phase));
 
-describe("privacyPolicyAt", () => {
-  it("첫 방침 시행 전에는 아무것도 고르지 않는다", () => {
-    expect(privacyPolicyAt(kst("2026-08-30T23:59:00"))).toBeNull();
+describe("privacyPolicyFor", () => {
+  it("시즌이 아직 없으면 전문이다", () => {
+    expect(privacyPolicyFor(false)).toBe(PRELAUNCH_PRIVACY_POLICY);
   });
 
-  it("사전 신청 기간에는 전문을 고른다", () => {
-    const p = privacyPolicyAt(kst("2026-09-21T10:00:00"));
-    expect(p).toBe(PRELAUNCH_PRIVACY_POLICY);
-    expect(p?.effectiveDate).toBe("2026-08-31");
+  it("사전 신청 구간에는 전문이다", () => {
+    expect(policyIn(SeasonPhase.draft)).toBe(PRELAUNCH_PRIVACY_POLICY);
+    expect(policyIn(SeasonPhase.pre_apply)).toBe(PRELAUNCH_PRIVACY_POLICY);
   });
 
   /*
-    ⚠️ 이 테스트가 잡는 것은 `new Date("2026-09-28")`이다. 그렇게 쓰면 UTC
-    자정으로 읽혀 KST로는 9월 27일 09:00부터 새 방침이 걸린다. 시행일을 하루
-    앞당기는 종류의 실수라 시각을 그 자리에 두고 본다.
+    ⚠️ 이 테스트가 잡는 것은 **모집을 레이스와 한 묶음으로 미루는 실수**다.
+    처음에 시행일 2026-09-28을 박아 두었더니 개발 바에서 페이즈를 모집으로
+    옮겨도 화면이 그대로였다 — 가르는 자리는 모집이고, 그때 회원 가입과 참가
+    신청이 함께 열려 받는 개인정보가 늘어난다.
   */
-  it("시행일 전날 낮에는 아직 전문이다", () => {
-    expect(privacyPolicyAt(kst("2026-09-27T12:00:00"))).toBe(
-      PRELAUNCH_PRIVACY_POLICY,
-    );
+  it("모집이 열리면 게시본으로 바뀐다", () => {
+    expect(policyIn(SeasonPhase.recruiting)).toBe(SEASON1_PRIVACY_POLICY);
   });
 
-  it("시행일 직전 1분까지 전문이고, 자정부터 게시본이다", () => {
-    expect(privacyPolicyAt(kst("2026-09-27T23:59:00"))).toBe(
-      PRELAUNCH_PRIVACY_POLICY,
-    );
-    expect(privacyPolicyAt(kst("2026-09-28T00:00:00"))).toBe(
-      SEASON1_PRIVACY_POLICY,
-    );
-  });
-
-  it("시즌이 끝난 뒤에도 게시본이 남는다", () => {
-    expect(privacyPolicyAt(kst("2026-12-31T00:00:00"))).toBe(
-      SEASON1_PRIVACY_POLICY,
-    );
+  it("모집 뒤로는 계속 게시본이다", () => {
+    for (const phase of [
+      SeasonPhase.racing,
+      SeasonPhase.awarded,
+      SeasonPhase.archived,
+    ]) {
+      expect(policyIn(phase)).toBe(SEASON1_PRIVACY_POLICY);
+    }
   });
 });
 

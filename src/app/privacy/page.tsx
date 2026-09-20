@@ -8,8 +8,8 @@ import {
   DocTable,
   type DocSection,
 } from "@/components/DocPage";
-import { privacyPolicyAt } from "@/content/privacy";
-import { devNow } from "@/lib/dev-clock";
+import { privacyPolicyFor } from "@/content/privacy";
+import { getCurrentSeason, isRecruitingOrLater } from "@/lib/season";
 
 /*
   개인정보처리방침 — 시안 `#scr-privacy`.
@@ -18,10 +18,9 @@ import { devNow } from "@/lib/dev-clock";
   생기고(법 제30조), 시행령 제31조 제2항이 「첫 화면 또는 첫 화면과의
   연결화면」에 두라고 한다 — 그래서 푸터에 고정 링크가 있다.
 
-  ⚠️ **방침이 둘이고 시행일로 갈린다**(2026-09-21 수연 결정). 시즌1 시작
-  전까지는 사전 신청 기간의 전문 18조를, 시작일부터는 시안의 요약 게시본을
-  보여준다. 고르는 것은 `privacyPolicyAt()`이고 근거는 `content/privacy.ts`
-  머리 주석에 있다.
+  ⚠️ **방침이 둘이고 시즌 페이즈로 갈린다**(2026-09-21 수연 결정). 사전 신청
+  구간에는 전문 18조를, 모집부터는 시안의 요약 게시본을 보여준다. 고르는 것은
+  `privacyPolicyFor()`이고 근거는 `content/privacy.ts` 머리 주석에 있다.
 
   그래서 이 화면은 **두 모양을 다 그릴 수 있어야 한다.** 전문은 머리행이 있는
   요약표에 머리말이 앞서고, 게시본은 행머리 요약표로 시작해 여러 조를 한
@@ -41,15 +40,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-/*
-  어느 방침을 그릴지가 **요청 시각에 달려 있다.** 빌드 때 고르면 9/28이 지나도
-  8/31 방침이 그대로 남는다 — 그 사이에 배포가 없으면 시행일이 조용히 지나간다.
-
-  랜딩과 같은 값을 쓴다. 시행 순간에서 최대 1분 늦지만, 방침은 KST 자정에
-  바뀌고 그 시각에 이 화면을 보는 사람은 사실상 없다.
-*/
-export const revalidate = 60;
-
 export default async function Page() {
   /*
     정본에 빈칸이 남아 있으면 게재하지 않는다. 반쯤 채운 방침은 안 하느니만
@@ -58,12 +48,13 @@ export default async function Page() {
     이전의 근거가 없는 상태가 된다.
   */
   /*
-    ⚠️ **`new Date()`가 아니라 `devNow()`다.** 개발 바에서 오늘을 옮겨도 이
-    화면만 진짜 오늘을 보면, 시행일이 지난 뒤의 방침을 확인할 길이 없다.
-    오늘을 옮기는 것은 레이스 페이즈의 스테이지 줄이다(`dev-sandbox.ts`).
-    운영 빌드에서는 `devNow()`가 곧바로 지금을 돌려준다.
+    `getCurrentSeason()`은 `cache()`로 싸여 있어 `DocPage`가 부르는 것과 같은
+    조회를 나눠 쓴다 — 이 줄이 쿼리를 하나 더 만들지 않는다.
   */
-  const policy = privacyPolicyAt(devNow());
+  const season = await getCurrentSeason();
+  const policy = privacyPolicyFor(
+    season ? isRecruitingOrLater(season.phase) : false,
+  );
   if (!policy) notFound();
 
   const summary = policy.summary;

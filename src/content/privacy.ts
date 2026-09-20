@@ -6,22 +6,24 @@
  * **문구는 팀장 소관이며 개발이 임의로 고치지 않는다.** 여기 있는 것은 그
  * 정본을 화면 구조로 옮긴 사본이다.
  *
- * ## 방침이 둘이고 시행일로 갈린다 (2026-09-21 수연 결정)
+ * ## 방침이 둘이고 시즌 페이즈로 갈린다 (2026-09-21 수연 결정)
  *
  * | 상수 | 적용 구간 | 모양 |
  * |---|---|---|
- * | `PRELAUNCH_PRIVACY_POLICY` | 2026-08-31 ~ 09-27 | 정본 전문 18조 |
- * | `SEASON1_PRIVACY_POLICY` | 2026-09-28 ~ | 시안 ver4 `#scr-privacy` 요약 게시본 |
+ * | `PRELAUNCH_PRIVACY_POLICY` | 사전 신청 (`draft`·`pre_apply`) | 정본 전문 18조 |
+ * | `SEASON1_PRIVACY_POLICY` | 모집부터 (`recruiting` 이상) | 시안 ver4 `#scr-privacy` 요약 게시본 |
  *
  * 앞엣것은 사전 신청만 열려 있던 기간의 방침이라 **지우지 않는다.** 이미
  * 게시된 채로 사전 신청 동의를 받았으므로, 그 동의가 무엇에 대한 동의였는지는
- * 이 본문이 증명한다. 뒤엣것이 시즌1 시작일(9/28 00:00 KST — 리포 전체가 쓰는
- * 값이다)부터 화면을 대신한다. 고르는 것은 `privacyPolicyAt()` 하나다.
+ * 이 본문이 증명한다. 고르는 것은 `privacyPolicyFor()` 하나다.
  *
- * ⚠️ **시즌1 시작일이 또 밀려도 이 시행일은 따라 움직이지 않는다.** 방침의
- * 시행일은 게시로 확정되는 날짜라서 시즌 일정과 같은 값일 뿐 같은 것이 아니다.
- * 추석으로 한 번 밀린 전례가 있으니(9/7 → 9/28, `landing.ts`), 다시 밀리면
- * 사람이 판단해서 `SEASON1_POLICY_FROM`과 제18조 ①을 함께 고친다.
+ * 가르는 자리가 모집인 이유는 그때 **받는 개인정보가 늘기 때문이다** — 사전
+ * 신청은 이메일 하나지만 모집이 열리면 회원 가입과 참가 신청이 함께 열린다.
+ * 페이즈 술어는 `lib/season-phase.ts`의 `isRecruitingOrLater()`다.
+ *
+ * ⚠️ **날짜로 갈리게 만들었다가 되돌렸다**(같은 날). 2026-09-28을 박아 두니
+ * 개발 바에서 페이즈를 모집으로 옮겨도 화면이 그대로였다 — 수연이 두 번 짚었다.
+ * 페이즈가 곧 날짜다. 시행일을 다시 상수로 박지 말 것.
  *
  * ⚠️ 요약 게시본은 조를 줄여 묶는다(4조를 건너뛰고 8~10, 12~18을 한 꼭지로).
  * **전문이 사라지는 것이 아니라 게시 화면이 짧아지는 것이고, 전문은 노션
@@ -145,15 +147,6 @@ export interface PrivacyPolicy {
    * 시안이 `시행 2026-08-31`로 찍으므로 그 표기를 쓴다.
    */
   effectiveDate: string;
-  /**
-   * `effectiveDate`의 절대 시각 — KST 자정이다. 화면을 고르는 비교가 이
-   * 값으로만 이뤄지므로 서버 시간대와 무관하다.
-   *
-   * 표기용 문자열과 따로 두는 이유는 하나뿐이다. `"2026-09-28"`을
-   * `new Date()`에 그대로 넣으면 **UTC 자정**으로 읽혀 KST로는 9시간 이른
-   * 9월 27일 09:00부터 새 방침이 걸린다.
-   */
-  effectiveFrom: Date;
   /** 운영 주체. 정본이 「회사」가 아니라 「운영자」로 통일했다 */
   operator: string;
   /**
@@ -187,7 +180,6 @@ const list = (items: string[], ordered = false): PolicyBlock => ({
 export const PRELAUNCH_PRIVACY_POLICY: PrivacyPolicy | null = {
   version: "v3.1",
   effectiveDate: "2026-08-31",
-  effectiveFrom: new Date("2026-08-31T00:00:00+09:00"),
   operator: "PROOVIT 운영자 이윤서",
   preamble:
     "PROOVIT 운영자 이윤서(이하 “운영자”)는 「개인정보 보호법」 제30조 및 같은 법 시행령 제31조에 따라 정보주체의 개인정보를 보호하고 이와 관련한 고충을 신속하고 원활하게 처리할 수 있도록 다음과 같이 개인정보 처리방침을 수립·공개합니다.",
@@ -771,14 +763,6 @@ export const PRELAUNCH_PRIVACY_POLICY: PrivacyPolicy | null = {
 };
 
 /**
- * 시즌1 방침이 화면을 대신하는 시각 — 2026-09-28 00:00 KST.
- *
- * 시즌 캘린더의 시작일과 같은 값이다(`landing.ts`, `stages.opensAt`). 같은
- * 값이지만 **따라 움직이지는 않는다** — 파일 머리 주석 참조.
- */
-export const SEASON1_POLICY_FROM = new Date("2026-09-28T00:00:00+09:00");
-
-/**
  * 시즌1부터 적용되는 방침 — 시안 ver4 `#scr-privacy`의 **요약 게시본**.
  *
  * 문안은 시안에서 그대로 옮겼다. 규칙·이용약관 화면과 같은 자리이고, 시안
@@ -806,7 +790,6 @@ export const SEASON1_POLICY_FROM = new Date("2026-09-28T00:00:00+09:00");
 export const SEASON1_PRIVACY_POLICY: PrivacyPolicy | null = {
   version: "v3.1",
   effectiveDate: "2026-09-28",
-  effectiveFrom: SEASON1_POLICY_FROM,
   operator: "PROOVIT 운영자 이윤서",
   badge: "계약과 다르면 정보주체에게 유리한 쪽 적용",
 
@@ -1022,20 +1005,15 @@ export const SEASON1_PRIVACY_POLICY: PrivacyPolicy | null = {
 };
 
 /**
- * 그 시각에 시행 중인 방침을 고른다.
+ * 게시할 방침을 고른다.
  *
- * 시행일이 지난 것들 중 가장 나중 것을 쓴다. 방침이 셋으로 늘어도 배열에
- * 넣기만 하면 되고, 어느 것도 시행 전이면 `null`이라 화면이 404를 낸다 —
- * 반쯤 채운 방침을 올리지 않는 것과 같은 판단이다(`/privacy` 주석 참조).
+ * `seasonOpen`은 **모집이 열렸는가**다 — 부르는 쪽이
+ * `isRecruitingOrLater(season.phase)`로 판정한다. 페이즈 enum을 여기까지
+ * 들이지 않는 것은 `content/`를 문안만 담는 자리로 두기 위해서다(약관·규칙도
+ * 같다).
+ *
+ * 시즌이 아직 없으면 사전 신청 기간으로 본다.
  */
-export function privacyPolicyAt(now: Date): PrivacyPolicy | null {
-  const inForce = [PRELAUNCH_PRIVACY_POLICY, SEASON1_PRIVACY_POLICY]
-    .filter((p): p is PrivacyPolicy => p !== null)
-    .filter((p) => p.effectiveFrom.getTime() <= now.getTime());
-
-  return inForce.reduce<PrivacyPolicy | null>(
-    (latest, p) =>
-      latest === null || p.effectiveFrom > latest.effectiveFrom ? p : latest,
-    null,
-  );
+export function privacyPolicyFor(seasonOpen: boolean): PrivacyPolicy | null {
+  return seasonOpen ? SEASON1_PRIVACY_POLICY : PRELAUNCH_PRIVACY_POLICY;
 }

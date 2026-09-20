@@ -73,6 +73,17 @@ export function isArchived(phase: SeasonPhase): boolean {
 }
 
 /**
+ * 모집이 열린 뒤로는 계속 참인가 — 모집·레이스·시상·아카이브.
+ *
+ * 가르는 것은 **사전 신청만 받던 구간과 그 뒤**다. 회원 가입과 참가 신청이
+ * 열리면서 받는 개인정보가 늘어나므로, 개인정보처리방침이 이 자리에서 갈린다
+ * (`content/privacy.ts`).
+ */
+export function isRecruitingOrLater(phase: SeasonPhase): boolean {
+  return phaseAtLeast(phase, SeasonPhase.recruiting);
+}
+
+/**
  * 레이스가 시작된 뒤로는 계속 참인가 — 레이스·시상·아카이브.
  *
  * `isRacing`과 갈라 쓰는 자리가 **공개 조회 화면**이다. 리더보드와 참가작
