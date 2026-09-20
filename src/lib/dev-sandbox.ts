@@ -338,6 +338,37 @@ export async function setSandboxPhase(args: {
     where: { id: args.seasonId },
     data: { phase: args.phase },
   });
+
+  /*
+    **「시즌 종료」는 이 줄이 만든다**(2026-09-20 수연 지시). 집계 줄에서 그
+    선택지를 뺐으므로, 페이즈를 종료로 옮길 때 마지막 스냅샷을 확정으로
+    바꿔 주지 않으면 리더보드 ③(FINAL 배너)을 만들 길이 없다.
+
+    되돌아올 때도 같다 — 종료에서 레이스로 옮기면 확정을 풀어야 한다.
+    안 그러면 페이즈는 레이스인데 화면은 계속 ③을 그린다.
+
+    ⚠️ `keepStageDates`를 준다. 페이즈 줄은 일정을 손대는 자리가 아니다.
+  */
+  const snapshot = await prisma.leaderboardSnapshot.findFirst({
+    where: { seasonId: args.seasonId },
+    orderBy: { snapshotDate: "desc" },
+    select: { isFinal: true },
+  });
+  if (!snapshot) return;
+
+  const want =
+    args.phase === SeasonPhase.awarded
+      ? "final"
+      : args.phase === SeasonPhase.racing
+        ? "race"
+        : null;
+  if (!want || snapshot.isFinal === (want === "final")) return;
+
+  await setMetricsFixture({
+    seasonId: args.seasonId,
+    kind: want,
+    keepStageDates: true,
+  });
 }
 
 /*
@@ -580,6 +611,12 @@ function fixtureStageDates(kind: MetricsFixture, now: number) {
 export async function setMetricsFixture(args: {
   seasonId: string;
   kind: MetricsFixture;
+  /**
+   * 스테이지 날짜를 옮기지 않는다. **스테이지 줄이 부를 때** 준다 —
+   * 그쪽이 방금 날짜를 정해 놓았는데 여기서 다시 옮기면 고른 스테이지가
+   * s4로 되돌아간다(둘 다 `fixtureStageDates`를 쓰기 때문이다).
+   */
+  keepStageDates?: boolean;
 }): Promise<void> {
   assertSandbox();
   const { seasonId, kind } = args;
@@ -640,12 +677,14 @@ export async function setMetricsFixture(args: {
   });
 
   /* 셋 다 스테이지 날짜를 옮긴다 — 「집계 전」도 그 나름의 순간이 있다 */
-  const stageDates = fixtureStageDates(kind, Date.now()).map((s) =>
-    prisma.stage.updateMany({
-      where: { seasonId, stageKey: s.stageKey },
-      data: { opensAt: s.opensAt, closesAt: s.closesAt },
-    }),
-  );
+  const stageDates = args.keepStageDates
+    ? []
+    : fixtureStageDates(kind, Date.now()).map((s) =>
+        prisma.stage.updateMany({
+          where: { seasonId, stageKey: s.stageKey },
+          data: { opensAt: s.opensAt, closesAt: s.closesAt },
+        }),
+      );
 
   if (kind === "none" || entries.length === 0) {
     await prisma.$transaction([...clear, ...stageDates, flagOn]);
@@ -833,4 +872,29 @@ export async function setSandboxCurrentStage(args: {
     }
     await setLeaderboardFlag(tx, args.seasonId, at >= KEYS.indexOf(StageKey.s4));
   });
+
+  /*
+    **집계 상태도 같이 옮긴다**(2026-09-20 수연 지시). 고를 것이 있는 스테이지는
+    s4뿐이라 바에서 집계 줄도 거기서만 뜬다 — 나머지는 여기서 정해 준다.
+
+      s1~s3  아직 집계가 시작되지 않았다 → 집계 전
+      s4     고르는 자리다 → 지금 값을 그대로 둔다
+      s5     레이스가 돌고 있다 → 레이스 운영중
+
+    ⚠️ `keepStageDates`를 준다. 방금 정한 날짜를 픽스처가 다시 s4로 옮기면
+    누른 스테이지가 되돌아간다.
+  */
+  const kind: MetricsFixture | null =
+    args.stage === StageKey.s5
+      ? "race"
+      : args.stage === StageKey.s4
+        ? null
+        : "none";
+  if (kind) {
+    await setMetricsFixture({
+      seasonId: args.seasonId,
+      kind,
+      keepStageDates: true,
+    });
+  }
 }
