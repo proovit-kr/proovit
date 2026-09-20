@@ -3,6 +3,7 @@ import { cache } from "react";
 import { AwardType, DeployStatus, EntryStatus } from "@/generated/prisma/enums";
 import { seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
+import { devNow } from "@/lib/dev-clock";
 
 /*
   공개 화면(시즌 상세·리더보드·참가작)의 조회.
@@ -181,7 +182,7 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
       isFinal: false,
       finalizedAt: null,
       rows: [],
-      loadedAt: Date.now(),
+      loadedAt: devNow().getTime(),
     };
   }
 
@@ -295,7 +296,7 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
     isFinal: snapshots.some((s) => s.isFinal),
     finalizedAt,
     rows,
-    loadedAt: Date.now(),
+    loadedAt: devNow().getTime(),
   };
 }
 
@@ -365,7 +366,7 @@ export async function loadPublicEntry(
     그러면 한국 시간 자정부터 오전 9시 사이에 **어제치가 통째로 빠져**
     최근 7일 그래프의 끝 칸이 비고 누적도 하루만큼 적게 나왔다.
   */
-  const today = seoulDateOnly(new Date());
+  const today = seoulDateOnly(devNow());
 
   const daily = metricsPublic
     ? await prisma.metricDaily.findMany({

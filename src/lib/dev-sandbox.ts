@@ -15,6 +15,7 @@ import {
   APPLY_CONSENTS,
 } from "@/content/consent";
 import { applyConsentRows } from "@/lib/apply-store";
+import { devNow, setDevToday } from "@/lib/dev-clock";
 import { seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
 
@@ -167,7 +168,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
       },
     }),
   ]);
-  const now = Date.now();
+  const now = devNow().getTime();
 
   const teams: SandboxTeam[] = entries.flatMap((entry) => {
     const leader = entry.team.members[0];
@@ -339,6 +340,14 @@ export async function setSandboxPhase(args: {
     where: { id: args.seasonId },
     data: { phase: args.phase },
   });
+
+  /*
+    **레이스를 벗어나면 가정한 오늘을 푼다**(2026-09-21 수연 지적).
+    오늘을 옮기는 것은 스테이지 줄인데 그 줄은 레이스에서만 뜬다 — 나가면
+    아무도 그 값을 보여주지 않으면서 판정만 계속 옮겨진 오늘을 본다.
+    끄는 버튼을 따로 두는 대신 여기서 같이 푼다.
+  */
+  if (args.phase !== SeasonPhase.racing) setDevToday(null);
 
   /*
     **「시즌 종료」는 이 줄이 만든다**(2026-09-20 수연 지시). 집계 줄에서 그
@@ -629,34 +638,14 @@ function scheduleStageDates(startsAt: Date | null, endsAt: Date | null) {
   });
 }
 
-function fixtureStageDates(kind: MetricsFixture, now: number) {
-  /*
-    집계 전  — s4가 **1분 전 열렸다.** 첫 갱신은 s4 시작 한 주기(15분) 뒤라
-              화면에 「첫 갱신까지 14분」이 뜬다(시안 1624행과 같은 문장).
-              2026-09-20에 기준이 s4 시작 → s4 시작+15분으로 바뀌면서 이 값도
-              +14분에서 -1분으로 옮겼다. 「집계 시작됨」이라는 문장과도 맞다.
-    나머지  — s4가 이틀 전 열려 진행 중이다.
-  */
-  const s4OpensAt = kind === "none" ? now - MIN_MS : now - 2 * 86_400_000;
-  const KEYS = [StageKey.s1, StageKey.s2, StageKey.s3, StageKey.s4, StageKey.s5];
-  return KEYS.map((stageKey, i) => {
-    const opensAt = new Date(s4OpensAt + (i - 3) * WEEK_MS);
-    return {
-      stageKey,
-      opensAt,
-      /* 마감은 다음 스테이지가 열리기 1분 전 — 규칙서의 「마감 10.11 23:59」 모양 */
-      closesAt: new Date(opensAt.getTime() + WEEK_MS - MIN_MS),
-    };
-  });
-}
-
 export async function setMetricsFixture(args: {
   seasonId: string;
   kind: MetricsFixture;
   /**
    * 스테이지 날짜를 옮기지 않는다. **스테이지 줄이 부를 때** 준다 —
    * 그쪽이 방금 날짜를 정해 놓았는데 여기서 다시 옮기면 고른 스테이지가
-   * s4로 되돌아간다(둘 다 `fixtureStageDates`를 쓰기 때문이다).
+   * 다시 쓰지 않는다. 지금은 픽스처도 시즌 일정만 쓰므로 결과가 같지만,
+   * 「스테이지 줄은 일정을 손대지 않는다」는 뜻을 남겨 둔다.
    */
   keepStageDates?: boolean;
 }): Promise<void> {
@@ -728,13 +717,12 @@ export async function setMetricsFixture(args: {
   });
 
   /*
-    스테이지 날짜를 옮긴다 — 「집계 전」도 그 나름의 순간이 있다. 종료만
-    지금이 아니라 시즌 제 일정을 쓴다(`scheduleStageDates` 위 주석).
+    스테이지 날짜는 **언제나 시즌 제 일정**이다(2026-09-21 수연 지시).
+    예전에는 「집계 전」·「레이스」가 일정을 지금 쪽으로 끌어와, 볼 때마다 시즌
+    날짜가 달라졌다. 지금은 반대다 — 일정은 그대로 두고 개발용 시계가 「오늘」을
+    옮긴다(`lib/dev-clock.ts`, 개발 바 스테이지 줄).
   */
-  const dates =
-    kind === "final"
-      ? scheduleStageDates(season.startsAt, season.endsAt)
-      : fixtureStageDates(kind, Date.now());
+  const dates = scheduleStageDates(season.startsAt, season.endsAt);
   const stageDates = args.keepStageDates
     ? []
     : dates.map((s) =>
@@ -756,7 +744,7 @@ export async function setMetricsFixture(args: {
     오전 9시 전에 하루가 밀려서, 화면이 찾는 마지막 날에 행이 없다 — 「최근
     7일」의 끝 칸이 빈 채로 대조를 돌게 된다(실제로 그랬다).
   */
-  const today = seoulDateOnly(new Date());
+  const today = seoulDateOnly(devNow());
 
   const daily = entries.flatMap((entry, index) =>
     Array.from({ length: 14 }, (_, day) => {
@@ -927,15 +915,21 @@ async function setLeaderboardFlag(
 }
 
 /*
-  레이스 중 지금 스테이지를 고른다. 고른 스테이지가 이틀 전 열려 진행 중이
-  되도록 다섯 스테이지 날짜를 한꺼번에 옮긴다 — 앞은 닫히고 뒤는 아직 안 열린다.
-  주 단위·「다음 스테이지 열리기 1분 전 마감」은 `fixtureStageDates`와 같다.
+  레이스 중 지금 스테이지를 고른다.
 
-  ⚠️ 집계 픽스처도 스테이지 날짜를 옮긴다(s4). 둘 중 나중에 누른 쪽이 남는다.
+  **일정을 옮기지 않는다**(2026-09-21 수연 지시). 고른 스테이지가 열린 날을
+  「오늘」로 가정할 뿐이다 — s2를 누르면 오늘이 10.19다. 예전에는 반대로 다섯
+  스테이지를 지금 쪽으로 끌어왔는데, 그러면 볼 때마다 시즌 날짜가 달라져
+  수연이 세 번 걸렸다. 정본은 시즌 일정이고 움직이는 것은 오늘이다
+  (`lib/dev-clock.ts`).
 
-  **리더보드 플래그도 같이 옮긴다**(2026-09-20 수연 지시). 시즌1은 s4 시작 전까지
-  플래그를 끄기로 했으므로(`leaderboard-flag-off-until-s4`), s4·s5를 고르면 켜지고
-  s1~s3을 고르면 꺼진다 — 스테이지만 옮기면 바가 말하는 상태와 화면이 어긋난다.
+  연 날 **정오**로 잡는다. 자정은 `opensAt`과 같은 순간이라 경계 판정
+  (`opensAt <= now`)이 구현마다 갈릴 수 있다 — 하루 안쪽이면 그 다툼이 없다.
+
+  **리더보드 플래그는 그대로 같이 옮긴다**(2026-09-20 수연 지시). 시즌1은 s4
+  시작 전까지 플래그를 끄기로 했으므로(`leaderboard-flag-off-until-s4`),
+  s4·s5를 고르면 켜지고 s1~s3을 고르면 꺼진다 — 스테이지만 옮기면 바가 말하는
+  상태와 화면이 어긋난다.
 */
 export async function setSandboxCurrentStage(args: {
   seasonId: string;
@@ -944,17 +938,15 @@ export async function setSandboxCurrentStage(args: {
   assertSandbox();
   const KEYS = [StageKey.s1, StageKey.s2, StageKey.s3, StageKey.s4, StageKey.s5];
   const at = KEYS.indexOf(args.stage);
-  const opensNow = Date.now() - 2 * 86_400_000;
-  await prisma.$transaction(async (tx) => {
-    for (const [i, stageKey] of KEYS.entries()) {
-      const opensAt = new Date(opensNow + (i - at) * WEEK_MS);
-      await tx.stage.updateMany({
-        where: { seasonId: args.seasonId, stageKey },
-        data: { opensAt, closesAt: new Date(opensAt.getTime() + WEEK_MS - MIN_MS) },
-      });
-    }
-    await setLeaderboardFlag(tx, args.seasonId, at >= KEYS.indexOf(StageKey.s4));
+
+  const stage = await prisma.stage.findFirstOrThrow({
+    where: { seasonId: args.seasonId, stageKey: args.stage },
+    select: { opensAt: true },
   });
+  if (!stage.opensAt) {
+    throw new Error(`[dev] ${args.stage}에 일정이 없어 오늘을 옮길 수 없습니다.`);
+  }
+  setDevToday(new Date(stage.opensAt.getTime() + 12 * 3_600_000));
 
   /*
     **집계 상태도 같이 옮긴다**(2026-09-20 수연 지시). 고를 것이 있는 스테이지는
@@ -964,8 +956,8 @@ export async function setSandboxCurrentStage(args: {
       s4     고르는 자리다 → 지금 값을 그대로 둔다
       s5     레이스가 돌고 있다 → 레이스 운영중
 
-    ⚠️ `keepStageDates`를 준다. 방금 정한 날짜를 픽스처가 다시 s4로 옮기면
-    누른 스테이지가 되돌아간다.
+    `keepStageDates`는 이제 없어도 같지만(픽스처가 시즌 일정만 쓴다) 그대로 둔다 —
+    스테이지 줄은 일정을 손대는 자리가 아니라는 뜻을 남긴다.
   */
   const kind: MetricsFixture | null =
     args.stage === StageKey.s5
@@ -980,4 +972,14 @@ export async function setSandboxCurrentStage(args: {
       keepStageDates: true,
     });
   }
+
+  /*
+    ⚠️ **플래그는 픽스처 뒤에 쓴다.** `setMetricsFixture`는 무엇을 부르든 리더보드
+    플래그를 켠다(그 줄은 리더보드 상태를 보려고 누르는 자리라서다). 먼저 꺼 두면
+    바로 뒤에서 도로 켜져, s1~s3을 골라도 「리더보드 보기」가 남았다
+    (2026-09-21 수연 지적). 스테이지 줄이 마지막에 말한다.
+  */
+  await prisma.$transaction(async (tx) => {
+    await setLeaderboardFlag(tx, args.seasonId, at >= KEYS.indexOf(StageKey.s4));
+  });
 }

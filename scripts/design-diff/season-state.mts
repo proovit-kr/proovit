@@ -1,0 +1,139 @@
+/*
+  시즌 상세 대조용 dev DB 상태 스위치.
+
+    node --env-file=.env.development.local --import tsx scripts/design-diff/season-state.mts save
+    node --env-file=.env.development.local --import tsx scripts/design-diff/season-state.mts pre
+    node --env-file=.env.development.local --import tsx scripts/design-diff/season-state.mts recruit
+    node --env-file=.env.development.local --import tsx scripts/design-diff/season-state.mts racing
+    node --env-file=.env.development.local --import tsx scripts/design-diff/season-state.mts restore
+
+  시안은 상태 바 버튼으로 `data-state`를 바꾸지만 우리는 **시즌 페이즈**가
+  그 셋을 만든다. 개발 바의 페이즈 줄로도 되지만 대조는 폭마다 다시 도는
+  일이라 손으로 누르면 중간에 어긋난 상태로 재게 된다(lb-state.mts와 같은 이유).
+
+  ③만 `setSandboxCurrentStage(s4)`를 같이 부른다. 그래야 둘이 생긴다 —
+    ① 리더보드 플래그가 켜져 히어로 CTA 「리더보드 보기」가 나온다.
+    ② **오늘이 s4 안이라고 가정**해 s4가 지금 도는 스테이지가 된다(시안 ③의
+       라임 카드). 일정은 건드리지 않는다 — 움직이는 것은 오늘뿐이다
+       (2026-09-21 수연 지시, `src/lib/dev-clock.ts`).
+
+  ⚠️ `restore`를 빠뜨리면 다음 사람이 픽스처를 정본으로 착각한다. 리더보드
+  플래그는 s4 전까지 꺼 두는 것이 기본값이다.
+
+  ⚠️ **`save`는 지금 들어 있는 것을 그대로 뜬다 — 그게 남의 픽스처여도 그렇다.**
+  2026-09-21에 지난 세션이 흘린 픽스처 일정을 떠서 `restore`가 그걸 되돌려
+  놓았다. 그래서 둘 다 스테이지 날짜를 찍는다. 이제 일정을 옮기는 자리는
+  없앴지만(위), 그전에 흘린 dev DB가 있을 수 있어 확인 줄은 남긴다 —
+  정본은 수연의 임시 일정(s1 10.12 …)이다.
+
+  ⚠️ **반드시 .env.development.local로 돌린다.** `.env`는 운영 DB다
+  (lb-state.mts와 같은 가드).
+*/
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
+import { SeasonPhase, StageKey } from "../../src/generated/prisma/enums";
+import { prisma } from "../../src/lib/prisma";
+import { setDevToday } from "../../src/lib/dev-clock";
+import {
+  checkDevSandbox,
+  setMetricsFixture,
+  setSandboxCurrentStage,
+  setSandboxPhase,
+} from "../../src/lib/dev-sandbox";
+
+const check = checkDevSandbox();
+if (!check.ok) throw new Error(`[season-state] ${check.reason}`);
+
+const DIR = join(tmpdir(), "proovit-design-diff");
+mkdirSync(DIR, { recursive: true });
+const SNAP = join(DIR, "season-state.json");
+
+const SLUG = process.env.SEASON_SLUG ?? "season-1";
+const season = await prisma.season.findUniqueOrThrow({
+  where: { slug: SLUG },
+  select: { id: true, phase: true, featureFlags: true },
+});
+
+const PHASE: Record<string, SeasonPhase> = {
+  pre: SeasonPhase.pre_apply,
+  recruit: SeasonPhase.recruiting,
+  racing: SeasonPhase.racing,
+};
+
+/** 뜬 것·되돌린 것이 정본인지 눈으로 가릴 수 있게 찍는다 */
+function printStages(
+  stages: { stageKey: string; opensAt: Date | string | null; closesAt: Date | string | null }[],
+): void {
+  const f = (d: Date | string | null) =>
+    d ? new Date(d).toLocaleString("sv-SE", { timeZone: "Asia/Seoul" }).slice(0, 16) : "없음";
+  for (const s of stages) console.log(`   ${s.stageKey}  ${f(s.opensAt)} ~ ${f(s.closesAt)}`);
+}
+
+const mode = process.argv[2];
+
+if (mode === "save") {
+  const stages = await prisma.stage.findMany({
+    where: { seasonId: season.id },
+    select: { stageKey: true, opensAt: true, closesAt: true },
+  });
+  writeFileSync(
+    SNAP,
+    JSON.stringify(
+      { phase: season.phase, featureFlags: season.featureFlags, stages },
+      null,
+      2,
+    ),
+  );
+  console.log(`저장 → ${SNAP}`);
+  console.log(`  페이즈 ${season.phase}, 스테이지 ${stages.length}개`);
+  printStages(stages);
+} else if (mode in PHASE) {
+  await setSandboxPhase({ seasonId: season.id, phase: PHASE[mode] });
+  /* ③만 — 플래그를 켜고 오늘이 s4 안이라고 가정한다(일정은 그대로) */
+  if (mode === "racing") {
+    await setSandboxCurrentStage({ seasonId: season.id, stage: StageKey.s4 });
+    await setMetricsFixture({ seasonId: season.id, kind: "race", keepStageDates: true });
+  }
+  console.log(`${mode}(${PHASE[mode]})로 바꿈`);
+} else if (mode === "restore") {
+  const snap = JSON.parse(readFileSync(SNAP, "utf8")) as {
+    phase: SeasonPhase;
+    featureFlags: unknown;
+    stages: {
+      stageKey: string;
+      opensAt: string | null;
+      closesAt: string | null;
+    }[];
+  };
+  /* 픽스처가 만든 스냅샷·일별 지표를 먼저 걷어낸다. 일정은 아무도 안 옮긴다 */
+  await setMetricsFixture({ seasonId: season.id, kind: "none", keepStageDates: true });
+  /* 가정한 오늘도 끈다 — 안 끄면 다음 사람이 옮겨진 오늘을 진짜로 본다 */
+  setDevToday(null);
+
+  await prisma.$transaction([
+    prisma.season.update({
+      where: { id: season.id },
+      data: {
+        phase: snap.phase,
+        featureFlags: snap.featureFlags as never,
+      },
+    }),
+    ...snap.stages.map((s) =>
+      prisma.stage.updateMany({
+        where: { seasonId: season.id, stageKey: s.stageKey as never },
+        data: {
+          opensAt: s.opensAt ? new Date(s.opensAt) : null,
+          closesAt: s.closesAt ? new Date(s.closesAt) : null,
+        },
+      }),
+    ),
+  ]);
+  console.log(`되돌림: 페이즈 ${snap.phase}, 스테이지 ${snap.stages.length}개`);
+  printStages(snap.stages);
+} else {
+  throw new Error("save · pre · recruit · racing · restore 중 하나를 준다");
+}
+
+await prisma.$disconnect();

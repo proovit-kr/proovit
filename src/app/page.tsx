@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import { OrganizationJsonLd } from "@/components/JsonLd";
 import { Landing, type LandingLive } from "@/components/Landing";
 import { currentStage } from "@/lib/header-state";
+import { devNow } from "@/lib/dev-clock";
 import { prisma } from "@/lib/prisma";
 import { loadLeaderboard } from "@/lib/public-read";
 import { getCurrentSeason, publicHeaderSeason } from "@/lib/season";
@@ -71,7 +72,7 @@ async function loadLive(seasonId: string): Promise<LandingLive> {
   ]);
   const stage = currentStage(
     stages.map((s) => ({ ...s, key: s.stageKey })),
-    new Date(),
+    devNow(),
   );
   const current = stage ? { key: stage.key, name: stage.name } : null;
   /* 집계 확정 = s5 마감(시안 「11.01 24:00 집계 확정 기준」, 제출 s5의 「집계 확정」과 같다) */

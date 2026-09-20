@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
+  devSetAuth,
   devSetCurrentStage,
   devSetMetrics,
   devSetPhase,
@@ -24,6 +25,26 @@ import styles from "./DevBar.module.css";
   보고 있는 값"이 유지된다. 이 둘이 어긋나는 순간 도구가 함정이 된다.
 */
 
+/*
+  가정한 오늘을 닫힌 줄에 찍는다 — 헤더 배너와 같은 `10.12` 꼴.
+
+  패널에 줄을 두지 않는 이유: 정하는 것은 스테이지 줄이고, 레이스를 벗어나면
+  저절로 풀린다(`setSandboxPhase`). 끄는 버튼을 따로 두면 무엇을 끄는 것인지
+  설명해야 하는데, 그 설명이 필요한 버튼이면 없는 편이 낫다(09-21 수연 지적).
+*/
+const DAY = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** `10. 12.` → `10.12` */
+const day = (iso: string) =>
+  DAY.formatToParts(new Date(iso))
+    .filter((p) => p.type === "month" || p.type === "day")
+    .map((p) => p.value)
+    .join(".");
+
 type Team = {
   entryId: string;
   userId: string;
@@ -38,6 +59,10 @@ type Option<T extends string> = { value: T; label: string };
 type Props = {
   blocked?: string;
   me?: { nickname: string; onboarded: boolean } | null;
+  /** 비로그인으로 빼 둔 세션이 있는가. 없으면 「로그인」으로 돌아올 수 없다 */
+  parked?: boolean;
+  /** 가정한 「오늘」(ISO). null이면 진짜 오늘 */
+  today?: string | null;
   current?: Team | null;
   /** 로그인한 계정이 이번 시즌 참가팀에 속했는가. 비로그인이면 null */
   hasTeam?: boolean | null;
@@ -91,6 +116,45 @@ function PickButton({
 
 
 /*
+  「로그인」 줄만 쓰는 버튼. 누른 뒤 화면을 **다시 불러온다.**
+
+  다른 줄과 달리 이 액션은 쿠키를 바꾸는데, 서버 액션이 같은 요청 안에서 다시
+  그리는 렌더는 바꾸기 전의 쿠키를 읽는다 — 그대로 두면 바가 한 단계 옛 상태를
+  보여준다(actions/dev.ts의 `devSetAuth` 주석). 새로 부르면 새 쿠키로 읽는다.
+*/
+function AuthPick({
+  on,
+  active,
+  children,
+}: {
+  on: boolean;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <form
+      action={async (formData: FormData) => {
+        await devSetAuth(formData);
+        /*
+          `router.refresh()`로는 바가 안 갱신된다(2026-09-21 확인) — 문서를
+          통째로 다시 받아야 새 쿠키로 그린다.
+        */
+        window.location.reload();
+      }}
+    >
+      <input type="hidden" name="on" value={on ? "1" : "0"} />
+      <button
+        type="submit"
+        className={active ? styles.pickOn : styles.pick}
+        aria-pressed={active}
+      >
+        {children}
+      </button>
+    </form>
+  );
+}
+
+/*
   위치 — 닫힌 줄을 끌어서 옮긴다. 이 브라우저에만 기억한다(도구 편의라 서버에
   둘 것이 아니다).
 
@@ -141,6 +205,8 @@ function savePos(p: Pos) {
 export function DevBarClient({
   blocked,
   me,
+  parked = false,
+  today = null,
   current,
   hasTeam = null,
   season,
@@ -273,6 +339,37 @@ export function DevBarClient({
               </div>
             </div>
           ) : null}
+
+          {/*
+            ── 로그인 ───────────────────────────────────────────
+            공개 화면이 관전자에게 어떻게 보이는지 보는 줄이다. 아래 세 줄이
+            전부 「로그인한 계정」 기준이라 그 위에 둔다.
+
+            세션을 **지어내지 않는다** — 쿠키를 빼 뒀다 돌려놓을 뿐이라
+            처음 한 번은 평소대로 로그인해야 한다(lib/dev-session.ts).
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              로그인
+              <em className={styles.hint}>세션을 빼 뒀다 돌려놔요</em>
+            </span>
+            <div className={styles.picks}>
+              {me || parked ? (
+                [
+                  { on: true, label: "로그인" },
+                  { on: false, label: "비로그인" },
+                ].map((pick) => (
+                  <AuthPick key={pick.label} on={pick.on} active={!!me === pick.on}>
+                    {pick.label}
+                  </AuthPick>
+                ))
+              ) : (
+                <span className={styles.empty}>
+                  한 번 로그인하면 여기서 오갈 수 있어요
+                </span>
+              )}
+            </div>
+          </div>
 
           {/* ── 참가팀 ──────────────────────────────────────── */}
           <div className={styles.row}>
@@ -413,6 +510,7 @@ export function DevBarClient({
         <span className={styles.summary}>
           {current ? `${current.stage} / ${current.status}` : "참가 기록 없음"}
           {season ? ` · ${season.phase}` : null}
+          {today ? ` · 오늘 ${day(today)}` : null}
         </span>
         <span className={styles.caret} aria-hidden>
           {open ? "▾" : "▴"}

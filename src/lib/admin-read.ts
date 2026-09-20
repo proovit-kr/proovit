@@ -6,6 +6,7 @@ import {
   SubmissionStatus,
 } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
+import { devNow } from "@/lib/dev-clock";
 
 /*
   운영자 콘솔의 조회.
@@ -183,7 +184,7 @@ export async function loadAdminSummary(): Promise<AdminSummary> {
       운영이 SLA를 못 잡는다.
     */
     nextGate: (() => {
-      const now = new Date();
+      const now = devNow();
       const upcoming = gates.filter((g) => g.closesAt && g.closesAt >= now);
       const pick = upcoming[0] ?? gates.find((g) => !g.closesAt) ?? null;
       if (!pick) return null;

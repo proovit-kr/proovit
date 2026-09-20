@@ -12,6 +12,7 @@ import {
   SubmissionStatus,
 } from "@/generated/prisma/enums";
 import { canSubmitStage, guardPage, toAccessContext } from "@/lib/access";
+import { devNow } from "@/lib/dev-clock";
 import { prisma } from "@/lib/prisma";
 import { isStageKey, type S1Payload, type S3Payload } from "@/lib/submission";
 import {
@@ -480,7 +481,7 @@ function boolList(value: unknown): boolean[] {
  */
 function currentWeek(opensAt: Date | null): number {
   if (!opensAt) return 1;
-  const days = Math.floor((Date.now() - opensAt.getTime()) / 86_400_000);
+  const days = Math.floor((devNow().getTime() - opensAt.getTime()) / 86_400_000);
   return Math.max(1, Math.floor(days / 7) + 1);
 }
 
