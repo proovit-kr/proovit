@@ -152,6 +152,29 @@ export async function DocPage({
 }
 
 /*
+  항목 이름이 행마다 왼쪽에 서는 표 — 시안 `#scr-terms`의 부칙 하나뿐이다.
+  머리행이 없고 `<th>`가 첫 칸이라 `DocTable`과 마크업이 다르다.
+*/
+export function DocRowTable({ rows }: { rows: [string, string][] }) {
+  return (
+    <div className={styles.scroller}>
+      <table>
+        <tbody>
+          {rows.map(([label, value]) => (
+            <tr key={label}>
+              <th scope="row">{label}</th>
+              <td>
+                <Clauses text={value} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/*
   표. 6열짜리 국외이전 표가 좁은 폭에서 넘치므로 가로로 굴리는 상자에 담는다.
   시안에는 없는 상자다 — 시안의 방침 화면이 그 표를 아예 안 그린다.
 */

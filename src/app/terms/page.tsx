@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { Clauses } from "@/components/Clauses";
 import {
   DocBlocks,
   DocPage,
+  DocRowTable,
   Em,
   type DocSection,
 } from "@/components/DocPage";
@@ -12,12 +14,13 @@ import { TERMS } from "@/content/terms";
 /*
   이용약관 — 시안 `#scr-terms`.
 
-  ⚠️ **아직 열리지 않는다.** `content/terms.ts`가 `null`이고, 그 이유가 그
-  파일에 적혀 있다 — 팀장의 게시 계획이 이 문서를 「가입 오픈 시점에 게시」로
-  두었고 게시용 클린본도 아직 없다.
+  ⚠️ **시안이 주는 것은 레이아웃이고 문안의 정본은 `content/terms.ts`다.**
+  시안 스스로 「장과 조 구조만 시안에 표시, 본문은 노션 정본(이용약관 v1.1)에서
+  그대로 가져옴」이라고 적어 두었다 — 방침과 같고, 시안이 문안까지 들고 있는
+  규칙 화면과 다르다.
 
-  화면은 미리 만들어 둔다. 값이 들어오는 순간 여기서 열리고, 푸터 링크도
-  함께 살아난다(Footer.tsx가 같은 값을 본다).
+  ⚠️ 정본이 아직 없으면 열지 않는다. 동의만 받아 두고 동의 대상이 없는 화면은
+  안 하느니만 못하다 — 회원가입의 필수 동의가 이 문서를 가리킨다.
 */
 
 export const metadata: Metadata = {
@@ -53,6 +56,22 @@ export default async function Page() {
       </>
     ),
   }));
+
+  /* 부칙. 시안은 마지막 꼭지를 `tm-7`로 두고 `.n`에 「부칙」을 적는다 */
+  sections.push({
+    id: `tm-${terms.chapters.length + 1}`,
+    num: "부칙",
+    title: "운영자 정보",
+    tocLabel: "운영자 정보",
+    body: (
+      <>
+        <DocRowTable rows={terms.operatorInfo.rows} />
+        <p>
+          <Clauses text={terms.addendum} />
+        </p>
+      </>
+    ),
+  });
 
   return (
     <DocPage
