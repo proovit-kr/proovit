@@ -1,7 +1,7 @@
 # 측정 리버스 프록시 — ADR-006. 참가작은 팀명.proovit.kr로만 공개된다.
 #
-# ⚠️ 아직 배포하지 않았다. proovit.kr의 네임서버가 가비아에 있어(2026-09-20 확인)
-# 이 zone에 워커를 걸 수 없다. 배포 절차는 README.md에 적어 두었다.
+# 2026-09-20 배포했다. 네임서버를 클라우드플레어로 옮기면서 zone이 생겼고,
+# `*.proovit.kr/*` route가 이 워커를 가리킨다. 재배포는 `npx wrangler deploy`.
 
 name = "proovit-measure"
 main = "src/index.ts"

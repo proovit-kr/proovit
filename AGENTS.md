@@ -366,10 +366,19 @@ set -a; source .env.development.local; set +a; npx prisma migrate deploy
 
 ## 리더보드 롤업
 
-15분마다 밖에서 `POST /api/v1/cron/rollup`을 부른다. `CRON_SECRET`이 없으면
-404로 닫혀 있다. Vercel 무료 플랜의 크론은 하루 한 번이라 못 쓰고, 비공개 리포의
-GitHub Actions는 15분 주기면 무료 분(월 2,000)을 넘는다 — 그래서 외부 무료
-크론 서비스가 부른다.
+15분마다 **Vercel 크론**이 `/api/v1/cron/rollup`을 부른다(`vercel.json`).
+`CRON_SECRET`이 없으면 404로 닫혀 있다.
+
+하루 한 번으로 묶이는 것은 Hobby 플랜이다. 이 팀은 2026-08-19부터 **Pro**라 분 단위
+스케줄을 쓴다 — 외부 크론 서비스도, 비공개 리포의 GitHub Actions 무료 분(월 2,000)도
+필요 없다.
+
+⚠️ **Vercel 크론은 GET으로 부른다.** 라우트가 GET과 POST를 둘 다 받는 이유다.
+인증 헤더(`Authorization: Bearer <CRON_SECRET>`)는 Vercel이 직접 붙이는데,
+**환경변수가 그 배포에 실려 있을 때만** 붙는다 — 키를 넣은 뒤에는 한 번 다시
+배포해야 한다.
+
+손으로 부를 때는 POST를 쓴다.
 
     curl -X POST https://<도메인>/api/v1/cron/rollup -H "Authorization: Bearer $CRON_SECRET"
 
@@ -379,8 +388,9 @@ GitHub Actions는 15분 주기면 무료 분(월 2,000)을 넘는다 — 그래�
 ## 측정 파이프라인
 
 참가작은 `팀명.proovit.kr`로만 공개되고 모든 요청이 측정 워커를 지난다(ADR-006).
-워커는 `workers/measure/`에 있고 **아직 배포 전이다** — proovit.kr 네임서버가
-가비아에 있어 클라우드플레어 zone이 아니다. 옮기는 절차는 그 폴더의 README.
+워커는 `workers/measure/`에 있고 **2026-09-20에 배포했다**(`proovit-measure`,
+route `*.proovit.kr/*`). 네임서버를 가비아에서 클라우드플레어로 옮기면서 풀렸다.
+재배포는 `cd workers/measure && npx wrangler deploy`.
 
   엣지(워커)   쿠키 둘로 24시간 중복 제거·봇 필터·문서 요청만 센다
   → `POST /api/v1/metrics/edge`   방문 이벤트를 모아 보낸다
