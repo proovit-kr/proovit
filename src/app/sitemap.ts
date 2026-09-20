@@ -47,9 +47,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   /*
-    ⚠️ `/terms`는 `TERMS`가 null인 동안 404다(게시용 클린본 대기 —
-    content/terms.ts). 라우트가 있다고 넣으면 없는 문서를 색인해 달라고
-    내미는 셈이다. 값이 들어오는 순간 화면·푸터와 함께 여기도 살아난다.
+    ⚠️ `/terms`는 `TERMS`가 null이면 404다. 라우트가 있다고 넣으면 없는
+    문서를 색인해 달라고 내미는 셈이다. 2026-09-21에 정본이 들어와 지금은
+    화면·푸터와 함께 살아 있지만, 개정 중에 비우면 여기도 같이 빠진다.
   */
   if (TERMS) {
     staticPages.push({

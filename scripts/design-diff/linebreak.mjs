@@ -29,6 +29,7 @@ const PAGES = [
   ["회원가입", "/signup"],
   ["개인정보처리방침", "/privacy"],
   ["규칙", "/rules"],
+  ["이용약관", "/terms"],
 ];
 
 /*
@@ -55,21 +56,22 @@ const PROBE = `(() => {
     const nodes = [];
     const brAt = [];
     let full = "";
-    const walk = (n) => {
+    const walk = (n, owner) => {
       for (const c of n.childNodes) {
         if (c.nodeType === 3) {
           if (!c.nodeValue) continue;
-          nodes.push({ node: c, at: full.length, len: c.nodeValue.length });
+          nodes.push({ node: c, at: full.length, len: c.nodeValue.length, owner });
           full += c.nodeValue;
         } else if (c.nodeName === "BR") {
           /* ⚠️ br은 글자를 안 보태서 앞뒤 줄이 붙어 버린다 — 가짜 절이 생긴다 */
           brAt.push(full.length);
         } else if (c.nodeType === 1 && getComputedStyle(c).display !== "none") {
-          walk(c);
+          walk(c, c);
         }
       }
     };
-    walk(el);
+    /* owner = 글자를 품은 가장 가까운 자손 요소. 칸 자신은 null이다 */
+    walk(el, null);
     const text = full.replace(/\\s+/g, " ").trim();
     if (text.length < 12 || !/[가-힣]/.test(text)) continue;
 
@@ -91,10 +93,26 @@ const PROBE = `(() => {
       - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
     if (!(avail > 0)) continue;
 
+    /*
+      ⚠️ **강조 조각 안의 구두점은 절 경계가 아니다.** ClauseParts가 조각을
+      쪼개지 않으므로(Clauses.tsx) 그 자리에는 붙들 상자를 만들 수 없다. 여기서
+      (⚠️ 이 주석은 템플릿 문자열 안이라 역따옴표를 못 쓴다)
+      세면 만들 수 없는 상자를 내놓으라는 말이 된다 — 시안 약관 제10조
+      「…제공 시간과 변경, 중단」의 쉼표가 그랬다. 조각 끝과 본문 사이에서
+      끊기는 것은 오히려 읽기 좋은 자리다.
+    */
+    const ownerAt = (off) => {
+      for (const n of nodes) if (off < n.at + n.len) return n.owner;
+      return null;
+    };
+
     /* 문장 끝과 쉼표 뒤에서 자른다. 뒤에 공백이 올 때만 — 「팀명.proovit.kr」을 지킨다 */
     const bounds = [0, ...brAt];
     for (let i = 0; i < full.length - 1; i++) {
-      if (/[.?!,]/.test(full[i]) && /\\s/.test(full[i + 1])) bounds.push(i + 1);
+      if (!/[.?!,]/.test(full[i]) || !/\\s/.test(full[i + 1])) continue;
+      const before = ownerAt(i), after = ownerAt(i + 1);
+      if (before && before === after) continue;
+      bounds.push(i + 1);
     }
     bounds.push(full.length);
     bounds.sort((a2, b2) => a2 - b2);
