@@ -61,10 +61,20 @@ const mode = process.argv[2];
   건드리지 않는 것은 개발 바가 같은 함수를 쓰기 때문이다.
 */
 async function fakeHostnames(seasonId: string): Promise<void> {
-  const entries = await prisma.entry.findMany({
+  const all = await prisma.entry.findMany({
     where: { seasonId, status: EntryStatus.active, serviceUrl: { not: null } },
+    orderBy: { createdAt: "asc" },
     select: { id: true, serviceUrl: true },
   });
+  /*
+    ⚠️ **꼴찌 한 팀은 미배포로 남긴다.** 시안도 12팀 중 하나만 미배포이고
+    (3533행), 그 행에서 「미배포」 배지와 「-」 증감이 나온다. 전부 배포됨으로
+    두면 그 두 자리를 대조할 수 없다.
+  */
+  const entries = all.slice(0, -1);
+  const parked = all.at(-1);
+  if (parked) await prisma.hostname.deleteMany({ where: { entryId: parked.id } });
+
   const now = new Date();
   for (const entry of entries) {
     const host = new URL(entry.serviceUrl as string).host;
