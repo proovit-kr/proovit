@@ -768,9 +768,24 @@ export async function setMetricsFixture(args: {
     const isLatest = back === 0;
 
     return entries.map((entry, index) => {
-      const total = Array.from({ length: 14 - back }, (_, day) =>
+      const rolled = Array.from({ length: 14 - back }, (_, day) =>
         fixtureVisitors(index, day),
       ).reduce((sum, v) => sum + v, 0);
+      /*
+        ⚠️ **종료의 최종치는 레이스보다 크다.** 시안이 FINAL 표를 `u+120+i*7`로
+        그린다(3566행) — 배너가 말하는 「2차 심사(최종) 검증 반영」이 숫자에도
+        나타난 것이다. 2026-09-20 수연이 이 값을 종료 목 데이터로 지정했다.
+
+        마지막 집계에만 얹는다. 앞 집계는 레이스 때 보이던 값 그대로여야
+        「검증에서 올라갔다」가 성립한다.
+
+        지표가 0인 미배포 팀은 올리지 않는다 — 시안도 FINAL 표에서 그 팀을
+        빼고 나머지만 매긴다.
+      */
+      const total =
+        isLatest && kind === "final" && rolled > 0
+          ? rolled + 120 + index * 7
+          : rolled;
       return {
         seasonId,
         entryId: entry.id,
