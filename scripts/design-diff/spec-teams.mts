@@ -66,6 +66,11 @@ const at = (i: number) => new Date(base + i * 60_000);
 for (const [i, spec] of SPEC_TEAMS.entries()) {
   const existing = ordered[i];
   const serviceUrl = `https://${spec.host}.proovit.kr`;
+  /*
+    한 줄 소개는 참가작 상세(시안 1817행)에만 있다. 가진 팀만 덮어쓰고
+    나머지는 그대로 둔다 — 없는 문장을 지어내면 폭 대조가 거짓이 된다.
+  */
+  const ideaSummary = "summary" in spec ? spec.summary : undefined;
 
   if (existing) {
     await prisma.$transaction([
@@ -77,6 +82,7 @@ for (const [i, spec] of SPEC_TEAMS.entries()) {
         where: { id: existing.id },
         data: {
           ideaTitle: spec.idea,
+          ...(ideaSummary ? { ideaSummary } : {}),
           serviceUrl,
           createdAt: at(i),
         },
@@ -116,6 +122,7 @@ for (const [i, spec] of SPEC_TEAMS.entries()) {
       seasonId: season.id,
       teamId: team.id,
       ideaTitle: spec.idea,
+      ...(ideaSummary ? { ideaSummary } : {}),
       serviceUrl,
       status: EntryStatus.active,
       appliedAt: at(i),

@@ -518,7 +518,19 @@ export type MetricsFixture = "none" | "race" | "final";
  */
 export const SPEC_TEAMS = [
   { team: "새벽창고", idea: "새벽 배송 재고 공유 보드", host: "dawn-depot", visitors: 1248, delta: 86 },
-  { team: "리틀포션", idea: "1인 카페 시그니처 레시피 구독", host: "little-potion", visitors: 1102, delta: 64 },
+  /*
+    참가작 상세(시안 1800행)의 목업이 이 팀이다. 한 줄 소개는 거기에만 있어서
+    (`.pj-con`, 1817행) 이 자리에만 둔다 — 나머지 팀 소개는 시안에 없다.
+  */
+  {
+    team: "리틀포션",
+    idea: "1인 카페 시그니처 레시피 구독",
+    summary:
+      "1인 카페 사장님을 위한 시그니처 레시피 구독, 매주 신메뉴 레시피와 원가표를 받아 보세요.",
+    host: "little-potion",
+    visitors: 1102,
+    delta: 64,
+  },
   { team: "오늘의루틴", idea: "작심삼일 방지 인증 루틴", host: "todays-routine", visitors: 987, delta: 51 },
   { team: "밥값하는AI", idea: "점심 메뉴 사다리 정산 봇", host: "babgap-ai", visitors: 842, delta: 38 },
   { team: "골목마켓", idea: "동네 소상공인 공동구매", host: "golmok-market", visitors: 731, delta: 29 },
