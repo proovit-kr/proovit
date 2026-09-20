@@ -1,7 +1,10 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 import { AccountConsent } from "@/components/ConsentDialog";
 import { acceptAccountConsent, declineAccountConsent } from "@/app/actions/consent";
-import { getSessionUser } from "@/lib/access";
-import { loadAccountConsentNeed } from "@/lib/account-consent";
+import { fetchMe } from "@/lib/me-client";
 
 /*
   계정 동의 게이트 — 시안 ver4 `#scr-auth` ②③.
@@ -26,27 +29,59 @@ import { loadAccountConsentNeed } from "@/lib/account-consent";
   토스트는 모달이 걷힌 뒤에 뜨는데, 모달과 함께 컴포넌트가 떨어져 나가면 토스트를
   띄울 자리도 사라진다. 같은 자리에 남아 있어야 저장 전후로 상태가 이어진다.
 
-  비용은 로그인 사용자 한정 조회 두어 건이다. 비로그인은 `getSessionUser`가
-  세션 쿠키만 보고 곧바로 null을 내므로 DB를 읽지 않는다.
-*/
-export async function ConsentGate() {
-  const user = await getSessionUser();
-  if (!user) return null;
+  ⚠️ **클라이언트에서 판정한다.** 한때 서버 컴포넌트로 두고 `getSessionUser()`를
+  불렀는데, 그 한 줄이 루트 레이아웃을 동적으로 만들어 **앱 전체의 정적 렌더가
+  꺼져 있었다** — 랜딩의 `revalidate = 60`이 무시되고 비로그인 관전자의 모든
+  방문이 DB 조회가 됐다(2026-09-20에 `next build`의 ○/ƒ 표로 확인). 쿠키를
+  읽는 자리를 레이아웃 밖으로 옮기는 것 말고는 되살릴 방법이 없다.
 
-  const need = await loadAccountConsentNeed(user.id);
+  판정 값은 `/api/v1/me`가 실어 온다. 헤더가 이미 부르는 응답이라 요청이 늘지
+  않고(`lib/me-client`가 문서당 한 번으로 묶는다), 비로그인은 그 라우트가
+  쿠키만 보고 DB 없이 끝낸다.
+
+  ⚠️ 그래서 모달이 **첫 그림보다 한 박자 늦게** 뜬다. 막는 것은 모달이 아니라
+  서버다(`access-policy`) — 동의 전에 `/apply`·`/dashboard`를 열면 화면 자체가
+  이미 막혀 있다. 이 모달은 그 사실을 알리고 받아내는 자리지 방벽이 아니다.
+*/
+
+type Need = {
+  provider: "kakao" | "google" | null;
+  maskedEmail: string;
+  reconsent: boolean;
+};
+
+export function ConsentGate() {
+  /*
+    `undefined`는 아직 모르는 상태, `null`은 띄울 필요 없음이다. 둘을 갈라
+    두는 이유는 아래 `mounted`와 같다 — 모르는 동안에는 아무것도 그리지 않는다.
+  */
+  const [need, setNeed] = useState<Need | null | undefined>(undefined);
+
+  useEffect(() => {
+    let alive = true;
+    void fetchMe().then((body) => {
+      if (alive) setNeed(body?.consent ?? null);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (need === undefined) return null;
 
   return (
     <AccountConsent
-      need={
-        need.needed
-          ? {
-              provider: need.provider,
-              maskedEmail: need.maskedEmail,
-              reconsent: need.reconsent,
-            }
-          : null
-      }
-      onAccept={acceptAccountConsent}
+      need={need}
+      onAccept={async (formData) => {
+        const ok = await acceptAccountConsent(formData);
+        /*
+          저장됐으면 모달을 여기서 걷는다. 서버 컴포넌트였을 때는 레이아웃이
+          다시 그려지며 사라졌다 — 그 0.5초 지연이 `AccountConsent`의 토스트
+          타이밍 주석이 말하는 어긋남이었다.
+        */
+        if (ok) setNeed(null);
+        return ok;
+      }}
       onDecline={declineAccountConsent}
     />
   );
