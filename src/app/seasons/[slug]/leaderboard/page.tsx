@@ -191,8 +191,18 @@ function Row({
     <tr className={index < 3 ? styles.top : undefined}>
       <td className={styles.rank}>{rankLabel(row.rank)}</td>
       <td className={styles.team}>
-        {row.teamName}
-        <small>{row.ideaTitle}</small>
+        {/*
+          행 전체가 그 팀의 참가작 상세로 가는 링크다(2026-09-20 수연 지시).
+          시안에는 없다 — 시안의 표에서 나가는 길은 서비스 주소뿐이다.
+
+          ⚠️ 링크는 **팀명 칸의 `<a>` 하나**이고, 그 `::after`가 행을 덮는다.
+          `<tr>`을 통째로 누르게 하려고 JS 핸들러를 달면 키보드로는 못 가고
+          새 탭으로도 못 연다. 서비스 주소는 그 덮개 위로 올려 둔다.
+        */}
+        <Link href={`/projects/${row.entryId}`}>
+          {row.teamName}
+          <small>{row.ideaTitle}</small>
+        </Link>
       </td>
       <td className={styles.service}>
         {row.serviceUrl && !row.notDeployed ? (

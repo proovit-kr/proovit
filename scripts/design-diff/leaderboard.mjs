@@ -72,7 +72,12 @@ const RACE = [
   ["usr score", S + ".pane[data-id='lb-race'] .lb-tbl .usr .score", '[class*="__usr"] .score'],
   ["usr small", S + ".pane[data-id='lb-race'] .lb-tbl .usr small", '[class*="__usr"] small'],
   ["dt", S + ".pane[data-id='lb-race'] .lb-tbl .dt", '[class*="__dt"]'],
-  ["bd", S + ".pane[data-id='lb-race'] .lb-tbl .bd", '[class*="__bd"]'],
+  /*
+    ⚠️ **배지 칸의 text-align은 재지 않는다.** 시안은 오른쪽이지만 09-20에
+    수연이 배지를 셀 안에서 가운데로 정했다(머리글은 시안대로 오른쪽이라
+    「수상」은 머리글 오른쪽·배지 가운데로 갈린다).
+  */
+  ["bd", S + ".pane[data-id='lb-race'] .lb-tbl .bd", '[class*="__bd"]', [], ["text-align"]],
   /*
     「미배포」 배지. 글자가 같으니 폭도 본다.
 
@@ -80,7 +85,7 @@ const RACE = [
     그라디언트가 하나 더 세어진다. 어느 팀이 미배포인지는 데이터가 정한다
     (시안 목업은 하위 행, dev 픽스처는 상위 행).
   */
-  ["bd badge", S + ".pane[data-id='lb-race'] .lb-tbl .bd .badge", '[class*="__bd"] [class*="__badge"]', [], ["▸불투명한 조상 수"]],
+  ["bd badge", S + ".pane[data-id='lb-race'] .lb-tbl .bd .badge", '[class*="__bd"] [class*="__badge"]', [], ["▸불투명한 조상 수", "text-align"]],
   ["note", S + ".pane[data-id='lb-race'] .lb-note", "note"],
   ["note a", S + ".pane[data-id='lb-race'] .lb-note a", '[class*="__note"] a', [], ["width"]],
   /* 열 개수는 값이 아니라 구조다 — 시안이 여섯 열이면 여섯 열이어야 한다 */
@@ -97,8 +102,13 @@ const FINAL = [
   ["eyebrow", S + ".lb-eyebrow", "eyebrow"],
   ["head", S + ".lb-head", "head"],
   ["h1", S + ".lb-head h1", "title", [], ["width"]],
-  ["upd", S + ".lb-head .upd", "upd", [], ["width", "margin-left"]],
-  ["upd i", S + ".lb-head .upd i", '[class*="__upd"] i', [], ["opacity"]],
+  /*
+    ⚠️ **갱신 줄(`.upd`)은 종료에서 재지 않는다.** 09-20 수연 결정으로 그리지
+    않기 때문이다 — 확정과 함께 롤업이 멈추니 「n분 전 갱신, 주기 15분」은
+    거짓이고, 확정 시각은 아래 배너가 든다. 시안은 상태 셋을 한 머리에 붙인
+    전환기라 종료에도 남아 있다. 넣어 두면 결손 하나가 속성마다 불일치로
+    번져 폭마다 70건씩 쌓인다(그래서 한때 207건이었다).
+  */
   ["stg-track", S + ".stg-track", "track"],
   ["stg", S + ".stg-track .stg.done", '[class*="__done"]', [], ["width"]],
   ["stg.gate", S + ".stg-track .stg.gate", '[class*="__gate"]', [], ["width"]],
@@ -116,8 +126,9 @@ const FINAL = [
   ["usr", F + ".lb-tbl .usr", '[class*="__usr"]'],
   ["usr score", F + ".lb-tbl .usr .score", '[class*="__usr"] .score'],
   ["usr small", F + ".lb-tbl .usr small", '[class*="__usr"] small'],
-  ["bd", F + ".lb-tbl .bd", '[class*="__bd"]'],
-  ["bd badge", F + ".lb-tbl .bd .badge", '[class*="__bd"] [class*="__badge"]', [], ["width"]],
+  /* 배지 칸 가운데는 09-20 수연 결정이다 — 위 레이스 쪽 주석 참조 */
+  ["bd", F + ".lb-tbl .bd", '[class*="__bd"]', [], ["text-align"]],
+  ["bd badge", F + ".lb-tbl .bd .badge", '[class*="__bd"] [class*="__badge"]', [], ["width", "text-align"]],
   /* 열 개수는 값이 아니라 구조다 — 시안이 다섯 열이면 다섯 열이어야 한다 */
   ["tbl ▸열", F + ".lb-tbl thead tr", '[class*="__table"] thead tr'],
 ];
