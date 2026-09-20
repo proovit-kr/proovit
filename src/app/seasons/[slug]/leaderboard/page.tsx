@@ -15,7 +15,7 @@ import type {
 } from "@/lib/public-read";
 import { loadPublicNav } from "@/lib/header-read";
 
-import { FirstRollup, UpdatedAt } from "./UpdatedAt";
+import { FirstRollup, ROLLUP_MINUTES, UpdatedAt } from "./UpdatedAt";
 import styles from "./leaderboard.module.css";
 
 /*
@@ -324,7 +324,7 @@ export default async function Page({
             ) : (
               "집계 대기"
             )}
-            , 롤업 주기 15분
+            , 롤업 주기 {ROLLUP_MINUTES}분
           </span>
         </div>
 

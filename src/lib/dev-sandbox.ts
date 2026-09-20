@@ -503,23 +503,16 @@ const MIN_MS = 60_000;
 
 function fixtureStageDates(kind: MetricsFixture, now: number) {
   /*
-    집계 전  — s3가 방금 닫히고 s4가 14분 뒤 열린다. 첫 갱신 기준이 s4 시작이라
+    집계 전  — s4가 **1분 전 열렸다.** 첫 갱신은 s4 시작 한 주기(15분) 뒤라
               화면에 「첫 갱신까지 14분」이 뜬다(시안 1624행과 같은 문장).
+              2026-09-20에 기준이 s4 시작 → s4 시작+15분으로 바뀌면서 이 값도
+              +14분에서 -1분으로 옮겼다. 「집계 시작됨」이라는 문장과도 맞다.
     나머지  — s4가 이틀 전 열려 진행 중이다.
   */
-  const s4OpensAt = kind === "none" ? now + 14 * MIN_MS : now - 2 * 86_400_000;
-  /*
-    ⚠️ **s4가 열리기 전에도 s4가 「지금」이어야 한다.** 집계가 s4부터 시작하니
-    집계 전 화면의 네온 알약도 s4다(2026-09-06 수연 지적).
-
-    `currentStageIndex`는 마감이 지난 스테이지 수로 센다. 그래서 앞 블록을
-    15분 당겨 s3를 **이미 닫힌** 상태로 만든다 — 그러면 s3까지 셋이 지나
-    s4가 지금이 된다. 당기지 않으면 s3 마감이 13분 남아 s3가 네온이 된다.
-  */
-  const gap = kind === "none" ? 15 * MIN_MS : 0;
+  const s4OpensAt = kind === "none" ? now - MIN_MS : now - 2 * 86_400_000;
   const KEYS = [StageKey.s1, StageKey.s2, StageKey.s3, StageKey.s4, StageKey.s5];
   return KEYS.map((stageKey, i) => {
-    const opensAt = new Date(s4OpensAt + (i - 3) * WEEK_MS - (i < 3 ? gap : 0));
+    const opensAt = new Date(s4OpensAt + (i - 3) * WEEK_MS);
     return {
       stageKey,
       opensAt,
