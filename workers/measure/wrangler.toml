@@ -1,0 +1,23 @@
+# 측정 리버스 프록시 — ADR-006. 참가작은 팀명.proovit.kr로만 공개된다.
+#
+# ⚠️ 아직 배포하지 않았다. proovit.kr의 네임서버가 가비아에 있어(2026-09-20 확인)
+# 이 zone에 워커를 걸 수 없다. 배포 절차는 README.md에 적어 두었다.
+
+name = "proovit-measure"
+main = "src/index.ts"
+compatibility_date = "2026-09-20"
+
+# 팀 서브도메인 전부. 루트(proovit.kr)와 www는 우리 앱이라 걸지 않는다.
+routes = [
+  { pattern = "*.proovit.kr/*", zone_name = "proovit.kr" },
+]
+
+# 조용한 참가작의 마지막 몇 건을 올려 보내는 타이머(워커 주석 참조)
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+APP_URL = "https://proovit.kr"
+
+# MEASURE_SECRET은 vars가 아니라 시크릿이다:
+#   npx wrangler secret put MEASURE_SECRET
