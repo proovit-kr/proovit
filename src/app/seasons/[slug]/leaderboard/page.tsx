@@ -106,17 +106,27 @@ function currentStageIndex(stages: Stage[], now: Date): number {
 function StageTrack({
   stages,
   currentIndex,
+  isFinal,
 }: {
   stages: Stage[];
   currentIndex: number;
+  isFinal: boolean;
 }) {
+  /*
+    마지막 게이트 = 2차 심사(최종). **시즌 종료에서 트랙의 끝은 이 게이트다**
+    (2026-09-20 수연 지시) — 스테이지는 s5까지 다 끝났고, 최종 순위를 만든 것이
+    이 심사다. 그래서 스테이지 전부가 done이 되고 강조는 여기로 옮겨진다.
+    시안 트랙은 상태 하나(s4 운영 중)만 그려서 이 모양이 없다(3524행).
+  */
+  const lastGateKey = stages.filter((s) => s.isGate).at(-1)?.stageKey ?? null;
   let gateNo = 0;
   return (
     <ul className={styles.track}>
       {stages.map((stage, i) => {
-        /* 지난 단계는 done, 지금이 now, 나머지는 기본 */
-        const state =
-          currentIndex < 0 || i > currentIndex
+        /* 지난 단계는 done, 지금이 now, 나머지는 기본. 종료면 전부 done */
+        const state = isFinal
+          ? styles.done
+          : currentIndex < 0 || i > currentIndex
             ? ""
             : i < currentIndex
               ? styles.done
@@ -124,6 +134,9 @@ function StageTrack({
         const gateLabel = stage.isGate
           ? (GATE_LABEL[++gateNo] ?? "심사")
           : null;
+        /* 종료의 마지막 게이트만 강조하고, 그 앞 게이트는 통과 표시를 받는다 */
+        const gateActive = isFinal && stage.stageKey === lastGateKey;
+        const gatePassed = isFinal ? !gateActive : currentIndex > i;
         /*
           ⚠️ **게이트는 자기 `<li>`를 갖는다.** 스테이지와 한 `<li>`에 담으면
           플렉스 아이템이 그 `<li>` 하나라서, 안의 알약 둘이 세로로 쌓여
@@ -139,7 +152,11 @@ function StageTrack({
               {stage.name}
             </li>
             {gateLabel ? (
-              <li className={`${styles.stg} ${styles.gate}`}>
+              <li
+                className={`${styles.stg} ${styles.gate}${
+                  gateActive ? ` ${styles.gateNow}` : ""
+                }`}
+              >
                 {/*
                   지난 게이트는 통과 표시가 붙는다.
 
@@ -147,7 +164,7 @@ function StageTrack({
                   텍스트 노드가 둘이 되고 브라우저가 각 조각의 폭을 따로
                   반올림해 0.016px이 어긋난다.
                 */}
-                {`${gateLabel}${currentIndex > i ? " ✓" : ""}`}
+                {`${gateLabel}${gatePassed ? " ✓" : ""}`}
               </li>
             ) : null}
           </Fragment>
@@ -356,6 +373,7 @@ export default async function Page({
         <StageTrack
           stages={season.stages}
           currentIndex={currentStageIndex(season.stages, new Date())}
+          isFinal={board.isFinal}
         />
 
         {!ranked ? (

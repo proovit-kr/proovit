@@ -143,6 +143,26 @@
   color: var(--violet);
   font-size: 11.5px;
 }
+/*
+  시즌 종료의 마지막 게이트 — 최종 순위를 만든 심사라 여기가 트랙의 끝이다.
+
+  `.now`(라임)를 쓰지 않는다. 게이트는 바이올렛이라는 팔레트 규칙이 있고
+  (globals.css), `.stg.gate`가 색·테두리를 나중에 덮어 라임 배경에 바이올렛
+  글자가 된다. 그래서 같은 강조를 바이올렛으로 다시 쓴다 — 시안이 바이올렛을
+  채울 때 쓰는 `--violet-dim`에 실선 테두리와 글로우를 얹었다(`.bd-violet`
+  ·`.cr .cond`가 같은 조합).
+
+  ⚠️ 세 겹(0,3,0)이다. `.stg.gate`의 점선·색을 이겨야 한다.
+*/
+.stg.gate.gateNow {
+  border-style: solid;
+  border-color: rgba(167, 139, 250, 0.55);
+  background: var(--violet-dim);
+  font-weight: 700;
+  box-shadow:
+    0 0 0 3px rgba(167, 139, 250, 0.12),
+    0 8px 18px -8px rgba(167, 139, 250, 0.45);
+}
 
 /* ═══════════ 표 ═══════════ */
 
