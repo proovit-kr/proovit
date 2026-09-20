@@ -277,8 +277,12 @@
   font-size: 13px;
   color: var(--faint);
 }
+/*
+  시안은 이 링크에 전역 `.mono`를 붙이고 색·밑줄만 인라인으로 준다(1784행).
+  글자체와 tabular-nums는 그 전역 클래스가 맡으므로 여기서 다시 쓰지 않는다 —
+  `font-family`만 베끼면 숫자 정렬(`font-variant-numeric`)이 빠진다.
+*/
 .note a {
-  font-family: var(--mono);
   color: var(--muted);
   border-bottom: 1px dashed var(--line-strong);
 }
@@ -374,21 +378,6 @@
   color: var(--muted);
   margin-top: 12px;
   font-size: 15.5px;
-}
-
-/*
-  ⚠️ 시안에 없는 것. 레이스 전에는 `canAccess`가 409를 주고 이 화면이 잠긴다
-  (시안 화면 레지스트리는 레이스 이후만 그린다). 잠긴 이유와 열리는 시점을
-  말할 자리가 필요해서 남긴다.
-*/
-.locked {
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--r-l);
-  padding: 90px 20px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 15.5px;
-  line-height: 1.7;
 }
 
 @media (max-width: 1024px) {

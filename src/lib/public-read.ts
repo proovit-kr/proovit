@@ -85,8 +85,6 @@ export type LeaderboardRow = {
   revenue: bigint;
   /** 측정 주소가 확인되지 않은 팀. 지표가 0인 이유를 밝힌다 */
   notDeployed: boolean;
-  /** 축 하한 미달로 종합 시상에서 빠지는 팀. 순위표에는 남는다 */
-  awardIneligible: boolean;
   /**
    * 확정된 종합 시상. 없으면 null이다.
    *
@@ -249,7 +247,6 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
       notDeployed:
         entry.hostname?.deployStatus !== DeployStatus.active ||
         entry.hostname.ownershipVerifiedAt === null,
-      awardIneligible: snapshot ? !snapshot.isAwardEligible : false,
       award: awardOf(awardByEntry.get(entry.id)),
       serviceUrl: entry.serviceUrl,
       deltaVisitors:

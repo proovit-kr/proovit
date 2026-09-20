@@ -223,16 +223,14 @@ function Row({
           row.award ? (
             <Badge tone="lime">{row.award.label}</Badge>
           ) : null
-        ) : (
-          <>
-            {/*
-              미배포는 숨기지 않는다 — 지표가 0인 이유를 밝히는 것이 0을 그냥
-              보여주는 것보다 정확하다(PLN3 2장).
-            */}
-            {row.notDeployed ? <Badge tone="gray">미배포</Badge> : null}
-            {row.awardIneligible ? <Badge tone="warn">시상 제외</Badge> : null}
-          </>
-        )}
+        ) : /*
+          미배포는 숨기지 않는다 — 지표가 0인 이유를 밝히는 것이 0을 그냥
+          보여주는 것보다 정확하다(PLN3 2장). 시안의 「상태」 칸도 이 배지
+          하나만 그린다(3554행).
+        */
+        row.notDeployed ? (
+          <Badge tone="gray">미배포</Badge>
+        ) : null}
       </td>
     </tr>
   );
@@ -296,9 +294,15 @@ export default async function Page({
   const season = await loadPublicSeason(slug);
   if (!season) notFound();
 
-  /* 잠김(레이스 전)은 404가 아니다 — 언제 열리는지 말해야 관전자가 다시 온다 */
-  const board = access.ok ? await loadLeaderboard(season.id) : null;
-  const ranked = board?.rows.some((row) => row.rank !== null) ?? false;
+  /*
+    레이스 전에는 `canAccess`가 409(STAGE_LOCKED)를 준다. 시안에 잠김 화면이
+    없으므로 그 자리를 404로 보낸다 — 플래그가 꺼졌을 때와 같은 결과다.
+    2026-09-20 수연 결정(시안에 없는 상태를 지운다).
+  */
+  if (!access.ok) notFound();
+
+  const board = await loadLeaderboard(season.id);
+  const ranked = board.rows.some((row) => row.rank !== null);
 
   return (
     <main className="page">
@@ -316,7 +320,7 @@ export default async function Page({
               있는 상태 하나만 그린다(1617행). 스냅샷이 아직 없을 때 이 줄을
               통째로 비울 수는 없어서 채웠다 — 2026-09-06 수연 확인.
             */}
-            {board?.rolledUpAt ? (
+            {board.rolledUpAt ? (
               <UpdatedAt
                 iso={board.rolledUpAt.toISOString()}
                 renderedAt={board.loadedAt}
@@ -333,34 +337,21 @@ export default async function Page({
           currentIndex={currentStageIndex(season.stages, new Date())}
         />
 
-        {!access.ok ? (
-          /* ⚠️ 시안에 없는 상태. 레이스 전에는 canAccess가 409를 준다 */
-          <div className={styles.locked}>
-            리더보드는 레이스가 시작되면 열려요.
-            <br />
-            그때부터 참가팀의 유효 이용자 수가 여기에 실시간으로 표시돼요.
-          </div>
-        ) : !board || !ranked ? (
+        {!ranked ? (
           /* ① 집계 전 */
           <div className={styles.empty}>
             <div className={`${styles.emptyBig} ${styles.cur}`}>
               {/*
                 기준 시각은 표를 읽은 때다(`loadedAt`). 화면에서 `Date.now()`를
                 부를 수 없어서다 — 위 `UpdatedAt`과 같은 이유다.
-
-                `board`는 접근이 허용된 경우에만 채워지고 그 아닌 경우는 위
-                가지에서 이미 걸러진다. 그래도 타입은 null을 허용하므로,
-                기준 시각을 모르면 남은 시간을 지어내지 않고 iso를 비운다.
               */}
               <FirstRollup
                 iso={
-                  board
-                    ? (season.stages
-                        .find((stage) => stage.stageKey === "s4")
-                        ?.opensAt?.toISOString() ?? null)
-                    : null
+                  season.stages
+                    .find((stage) => stage.stageKey === "s4")
+                    ?.opensAt?.toISOString() ?? null
                 }
-                renderedAt={board?.loadedAt ?? 0}
+                renderedAt={board.loadedAt}
               />
             </div>
             {/*
@@ -390,8 +381,21 @@ export default async function Page({
             <Table board={board} />
             {board.isFinal ? null : (
               <p className={styles.note}>
-                실격 처리된 팀은 목록에서 제외됨, 유효 이용자 기준은{" "}
-                <Link href="/rules">/rules</Link> 참조
+                실격 처리된 팀은 목록에서 제외됨,{" "}
+                {/*
+                  390에서 「참조」만 떨어지던 줄을 쉼표 뒤에서 끊는다 — 서술부를
+                  줄바꿈 없는 공백으로 묶었다(위 ① 빈 상자와 같은 처리). 서술부는
+                  190px이라 360px 칸(294px)에도 들어간다.
+
+                  시안은 링크에 `href="#rules" data-rule="4"`로 규칙 제4조를
+                  가리킨다. 우리 규칙 화면에는 아직 조문 앵커가 없어 문서까지만
+                  보낸다.
+                */}
+                {"유효 이용자 기준은 "}
+                <Link className="mono" href="/rules">
+                  /rules
+                </Link>
+                {" 제4조 참조"}
               </p>
             )}
           </>
