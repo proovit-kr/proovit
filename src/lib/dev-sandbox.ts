@@ -1271,12 +1271,11 @@ export async function setSandboxHub(args: {
   key: HubKey;
   entryId: string;
   seasonId: string;
-  userId: string;
   /** 집계 픽스처를 건드리지 않는다 — 스테이지 줄이 부를 때 그렇다 */
   skipMetrics?: boolean;
 }): Promise<void> {
   assertSandbox();
-  const { key, entryId, seasonId, userId } = args;
+  const { key, entryId, seasonId } = args;
   const plan = HUB_PLANS[key];
 
   const entry = await prisma.entry.findUniqueOrThrow({
@@ -1284,13 +1283,22 @@ export async function setSandboxHub(args: {
     select: { teamId: true },
   });
   /*
-    ⚠️ **보관 계정이 앉아 있으면 먼저 비운다.** 「참가팀 없음」 줄이 그 사람의
-    팀 자리를 보관 계정으로 옮기는데, 그 상태로 허브 줄을 누르면 진도만 바뀌고
-    **로그인한 사람에게는 여전히 참가 기록이 없다** — 허브가 「참가 신청부터
-    해요」를 그린다(2026-09-21에 수연이 그 화면을 봤다). 허브 17판은 전부
-    참가자 화면이라 「참가 기록이 있다」가 전제다.
+    ⚠️ **보관 계정이 앉아 있으면 먼저 비운다.** 「참가팀 없음」 줄과 지각
+    참가(h10)가 그 사람의 팀 자리를 보관 계정으로 옮기는데, 그 상태로 다른
+    허브 줄을 누르면 진도만 바뀌고 **로그인한 사람에게는 여전히 참가 기록이
+    없다** — 허브가 엉뚱한 판을 그린다(2026-09-21에 수연이 그 화면을 봤다).
+
+    ⚠️ **팀장은 그 뒤에 찾는다.** 부르는 쪽이 넘겨주게 두면 보관 중일 때
+    보관 계정의 id가 들어와, 제출물의 `submitted_by`가 그 계정이 되고 h10은
+    보관의 보관을 만든다(hub-state.mts에서 실제로 그랬다).
   */
   await unparkTeam(entry.teamId);
+  const leader = await prisma.teamMember.findFirst({
+    where: { teamId: entry.teamId, role: MemberRole.leader },
+    select: { userId: true },
+  });
+  if (!leader) throw new Error("[dev] 그 팀에 팀장이 없습니다.");
+  const userId = leader.userId;
 
   /*
     ⚠️ h17만 「지금 시즌」이 바뀐다 — 지난 시즌을 재우고 다음 시즌을 깨운다.
@@ -1436,10 +1444,13 @@ export function matchHubKey(now: {
   solo: boolean;
   verified: boolean;
   raceStage: StageKey | null;
+  /** 로그인한 사람의 자리가 보관 계정에 가 있는가 — h10만 그렇다 */
+  parked: boolean;
 }): HubKey | null {
   const keys = Object.keys(HUB_PLANS) as HubKey[];
   const hit = keys.find((key) => {
     const plan = HUB_PLANS[key];
+    if ((plan.parked ?? false) !== now.parked) return false;
     if (plan.phase !== now.phase) return false;
     if (plan.stage !== now.stage) return false;
     if ((plan.status ?? EntryStatus.active) !== now.status) return false;
@@ -1451,6 +1462,35 @@ export function matchHubKey(now: {
     return true;
   });
   return hit ?? null;
+}
+
+/**
+ * 로그인한 사람의 자리를 보관 계정이 대신 앉아 있는 참가 기록. 없으면 null.
+ *
+ * 개발 바가 쓴다 — 지각 참가(h10)는 자리를 비워 두는 판이라, 화면이 보는
+ * 참가 기록(`loadViewerState`)이 없다. 그래도 바의 진도 줄은 그 사람 팀의
+ * 판을 계속 보여 줘야 다음 판으로 넘어갈 수 있다(2026-09-21 수연 지시 —
+ * 「예외에 지각 참가 칩은 보여야지」).
+ */
+export async function findParkedEntry(args: {
+  userId: string;
+  seasonId: string;
+}): Promise<string | null> {
+  assertSandbox();
+  const seat = await prisma.teamMember.findFirst({
+    where: {
+      user: { email: parkedEmail(args.userId) },
+      team: { entries: { some: { seasonId: args.seasonId } } },
+    },
+    select: {
+      team: {
+        select: {
+          entries: { where: { seasonId: args.seasonId }, take: 1, select: { id: true } },
+        },
+      },
+    },
+  });
+  return seat?.team.entries[0]?.id ?? null;
 }
 
 /**
@@ -1577,16 +1617,14 @@ const STAGE_PANE: Record<StageKey, HubKey> = {
 export async function setSandboxPace(args: {
   entryId: string;
   seasonId: string;
-  userId: string;
   stage: StageKey;
 }): Promise<void> {
   assertSandbox();
-  const { entryId, seasonId, userId, stage } = args;
+  const { entryId, seasonId, stage } = args;
   await setSandboxHub({
     key: STAGE_PANE[stage],
     entryId,
     seasonId,
-    userId,
     skipMetrics: true,
   });
 }

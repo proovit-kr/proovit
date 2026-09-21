@@ -168,7 +168,7 @@ if (mode === "save") {
 } else if (mode && HUB_PLANS[mode as HubKey]) {
   const key = mode as HubKey;
   const plan = HUB_PLANS[key];
-  await setSandboxHub({ key, entryId: entry.id, seasonId: season.id, userId: leader });
+  await setSandboxHub({ key, entryId: entry.id, seasonId: season.id });
   console.error(`${mode}: ${plan.label} — 페이즈 ${plan.phase}, 진도 ${plan.stage}`);
   console.log(await session());
 } else if (mode === "restore") {

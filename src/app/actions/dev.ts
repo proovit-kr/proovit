@@ -112,21 +112,8 @@ export async function devSetHub(formData: FormData): Promise<void> {
     throw new Error("[dev] entryId·seasonId·key가 잘못됐습니다.");
   }
 
-  /* 제출물의 `submitted_by`는 **그 팀의 팀장**이다(devSetStage와 같은 이유) */
-  const leader = await prisma.entry.findUnique({
-    where: { id: entryId },
-    select: {
-      team: {
-        select: {
-          members: { where: { role: "leader" }, take: 1, select: { userId: true } },
-        },
-      },
-    },
-  });
-  const leaderId = leader?.team.members[0]?.userId;
-  if (!leaderId) throw new Error("[dev] 그 팀에 팀장이 없습니다.");
-
-  await setSandboxHub({ key, entryId, seasonId, userId: leaderId });
+  /* 팀장(제출물의 `submitted_by`)은 보관을 푼 뒤 저쪽이 직접 찾는다 */
+  await setSandboxHub({ key, entryId, seasonId });
   refresh();
 }
 
@@ -201,12 +188,7 @@ export async function devSetCurrentStage(formData: FormData): Promise<void> {
       select: { id: true },
     });
     if (mine) {
-      await setSandboxPace({
-        entryId: mine.id,
-        seasonId,
-        userId: user.id,
-        stage,
-      });
+      await setSandboxPace({ entryId: mine.id, seasonId, stage });
     }
   }
   refresh();

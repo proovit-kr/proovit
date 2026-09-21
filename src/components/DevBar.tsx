@@ -6,6 +6,7 @@ import {
 import { getSessionUser, loadViewerState } from "@/lib/access";
 import {
   checkDevSandbox,
+  findParkedEntry,
   hasSandboxTeam,
   HUB_PLANS,
   loadSandboxState,
@@ -119,8 +120,20 @@ export async function DevBar() {
     `loadViewerState`는 React cache라 여기서 불러도 왕복이 늘지 않는다.
   */
   const viewer = await loadViewerState();
+  /*
+    화면에는 참가 기록이 없어도 **자리만 비워 둔 것**이면 그 팀을 잡는다 —
+    지각 참가(h10)와 「참가팀 없음」이 그 상태다. 안 잡으면 진도 줄이 통째로
+    「참가 기록이 없어요」가 되어 다음 판으로 못 넘어간다(2026-09-21 수연 지시
+    — 「예외에 지각 참가 칩은 보여야지」).
+  */
+  const parkedEntryId =
+    !viewer.entry && user && state.season
+      ? await findParkedEntry({ userId: user.id, seasonId: state.season.id })
+      : null;
   const current =
-    state.teams.find((team) => team.entryId === viewer.entry?.id) ?? null;
+    state.teams.find(
+      (team) => team.entryId === (viewer.entry?.id ?? parkedEntryId),
+    ) ?? null;
   /* 지금 눌린 버튼 — DB 상태를 시안 목록의 한 줄로 되짚는다 */
   const hubKey =
     current && state.season
@@ -131,6 +144,7 @@ export async function DevBar() {
           solo: current.solo,
           verified: current.verified,
           raceStage: state.season.stage,
+          parked: parkedEntryId !== null,
         })
       : null;
 
