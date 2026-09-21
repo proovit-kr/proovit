@@ -1,0 +1,69 @@
+/*
+  참가 신청 ② 신청 완료 — 시안 ver4 `#scr-apply[data-state="done"]`의
+  `.ap-done`(시안 338~344행). 값은 fold-spec으로 뽑은 최종 승자이고
+  `@media` 분기는 없다 — 시안의 `.ap-*` 중 브레이크포인트에 걸리는 규칙이
+  하나도 없다(1440/768/390 모두 같은 값).
+
+  ⚠️ 바깥 기둥(`.ap-wrap` — max-width:620px; margin:0 auto;
+  padding:44px 40px 80px)은 ① 작성과 공용이라 여기 두지 않는다. 이 파일은
+  기둥 **안쪽**만 그린다.
+*/
+
+.done {
+  text-align: center;
+  padding: 60px 0;
+}
+
+/*
+  ✓ 마크. 시안은 모노스페이스 800이다 — 숫자·기호는 이 서체로 세운다
+  (Surface의 `.emptyBig`과 같은 규칙).
+*/
+.mk {
+  font-size: 44px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-weight: 800;
+}
+
+.done h2 {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 14px 0 8px;
+}
+
+.done p {
+  color: var(--muted);
+  font-size: 14.5px;
+  margin: 0 0 22px;
+}
+
+/*
+  ⚠️ 시안에 없다. 초대 코드를 들고 왔는데 이미 참가 중인 경우의 안내다
+  (page.tsx의 `existing` 분기가 이미 말하던 것). 시안은 이 갈래를 안 그렸는데
+  빼면 코드를 넣을 자리를 찾다가 "왜 합류가 안 되지"로 끝난다.
+
+  `.done p`의 리듬은 그대로 쓰고 색만 경고로 바꾼다 — 안내와 같은 회색으로
+  두면 읽고 지나간다. 라임은 화면당 한 번(§7)이라 여기 쓰지 않는다.
+*/
+.done .conflict {
+  color: var(--warn);
+}
+
+/* 시안 `.card.sum` — `.card`는 Surface가 소유하고 여기서는 덮는 값만 준다 */
+.sum {
+  max-width: 380px;
+  margin: 0 auto 26px;
+  text-align: left;
+  padding: 18px 20px;
+}
+
+.sum div {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13.5px;
+  padding: 5px 0;
+}
+
+.sum span {
+  color: var(--faint);
+}

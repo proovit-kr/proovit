@@ -5,21 +5,33 @@ import { z } from "@/lib/z";
 import { ConsentType, MemberRole, Prisma } from "@/generated/prisma/client";
 import {
   APPLY_CONSENTS,
-  APPLY_PRIVACY_CONSENT_VERSION,
+  EVIDENCE_CONSENT_VERSION,
   METRICS_CONSENT_VERSION,
-  TERMS_CONSENT_VERSION,
 } from "@/content/consent";
-import { ApplySchema, type ApplyFieldErrors } from "@/lib/apply";
+import {
+  ApplySchema,
+  validateInviteEmail,
+  type ApplyFieldErrors,
+} from "@/lib/apply";
+import { sendTeamInvite } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
+import { createInviteIn } from "@/lib/team-store";
 
 /*
   참가 신청 저장. **서버 전용이다** — 규칙(길이·형식)은 apply.ts에 있고 그쪽은
   클라이언트도 읽는다.
 
-  이 파일이 하는 일은 한 문장이다: 팀을 만들고 · 참가를 만들고 · 동의를 기록한다.
-  셋이 한 트랜잭션이어야 하는 이유는 동의 때문이다. 참가만 생기고 동의 로그가
-  빠지면 "동의 없이 수집한 개인정보"가 되고, 그 입증 책임이 우리에게 있다.
+  이 파일이 하는 일은 한 문장이다: 팀을 만들고 · 참가를 만들고 · 동의를 기록하고
+  · (팀 참가면) 초대를 만든다. 넷이 한 트랜잭션이어야 하는 이유는 동의 때문이다.
+  참가만 생기고 동의 로그가 빠지면 "동의 없이 수집한 개인정보"가 되고, 그 입증
+  책임이 우리에게 있다.
+
+  ⚠️ **초대 메일은 그 트랜잭션 밖이다.** 아래 submitApplication의 주석 참고.
+
+  ⚠️ team-store와 **서로 import한다**(여기 → createInviteIn, 저기 →
+  applyConsentRows·hashIp). 양쪽 다 함수 안에서만 쓰고 모듈 최상단에서는 상대를
+  건드리지 않아서 순환이 풀린다. 최상단으로 끌어올리지 말 것.
 */
 
 /** 화면이 구분해서 안내해야 하는 실패들. 필드 오류와 성격이 다르다. */
@@ -53,17 +65,20 @@ export function hashIp(ip: string | null): string | null {
   return createHash("sha256").update(`${salt}:${ip}`).digest("hex");
 }
 
+/*
+  ⚠️ 두 표는 **APPLY_CONSENTS에 있는 키만** 담는다. 09-21에 privacy·terms가
+  가입 동의 모달로 옮겨 가면서 여기서도 빠졌다(consent.ts의 참가 신청 주석).
+  이미 그 종류로 쌓인 행은 그대로 둔다 — consents는 append-only 로그다.
+*/
 const CONSENT_VERSIONS: Record<string, string> = {
-  privacy: APPLY_PRIVACY_CONSENT_VERSION,
-  terms: TERMS_CONSENT_VERSION,
   metrics: METRICS_CONSENT_VERSION,
+  evidence: EVIDENCE_CONSENT_VERSION,
 };
 
 /** 동의 키 → 로그에 남길 종류. 화면의 키와 DB enum이 1:1이 아니라 표로 둔다. */
 const CONSENT_TYPES: Record<string, ConsentType> = {
-  privacy: ConsentType.privacy,
-  terms: ConsentType.terms,
   metrics: ConsentType.metrics_public,
+  evidence: ConsentType.evidence,
 };
 
 export interface ApplyContext {
@@ -73,10 +88,10 @@ export interface ApplyContext {
 }
 
 /**
- * 참가 동의 3종을 로그 행으로 바꾼다.
+ * 참가 동의 2종을 로그 행으로 바꾼다.
  *
- * 신청(팀장)과 합류(팀원)가 **같은 함수**를 쓴다. 합류하는 사람도 개인정보·약관·
- * 지표 공개에 스스로 동의해야 한다 — 팀장의 동의가 팀원 것을 대신하지 못한다
+ * 신청(팀장)과 합류(팀원)가 **같은 함수**를 쓴다. 합류하는 사람도 지표 공개와
+ * 증빙 제출에 스스로 동의해야 한다 — 팀장의 동의가 팀원 것을 대신하지 못한다
  * (운영규칙서 D2: 항목별·본인별 동의).
  */
 export function applyConsentRows(args: {
@@ -105,22 +120,38 @@ export function missingRequiredConsents(
 }
 
 export async function submitApplication(
-  user: { id: string },
+  /** 초대 메일이 보내는 사람을 적어야 해서 닉네임까지 받는다(실명은 쓰지 않는다) */
+  user: { id: string; email: string; nickname: string },
   raw: {
     isSolo: boolean;
+    track: string;
     teamName: string;
     ideaTitle: string;
     ideaSummary: string;
-    phone: string;
+    inviteEmail: string;
   },
   consent: Record<string, boolean>,
   context: ApplyContext,
 ): Promise<ApplyResult> {
   const parsed = ApplySchema.safeParse(raw);
-  if (!parsed.success) {
-    return { ok: false, errors: z.flattenError(parsed.error).fieldErrors };
-  }
-  const { isSolo, teamName, ideaTitle, ideaSummary, phone } = parsed.data;
+  const errors: ApplyFieldErrors = parsed.success
+    ? {}
+    : z.flattenError(parsed.error).fieldErrors;
+
+  /*
+    초대 칸만 스키마 밖에서 본다 — 본인 주소인지는 세션을 알아야 판정이 선다
+    (apply.ts의 validateInviteEmail 주석). 스키마 오류와 같은 묶음으로 돌려준다.
+  */
+  const inviteError = validateInviteEmail({
+    isSolo: Boolean(raw.isSolo),
+    inviteEmail: raw.inviteEmail,
+    selfEmail: user.email,
+  });
+  if (inviteError) errors.inviteEmail = [inviteError];
+
+  if (!parsed.success || inviteError) return { ok: false, errors };
+  const { isSolo, teamName, ideaTitle, ideaSummary } = parsed.data;
+  const inviteEmail = isSolo ? null : raw.inviteEmail.trim();
 
   /*
     ⚠️ 필수 동의는 화면이 아니라 여기서 막는다. 서버 액션은 폼을 거치지 않고
@@ -151,7 +182,7 @@ export async function submitApplication(
   const userAgent = context.userAgent?.slice(0, 500) ?? null;
 
   try {
-    const entryId = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       /*
         팀은 시즌을 넘어 유지된다(용어 정의: 팀 ≠ 참가). 이미 팀장인 팀이 있으면
         새로 만들지 않고 그 팀으로 참가한다 — 시즌2에 나갈 때 팀이 하나 더 생기면
@@ -176,13 +207,9 @@ export async function submitApplication(
           });
 
       /*
-        연락처는 users.phone에 둔다(entries가 아니라). 통지 대상은 사람이지
-        참가가 아니고, 같은 사람이 시즌마다 번호를 다시 적게 만들 이유가 없다.
-        알림톡 수신(notifyAlimtalk)은 여기서 켜지 않는다 — 발신프로필 심사가
-        끝나지 않았고, 수신 여부는 별도 선택 항목이라 한 번에 묶으면 D2 위반이다.
+        ⚠️ trackId를 넣지 않는다. 폼이 track을 보내고 서버가 검사까지 하지만
+        시즌1은 단일 트랙이라 null로 남긴다(apply.ts의 트랙 주석).
       */
-      await tx.user.update({ where: { id: user.id }, data: { phone } });
-
       const entry = await tx.entry.create({
         data: {
           seasonId: season.id,
@@ -209,10 +236,65 @@ export async function submitApplication(
         }),
       });
 
-      return entry.id;
+      /*
+        초대 **레코드**는 여기, 트랜잭션 안이다. 접수는 됐는데 초대 행만 없으면
+        팀장이 「팀으로 참가」를 골라 놓고 아무도 부를 수 없는 상태가 된다.
+        만드는 일은 팀 화면과 **같은 함수**(createInviteIn)가 한다 — 정원·중복
+        초대·만료 정리 규칙이 두 벌이 되면 한쪽만 고쳐지는 날이 온다.
+      */
+      let invite: { code: string; expiresAt: Date } | null = null;
+      if (inviteEmail) {
+        const made = await createInviteIn(tx, team.id, inviteEmail);
+        if (made.ok) {
+          invite = { code: made.code, expiresAt: made.expiresAt };
+        } else {
+          /*
+            ⚠️ 여기서 접수를 되돌리지 않는다. 올 수 있는 값은 사실상
+            INVITE_EXISTS 하나다 — 지난 시즌에 쓰던 팀에 아직 살아 있는 초대가
+            남은 경우. 그 초대가 이미 팀원을 부를 수 있으니 참가를 깰 이유가
+            없고, 팀장은 팀 화면에서 취소하고 다시 보낼 수 있다.
+          */
+          console.warn(
+            `[apply] 초대를 만들지 못했습니다(${made.code}). team=${team.id}`,
+          );
+        }
+      }
+
+      return { entryId: entry.id, teamName: team.name, invite };
     });
 
-    return { ok: true, entryId };
+    /*
+      ⚠️ **메일은 트랜잭션 밖이다.** 안에 넣으면 외부 API 한 번이 접수 전체를
+      물고 있게 된다 — Resend가 느리면 DB 트랜잭션이 그만큼 열려 있고, 실패하면
+      접수가 통째로 롤백되어 사용자는 아무것도 못 한 채 처음부터 다시 신청해야
+      한다. 메일은 다시 보낼 수 있고 접수는 그렇지 않다.
+
+      실패는 로그로 남기고 넘어간다. 초대 행은 pending으로 살아 있어서 팀장이
+      팀 화면에서 코드를 직접 전하거나, 취소하고 다시 발급할 수 있다.
+    */
+    if (created.invite && inviteEmail) {
+      try {
+        const sent = await sendTeamInvite({
+          email: inviteEmail,
+          inviterNickname: user.nickname,
+          teamName: created.teamName,
+          ideaTitle,
+          seasonTitle: season.title,
+          code: created.invite.code,
+          expiresAt: created.invite.expiresAt,
+        });
+        if (!sent.ok) {
+          console.error(
+            `[apply] 초대 메일 실패(${sent.reason}). 접수는 됐고 초대는 살아 있습니다. entry=${created.entryId}`,
+          );
+        }
+      } catch (error) {
+        /* 메일 모듈은 던지지 않기로 돼 있지만, 그 약속에 접수를 걸지 않는다 */
+        console.error("[apply] 초대 메일에서 예외가 났습니다.", error);
+      }
+    }
+
+    return { ok: true, entryId: created.entryId };
   } catch (error) {
     /*
       @@unique([seasonId, teamId])의 최종 방어선. 같은 사람이 두 탭에서 동시에
