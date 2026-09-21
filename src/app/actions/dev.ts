@@ -10,12 +10,16 @@ import {
 } from "@/generated/prisma/enums";
 import {
   checkDevSandbox,
+  HUB_PLANS,
   setSandboxCurrentStage,
+  setSandboxHub,
+  setSandboxPace,
   setSandboxPhase,
   setSandboxStage,
   setSandboxStatus,
   setSandboxTeam,
   setMetricsFixture,
+  type HubKey,
   type MetricsFixture,
 } from "@/lib/dev-sandbox";
 import { getSessionUser } from "@/lib/access";
@@ -94,6 +98,38 @@ export async function devSetStage(formData: FormData): Promise<void> {
   refresh();
 }
 
+/**
+ * 허브 한 판 — 시안 `#hubSel`의 한 줄. 진도·페이즈·온보딩·집계·「오늘」을
+ * 한꺼번에 옮긴다(표는 `dev-sandbox.ts`의 `HUB_PLANS`).
+ */
+export async function devSetHub(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const key = String(formData.get("key") ?? "") as HubKey;
+  const seasonId = String(formData.get("seasonId") ?? "");
+  if (!entryId || !seasonId || !HUB_PLANS[key]) {
+    throw new Error("[dev] entryId·seasonId·key가 잘못됐습니다.");
+  }
+
+  /* 제출물의 `submitted_by`는 **그 팀의 팀장**이다(devSetStage와 같은 이유) */
+  const leader = await prisma.entry.findUnique({
+    where: { id: entryId },
+    select: {
+      team: {
+        select: {
+          members: { where: { role: "leader" }, take: 1, select: { userId: true } },
+        },
+      },
+    },
+  });
+  const leaderId = leader?.team.members[0]?.userId;
+  if (!leaderId) throw new Error("[dev] 그 팀에 팀장이 없습니다.");
+
+  await setSandboxHub({ key, entryId, seasonId, userId: leaderId });
+  refresh();
+}
+
 export async function devSetStatus(formData: FormData): Promise<void> {
   guard();
 
@@ -135,7 +171,16 @@ export async function devSetTeam(formData: FormData): Promise<void> {
   refresh();
 }
 
-/** 레이스 중 지금 스테이지를 고른다 — 스테이지 날짜를 옮긴다 */
+/*
+  레이스 중 지금 스테이지를 고른다 — 가정한 「오늘」을 그 주차로 옮기고,
+  **내 팀 진도도 그 주차에 맞춘다**(2026-09-21 수연 지시).
+
+  둘이 따로 놀던 때는 s1 주차를 골라도 진도가 s3이면 화면이 s3 그대로였다.
+  화면을 보려고 누르는 줄이라 「그 주차를 지나는 팀」이 되는 편이 쓸모 있다.
+
+  ⚠️ 진도를 옮기는 것은 **로그인한 사람의 팀 하나**다. 다른 팀은 그대로 둔다 —
+  리더보드·참가작 화면이 여러 진도가 섞인 모습을 그려야 한다.
+*/
 export async function devSetCurrentStage(formData: FormData): Promise<void> {
   guard();
 
@@ -144,6 +189,26 @@ export async function devSetCurrentStage(formData: FormData): Promise<void> {
   if (!seasonId || !stage) throw new Error("[dev] seasonId·stage가 잘못됐습니다.");
 
   await setSandboxCurrentStage({ seasonId, stage });
+
+  const user = await getSessionUser();
+  if (user) {
+    /* 팀장인 팀만 옮긴다 — 제출물의 `submitted_by`가 팀장이어야 한다 */
+    const mine = await prisma.entry.findFirst({
+      where: {
+        seasonId,
+        team: { members: { some: { userId: user.id, role: "leader" } } },
+      },
+      select: { id: true },
+    });
+    if (mine) {
+      await setSandboxPace({
+        entryId: mine.id,
+        seasonId,
+        userId: user.id,
+        stage,
+      });
+    }
+  }
   refresh();
 }
 

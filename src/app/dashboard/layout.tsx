@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { EntryStage } from "@/generated/prisma/enums";
+
 import { DashboardTop } from "@/components/DashboardTop";
 import { Footer } from "@/components/Footer";
 import { Logo } from "@/components/NavBar";
@@ -34,7 +36,32 @@ import styles from "./dashboard.module.css";
   요청당 DB는 한 번만 읽는다.
 */
 
-type NavItem = { href: string; label: string };
+type NavItem = { href: string; label: string; activePrefix?: string };
+
+/*
+  「스테이지 제출」이 가리킬 곳 — **지금 낼 스테이지**다.
+
+  ⚠️ `entry.stage`는 마지막으로 **완료한** 단계라 한 칸 앞을 가리킨다.
+  게이트(s2·s5)에 멈춘 팀은 판정 대기라 그 자리에 세워 둔다 — 낸 것을
+  다시 볼 수 있어야 하고, 다음 칸으로 보내면 통과한 것처럼 보인다.
+*/
+function submitStage(stage?: EntryStage): string {
+  switch (stage) {
+    case EntryStage.applied:
+      return "s1";
+    case EntryStage.s1:
+      return "s2";
+    case EntryStage.s3:
+      return "s3";
+    case EntryStage.s4:
+      return "s4";
+    case EntryStage.s2:
+      return "s2";
+    default:
+      /* s5·completed — 마지막으로 낸 자리 */
+      return "s5";
+  }
+}
 
 /*
   시안이 사이드바에 남기는 보류 항목. 라우트가 없으므로 링크가 아니다.
@@ -56,16 +83,31 @@ export default async function DashboardLayout({
   const flags = viewer.season?.flags;
   const header = await loadDashboardHeader(viewer);
 
+  /*
+    ⚠️ **참가 기록이 없으면 허브만 남긴다.** 나머지 라우트는 전부 `entry: true`라
+    눌러도 404다 — 「꺼진 기능은 링크를 아예 만들지 않는다」(06 §4.4)와 같은
+    이유다. 허브는 그때 신청 안내를 그린다(2026-09-21 수연 지시).
+
+    ⚠️ **이름과 순서는 시안 3626행 `MENU` 그대로다**(2026-09-21 수연 지시).
+    「홈」이 아니라 「허브」, 「팀」이 아니라 「팀 관리」이고, 혜택과 크레딧이
+    내 지표보다 앞이다.
+  */
   const items: NavItem[] = [
-    { href: "/dashboard", label: "홈" },
-    { href: "/dashboard/team", label: "팀" },
+    { href: "/dashboard", label: "허브" },
+    { href: "/dashboard/team", label: "팀 관리" },
     { href: "/dashboard/measurement", label: "측정 연동" },
     { href: "/dashboard/payment", label: "결제 연동" },
-    { href: "/dashboard/metrics", label: "내 지표" },
-    { href: "/dashboard/judgments", label: "심사 결과" },
+    {
+      href: `/dashboard/submit/${submitStage(viewer.entry?.stage)}`,
+      label: "스테이지 제출",
+      /* 어느 스테이지를 보고 있든 이 항목이 켜져 있어야 한다 */
+      activePrefix: "/dashboard/submit",
+    },
     ...(flags?.credits
       ? [{ href: "/dashboard/credits", label: "혜택과 크레딧" }]
       : []),
+    { href: "/dashboard/metrics", label: "내 지표" },
+    { href: "/dashboard/judgments", label: "심사 결과" },
     { href: "/dashboard/appeal", label: "소명" },
   ];
 
@@ -83,7 +125,7 @@ export default async function DashboardLayout({
 
       <div className={styles.db}>
         <SideNav
-          groups={[{ items }, HOLD]}
+          groups={viewer.entry ? [{ items }, HOLD] : [{ items: items.slice(0, 1) }]}
           label="대시보드"
           roots={["/dashboard"]}
         />

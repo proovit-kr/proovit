@@ -25,6 +25,12 @@ export type SideNavItem = {
   label: string;
   /** 보류 항목 — 누를 수 없고 사유를 칩으로 적는다 */
   hold?: string;
+  /*
+    활성 판정에 쓸 접두사. 「스테이지 제출」은 링크가 지금 낼 스테이지 하나를
+    가리키는데(`/dashboard/submit/s3`) 다른 스테이지를 보고 있어도 그 항목이
+    켜져 있어야 한다.
+  */
+  activePrefix?: string;
 };
 
 export type SideNavGroup = {
@@ -33,7 +39,12 @@ export type SideNavGroup = {
   items: SideNavItem[];
 };
 
-function isOn(pathname: string, href: string, roots: string[]): boolean {
+function isOn(
+  pathname: string,
+  item: SideNavItem,
+  roots: string[],
+): boolean {
+  const href = item.activePrefix ?? item.href;
   if (roots.includes(href)) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -72,9 +83,7 @@ export function SideNav({
                 key={item.href}
                 href={item.href}
                 className={styles.item}
-                aria-current={
-                  isOn(pathname, item.href, roots) ? "page" : undefined
-                }
+                aria-current={isOn(pathname, item, roots) ? "page" : undefined}
               >
                 {item.label}
               </Link>

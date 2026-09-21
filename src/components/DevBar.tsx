@@ -1,14 +1,16 @@
 import {
-  EntryStage,
   EntryStatus,
   SeasonPhase,
   StageKey,
 } from "@/generated/prisma/enums";
-import { getSessionUser } from "@/lib/access";
+import { getSessionUser, loadViewerState } from "@/lib/access";
 import {
   checkDevSandbox,
   hasSandboxTeam,
+  HUB_PLANS,
   loadSandboxState,
+  matchHubKey,
+  type HubKey,
 } from "@/lib/dev-sandbox";
 import { devToday } from "@/lib/dev-clock";
 import { hasParkedSession } from "@/lib/dev-session";
@@ -30,15 +32,26 @@ import { DevBarClient } from "./DevBarClient";
   읽는다 — 바에 찍힌 값과 화면이 어긋나면 그 바는 도구가 아니라 함정이 된다.
 */
 
-const STAGES: { value: EntryStage; label: string }[] = [
-  { value: EntryStage.applied, label: "신청" },
-  { value: EntryStage.s1, label: "s1" },
-  { value: EntryStage.s2, label: "s2" },
-  { value: EntryStage.s3, label: "s3" },
-  { value: EntryStage.s4, label: "s4" },
-  { value: EntryStage.s5, label: "s5" },
-  { value: EntryStage.completed, label: "완주" },
-];
+/*
+  진도 줄은 **시안 `#hubSel`의 17종 그대로**다(2026-09-21 수연 지시 —
+  「개발 바에 진도 줄 사진과 동일하게」). 라벨도 시안이 적은 그대로 쓴다.
+
+  한 줄이 진도만 옮기던 때보다 하는 일이 많다 — 페이즈·생존 상태·온보딩·집계·
+  「오늘」을 그 판이 성립하도록 한꺼번에 맞춘다(`HUB_PLANS`). 그래서 이 줄을
+  누르면 아래 다른 줄들의 값도 같이 바뀐다.
+*/
+/*
+  ⚠️ `inBar: false`인 판은 버튼을 두지 않는다 — 지금은 h1 하나다. 「참가팀 없음」
+  줄이 같은 화면(온보딩)을 만들기 때문이다(2026-09-21 수연 결정). 표에는 남아
+  있어서 대조 스크립트는 그대로 쓴다.
+*/
+const HUBS = (Object.keys(HUB_PLANS) as HubKey[])
+  .filter((value) => HUB_PLANS[value].inBar !== false)
+  .map((value) => ({
+    value,
+    label: HUB_PLANS[value].label,
+    group: HUB_PLANS[value].group,
+  }));
 
 const STATUSES: { value: EntryStatus; label: string }[] = [
   { value: EntryStatus.active, label: "정상" },
@@ -99,8 +112,27 @@ export async function DevBar() {
     user && state.season
       ? await hasSandboxTeam({ userId: user.id, seasonId: state.season.id })
       : null;
+  /*
+    ⚠️ **화면이 보는 그 참가 기록을 고른다.** 한 사람이 여러 팀의 팀장일 수
+    있는데(dev DB에서 실제로 그렇다), 바가 제 순서로 고르면 화면과 다른 팀을
+    집는다 — 2026-09-21에 s1 주차를 눌러도 화면이 s4였던 원인이다.
+    `loadViewerState`는 React cache라 여기서 불러도 왕복이 늘지 않는다.
+  */
+  const viewer = await loadViewerState();
   const current =
-    state.teams.find((team) => team.userId === user?.id) ?? null;
+    state.teams.find((team) => team.entryId === viewer.entry?.id) ?? null;
+  /* 지금 눌린 버튼 — DB 상태를 시안 목록의 한 줄로 되짚는다 */
+  const hubKey =
+    current && state.season
+      ? matchHubKey({
+          phase: state.season.phase,
+          stage: current.stage,
+          status: current.status,
+          solo: current.solo,
+          verified: current.verified,
+          raceStage: state.season.stage,
+        })
+      : null;
 
   return (
     <DevBarClient
@@ -110,7 +142,8 @@ export async function DevBar() {
       current={current}
       hasTeam={hasTeam}
       season={state.season}
-      stages={STAGES}
+      hubs={HUBS}
+      hubKey={hubKey}
       statuses={STATUSES}
       phases={PHASES}
       raceStages={RACE_STAGES}

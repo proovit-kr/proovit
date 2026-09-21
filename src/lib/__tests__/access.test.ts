@@ -186,9 +186,24 @@ check(
   ),
   "ALLOW",
 );
+/*
+  ⚠️ **허브는 참가 기록이 없어도 열린다**(2026-09-21 수연 지시). 대시보드가
+  온보딩의 출발점이라 여기서 막으면 로그인한 사람이 갈 곳이 없어진다 —
+  화면이 그때 참가 신청으로 이어 준다. 하위 라우트는 그대로 404다.
+*/
 check(
-  "참가 기록 없음 — 404",
+  "참가 기록 없음 — 허브는 열린다",
   canAccess("dashboard", ctx({ phase: SeasonPhase.racing })),
+  "ALLOW",
+);
+check(
+  "참가 기록 없음 — 팀 관리는 404",
+  canAccess("dashboardTeam", ctx({ phase: SeasonPhase.racing })),
+  "NOT_FOUND",
+);
+check(
+  "참가 기록 없음 — 제출은 404",
+  canAccess("dashboardSubmit", ctx({ phase: SeasonPhase.racing })),
   "NOT_FOUND",
 );
 /*

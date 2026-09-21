@@ -182,7 +182,13 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
   /** 참가 신청. 모집 구간에만 열린다 */
   apply: { auth: "user", phase: isRecruiting, write: true },
   /** 골든패스 진입점. 탈락·실격 팀도 들어와야 소명·테스터로 갈 수 있다 */
-  dashboard: { auth: "user", entry: true, allowInactive: true },
+  /*
+    ⚠️ **참가 기록이 없어도 연다**(2026-09-21 수연 지시). 대시보드가 온보딩의
+    출발점이라 여기서 막으면 로그인한 사람이 갈 곳이 없어진다 — 개발 바에서
+    「참가팀 없음」으로 두면 404였다. 화면이 그때 신청으로 이어 준다
+    (`app/dashboard/page.tsx`). 하위 라우트(팀·측정·제출…)는 그대로 `entry: true`다.
+  */
+  dashboard: { auth: "user", allowInactive: true },
   /*
     ⚠️ leaderOnly를 걸지 않는다. 걸면 FORBIDDEN → 404가 되어 **팀원이 자기 팀을
     못 본다** — 팀원 목록도, 팀장이 누구인지도. PLN3이 정한 것은 「쓰기는 팀장만」이고
