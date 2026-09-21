@@ -1183,6 +1183,8 @@ export async function setSandboxHub(args: {
   entryId: string;
   seasonId: string;
   userId: string;
+  /** 집계 픽스처를 건드리지 않는다 — 스테이지 줄이 부를 때 그렇다 */
+  skipMetrics?: boolean;
 }): Promise<void> {
   assertSandbox();
   const { key, entryId, seasonId, userId } = args;
@@ -1281,7 +1283,7 @@ export async function setSandboxHub(args: {
     });
   }
 
-  if (plan.metrics) {
+  if (plan.metrics && !args.skipMetrics) {
     await setMetricsFixture({ seasonId, kind: plan.metrics });
   }
   /*
@@ -1424,21 +1426,25 @@ async function ensureNextSeason(currentId: string): Promise<void> {
   진도가 s3이면 화면이 s3 그대로였다 — 수연이 「화면이 안 바뀌네」로 잡았다.
   화면을 보려고 누르는 줄이니 그 주차에 있을 법한 팀이 되는 편이 쓸모 있다.
 
-  ⚠️ `EntryStage`는 **마지막으로 완료한 단계**다. s2 주차를 진행 중인 팀은
-  s1까지 낸 상태(`s1`)이고, s3 주차 팀은 s2 게이트를 통과한 상태(`s3`)다.
-  게이트에 멈춘 상태(판정 대기 `s2`·`s5`)는 그 주차를 「정상으로 지나는」
-  모습이 아니라 여기 없다 — 진도 줄의 「4, 1차 심사 대기」가 그 자리다.
+  그 주차의 「판」을 그대로 쓴다. 진도만 옮기면 골든패스가 전부 미체크라
+  **첫 칸이 진행 중으로 뜬다** — 시안 h2는 1·2를 끝내고 3번이 진행 중이다
+  (2026-09-21에 수연이 그것도 잡았다). 판을 쓰면 그 임시저장까지 따라온다.
+
+  ⚠️ 게이트에 멈춘 상태(판정 대기 h4·h7)는 그 주차를 「정상으로 지나는」
+  모습이 아니다 — 진도 줄의 「4, 1차 심사 대기」가 그 자리다. s5 주차는
+  시안에서 예외 15번(「s5 자동 제출 확인」)인데 아직 안 옮겨서, 그나마 가까운
+  h7을 쓴다(진도를 s4로 두면 s5 주차에 s4 화면이 떠서 더 어긋난다).
 */
-const STAGE_PACE: Record<StageKey, EntryStage> = {
-  [StageKey.s1]: EntryStage.applied,
-  [StageKey.s2]: EntryStage.s1,
-  [StageKey.s3]: EntryStage.s3,
-  [StageKey.s4]: EntryStage.s4,
-  [StageKey.s5]: EntryStage.s5,
+const STAGE_PANE: Record<StageKey, HubKey> = {
+  [StageKey.s1]: "h2",
+  [StageKey.s2]: "h3",
+  [StageKey.s3]: "h5",
+  [StageKey.s4]: "h6",
+  [StageKey.s5]: "h7",
 };
 
 /**
- * 그 주차를 정상으로 지나는 팀으로 만든다 — 진도와 온보딩.
+ * 그 주차를 정상으로 지나는 팀으로 만든다 — 진도·온보딩·임시저장.
  *
  * ⚠️ **집계는 건드리지 않는다.** `setSandboxCurrentStage`가 스테이지별 규칙을
  * 이미 갖고 있고(s4는 고르는 자리라 그대로 둔다), 여기서 덮으면 s4의 집계 줄이
@@ -1451,29 +1457,14 @@ export async function setSandboxPace(args: {
   stage: StageKey;
 }): Promise<void> {
   assertSandbox();
-  const { entryId, userId, stage } = args;
-
-  const entry = await prisma.entry.findUniqueOrThrow({
-    where: { id: entryId },
-    select: { teamId: true },
+  const { entryId, seasonId, userId, stage } = args;
+  await setSandboxHub({
+    key: STAGE_PANE[stage],
+    entryId,
+    seasonId,
+    userId,
+    skipMetrics: true,
   });
-  /*
-    ⚠️ **여기서 `unparkTeam`을 부르지 않는다.** 이 함수는 이미 「내가 팀장인
-    팀」을 찾은 뒤에 불리므로 비워 둔 자리가 없고, 부르면 **다른 팀의**
-    「참가팀 없음」까지 풀어 버린다 — 2026-09-21에 그것 때문에 한 사람이 두
-    팀의 팀장이 되어 화면과 개발 바가 서로 다른 팀을 봤다.
-  */
-  await setSandboxStage({ entryId, stage: STAGE_PACE[stage], userId });
-  await prisma.entry.update({
-    where: { id: entryId },
-    data: { status: EntryStatus.active },
-  });
-  /* 일정대로 왔다면 온보딩은 이미 끝난 팀이다 */
-  await prisma.team.update({
-    where: { id: entry.teamId },
-    data: { isSolo: true },
-  });
-  await setHostname(entryId, true);
 }
 
 /**

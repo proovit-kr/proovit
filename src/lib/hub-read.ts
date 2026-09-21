@@ -286,10 +286,20 @@ export async function loadHub(
       const verified = host?.ownershipVerifiedAt !== null && host !== null;
       /*
         ⚠️ s3은 폼의 모양이 달라 가이드 체크 배열 하나로 1:1이 되지 않는다.
-        칸마다 대응시킨 것이 아래다 — 빌더를 골랐는가, 배포한 주소를 적었는가,
-        그 주소의 소유 확인이 끝났는가, 출시 전 점검을 다 눌렀는가.
+        칸마다 대응시킨 것이 아래다 — 빌더를 골랐는가, 가입 흐름을 붙였는가,
+        배포한 주소를 적었는가, 출시 전 점검을 다 눌렀는가.
         점검은 A1~A10이 전부이고, 생성형 AI 기능이 있으면 B1~B5도 함께다.
+
+        ⚠️ **「배포하고 주소 연결하기」를 측정 연동 검증에 붙이지 않는다.**
+        그건 온보딩에서 이미 끝난 일이라 s3에서는 늘 완료가 되어, 앞 칸이
+        진행 중인데 뒷 칸이 ✓인 화면이 나온다(2026-09-21에 수연이 잡았다).
+        시안 h5도 그 칸은 대기인 채로 아래 요약에 「측정 연동, 검증됨 ✓」를
+        따로 둔다 — 둘은 다른 일이다.
       */
+      const signupConnected =
+        payload && typeof payload === "object"
+          ? (payload as { signupConnected?: unknown }).signupConnected === true
+          : false;
       return {
         pane,
         hostname: host?.hostname ?? null,
@@ -299,11 +309,11 @@ export async function loadHub(
             label: gp.checks[0],
             done: stringField(payload, "builder") !== null,
           },
+          { label: gp.checks[1], done: signupConnected },
           {
-            label: gp.checks[1],
+            label: gp.checks[2],
             done: stringField(payload, "serviceUrl") !== null,
           },
-          { label: gp.checks[2], done: verified },
           {
             label: gp.last,
             done:
