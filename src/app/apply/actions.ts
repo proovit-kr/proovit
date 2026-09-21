@@ -14,11 +14,13 @@ export interface ApplyState {
   code?: ApplyFailureCode;
   /** 되돌려 채울 입력값. 없으면 사용자가 방금 친 것을 잃는다. */
   values?: {
+    /** 「혼자 참가」 체크박스. 시안의 기본은 **해제(=팀 참가)**다 */
     isSolo: boolean;
+    track: string;
     teamName: string;
     ideaTitle: string;
     ideaSummary: string;
-    phone: string;
+    inviteEmail: string;
   };
 }
 
@@ -35,22 +37,28 @@ export async function submitApply(
     return { message: "로그인이 풀렸습니다. 다시 로그인해 주세요." };
   }
 
+  /*
+    ⚠️ isSolo는 **체크박스 하나**다(시안 ①의 「혼자 참가할래요」). 체크박스는
+    꺼져 있으면 아예 안 실려서 `=== "on"`이 곧 「혼자」이고, 기본값은 해제 =
+    팀 참가다. 라디오 둘이던 때와 기본값이 반대라는 것만 주의한다.
+  */
   const values = {
-    isSolo: formData.get("isSolo") === "solo",
+    isSolo: formData.get("isSolo") === "on",
+    track: String(formData.get("track") ?? "free"),
     teamName: String(formData.get("teamName") ?? ""),
     ideaTitle: String(formData.get("ideaTitle") ?? ""),
     ideaSummary: String(formData.get("ideaSummary") ?? ""),
-    phone: String(formData.get("phone") ?? ""),
+    inviteEmail: String(formData.get("inviteEmail") ?? ""),
   };
 
   /*
-    동의 값은 체크박스 3개를 각각 읽는다. 하나로 묶어 받으면 D2(항목별 분리
+    동의 값은 체크박스 2개를 각각 읽는다. 하나로 묶어 받으면 D2(항목별 분리
     동의)가 서버 기록에서 무너진다 — 화면만 나눠 두고 저장이 하나면 소용없다.
+    항목은 09-21에 셋에서 둘로 줄었다(content/consent.ts의 참가 신청 주석).
   */
   const consent = {
-    privacy: formData.get("consent-privacy") === "on",
-    terms: formData.get("consent-terms") === "on",
     metrics: formData.get("consent-metrics") === "on",
+    evidence: formData.get("consent-evidence") === "on",
   };
 
   const requestHeaders = await headers();

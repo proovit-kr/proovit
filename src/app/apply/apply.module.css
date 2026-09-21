@@ -1,12 +1,51 @@
 /*
-  참가 신청 화면. /onboarding·/login과 같은 골격이되 폭만 넓다 —
-  동의 3종의 표(수집 항목·목적·기간)가 420px에서는 줄이 심하게 접힌다.
+  참가 신청 화면의 **기둥**만 둔다.
 
-  §7 "AI 티 피하기": 카드 상자를 두르지 않는다. 머리말·입력·동의를 괘선으로 나눈다.
+  갈래가 넷이고 그중 둘만 시안에 있다. 시안에 있는 둘(① 작성 · ② 신청 완료)은
+  `.apWrap`을 쓰고 속은 ApplyForm.module.css·ApplyDone.module.css가 그린다.
+  시안에 없는 둘(모집 아님 · 초대 코드)은 옛 골격(`.wrap` 560px + 로고 + 푸터)
+  그대로다 — 아직 이식 대상이 아니라 건드리지 않았다.
+
+  §7 "AI 티 피하기": 옛 골격 쪽은 카드 상자를 두르지 않고 괘선으로 나눈다.
 */
 
 .page {
   justify-content: flex-start;
+}
+
+/*
+  시안 `.ap-wrap`(시안 324~326행) — ① 작성과 ② 신청 완료가 같이 서는 기둥.
+  값은 fold-spec이 뽑은 최종 승자 그대로이고 `@media` 분기는 없다.
+
+  ⚠️ 아래 `.wrap`(560px)과 따로 두는 이유: 이 화면에는 시안에 없는 갈래가
+  둘 더 있다(모집 아님 · 초대 코드). 그 둘은 아직 이식 대상이 아니라서
+  옛 기둥을 그대로 쓴다. `.wrap`을 620px로 고치면 안 본 화면까지 같이 움직인다.
+*/
+.apWrap {
+  /*
+    ⚠️ `width: 100%`는 시안에 없다. 시안의 `.ap-wrap`은 평범한 블록이라 폭이
+    저절로 차지만, 우리 `main.page`는 세로 플렉스다. 교차축 마진이 `auto`인
+    플렉스 아이템은 stretch를 하지 않아서 폭이 fit-content로 줄었다 —
+    ② 신청 완료가 620이 아니라 440px로 서고 요약 카드도 380에 못 닿았다.
+    이 한 줄이 시안과 같은 620px을 되돌린다.
+  */
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 44px 40px 80px;
+}
+
+.apWrap h1 {
+  font-size: 26px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+/* 시안 `.ap-wrap .ss` — 제목 밑 한 줄 */
+.ss {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 28px;
 }
 
 .wrap {
@@ -61,69 +100,12 @@
   color: var(--c-text-faint);
 }
 
-/*
-  신청 완료 화면의 다음 걸음. .cta와 달리 옆에 한 줄이 붙어서 따로 둔다 —
-  버튼만 있으면 눌렀을 때 무엇이 기다리는지 모른 채 넘어간다.
-*/
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-3) var(--s-4);
-}
-
-.actionsNote {
-  color: var(--c-text-faint);
-  font-size: var(--fs-sm);
-}
-
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--s-6);
   padding-top: var(--s-6);
   border-top: 1px solid var(--c-line);
-}
-
-.fieldset {
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.choices {
-  display: flex;
-  gap: var(--s-3);
-  margin-top: var(--s-3);
-}
-
-.choice {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-md);
-  font-size: var(--fs-base);
-  color: var(--c-text);
-  cursor: pointer;
-}
-
-.choice:has(input:checked) {
-  border-color: var(--c-text-strong);
-  color: var(--c-text-strong);
-}
-
-.optional {
-  font-weight: 400;
-  color: var(--c-text-muted);
-}
-
-.textarea {
-  /* .input은 한 줄 높이를 전제로 한 값이라 여러 줄에서는 줄간격을 다시 준다 */
-  min-height: 76px;
-  line-height: 1.6;
-  resize: vertical;
 }
 
 .consents {
@@ -144,27 +126,6 @@
   font-size: var(--fs-sm);
   line-height: 1.6;
   color: var(--c-text);
-}
-
-/* 접수 완료 화면 — 신청 내역 */
-.receipt {
-  display: grid;
-  grid-template-columns: 92px 1fr;
-  gap: var(--s-3) var(--s-4);
-  margin: 0;
-  padding-top: var(--s-6);
-  border-top: 1px solid var(--c-line);
-  font-size: var(--fs-base);
-  line-height: 1.6;
-}
-
-.receipt dt {
-  color: var(--c-text-muted);
-}
-
-.receipt dd {
-  margin: 0;
-  color: var(--c-text-strong);
 }
 
 .note {

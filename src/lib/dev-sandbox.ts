@@ -482,7 +482,7 @@ export async function setSandboxTeam(args: {
       select: { id: true },
     });
 
-    /* 신청 화면이 남기는 참가 동의 3종과 같은 행 — 버전도 진짜 값이다 */
+    /* 신청 화면이 남기는 참가 동의와 같은 행 — 버전도 진짜 값이다 */
     await tx.consent.createMany({
       data: applyConsentRows({
         userId,

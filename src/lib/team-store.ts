@@ -124,7 +124,8 @@ function generateCode(): string {
 }
 
 export type CreateInviteResult =
-  | { ok: true; code: string }
+  /** `expiresAt`은 초대 메일이 「언제까지」를 적어야 해서 같이 돌려준다 */
+  | { ok: true; code: string; expiresAt: Date }
   | { ok: false; code: TeamFailureCode };
 
 /**
@@ -132,30 +133,30 @@ export type CreateInviteResult =
  *
  * 둘 이상 허용하면 정원이 2인데 초대가 2건 나가 **둘이 동시에 수락**할 수 있다.
  * 수락 쪽에서 정원을 다시 보지만, 그 경합을 애초에 만들지 않는 편이 낫다.
+ *
+ * ⚠️ **트랜잭션 클라이언트를 받는다.** 참가 신청(apply-store)이 팀·참가·동의와
+ * 같은 트랜잭션 안에서 초대를 만들기 때문이다 — 접수는 됐는데 초대 행만 없는
+ * 상태가 생기면 팀장이 「팀으로 참가」를 골랐는데 아무도 부를 수 없게 된다.
+ * 트랜잭션 밖에서 부르는 쪽은 아래 `createInvite`를 쓴다.
  */
-export async function createInvite(
+export async function createInviteIn(
+  tx: Prisma.TransactionClient,
   teamId: string,
   email?: string,
 ): Promise<CreateInviteResult> {
   const now = new Date();
 
-  const [memberCount, alive] = await Promise.all([
-    prisma.teamMember.count({ where: { teamId } }),
-    prisma.teamInvitation.findFirst({
-      where: {
-        teamId,
-        status: InvitationStatus.pending,
-        expiresAt: { gt: now },
-      },
-      select: { id: true },
-    }),
-  ]);
-
+  const memberCount = await tx.teamMember.count({ where: { teamId } });
   if (memberCount >= MAX_TEAM_SIZE) return { ok: false, code: "TEAM_FULL" };
+
+  const alive = await tx.teamInvitation.findFirst({
+    where: { teamId, status: InvitationStatus.pending, expiresAt: { gt: now } },
+    select: { id: true },
+  });
   if (alive) return { ok: false, code: "INVITE_EXISTS" };
 
   /* 기한이 지난 pending은 여기서 정리한다 — 크론을 하나 늘리지 않는다 */
-  await prisma.teamInvitation.updateMany({
+  await tx.teamInvitation.updateMany({
     where: {
       teamId,
       status: InvitationStatus.pending,
@@ -169,34 +170,42 @@ export async function createInvite(
   );
 
   /*
-    코드 충돌은 유니크 제약이 잡는다. 8자·27글자 문자표라 확률이 낮지만
-    "낮다"에 기대지 않고 몇 번 다시 뽑는다.
+    코드 충돌은 **만들기 전에** 피한다.
+
+    ⚠️ 예전에는 P2002를 받고 다시 뽑았다. 트랜잭션 안에서는 그게 안 된다 —
+    Postgres는 오류가 난 트랜잭션에서 뒤따르는 명령을 전부 거부하고, Prisma에는
+    세이브포인트가 없다. 한 번 부딪히면 참가 접수까지 통째로 롤백된다.
+    최종 방어선은 그대로 유니크 제약이고, 8자·27글자 문자표(27^8)라
+    미리 보고 고른 뒤에도 부딪힐 일은 실질적으로 없다.
   */
+  let code = generateCode();
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const code = generateCode();
-    try {
-      await prisma.$transaction([
-        prisma.teamInvitation.create({
-          data: { teamId, inviteCode: code, email: email ?? null, expiresAt },
-        }),
-        /*
-          초대를 보낸 순간부터 1인 팀이 아니다. 이 값이 온보딩 체크리스트의
-          「팀 구성 완료」 판정에 들어가므로(access.ts) 여기서 함께 바꾼다.
-        */
-        prisma.team.update({ where: { id: teamId }, data: { isSolo: false } }),
-      ]);
-      return { ok: true, code };
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        continue;
-      }
-      throw error;
-    }
+    const taken = await tx.teamInvitation.findUnique({
+      where: { inviteCode: code },
+      select: { id: true },
+    });
+    if (!taken) break;
+    code = generateCode();
   }
-  throw new Error("초대 코드를 만들지 못했습니다(코드 충돌 5회).");
+
+  await tx.teamInvitation.create({
+    data: { teamId, inviteCode: code, email: email ?? null, expiresAt },
+  });
+  /*
+    초대를 보낸 순간부터 1인 팀이 아니다. 이 값이 온보딩 체크리스트의
+    「팀 구성 완료」 판정에 들어가므로(access.ts) 여기서 함께 바꾼다.
+  */
+  await tx.team.update({ where: { id: teamId }, data: { isSolo: false } });
+
+  return { ok: true, code, expiresAt };
+}
+
+/** 트랜잭션 밖에서 부르는 초대 발급(팀 관리 화면). 규칙은 위와 같다. */
+export async function createInvite(
+  teamId: string,
+  email?: string,
+): Promise<CreateInviteResult> {
+  return prisma.$transaction((tx) => createInviteIn(tx, teamId, email));
 }
 
 /** 초대 취소. 이미 수락된 초대는 되돌리지 않는다 — 그건 강퇴다 */
@@ -312,7 +321,8 @@ export async function findInvite(
 }
 
 /**
- * 합류. 팀원 행을 만들고, 초대를 닫고, **그 사람의 동의 3종을 남긴다.**
+ * 합류. 팀원 행을 만들고, 초대를 닫고, **그 사람의 참가 동의를 남긴다.**
+ * 항목 수는 APPLY_CONSENTS를 따라간다(09-21에 셋에서 둘로 줄었다).
  *
  * 셋이 한 트랜잭션인 이유는 동의다 — 팀원이 되고 동의 로그가 빠지면 「동의 없이
  * 수집한 개인정보」가 되고 그 입증 책임이 우리에게 있다(apply-store와 같은 이유).

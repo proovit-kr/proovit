@@ -3,14 +3,16 @@ import Link from "next/link";
 
 import { LinkButton } from "@/components/Button";
 import { Footer } from "@/components/Footer";
-import { Logo } from "@/components/NavBar";
+import { Logo, NavBar } from "@/components/NavBar";
 import { requireUser } from "@/lib/access";
 import { findMyEntry } from "@/lib/apply-store";
+import { loadPublicNav } from "@/lib/header-read";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
 import { TEAM_FAILURE_MESSAGE } from "@/lib/team";
 import { findInvite } from "@/lib/team-store";
 
+import { ApplyDone } from "./ApplyDone";
 import { ApplyForm } from "./ApplyForm";
 import { JoinForm } from "./JoinForm";
 
@@ -19,17 +21,21 @@ import styles from "./apply.module.css";
 /*
   참가 신청 — 회원이 참가자가 되는 자리다.
 
-  화면이 네 갈래다:
-    ① 모집 기간이 아니다        → 로그인을 요구하기 전에 먼저 말한다
-    ② 이미 신청했다             → 접수 내역을 보여준다
-    ③ 초대 코드를 들고 왔다     → 합류 폼 (동의 3종만 받는다)
-    ④ 그 외                     → 신청 폼
+  화면이 네 갈래이고, 그중 둘이 시안에 있다:
+    모집 기간이 아니다        → 로그인을 요구하기 전에 먼저 말한다 (시안 없음)
+    초대 코드를 들고 왔다     → 합류 폼 (시안 없음)
+    이미 신청했다             → 시안 ② 신청 완료
+    그 외                     → 시안 ① 작성
 
-  ③이 여기 있는 이유: 초대받은 사람은 **참가 기록이 없어** 대시보드로 못 들어온다
-  (`canAccess`가 404를 낸다). 합류는 「참가의 한 형태」라 이 화면이 그 자리다.
+  시안에 없는 둘은 아직 옛 골격(로고 + 좁은 기둥 + 푸터) 그대로다. 시안에 있는
+  둘만 공개 헤더와 `.ap-wrap` 기둥으로 옮겼고 푸터가 없다 — 시안 `#scr-apply`에
+  `.pub-foot`이 없다.
 
-  ①을 로그인 앞에 두는 이유: 모집도 안 하는데 로그인부터 시키면, 로그인을 마친
-  사람이 "지금은 안 받습니다"를 보게 된다. 상태를 먼저 알리는 편이 맞다.
+  합류 폼이 여기 있는 이유: 초대받은 사람은 **참가 기록이 없어** 대시보드로 못
+  들어온다(`canAccess`가 404를 낸다). 합류는 「참가의 한 형태」라 이 화면이 그 자리다.
+
+  모집 아님을 로그인 앞에 두는 이유: 모집도 안 하는데 로그인부터 시키면, 로그인을
+  마친 사람이 "지금은 안 받습니다"를 보게 된다. 상태를 먼저 알리는 편이 맞다.
 
   ⚠️ 접근 판정은 서버에서만 한다(06 §5.2). 폼이 그려졌다는 사실이 권한이 아니며,
   제출은 서버 액션이 모집 기간·동의·중복을 다시 판정한다.
@@ -100,80 +106,25 @@ export default async function ApplyPage({
 
   const existing = await findMyEntry(user.id, season.id);
   if (existing) {
+    /*
+      ② 신청 완료 — 시안 `#scr-apply[data-state="done"]`.
+
+      옛 화면은 접수 내역을 `<dl>`로 늘어놓고 밑에 「운영에 문의」까지 달았다.
+      시안은 ✓ · 제목 · 다음 걸음 한 줄 · 요약 카드 셋 · 대시보드 버튼이 전부다.
+      빠진 값(접수 시각·한 줄 소개·1인 팀 표기)은 ApplyDone 주석에 적어 뒀다.
+    */
+    const nav = await loadPublicNav();
     return (
       <main className={`page ${styles.page}`}>
-        <div className={`container container--narrow grow ${styles.wrap}`}>
-          <div className={styles.head}>
-            <Logo />
-            <h1 className={styles.title}>참가 신청이 접수됐습니다</h1>
-            <p className={styles.lead}>
-              {/*
-                초대 링크를 들고 왔는데 이미 참가 중인 경우다. 이 안내가 없으면
-                코드를 넣을 자리를 찾다가 "왜 합류가 안 되지"로 끝난다 —
-                한 사람이 두 팀에 있을 수 없는 것이 이유다(acceptInvite 주석).
-              */}
-              {inviteCode ? (
-                <span>
-                  이미 참가한 팀이 있어 다른 팀에 합류할 수 없습니다. 팀을
-                  옮기려면 지금 팀에서 나온 뒤 다시 초대를 받아 주세요.
-                </span>
-              ) : null}
-              <span>시즌 시작에 맞춰 진행 안내를 보내드립니다.</span>
-            </p>
-          </div>
-
-          <dl className={styles.receipt}>
-            <dt>팀</dt>
-            <dd>
-              {existing.team.name}
-              {existing.team.isSolo ? " (1인 팀)" : null}
-            </dd>
-            <dt>참가작</dt>
-            <dd>{existing.ideaTitle}</dd>
-            {existing.ideaSummary ? (
-              <>
-                <dt>한 줄 소개</dt>
-                <dd>{existing.ideaSummary}</dd>
-              </>
-            ) : null}
-            <dt>접수 시각</dt>
-            <dd>
-              {/*
-                시각은 분쟁 지점이라 초까지 남긴다. 표시 시간대는 서버 기준이며
-                (Asia/Seoul), 저장은 timestamptz라 시간대가 함께 보존된다.
-              */}
-              {(existing.appliedAt ?? new Date()).toLocaleString("ko-KR", {
-                timeZone: "Asia/Seoul",
-              })}
-            </dd>
-          </dl>
-
-          {/*
-            신청을 마친 사람이 다음에 갈 곳은 대시보드다. 여기서 잇지 않으면
-            주소를 외우지 않는 한 자기 진도로 돌아올 길이 없다 — 헤더에도
-            푸터에도 대시보드 링크가 없기 때문이다.
-
-            8/13에는 "없는 링크를 걸면 404가 되므로 문장으로만 안내한다"고
-            적혀 있었다. 그때는 대시보드가 없었고, DEV4에서 들어왔다.
-          */}
-          <div className={styles.actions}>
-            <LinkButton href="/dashboard" size="lg">
-              대시보드로 이동
-            </LinkButton>
-            <span className={styles.actionsNote}>
-              팀 구성과 측정 연동부터 하면 됩니다.
-            </span>
-          </div>
-
-          <p className={styles.note}>
-            참가작 정보를 고쳐야 하면 운영에 문의해 주세요. 팀 이름과 팀원은{" "}
-            <Link href="/dashboard/team" className={styles.noteLink}>
-              팀 관리
-            </Link>
-            에서 직접 바꿀 수 있습니다.
-          </p>
+        <NavBar {...nav} />
+        <div className={`${styles.apWrap} grow`}>
+          <ApplyDone
+            teamName={existing.team.name}
+            ideaTitle={existing.ideaTitle}
+            /* 초대 코드를 들고 왔는데 이미 참가 중이면 그 사유를 말한다 */
+            inviteConflict={inviteCode ? true : undefined}
+          />
         </div>
-        <Footer />
       </main>
     );
   }
@@ -229,15 +180,10 @@ export default async function ApplyPage({
     );
   }
 
-  /*
-    이미 팀장인 팀이 있으면 그 이름을 채워둔다(팀은 시즌을 넘어 유지된다).
-    연락처도 이미 받은 값이 있으면 다시 치게 하지 않는다 — 카카오 로그인
-    사용자는 나중에 provider가 준 번호로 미리 채우는 자리가 여기다.
-  */
+  /* 이미 팀장인 팀이 있으면 그 이름을 채워둔다(팀은 시즌을 넘어 유지된다) */
   const profile = await prisma.user.findUnique({
     where: { id: user.id },
     select: {
-      phone: true,
       teamMembers: {
         where: { role: "leader" },
         select: { team: { select: { name: true } } },
@@ -246,24 +192,28 @@ export default async function ApplyPage({
     },
   });
 
+  /*
+    ① 작성 — 시안 `#scr-apply[data-state="form"]`.
+
+    제목과 그 밑 한 줄은 시안이 `.ap-wrap` 직속으로 두므로 폼 바깥인 여기서
+    그린다. 「시즌 1」은 박지 않고 `season.title`을 쓴다.
+
+    ⚠️ 연락처(`users.phone`)를 더는 읽지 않는다 — 시안에 그 칸이 없다
+    (09-21 수연 결정). 근거는 `lib/apply.ts` 머리 주석에 있다.
+  */
+  const nav = await loadPublicNav();
+
   return (
     <main className={`page ${styles.page}`}>
-      <div className={`container container--narrow grow ${styles.wrap}`}>
-        <div className={styles.head}>
-          <Logo />
-          <h1 className={styles.title}>참가 신청</h1>
-          <p className={styles.lead}>
-            <span>{season.title}에 참가할 팀과 참가작을 알려주세요.</span>
-            <span>신청 후에도 시즌 시작 전까지는 내용을 고칠 수 있습니다.</span>
-          </p>
-        </div>
+      <NavBar {...nav} />
+      <div className={`${styles.apWrap} grow`}>
+        <h1>{season.title} 참가 신청</h1>
+        <p className={styles.ss}>
+          아이디어만 있으면 참여할 수 있어요. 5분이면 끝나요.
+        </p>
 
-        <ApplyForm
-          defaultTeamName={profile?.teamMembers[0]?.team.name ?? ""}
-          defaultPhone={profile?.phone ?? ""}
-        />
+        <ApplyForm defaultTeamName={profile?.teamMembers[0]?.team.name ?? ""} />
       </div>
-      <Footer />
     </main>
   );
 }

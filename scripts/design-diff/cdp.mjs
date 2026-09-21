@@ -216,7 +216,9 @@ export async function withPage(fn) {
     },
 
     /**
-     * 셀렉터가 가리키는 요소에 **:hover를 강제로 켠다.** 끄려면 인자 없이 부른다.
+     * 셀렉터가 가리키는 요소에 **의사클래스를 강제로 켠다.** 끄려면 인자 없이 부른다.
+     * 기본은 `:hover`이고, `p.hover(sel, ["focus"])`처럼 다른 것도 줄 수 있다 —
+     * 시안의 `.inp:focus`(라임 테두리 + 링)처럼 focus에만 있는 규칙을 재는 자리다.
      *
      * ⚠️ 프로브가 구조적으로 못 보던 자리다. `getComputedStyle`은 기본 상태만
      * 돌려주므로 `:hover`·`:focus` 규칙을 빠뜨려도 대조가 0건이라고 말한다.
@@ -224,7 +226,7 @@ export async function withPage(fn) {
      *
      * 전이가 있으면 색이 도중에 잡히므로 켠 뒤 settle()을 부른다.
      */
-    async hover(selector) {
+    async hover(selector, pseudo = ["hover"]) {
       await this.send("DOM.enable");
       await this.send("CSS.enable");
       /*
@@ -243,7 +245,7 @@ export async function withPage(fn) {
       });
       if (!nodeId) throw new Error(`hover 대상이 없다: ${selector}`);
       await this.send("CSS.forcePseudoState", {
-        nodeId, forcedPseudoClasses: ["hover"],
+        nodeId, forcedPseudoClasses: pseudo,
       });
       this.hovered = [nodeId];
       await this.settle();

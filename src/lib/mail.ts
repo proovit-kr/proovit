@@ -21,6 +21,18 @@
  * 방식이고 이유도 같다 — **도입 전에는 지금과 똑같이 동작해야 배포가 안전하다.**
  * 사전신청 접수는 메일이 안 나가도 성립한다. 메일 실패로 접수가 깨지면
  * KPI#1의 원천이 사라진다.
+ *
+ * ## 테스트만 막는다
+ *
+ * 개발 서버에서도 **진짜로 나간다**(2026-09-21 수연 지시 — 도달을 봐야 한다).
+ * `.env.development.local`에 키가 들어 있으므로 폼을 누르면 그대로 발송이다.
+ *
+ * ⚠️ 그래서 **팀원 초대 이메일 칸에 아무 주소나 넣지 않는다.** 남의 주소로
+ * 나가면 되돌릴 수 없다. 로컬 시험에는 내가 받을 수 있는 주소만 쓴다.
+ * 끄고 싶은 날은 `MAIL_LIVE=0 npm run dev`.
+ *
+ * 테스트(`NODE_ENV=test`)만은 무엇을 켜도 막는다. 목을 빠뜨린 테스트가 진짜
+ * 메일을 쏘는 길을 남기지 않기 위해서다.
  */
 
 const ENDPOINT = "https://api.resend.com/emails";
@@ -68,6 +80,17 @@ function configured(): boolean {
 }
 
 /**
+ * 진짜로 쏘는 환경인가(머리 주석).
+ *
+ * 테스트만 무조건 막는다 — 목을 빠뜨린 테스트가 진짜 메일을 쏘면 안 된다.
+ * 개발은 키가 있으면 나가고, `MAIL_LIVE=0`으로만 끈다.
+ */
+function live(): boolean {
+  if (process.env.NODE_ENV === "test") return false;
+  return process.env.MAIL_LIVE !== "0";
+}
+
+/**
  * 이행 메일 한 통. 실패해도 예외를 던지지 않는다 — 부르는 쪽의 본래 작업
  * (접수 저장)이 메일 때문에 깨지면 안 된다. 실패는 로그로 남긴다.
  */
@@ -78,6 +101,14 @@ async function send(mail: {
   html: string;
 }): Promise<MailResult> {
   if (!configured()) return { ok: true, skipped: true };
+  if (!live()) {
+    /* 조용히 넘기지 않는다 — 「보낸 줄 알았는데 안 갔다」가 제일 나쁘다 */
+    console.info(
+      `[mail] 발송이 꺼져 있어 보내지 않았습니다 → ${mail.to} / ${mail.subject}` +
+        " (테스트이거나 MAIL_LIVE=0)",
+    );
+    return { ok: true, skipped: true };
+  }
 
   let response: Response;
   try {
@@ -257,6 +288,115 @@ export async function sendLeadWelcome(params: {
   return send({
     to: email,
     subject: `[PROOVIT] ${seasonTitle} 사전 신청이 접수됐어요`,
+    text,
+    html,
+  });
+}
+
+/** 초대 만료일을 한국 시각으로. 메일은 서버 시간대를 믿을 수 없어 못박는다. */
+function kstDate(value: Date): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(value);
+}
+
+/**
+ * 팀원 초대 메일.
+ *
+ * ⚠️ **이행 메일이다.** 초대받았다는 사실과 수락에 필요한 것(코드·링크·기한)만
+ * 담는다. 상금·크레딧 같은 말을 한 줄이라도 넣으면 광고성 정보가 되어
+ * (광고) 표기와 수신동의 요건이 붙는다(머리 주석 구현 규칙 9).
+ *
+ * ⚠️ 수신거부 링크를 달지 않는다. 사전신청 메일과 달리 **우리가 들고 있는
+ * 명단에서 보내는 것이 아니라** 팀장이 적어 준 주소로 한 통 나가는 것이고,
+ * 이 주소는 초대가 끝나면 team_invitations 행에만 남는다. 대신 「모르는
+ * 초대라면 무시하면 된다」를 본문에 둔다 — 받는 사람이 할 수 있는 일이 그것뿐이다.
+ *
+ * ⚠️ 실패해도 던지지 않는다. 부르는 쪽(참가 접수)이 메일 때문에 깨지면 안 된다.
+ */
+export async function sendTeamInvite(params: {
+  email: string;
+  /** 초대한 사람의 닉네임. 실명은 쓰지 않는다 — 메일은 전달되면 그대로 남는다 */
+  inviterNickname: string;
+  teamName: string;
+  ideaTitle: string;
+  seasonTitle: string;
+  code: string;
+  expiresAt: Date;
+}): Promise<MailResult> {
+  const { email, inviterNickname, teamName, ideaTitle, seasonTitle, code } =
+    params;
+  const until = kstDate(params.expiresAt);
+  const url = `${siteUrl()}/apply?invite=${encodeURIComponent(code)}`;
+
+  const text = [
+    `${inviterNickname}님이 ${seasonTitle} 참가 팀 「${teamName}」에 초대했어요.`,
+    "",
+    "아래 링크를 열면 초대 내용을 확인하고 합류할 수 있어요.",
+    url,
+    "",
+    "─────────────",
+    `팀명: ${teamName}`,
+    `참가작: ${ideaTitle}`,
+    `초대 코드: ${code}`,
+    `유효 기한: ${until}까지`,
+    "",
+    "모르는 초대라면 아무것도 하지 않으셔도 돼요. 기한이 지나면 자동으로 만료돼요.",
+    "",
+    "PROOVIT | 운영자: 이윤서 | 문의: help@proovit.kr",
+  ].join("\n");
+
+  const html = shell(`
+          <div style="font-size:17px;font-weight:800;letter-spacing:.06em;color:${INK}">
+            PROO<span style="color:#8fc400">✓</span>IT
+          </div>
+
+          <h1 style="margin:26px 0 0;font-size:21px;line-height:1.45;font-weight:800;color:${INK}">
+            ${inviterNickname}님이<br>팀에 초대했어요.
+          </h1>
+          <p style="margin:14px 0 0;font-size:15px;line-height:1.75;color:${MUTED}">
+            ${seasonTitle}에 함께 나갈 팀원으로 초대받았어요.
+            아래 버튼을 눌러 초대 내용을 확인해 주세요.
+          </p>
+
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                 style="margin:28px 0 0;border-top:1px solid ${LINE};border-bottom:1px solid ${LINE}">
+            <tr><td style="padding:10px 0">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${row("팀명", teamName)}
+                ${row("참가작", ideaTitle)}
+                ${row("초대 코드", code)}
+                ${row("유효 기한", `${until}까지`)}
+              </table>
+            </td></tr>
+          </table>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 0">
+            <tr><td style="border-radius:10px;background:${INK}">
+              <a href="${url}"
+                 style="display:inline-block;padding:13px 22px;font-size:14px;font-weight:700;
+                        color:#ffffff;text-decoration:none;border-radius:10px;border:1px solid ${INK}">
+                초대 확인하고 합류하기
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:12px 0 0;font-size:12px;line-height:1.7;color:${MUTED}">
+            모르는 초대라면 아무것도 하지 않으셔도 돼요. 기한이 지나면 자동으로 만료돼요.
+          </p>
+
+          <p style="margin:30px 0 0;padding-top:18px;border-top:1px solid ${LINE};
+                    font-size:12px;line-height:1.8;color:${MUTED}">
+            PROOVIT &nbsp;|&nbsp; 운영자: 이윤서 &nbsp;|&nbsp;
+            문의: <a href="mailto:help@proovit.kr" style="color:${MUTED}">help@proovit.kr</a><br>
+            <span style="color:#98a0ad">© 2026 PROOVIT</span>
+          </p>`);
+
+  return send({
+    to: email,
+    subject: `[PROOVIT] ${inviterNickname}님이 「${teamName}」 팀에 초대했어요`,
     text,
     html,
   });
