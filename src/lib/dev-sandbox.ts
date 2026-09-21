@@ -109,7 +109,8 @@ export type SandboxTeam = {
   /* 아래 둘은 허브 줄이 「지금 어느 판인가」를 되짚는 데 쓴다 */
   solo: boolean;
   verified: boolean;
-  /* 어느 시즌의 기록인가 — 바가 「지금 시즌」에 기록이 없을 때 되짚어 찾는다 */
+  /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
+  teamId: string;
   seasonId: string;
   seasonCreatedAt: Date;
 };
@@ -147,6 +148,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
         hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
         team: {
           select: {
+            id: true,
             name: true,
             isSolo: true,
             members: {
@@ -199,6 +201,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
         verified:
           entry.hostname?.deployStatus === DeployStatus.active &&
           entry.hostname.ownershipVerifiedAt !== null,
+        teamId: entry.team.id,
         seasonId: entry.season.id,
         seasonCreatedAt: entry.season.createdAt,
       },

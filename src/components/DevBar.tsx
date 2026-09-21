@@ -132,22 +132,25 @@ export async function DevBar() {
       ? await findParkedEntry({ userId: user.id, seasonId: state.season.id })
       : null;
   /*
-    그래도 없으면 **그 사람이 팀장인 기록 중 가장 앞 시즌 것**이다 — h17이
-    다음 시즌을 깨우면 「지금 시즌」이 그쪽이 되어 이번 시즌 기록이 없어지는데,
-    바는 시즌 1의 기록을 계속 잡고 있어야 다른 판으로 돌아올 수 있다. 판은
-    언제나 그 기록의 시즌에 만들어진다(`setSandboxHub`).
+    판을 앉힐 기록은 **그 팀의 가장 앞 시즌 기록**이다 — 목 데이터는 시즌 1이
+    정본이고 시즌 2는 h17이 깨우는 「다음 시즌」이다. 화면이 보는 기록(지금
+    시즌 것)을 그대로 잡으면, 시즌 2가 열린 뒤 「참가팀 있음」 등으로 거기
+    기록이 생겼을 때 그 기록에 판을 앉혀 시즌 3·4가 생겼다(2026-09-21).
+    팀은 화면이 보는 팀이고(한 사람이 여러 팀 팀장일 수 있다), 없으면 자리가
+    비어 있는 팀, 그것도 없으면 그 사람이 팀장인 아무 팀이다.
   */
-  const mine = user
-    ? [...state.teams]
-        .filter((team) => team.userId === user.id)
-        .sort((a, b) => a.seasonCreatedAt.getTime() - b.seasonCreatedAt.getTime())
-    : [];
-  const current =
+  const seen =
     state.teams.find(
       (team) => team.entryId === (viewer.entry?.id ?? parkedEntryId),
-    ) ??
-    mine[0] ??
-    null;
+    ) ?? null;
+  const mine = user
+    ? [...state.teams]
+        .filter((team) =>
+          seen ? team.teamId === seen.teamId : team.userId === user.id,
+        )
+        .sort((a, b) => a.seasonCreatedAt.getTime() - b.seasonCreatedAt.getTime())
+    : [];
+  const current = mine[0] ?? null;
   /* 지금 눌린 버튼 — DB 상태를 시안 목록의 한 줄로 되짚는다 */
   const hubKey =
     current && state.season
