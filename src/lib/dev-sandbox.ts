@@ -109,6 +109,8 @@ export type SandboxTeam = {
   /* 아래 둘은 허브 줄이 「지금 어느 판인가」를 되짚는 데 쓴다 */
   solo: boolean;
   verified: boolean;
+  /** 팀원 수. 「팀원」 줄이 1인·2인 중 어느 쪽이 눌렸는지 되짚는 데 쓴다 */
+  members: number;
   /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
   teamId: string;
   seasonId: string;
@@ -156,6 +158,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
               take: 1,
               select: { userId: true },
             },
+            _count: { select: { members: true } },
           },
         },
       },
@@ -198,6 +201,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
         stage: entry.stage,
         status: entry.status,
         solo: entry.team.isSolo,
+        members: entry.team._count.members,
         verified:
           entry.hostname?.deployStatus === DeployStatus.active &&
           entry.hostname.ownershipVerifiedAt !== null,
@@ -451,6 +455,58 @@ export async function setSandboxPhase(args: {
   — 팀은 시즌을 넘어 유지된다는 apply-store.ts의 규칙과 같다.
 */
 const parkedEmail = (userId: string) => `devbar-parked-${userId}@example.com`;
+
+/** 「팀원」 줄이 2인 팀을 만들 때 앉히는 개발용 팀원. 한 계정을 돌려 쓴다 */
+const MATE_EMAIL = "devbar-mate@example.com";
+
+/**
+ * 팀원 수를 1인·2인으로 맞춘다 — 팀 관리 화면의 두 판(개인 참가·2인 팀)을
+ * 보려고 쓴다.
+ *
+ * 2인은 개발용 팀원 계정을 `member`로 앉히고, 1인은 **팀장이 아닌 팀원을 전부
+ * 뺀다**(개발용 계정이든 초대로 들어온 계정이든). 살아 있는 초대는 건드리지
+ * 않는다 — 2인이 되면 팀 관리 화면이 초대 상자를 안 그리고, 다시 1인이 되면
+ * 그 초대가 그대로 「초대 대기」로 돌아온다.
+ *
+ * `isSolo`는 손대지 않는다. 그 값은 「팀 구성 완료」 표시라 허브 판(h1 등)이
+ * 읽는데, 이 줄은 인원만 바꾸는 줄이다.
+ */
+export async function setSandboxTeamSize(args: {
+  teamId: string;
+  size: 1 | 2;
+}): Promise<void> {
+  assertSandbox();
+  const { teamId, size } = args;
+
+  await prisma.$transaction(async (tx) => {
+    if (size === 1) {
+      await tx.teamMember.deleteMany({
+        where: { teamId, role: { not: MemberRole.leader } },
+      });
+      return;
+    }
+
+    const count = await tx.teamMember.count({ where: { teamId } });
+    if (count >= 2) return;
+
+    const mate = await tx.user.upsert({
+      where: { email: MATE_EMAIL },
+      update: {},
+      create: {
+        email: MATE_EMAIL,
+        name: "[개발용] 팀원",
+        nickname: "[개발용] 팀원",
+        onboardedAt: new Date(),
+      },
+      select: { id: true },
+    });
+    await tx.teamMember.upsert({
+      where: { teamId_userId: { teamId, userId: mate.id } },
+      update: { role: MemberRole.member },
+      create: { teamId, userId: mate.id, role: MemberRole.member },
+    });
+  });
+}
 
 export async function hasSandboxTeam(args: {
   userId: string;

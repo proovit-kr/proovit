@@ -10,6 +10,7 @@ import {
   devSetHub,
   devSetStatus,
   devSetTeam,
+  devSetTeamSize,
 } from "@/app/actions/dev";
 
 import styles from "./DevBar.module.css";
@@ -52,6 +53,9 @@ type Team = {
   ideaTitle: string;
   stage: string;
   status: string;
+  /** 팀원 수. 「팀원」 줄의 1인·2인 */
+  members: number;
+  teamId: string;
 };
 
 type Option<T extends string> = { value: T; label: string };
@@ -400,6 +404,41 @@ export function DevBarClient({
                     {pick.label}
                   </PickButton>
                 ))
+              )}
+            </div>
+          </div>
+
+          {/*
+            ── 팀원 ──────────────────────────────────────────
+            팀 관리 화면의 두 판(시안 ① 2인 팀 · ② 개인 참가)을 보는 줄.
+            2인은 「[개발용] 팀원」 계정을 앉히고, 1인은 팀장 아닌 팀원을 뺀다.
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              팀원
+              <em className={styles.hint}>팀 관리 ①②</em>
+            </span>
+            <div className={styles.picks}>
+              {current ? (
+                [
+                  { size: 1, label: "1인" },
+                  { size: 2, label: "2인" },
+                ].map((pick) => (
+                  <PickButton
+                    key={pick.size}
+                    action={devSetTeamSize}
+                    fields={{ teamId: current.teamId, size: String(pick.size) }}
+                    active={
+                      pick.size === 1
+                        ? current.members < 2
+                        : current.members >= 2
+                    }
+                  >
+                    {pick.label}
+                  </PickButton>
+                ))
+              ) : (
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
               )}
             </div>
           </div>

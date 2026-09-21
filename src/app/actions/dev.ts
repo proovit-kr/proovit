@@ -18,6 +18,7 @@ import {
   setSandboxStage,
   setSandboxStatus,
   setSandboxTeam,
+  setSandboxTeamSize,
   setMetricsFixture,
   type HubKey,
   type MetricsFixture,
@@ -154,6 +155,19 @@ export async function devSetTeam(formData: FormData): Promise<void> {
   if (!user) throw new Error("[dev] 로그인한 계정이 없습니다.");
 
   await setSandboxTeam({ userId: user.id, seasonId, on: raw === "1" });
+  refresh();
+}
+
+/** 팀원 수 1인·2인 — 팀 관리 화면의 두 판을 보는 줄 */
+export async function devSetTeamSize(formData: FormData): Promise<void> {
+  guard();
+
+  const teamId = String(formData.get("teamId") ?? "");
+  const raw = String(formData.get("size") ?? "");
+  if (!teamId || (raw !== "1" && raw !== "2")) {
+    throw new Error("[dev] teamId·size가 잘못됐습니다.");
+  }
+  await setSandboxTeamSize({ teamId, size: raw === "1" ? 1 : 2 });
   refresh();
 }
 
