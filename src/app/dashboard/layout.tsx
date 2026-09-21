@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { EntryStage } from "@/generated/prisma/enums";
+import { EntryStage, EntryStatus } from "@/generated/prisma/enums";
 
 import { DashboardTop } from "@/components/DashboardTop";
 import { Footer } from "@/components/Footer";
@@ -36,7 +36,36 @@ import styles from "./dashboard.module.css";
   요청당 DB는 한 번만 읽는다.
 */
 
-type NavItem = { href: string; label: string; activePrefix?: string };
+type NavItem = {
+  href: string;
+  label: string;
+  activePrefix?: string;
+  off?: "dim" | "strike";
+};
+
+/*
+  생존 상태에 따라 닫히는 항목 — 시안 `#scr-hub[data-side]`(370행).
+    탈락  스테이지 제출·내 지표에 줄을 긋는다 — 더 낼 것도 쌓일 것도 없다
+    실격  허브·소명만 남긴다 — 열린 길이 소명뿐이다(허브 h14의 말 그대로)
+  (2026-09-21 수연 지시 — 「게이트 미제출일 때 사이드바에 비활성 메뉴들 있어야」)
+*/
+function closeFor(items: NavItem[], status?: EntryStatus): NavItem[] {
+  if (status === EntryStatus.eliminated) {
+    const struck = new Set(["/dashboard/metrics"]);
+    return items.map((item) =>
+      struck.has(item.href) || item.activePrefix === "/dashboard/submit"
+        ? { ...item, off: "strike" }
+        : item,
+    );
+  }
+  if (status === EntryStatus.disqualified) {
+    const open = new Set(["/dashboard", "/dashboard/appeal"]);
+    return items.map((item) =>
+      open.has(item.href) ? item : { ...item, off: "dim" },
+    );
+  }
+  return items;
+}
 
 /*
   「스테이지 제출」이 가리킬 곳 — **지금 낼 스테이지**다.
@@ -125,7 +154,11 @@ export default async function DashboardLayout({
 
       <div className={styles.db}>
         <SideNav
-          groups={viewer.entry ? [{ items }, HOLD] : [{ items: items.slice(0, 1) }]}
+          groups={
+            viewer.entry
+              ? [{ items: closeFor(items, viewer.entry.status) }, HOLD]
+              : [{ items: items.slice(0, 1) }]
+          }
           label="대시보드"
           roots={["/dashboard"]}
         />

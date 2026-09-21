@@ -31,6 +31,12 @@ export type SideNavItem = {
     켜져 있어야 한다.
   */
   activePrefix?: string;
+  /*
+    닫힌 항목 — 시안 `#scr-hub[data-side]`의 두 모양. 탈락(`elim`)은 제출·내
+    지표를 **줄을 그어** 닫고, 실격(`dq`)은 허브·소명 빼고 전부 **흐리게만**
+    닫는다. 둘 다 누를 수 없다(`pointer-events:none`)라 링크를 만들지 않는다.
+  */
+  off?: "dim" | "strike";
 };
 
 export type SideNavGroup = {
@@ -73,7 +79,15 @@ export function SideNav({
           ) : null}
 
           {group.items.map((item) =>
-            item.hold ? (
+            item.off ? (
+              <span
+                key={item.href}
+                className={`${styles.item} ${styles.off}${item.off === "strike" ? ` ${styles.strike}` : ""}`}
+                aria-disabled
+              >
+                {item.label}
+              </span>
+            ) : item.hold ? (
               <span key={item.href} className={styles.hold} aria-disabled>
                 {item.label}
                 <small>{item.hold}</small>
