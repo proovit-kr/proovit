@@ -187,7 +187,10 @@ async function stageDraft(entryId: string, stageKey: StageKey) {
   });
 }
 
-async function stageDueAt(
+/**
+ * 그 스테이지의 마감. 참가 기록이 없는 화면(시안 h10)도 이것만 따로 읽는다.
+ */
+export async function stageDueAt(
   seasonId: string,
   stageKey: StageKey,
 ): Promise<Date | null> {

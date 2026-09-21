@@ -33,6 +33,7 @@ import {
   setSandboxHub,
   setSandboxStage,
   sleepNextSeason,
+  unparkTeam,
   type HubKey,
 } from "../../src/lib/dev-sandbox";
 import { devToday, setDevToday } from "../../src/lib/dev-clock";
@@ -64,23 +65,28 @@ const entry = await prisma.entry.findFirstOrThrow({
     stage: true,
     status: true,
     teamId: true,
-    team: {
-      select: {
-        isSolo: true,
-        members: {
-          where: { role: "leader" },
-          take: 1,
-          select: { userId: true },
-        },
-      },
-    },
+    team: { select: { isSolo: true } },
     hostname: {
       select: { deployStatus: true, ownershipVerifiedAt: true },
     },
   },
 });
 
-const leader = entry.team?.members[0]?.userId;
+/*
+  ⚠️ **팀장을 읽기 전에 보관을 푼다.** 지각 참가(h10)는 그 사람의 참가 자리를
+  보관 계정으로 옮겨 두는데(「참가팀 없음」과 같은 일), 그 상태로 다음 판을
+  만들면 **팀장이 보관 계정으로 읽혀** 세션이 엉뚱한 사람으로 열린다 —
+  화면이 계속 「참가 기록 없음」이라 다음 판이 통째로 안 뜬다(09-21에 대조
+  가드가 잡았다: 「구현본이 late을 그린다 — h11는 missed여야 한다」).
+*/
+await unparkTeam(entry.teamId);
+
+const leader = (
+  await prisma.teamMember.findFirst({
+    where: { teamId: entry.teamId, role: "leader" },
+    select: { userId: true },
+  })
+)?.userId;
 if (!leader) throw new Error(`[hub-state] ${TEAM} 팀장을 못 찾았다`);
 
 /*

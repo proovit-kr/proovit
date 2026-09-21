@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { StageKey } from "@/generated/prisma/enums";
 import { Badge } from "@/components/Badge";
 import { Button, LinkButton } from "@/components/Button";
 import { Countdown } from "@/components/Countdown";
@@ -29,11 +30,12 @@ import {
   hasPastEntry,
   loadHub,
   loadHubAxes,
+  stageDueAt,
   type HubStep,
   type HubView,
 } from "@/lib/hub-read";
 import { resolveHubPane } from "@/lib/hub-state";
-import { isRecruiting } from "@/lib/season-phase";
+import { isRacing, isRecruiting } from "@/lib/season-phase";
 
 import { CopyLink } from "./CopyLink";
 import styles from "./hub.module.css";
@@ -82,14 +84,22 @@ export default async function Page() {
     그대로 그리고, 팀을 만드는 곳(참가 신청)으로 보낸다.
   */
   if (!viewer.season || !viewer.entry) {
-    if (!viewer.season || !isRecruiting(viewer.season.phase)) return <NoEntry />;
+    if (!viewer.season) return <NoEntry />;
+    const { phase, id, title } = viewer.season;
+    /*
+      레이스가 시작된 뒤에 온 사람 — **시안 h10**. 아직 팀이 없어 온보딩을
+      이제부터 해야 한다(2026-09-21 수연 지시). 모집 중의 같은 사람은 h1이고
+      (아래), 갈리는 것은 페이즈다.
+    */
+    if (isRacing(phase)) return <Late seasonId={id} />;
+    if (!isRecruiting(phase)) return <NoEntry />;
     /*
       지난 시즌에 참가했던 사람이면 시안 h17이다 — 다음 시즌이 열리는 순간
       그쪽이 「지금 시즌」이 되어(`getCurrentSeason`) 이번 시즌 참가 기록이
       없는 사람이 된다.
     */
-    if (viewer.user && (await hasPastEntry(viewer.user.id, viewer.season.id))) {
-      return <NextSeason title={viewer.season.title} />;
+    if (viewer.user && (await hasPastEntry(viewer.user.id, id))) {
+      return <NextSeason title={title} />;
     }
     return <Onboarding />;
   }
@@ -142,14 +152,7 @@ export default async function Page() {
 function Warn({ view }: { view: HubView }) {
   switch (view.pane) {
     case "late":
-      return (
-        <div className={`${styles.wbar} ${styles.wbarWarn}`}>
-          <Icon name="warn" fixed />{" "}
-          {view.dueAt
-            ? `${HUB_WBAR.late.head}(${fmtMDHM(view.dueAt)})${HUB_WBAR.late.tail}`
-            : `${HUB_WBAR.late.head}${HUB_WBAR.late.tail}`}
-        </div>
-      );
+      return <LateBar dueAt={view.dueAt} />;
 
     case "missed":
       return (
@@ -177,6 +180,18 @@ function Warn({ view }: { view: HubView }) {
     default:
       return null;
   }
+}
+
+/** 시안 h10의 경고줄. 참가 기록이 있든 없든 같은 한 줄이다 */
+function LateBar({ dueAt }: { dueAt: Date | null }) {
+  return (
+    <div className={`${styles.wbar} ${styles.wbarWarn}`}>
+      <Icon name="warn" fixed />{" "}
+      {dueAt
+        ? `${HUB_WBAR.late.head}(${fmtMDHM(dueAt)})${HUB_WBAR.late.tail}`
+        : `${HUB_WBAR.late.head}${HUB_WBAR.late.tail}`}
+    </div>
+  );
 }
 
 /* ── 판별로 다른 속 ────────────────────────────────────── */
@@ -590,6 +605,34 @@ function Onboarding() {
         ]}
       />
       <Hero act={{ ...HUB_ACT.onboardingTeam, href: "/apply" }} />
+    </section>
+  );
+}
+
+/*
+  레이스가 시작된 뒤에 온 사람 — **시안 h10**. 아직 팀이 없어 온보딩을 이제부터
+  해야 하고, 그래도 s1 마감은 남들과 같다는 것이 이 화면의 말이다.
+
+  ⚠️ **버튼만 `/apply`로 간다**(h1의 참가 기록 없음과 같은 사정) — 팀을 만드는
+  곳이 참가 신청 폼이라서다. ⚠️ 지금 `/apply`는 **모집 구간에서만 열린다**
+  (`access-policy.ts`) — 레이스 중에 늦게 받아 줄 것인지는 정해진 바가 없다.
+*/
+async function Late({ seasonId }: { seasonId: string }) {
+  const head = HUB_HEAD.late;
+  return (
+    <section data-probe="hub" data-pane="late">
+      <LateBar dueAt={await stageDueAt(seasonId, StageKey.s1)} />
+      <h2 className={styles.h1}>{head.title}</h2>
+      {/* 시안 h10은 칩이 없다 — 경고줄이 이미 급하다고 말했다 */}
+      <GoldenPath
+        title={HUB_ONBOARDING.title}
+        numbered
+        steps={[
+          { label: HUB_ONBOARDING.items[0], state: "now" },
+          { label: HUB_ONBOARDING.items[1], state: "wait" },
+        ]}
+      />
+      <Hero act={{ ...HUB_ACT.late, href: "/apply" }} />
     </section>
   );
 }

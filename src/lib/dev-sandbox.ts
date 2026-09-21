@@ -1074,6 +1074,12 @@ type HubPlan = {
   /** 다음 시즌을 모집 중으로 둔다 */
   nextSeason?: boolean;
   /*
+    로그인한 계정의 참가 자리를 보관 계정으로 옮긴다 — 「참가팀 없음」 줄과
+    같은 일이다(`setSandboxTeam`). 지각 참가(h10)가 그 상태다: 아직 팀이
+    없어서 온보딩을 이제부터 해야 하는 사람이다(2026-09-21 수연 지시).
+  */
+  parked?: boolean;
+  /*
     시안 목업이 그 판에 적어 둔 값. 화면을 시안과 같게 보려고 심는다.
 
     ⚠️ **이것은 화면 검토용 dev 데이터다.** 시안 h3의 「24명」, h4의
@@ -1184,13 +1190,13 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
     },  },
 
   /*
-    h10 지각 참가 — 온보딩이 안 끝났는데 s1이 이미 열려 있다.
-    h1과 갈리는 것은 페이즈뿐이다(모집 중 → 레이스).
+    h10 지각 참가 — 레이스가 시작된 뒤에 온 사람이라 **참가팀이 아직 없다**
+    (2026-09-21 수연 지시). h1과 갈리는 것은 페이즈다(모집 중 → 레이스).
   */
   h10: {
     label: "10, 지각 참가", group: "예외",
     phase: SeasonPhase.racing, stage: EntryStage.applied,
-    solo: false, verified: false, raceStage: StageKey.s1,
+    solo: false, verified: false, raceStage: StageKey.s1, parked: true,
   },
   /* h11 게이트 미제출 탈락 — 마감이 지나도록 s2를 안 냈다 */
   h11: {
@@ -1407,6 +1413,12 @@ export async function setSandboxHub(args: {
   if (plan.spec) await setSpec(entryId, seasonId, plan.spec);
 
   if (plan.nextSeason) await ensureNextSeason(seasonId);
+
+  /*
+    ⚠️ **자리를 비우는 것은 맨 마지막이다.** 위의 모든 단계가 그 팀의 참가
+    기록을 재료로 쓰는데(진도·제출·집계), 먼저 비우면 손댈 자리가 없어진다.
+  */
+  if (plan.parked) await setSandboxTeam({ userId, seasonId, on: false });
 }
 
 /**
@@ -1447,7 +1459,7 @@ export function matchHubKey(now: {
  * 보관 계정의 메일이 `devbar-parked-<원래 userId>@example.com`이라 주인을
  * 되찾을 수 있다. 보관이 겹쳐 쌓였을 수도 있어(보관의 보관) 체인을 푼다.
  */
-async function unparkTeam(teamId: string): Promise<void> {
+export async function unparkTeam(teamId: string): Promise<void> {
   const prefix = "devbar-parked-";
   for (let round = 0; round < 5; round++) {
     const sitting = await prisma.teamMember.findMany({
