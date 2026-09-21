@@ -16,6 +16,7 @@ import {
   HUB_LOCK,
   HUB_NO_ENTRY,
   HUB_ONBOARDING,
+  HUB_STEP_CHIP,
 } from "@/content/hub";
 import { guardPage, isOnboardingComplete, type ViewerState } from "@/lib/access";
 import { resolveDashboardState } from "@/lib/dashboard-state";
@@ -65,10 +66,12 @@ export default async function Page() {
 
   /*
     **참가 기록이 없어도 여기까지 온다**(access-policy의 `dashboard` 주석).
-    대시보드가 온보딩의 출발점이라 404로 막지 않고 신청으로 이어 준다.
+    대시보드가 온보딩의 출발점이라 404로 막지 않는다 — 모집 중이면 시안 h1을
+    그대로 그리고, 팀을 만드는 곳(참가 신청)으로 보낸다.
   */
   if (!viewer.season || !viewer.entry) {
-    return <NoEntry recruiting={!!viewer.season && isRecruiting(viewer.season.phase)} />;
+    if (!viewer.season || !isRecruiting(viewer.season.phase)) return <NoEntry />;
+    return <Onboarding />;
   }
 
   const { season, entry, onboarding } = viewer;
@@ -351,11 +354,42 @@ function Body({ view }: { view: HubView }) {
 }
 
 /*
-  아직 신청하지 않은 사람 — 시안에 없는 판이다(content/hub.ts 주석).
-  모집 중이면 신청으로 보내고, 아니면 기다릴 곳을 알려준다.
+  아직 신청하지 않은 사람 — **시안 h1을 그대로 그린다**(2026-09-21 수연 지시).
+  대시보드가 온보딩의 출발점이라 여기서 팀 구성이 시작된다.
+
+  ⚠️ **버튼만 `/apply`로 간다.** 팀을 만드는 곳이 참가 신청 폼이고(팀명·혼자
+  참가·초대 메일이 거기 있다), 참가 기록이 없으면 팀 관리는 404다.
 */
-function NoEntry({ recruiting }: { recruiting: boolean }) {
-  const copy = recruiting ? HUB_NO_ENTRY.open : HUB_NO_ENTRY.closed;
+function Onboarding() {
+  const head = HUB_HEAD.onboarding;
+  return (
+    <section data-probe="hub" data-pane="onboarding">
+      <h2 className={styles.h1}>{head.title}</h2>
+      <p className={styles.sub}>{head.sub}</p>
+      <GoldenPath
+        title={HUB_ONBOARDING.title}
+        numbered
+        steps={[
+          {
+            label: HUB_ONBOARDING.items[0],
+            state: "now",
+            chip: HUB_STEP_CHIP.now,
+          },
+          {
+            label: HUB_ONBOARDING.items[1],
+            state: "wait",
+            chip: HUB_STEP_CHIP.wait,
+          },
+        ]}
+      />
+      <Hero act={{ ...HUB_ACT.onboardingTeam, href: "/apply" }} />
+    </section>
+  );
+}
+
+/* 모집이 아니라 신청 자체가 닫혀 있을 때. 시안에 없는 판이다 */
+function NoEntry() {
+  const copy = HUB_NO_ENTRY.closed;
   return (
     <section data-probe="hub" data-pane="none">
       <h2 className={styles.h1}>{copy.title}</h2>
