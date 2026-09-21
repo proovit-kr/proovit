@@ -260,7 +260,12 @@ function submittedStages(stage: EntryStage): StageKey[] {
   return keys.slice(0, Math.max(0, index));
 }
 
-function devPayload(key: StageKey): Prisma.InputJsonObject {
+/*
+  ⚠️ `host`를 받는 이유: **s2의 랜딩 주소는 팀마다 다르다.** 시안 h4가
+  「랜딩 주소 little-potion.proovit.kr」을 그리는 자리라, 없으면 화면에 「—」가
+  남는다. 팀의 측정 주소를 그대로 쓴다.
+*/
+function devPayload(key: StageKey, host: string | null): Prisma.InputJsonObject {
   switch (key) {
     case StageKey.s1:
       return {
@@ -281,8 +286,15 @@ function devPayload(key: StageKey): Prisma.InputJsonObject {
         aiFeature: false,
         aiChecks: Array.from({ length: 5 }, () => false),
       };
+    case StageKey.s2:
+      return {
+        landingUrl: host ? `https://${host}` : "",
+        channels: ["[개발용] 스레드"],
+        postUrl: "https://example.com/dev-post",
+        guideChecks: [true, true, true],
+      };
     default:
-      /* s2·s4·s5는 아직 폼이 없다. 자리만 채워 「냈다」가 성립하게 한다 */
+      /* s4·s5는 아직 폼이 없다. 자리만 채워 「냈다」가 성립하게 한다 */
       return { note: "[개발용] 개발자 도구가 만든 제출물" };
   }
 }
@@ -297,6 +309,14 @@ export async function setSandboxStage(args: {
 
   const needed = submittedStages(stage);
   const now = new Date();
+  /* s2 제출의 랜딩 주소가 될 값 — 없으면 빈 칸으로 둔다(지어내지 않는다) */
+  const site = await prisma.entry.findUnique({
+    where: { id: entryId },
+    select: { serviceUrl: true, hostname: { select: { hostname: true } } },
+  });
+  const host =
+    site?.hostname?.hostname ??
+    (site?.serviceUrl ? new URL(site.serviceUrl).host : null);
 
   await prisma.$transaction(async (tx) => {
     await tx.entry.update({ where: { id: entryId }, data: { stage } });
@@ -312,13 +332,18 @@ export async function setSandboxStage(args: {
           stageKey,
           week: 0,
           status: SubmissionStatus.submitted,
-          payload: devPayload(stageKey),
+          payload: devPayload(stageKey, host),
           submittedBy: userId,
           submittedAt: now,
         },
         update: {
           status: SubmissionStatus.submitted,
           submittedAt: now,
+          /*
+            ⚠️ payload도 다시 쓴다. 안 그러면 전에 만들어 둔 것이 남아
+            s2의 랜딩 주소가 빈 채로 굳는다(2026-09-21).
+          */
+          payload: devPayload(stageKey, host),
         },
       });
     }
@@ -1042,6 +1067,15 @@ type HubPlan = {
   /** 다음 시즌을 모집 중으로 둔다 */
   nextSeason?: boolean;
   /*
+    시안 목업이 그 판에 적어 둔 값. 화면을 시안과 같게 보려고 심는다.
+
+    ⚠️ **이것은 화면 검토용 dev 데이터다.** 시안 h3의 「24명」, h4의
+    「방문자 471 · 사전 신청자 24 · 전환율 5.1%」가 그 출처이고 24/471이 실제로
+    5.1%다. 운영에서는 엣지가 센 값만 들어온다.
+  */
+  leads?: number;
+  visitors?: number;
+  /*
     개발 바의 「진도」 줄에 버튼을 두는가. 기본은 둔다.
 
     ⚠️ **다른 줄이 이미 만드는 판은 뺐다**(2026-09-21 수연 결정).
@@ -1070,13 +1104,14 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
   h3: {
     label: "3, s2 진행 중", group: "정상 흐름", inBar: false,
     phase: SeasonPhase.racing, stage: EntryStage.s1,
-    solo: true, verified: true, raceStage: StageKey.s2,
+    solo: true, verified: true, raceStage: StageKey.s2, leads: 24,
     draft: { stageKey: StageKey.s2, payload: { guideChecks: [true, false, false] } },
   },
   h4: {
     label: "4, 1차 심사 대기", group: "정상 흐름",
     phase: SeasonPhase.racing, stage: EntryStage.s2,
     solo: true, verified: true, raceStage: StageKey.s2,
+    leads: 24, visitors: 471,
   },
   h5: {
     label: "5, s3 빌드와 배포", group: "정상 흐름", inBar: false,
@@ -1214,6 +1249,8 @@ export async function setSandboxHub(args: {
     data: { phase: plan.nextSeason ? SeasonPhase.archived : plan.phase },
   });
   if (!plan.nextSeason) await sleepNextSeason(seasonId);
+  /* ⚠️ 측정 주소를 **먼저** 만든다 — s2 제출의 랜딩 주소가 그 값을 쓴다 */
+  await setHostname(entryId, plan.verified);
   await setSandboxStage({ entryId, stage: plan.stage, userId });
   await prisma.entry.update({
     where: { id: entryId },
@@ -1223,7 +1260,6 @@ export async function setSandboxHub(args: {
     where: { id: entry.teamId },
     data: { isSolo: plan.solo },
   });
-  await setHostname(entryId, plan.verified);
 
   if (plan.draft) {
     await prisma.submission.upsert({
@@ -1293,6 +1329,14 @@ export async function setSandboxHub(args: {
   if (plan.raceStage && plan.phase === SeasonPhase.racing) {
     await setSandboxCurrentStage({ seasonId, stage: plan.raceStage });
   }
+
+  /*
+    ⚠️ **시안 목업 값은 맨 마지막에 심는다.** 위의 집계 픽스처와
+    `setSandboxCurrentStage`가 `metric_daily`를 비우므로, 먼저 넣으면
+    방문자가 도로 0이 된다(2026-09-21).
+  */
+  if (plan.leads !== undefined) await setLeads(entryId, plan.leads);
+  if (plan.visitors !== undefined) await setVisitors(entryId, plan.visitors);
 
   if (plan.nextSeason) await ensureNextSeason(seasonId);
 }
@@ -1464,6 +1508,50 @@ export async function setSandboxPace(args: {
     seasonId,
     userId,
     skipMetrics: true,
+  });
+}
+
+/**
+ * 사전 신청자를 그 수만큼 만든다 — 시안 h3의 칩과 h4의 「사전 신청자」.
+ *
+ * 개발용으로 만든 것만 지우고 다시 넣는다. 인증된 리드여야 점수에 든다.
+ */
+async function setLeads(entryId: string, count: number): Promise<void> {
+  const prefix = "dev-lead-";
+  await prisma.entryLead.deleteMany({
+    where: { entryId, contactHash: { startsWith: prefix } },
+  });
+  if (count <= 0) return;
+  const now = devNow();
+  await prisma.entryLead.createMany({
+    data: Array.from({ length: count }, (_, i) => ({
+      entryId,
+      contactHash: `${prefix}${String(i).padStart(4, "0")}`,
+      verifiedAt: now,
+      sourceHost: "dev",
+    })),
+    skipDuplicates: true,
+  });
+}
+
+/**
+ * 누적 유효 방문을 그 값으로 만든다 — 시안 h4의 「방문자」.
+ *
+ * ⚠️ 하루치 한 행으로 넣는다. 허브가 보는 것은 **합계**뿐이고
+ * (`loadHub`의 `totals`), 일별 모양이 필요한 화면은 `setMetricsFixture`가
+ * 따로 만든다 — 그쪽과 겹치지 않게 **집계 픽스처를 쓰는 판에는 주지 않는다.**
+ */
+async function setVisitors(entryId: string, total: number): Promise<void> {
+  const day = seoulDateOnly(devNow());
+  await prisma.metricDaily.deleteMany({ where: { entryId } });
+  if (total <= 0) return;
+  await prisma.metricDaily.create({
+    data: {
+      entryId,
+      metricDate: day,
+      validVisitors: total,
+      source: MetricSource.manual,
+    },
   });
 }
 

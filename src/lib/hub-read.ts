@@ -266,9 +266,22 @@ export async function loadHub(
       ]);
       /* 리드를 따로 세지 못한 구간에서는 집계된 가입 수가 같은 값을 든다 */
       const applicants = leads || sum.signups;
+      /*
+        시안 h4는 주소를 호스트만 적는다(「little-potion.proovit.kr」). 저장된
+        것은 전체 주소라 여기서 줄인다 — 줄이지 못하면 적힌 그대로 둔다.
+      */
+      const landing = stringField(submission?.payload, "landingUrl");
+      let landingUrl = landing;
+      if (landing) {
+        try {
+          landingUrl = new URL(landing).host;
+        } catch {
+          landingUrl = landing;
+        }
+      }
       return {
         pane,
-        landingUrl: stringField(submission?.payload, "landingUrl"),
+        landingUrl,
         visitors: sum.validVisitors,
         leads: applicants,
         conversion: conversionRate(applicants, sum.validVisitors),
