@@ -56,6 +56,11 @@ export default async function DashboardLayout({
   const flags = viewer.season?.flags;
   const header = await loadDashboardHeader(viewer);
 
+  /*
+    ⚠️ **참가 기록이 없으면 홈만 남긴다.** 나머지 라우트는 전부 `entry: true`라
+    눌러도 404다 — 「꺼진 기능은 링크를 아예 만들지 않는다」(06 §4.4)와 같은
+    이유다. 허브는 그때 신청 안내를 그린다(2026-09-21 수연 지시).
+  */
   const items: NavItem[] = [
     { href: "/dashboard", label: "홈" },
     { href: "/dashboard/team", label: "팀" },
@@ -83,7 +88,7 @@ export default async function DashboardLayout({
 
       <div className={styles.db}>
         <SideNav
-          groups={[{ items }, HOLD]}
+          groups={viewer.entry ? [{ items }, HOLD] : [{ items: items.slice(0, 1) }]}
           label="대시보드"
           roots={["/dashboard"]}
         />

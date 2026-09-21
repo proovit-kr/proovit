@@ -8,13 +8,22 @@ import { Countdown } from "@/components/Countdown";
 import { Icon } from "@/components/Icon";
 import { Card, Chip } from "@/components/Surface";
 import { BLOCKED_COPY } from "@/content/dashboard";
-import { HUB_ACT, HUB_GOLDEN_PATH, HUB_HEAD, HUB_LABEL, HUB_LOCK, HUB_ONBOARDING } from "@/content/hub";
+import {
+  HUB_ACT,
+  HUB_GOLDEN_PATH,
+  HUB_HEAD,
+  HUB_LABEL,
+  HUB_LOCK,
+  HUB_NO_ENTRY,
+  HUB_ONBOARDING,
+} from "@/content/hub";
 import { guardPage, isOnboardingComplete, type ViewerState } from "@/lib/access";
 import { resolveDashboardState } from "@/lib/dashboard-state";
 import { devNow } from "@/lib/dev-clock";
 import { fmtMD, fmtMDHM } from "@/lib/header-state";
 import { loadHub, type HubStep, type HubView } from "@/lib/hub-read";
 import { resolveHubPane } from "@/lib/hub-state";
+import { isRecruiting } from "@/lib/season-phase";
 
 import { CopyLink } from "./CopyLink";
 import styles from "./hub.module.css";
@@ -54,8 +63,13 @@ const UNKNOWN = "—";
 export default async function Page() {
   const { viewer } = await guardPage("dashboard", "/dashboard");
 
-  /* 라우트 정책이 `entry: true`라 없으면 canAccess가 이미 404를 냈다 */
-  if (!viewer.season || !viewer.entry) notFound();
+  /*
+    **참가 기록이 없어도 여기까지 온다**(access-policy의 `dashboard` 주석).
+    대시보드가 온보딩의 출발점이라 404로 막지 않고 신청으로 이어 준다.
+  */
+  if (!viewer.season || !viewer.entry) {
+    return <NoEntry recruiting={!!viewer.season && isRecruiting(viewer.season.phase)} />;
+  }
 
   const { season, entry, onboarding } = viewer;
   const onboardingComplete = isOnboardingComplete(onboarding);
@@ -334,6 +348,29 @@ function Body({ view }: { view: HubView }) {
         </div>
       );
   }
+}
+
+/*
+  아직 신청하지 않은 사람 — 시안에 없는 판이다(content/hub.ts 주석).
+  모집 중이면 신청으로 보내고, 아니면 기다릴 곳을 알려준다.
+*/
+function NoEntry({ recruiting }: { recruiting: boolean }) {
+  const copy = recruiting ? HUB_NO_ENTRY.open : HUB_NO_ENTRY.closed;
+  return (
+    <section data-probe="hub" data-pane="none">
+      <h2 className={styles.h1}>{copy.title}</h2>
+      <p className={styles.sub}>{copy.sub}</p>
+      <div className={`${styles.act} ${styles.hero}`}>
+        <div>
+          <h3>{copy.actTitle}</h3>
+          <p>{copy.actBody}</p>
+        </div>
+        <LinkButton href={copy.href} variant="primary" className={styles.actBtn}>
+          {copy.label}
+        </LinkButton>
+      </div>
+    </section>
+  );
 }
 
 /* ── 조각 ──────────────────────────────────────────────── */
