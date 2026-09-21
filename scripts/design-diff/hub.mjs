@@ -123,14 +123,8 @@ const LIST = {
     ["hb-cd", P("h3") + ".hb-cd", I("cd"), [], ["width"]],
     ["마감 칩", P("h3") + ".act .chip", `${I("actGap")} ${I("selfCenter")}`, [], ["width"]],
     ...GP("h3"), ...HERO("h3"),
-    /*
-      ⚠️ **칩의 font-weight는 재지 않는다.** 시안 h3은 2·3번 칸을 **동시에**
-      `now`로 칠해서 칩이 700을 상속받는다 — 우리는 미체크 중 첫 칸만 `now`라
-      3번이 `wait`다(hub-read.ts `steps` 주석: h1·h2·h5는 순차이고 h3만
-      다르다. 「지금 할 것 하나」에 맞춰 순차로 통일했다).
-    */
     ["gp 칩", P("h3") + ".gp-i .chip", `${I("gpItem")} ${I("rgt")}`, [],
-      ["width", "margin-left", "font-weight"]]],
+      ["width", "margin-left"]]],
   h4: [...HEAD, ...SUM("h4"), ...LOCK("h4")],
   h5: [...HEAD, ...GP("h5"), ...SUM("h5"), ...HERO("h5")],
   h6: [...HEAD,

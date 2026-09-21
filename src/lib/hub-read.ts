@@ -95,17 +95,25 @@ export type HubView =
 /*
   골든패스 칸을 만든다.
 
-  ⚠️ **미체크 중 첫 칸 하나만 `now`다.** 시안 h3은 둘을 동시에 `now`로 칠했지만
-  h1·h2·h5는 순차다 — 목업이 자리마다 손으로 칠린 것이라 규칙이 섞여 있다.
-  「지금 할 것 하나」가 이 화면의 목적이므로(허브 옛 주석) 순차로 통일했다.
+  기본은 **미체크 중 첫 칸 하나만 `now`**다 — 순서가 있는 길이라(만들어야
+  배포한다) 시안 h1·h2·h5가 그렇게 칠려 있다.
+
+  `parallel`을 준 판은 남은 칸이 **함께** 진행 중이다. 시안 h3이 그렇고,
+  「알리기」와 「모으기」가 서로를 부르는 일이라서다(content/hub.ts 주석).
+  **마지막 칸은 제출 그 자체라** 어느 쪽이든 앞이 다 끝나야 `now`가 된다.
 */
 function steps(
   items: { label: string; done: boolean; chip?: string; chipMono?: boolean }[],
+  options: { parallel?: boolean } = {},
 ): HubStep[] {
+  const last = items.length - 1;
+  const restDone = items.slice(0, last).every((item) => item.done);
   let marked = false;
-  return items.map((item) => {
+  return items.map((item, i) => {
     const base = { label: item.label, chip: item.chip, chipMono: item.chipMono };
     if (item.done) return { ...base, state: "done" };
+    if (i === last) return { ...base, state: restDone ? "now" : "wait" };
+    if (options.parallel) return { ...base, state: "now" };
     if (marked) return { ...base, state: "wait" };
     marked = true;
     return { ...base, state: "now" };
@@ -244,7 +252,7 @@ export async function loadHub(
             chipMono: i === 2,
           })),
           { label: gp.last, done: false },
-        ]),
+        ], { parallel: gp.parallel }),
       };
     }
 
