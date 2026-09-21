@@ -128,10 +128,16 @@ const formPairs = () => {
     ["fld(팀명) 라벨", fld(4) + " > label", `${FD("fld")}:has(#teamName) > ${FD("label")}`],
     ["입력(팀명)", fld(4) + " .inp", "#teamName", ["height"]],
 
-    /* ── 혼자 참가 ── */
+    /*
+      ── 혼자 참가 ──
+
+      ⚠️ 체크박스와 라벨의 `cursor`는 재지 않는다. 시안은 둘 다 UA 기본인데
+      우리는 pointer다 — 누를 자리로 읽히게 하려는 수연 결정(2026-09-21,
+      `ApplyForm.module.css`). 줄 상자(`solo`)의 커서는 그대로 잰다.
+    */
     ["solo", S + ".solo-row", AF("soloRow")],
-    ["solo input", S + ".solo-row input", "#isSolo", ["height"]],
-    ["solo label", S + ".solo-row label", AF("soloRow") + " label", [], ["width"]],
+    ["solo input", S + ".solo-row input", "#isSolo", ["height"], ["cursor"]],
+    ["solo label", S + ".solo-row label", AF("soloRow") + " label", [], ["width", "cursor"]],
 
     /* ── 팀원 초대(기본 열림) ── */
     ["invite", S + ".fld.invite", AF("invite")],
