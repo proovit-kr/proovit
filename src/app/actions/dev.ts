@@ -10,12 +10,15 @@ import {
 } from "@/generated/prisma/enums";
 import {
   checkDevSandbox,
+  HUB_PLANS,
   setSandboxCurrentStage,
+  setSandboxHub,
   setSandboxPhase,
   setSandboxStage,
   setSandboxStatus,
   setSandboxTeam,
   setMetricsFixture,
+  type HubKey,
   type MetricsFixture,
 } from "@/lib/dev-sandbox";
 import { getSessionUser } from "@/lib/access";
@@ -91,6 +94,38 @@ export async function devSetStage(formData: FormData): Promise<void> {
   if (!leaderId) throw new Error("[dev] 그 팀에 팀장이 없습니다.");
 
   await setSandboxStage({ entryId, stage, userId: leaderId });
+  refresh();
+}
+
+/**
+ * 허브 한 판 — 시안 `#hubSel`의 한 줄. 진도·페이즈·온보딩·집계·「오늘」을
+ * 한꺼번에 옮긴다(표는 `dev-sandbox.ts`의 `HUB_PLANS`).
+ */
+export async function devSetHub(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const key = String(formData.get("key") ?? "") as HubKey;
+  const seasonId = String(formData.get("seasonId") ?? "");
+  if (!entryId || !seasonId || !HUB_PLANS[key]) {
+    throw new Error("[dev] entryId·seasonId·key가 잘못됐습니다.");
+  }
+
+  /* 제출물의 `submitted_by`는 **그 팀의 팀장**이다(devSetStage와 같은 이유) */
+  const leader = await prisma.entry.findUnique({
+    where: { id: entryId },
+    select: {
+      team: {
+        select: {
+          members: { where: { role: "leader" }, take: 1, select: { userId: true } },
+        },
+      },
+    },
+  });
+  const leaderId = leader?.team.members[0]?.userId;
+  if (!leaderId) throw new Error("[dev] 그 팀에 팀장이 없습니다.");
+
+  await setSandboxHub({ key, entryId, seasonId, userId: leaderId });
   refresh();
 }
 

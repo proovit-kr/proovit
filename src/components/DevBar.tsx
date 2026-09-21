@@ -1,5 +1,4 @@
 import {
-  EntryStage,
   EntryStatus,
   SeasonPhase,
   StageKey,
@@ -8,7 +7,10 @@ import { getSessionUser } from "@/lib/access";
 import {
   checkDevSandbox,
   hasSandboxTeam,
+  HUB_PLANS,
   loadSandboxState,
+  matchHubKey,
+  type HubKey,
 } from "@/lib/dev-sandbox";
 import { devToday } from "@/lib/dev-clock";
 import { hasParkedSession } from "@/lib/dev-session";
@@ -30,15 +32,19 @@ import { DevBarClient } from "./DevBarClient";
   읽는다 — 바에 찍힌 값과 화면이 어긋나면 그 바는 도구가 아니라 함정이 된다.
 */
 
-const STAGES: { value: EntryStage; label: string }[] = [
-  { value: EntryStage.applied, label: "신청" },
-  { value: EntryStage.s1, label: "s1" },
-  { value: EntryStage.s2, label: "s2" },
-  { value: EntryStage.s3, label: "s3" },
-  { value: EntryStage.s4, label: "s4" },
-  { value: EntryStage.s5, label: "s5" },
-  { value: EntryStage.completed, label: "완주" },
-];
+/*
+  진도 줄은 **시안 `#hubSel`의 17종 그대로**다(2026-09-21 수연 지시 —
+  「개발 바에 진도 줄 사진과 동일하게」). 라벨도 시안이 적은 그대로 쓴다.
+
+  한 줄이 진도만 옮기던 때보다 하는 일이 많다 — 페이즈·생존 상태·온보딩·집계·
+  「오늘」을 그 판이 성립하도록 한꺼번에 맞춘다(`HUB_PLANS`). 그래서 이 줄을
+  누르면 아래 다른 줄들의 값도 같이 바뀐다.
+*/
+const HUBS = (Object.keys(HUB_PLANS) as HubKey[]).map((value) => ({
+  value,
+  label: HUB_PLANS[value].label,
+  group: HUB_PLANS[value].group,
+}));
 
 const STATUSES: { value: EntryStatus; label: string }[] = [
   { value: EntryStatus.active, label: "정상" },
@@ -101,6 +107,18 @@ export async function DevBar() {
       : null;
   const current =
     state.teams.find((team) => team.userId === user?.id) ?? null;
+  /* 지금 눌린 버튼 — DB 상태를 시안 목록의 한 줄로 되짚는다 */
+  const hubKey =
+    current && state.season
+      ? matchHubKey({
+          phase: state.season.phase,
+          stage: current.stage,
+          status: current.status,
+          solo: current.solo,
+          verified: current.verified,
+          raceStage: state.season.stage,
+        })
+      : null;
 
   return (
     <DevBarClient
@@ -110,7 +128,8 @@ export async function DevBar() {
       current={current}
       hasTeam={hasTeam}
       season={state.season}
-      stages={STAGES}
+      hubs={HUBS}
+      hubKey={hubKey}
       statuses={STATUSES}
       phases={PHASES}
       raceStages={RACE_STAGES}

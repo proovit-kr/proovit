@@ -28,8 +28,11 @@ import {
 } from "../../src/generated/prisma/enums";
 import {
   checkDevSandbox,
+  HUB_PLANS,
   setMetricsFixture,
+  setSandboxHub,
   setSandboxStage,
+  type HubKey,
 } from "../../src/lib/dev-sandbox";
 import { prisma } from "../../src/lib/prisma";
 
@@ -79,54 +82,10 @@ const leader = entry.team?.members[0]?.userId;
 if (!leader) throw new Error(`[hub-state] ${TEAM} 팀장을 못 찾았다`);
 
 /*
-  판마다 만들 것.
-
-  `solo`는 **팀 구성 완료**를 뜻한다(access.ts: 1인 팀은 신청만으로, 2인 팀은
-  멤버가 둘이어야 완료). dev DB의 이 팀은 2인 팀인데 멤버가 하나라 그대로 두면
-  늘 「팀 구성 미완료」다 — h1이 딱 그 상태이고, 나머지는 solo로 바꿔 넘긴다.
-
-  `verified`는 측정 연동 검증이다. 둘 다 끝나야 온보딩이 완료된다.
+  ⚠️ **판의 표는 여기 없다.** `src/lib/dev-sandbox.ts`의 `HUB_PLANS`가 정본이고
+  개발 바의 「진도」 줄이 같은 표를 쓴다(2026-09-21 수연 지시로 그 줄이 시안
+  `#hubSel` 17종이 됐다). 여기서 또 적으면 바로 갈린다.
 */
-const PLAN: Record<
-  string,
-  {
-    phase: SeasonPhase;
-    stage: EntryStage;
-    solo: boolean;
-    verified: boolean;
-    metrics?: "race" | "final";
-    /*
-      그 스테이지에 심을 임시저장. 골든패스의 ✓가 여기서 나온다 —
-      시안 h2는 셋 중 둘을 끝낸 모양이고, h3·h5는 하나씩이다.
-      안 심으면 전부 미체크라 첫 칸만 `now`인 화면이 된다.
-    */
-    draft?: { stageKey: "s1" | "s2" | "s3"; payload: Record<string, unknown> };
-  }
-> = {
-  /* h1 온보딩 미완료 — 팀도 측정도 아직 */
-  h1: { phase: SeasonPhase.recruiting, stage: EntryStage.applied, solo: false, verified: false },
-  /* h2 s1 제출 전 — 온보딩 완료 */
-  h2: {
-    phase: SeasonPhase.racing, stage: EntryStage.applied, solo: true, verified: true,
-    draft: { stageKey: "s1", payload: { guideChecks: [true, true, false] } },
-  },
-  h3: {
-    phase: SeasonPhase.racing, stage: EntryStage.s1, solo: true, verified: true,
-    draft: { stageKey: "s2", payload: { guideChecks: [true, false, false] } },
-  },
-  h4: { phase: SeasonPhase.racing, stage: EntryStage.s2, solo: true, verified: true },
-  h5: {
-    phase: SeasonPhase.racing, stage: EntryStage.s3, solo: true, verified: true,
-    /* 빌더는 골랐고 배포 주소는 아직 — 시안 h5가 딱 그 모양이다 */
-    draft: { stageKey: "s3", payload: { builder: "claude-code", launchChecks: [], aiChecks: [] } },
-  },
-  /* h6 레이스 — 순위와 증감이 있어야 카드 세 장이 찬다 */
-  h6: { phase: SeasonPhase.racing, stage: EntryStage.s4, solo: true, verified: true, metrics: "race" },
-  /* h7 2차 심사 대기 — 최종 집계가 끝난 상태다 */
-  h7: { phase: SeasonPhase.racing, stage: EntryStage.s5, solo: true, verified: true, metrics: "final" },
-  h8: { phase: SeasonPhase.awarded, stage: EntryStage.completed, solo: true, verified: true, metrics: "final" },
-  h9: { phase: SeasonPhase.archived, stage: EntryStage.completed, solo: true, verified: true, metrics: "final" },
-};
 
 const mode = process.argv[2];
 
@@ -196,72 +155,11 @@ if (mode === "save") {
   console.log(
     `  ${TEAM}: 페이즈 ${season.phase}, 진도 ${entry.stage}, 2인팀 ${!entry.team?.isSolo}`,
   );
-} else if (mode && PLAN[mode]) {
-  const plan = PLAN[mode];
-
-  await prisma.season.update({
-    where: { id: season.id },
-    data: { phase: plan.phase },
-  });
-  /*
-    ⚠️ 진도를 바꾸는 것은 개발 바와 같은 함수다 — 그 진도에 필요한 제출물을
-    채우고 넘치는 것은 지운다. 골든패스의 ✓가 그 제출물의 `guideChecks`에서
-    나오므로, 손으로 entry.stage만 바꾸면 체크가 전부 빈 채로 그려진다.
-  */
-  await setSandboxStage({ entryId: entry.id, stage: plan.stage, userId: leader });
-  await prisma.entry.update({
-    where: { id: entry.id },
-    data: { status: EntryStatus.active },
-  });
-  await prisma.team.update({
-    where: { id: entry.teamId },
-    data: { isSolo: plan.solo },
-  });
-  await prisma.hostname.updateMany({
-    where: { entryId: entry.id },
-    data: {
-      deployStatus: plan.verified ? DeployStatus.active : DeployStatus.pending,
-      ownershipVerifiedAt: plan.verified ? new Date() : null,
-    },
-  });
-  if (plan.draft) {
-    /*
-      ⚠️ `setSandboxStage`가 **진도에 필요한 제출물만 남기고 나머지를 지운다.**
-      그래서 임시저장은 반드시 그 뒤에 심는다.
-    */
-    await prisma.submission.upsert({
-      where: {
-        entryId_stageKey_week: {
-          entryId: entry.id,
-          stageKey: plan.draft.stageKey,
-          week: 0,
-        },
-      },
-      create: {
-        entryId: entry.id,
-        stageKey: plan.draft.stageKey,
-        week: 0,
-        status: "draft",
-        payload: plan.draft.payload as never,
-      },
-      update: { status: "draft", payload: plan.draft.payload as never },
-    });
-  }
-  if (plan.metrics) {
-    /* 픽스처가 리더보드 플래그를 켜고 스테이지 날짜도 옮긴다 */
-    await setMetricsFixture({ seasonId: season.id, kind: plan.metrics });
-    /*
-      ⚠️ 픽스처는 페이즈를 안 건드리지만 아카이브는 그 뒤에 와야 한다 —
-      `final`이 시상을 확정하는 시점이 awarded 기준이라서다.
-    */
-    if (plan.phase === SeasonPhase.archived) {
-      await prisma.season.update({
-        where: { id: season.id },
-        data: { phase: SeasonPhase.archived },
-      });
-    }
-  }
-  console.error(`${mode}: 페이즈 ${plan.phase}, 진도 ${plan.stage}`);
+} else if (mode && HUB_PLANS[mode as HubKey]) {
+  const key = mode as HubKey;
+  const plan = HUB_PLANS[key];
+  await setSandboxHub({ key, entryId: entry.id, seasonId: season.id, userId: leader });
+  console.error(`${mode}: ${plan.label} — 페이즈 ${plan.phase}, 진도 ${plan.stage}`);
   console.log(await session());
 } else if (mode === "restore") {
   const snap = JSON.parse(readFileSync(SNAP, "utf8")) as {

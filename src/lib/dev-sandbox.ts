@@ -1,10 +1,14 @@
 import type { Prisma } from "@/generated/prisma/client";
 import {
   ConsentType,
+  DeployStatus,
   EntryStage,
   EntryStatus,
+  JudgmentResult,
   MemberRole,
   MetricSource,
+  SanctionReason,
+  SanctionStage,
   SeasonPhase,
   StageKey,
   SubmissionStatus,
@@ -101,6 +105,9 @@ export type SandboxTeam = {
   ideaTitle: string;
   stage: EntryStage;
   status: EntryStatus;
+  /* 아래 둘은 허브 줄이 「지금 어느 판인가」를 되짚는 데 쓴다 */
+  solo: boolean;
+  verified: boolean;
 };
 
 export type SandboxState = {
@@ -132,9 +139,11 @@ export async function loadSandboxState(): Promise<SandboxState> {
         stage: true,
         status: true,
         ideaTitle: true,
+        hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
         team: {
           select: {
             name: true,
+            isSolo: true,
             members: {
               where: { role: "leader" },
               take: 1,
@@ -181,6 +190,10 @@ export async function loadSandboxState(): Promise<SandboxState> {
         ideaTitle: entry.ideaTitle,
         stage: entry.stage,
         status: entry.status,
+        solo: entry.team.isSolo,
+        verified:
+          entry.hostname?.deployStatus === DeployStatus.active &&
+          entry.hostname.ownershipVerifiedAt !== null,
       },
     ];
   });
@@ -981,5 +994,375 @@ export async function setSandboxCurrentStage(args: {
   */
   await prisma.$transaction(async (tx) => {
     await setLeaderboardFlag(tx, args.seasonId, at >= KEYS.indexOf(StageKey.s4));
+  });
+}
+
+// ═════════════════════════════════════════════════════════════
+// 허브 17종 — 시안 `#scr-hub`의 `<select id="hubSel">`
+// ═════════════════════════════════════════════════════════════
+
+/*
+  개발 바의 「진도」 줄과 대조 스크립트(`scripts/design-diff/hub-state.mts`)가
+  **같은 표**를 쓴다. 시안 드롭다운을 그대로 옮긴 것이고, 라벨도 시안 그대로다
+  (2026-09-21 수연 지시 — 「개발 바에 진도 줄 사진과 동일하게」).
+
+  ⚠️ **화면은 아직 아홉만 있다.** 정상 흐름 h1~h9는 `resolveHubPane()`이 받고,
+  예외 h10~h17은 그 함수가 null을 내 옛 안내가 그려진다. 그래도 **상태는 지금
+  만들 수 있어야 한다** — 다음 사람이 그 판을 옮길 때 바로 눌러서 본다.
+
+  ⚠️ 한 판이 여러 축을 한꺼번에 옮긴다(페이즈·진도·생존·팀·측정·집계·오늘).
+  그래서 이 줄을 누르면 아래 다른 줄들의 값도 같이 바뀐다.
+*/
+export type HubKey =
+  | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "h7" | "h8" | "h9"
+  | "h10" | "h11" | "h12" | "h13" | "h14" | "h15" | "h16" | "h17";
+
+type HubPlan = {
+  label: string;
+  group: "정상 흐름" | "예외";
+  phase: SeasonPhase;
+  stage: EntryStage;
+  /** 기본은 정상(active) */
+  status?: EntryStatus;
+  /** 팀 구성 완료인가. 1인 팀이면 신청만으로 끝난다(access.ts) */
+  solo: boolean;
+  /** 측정 연동 검증이 끝났는가 */
+  verified: boolean;
+  metrics?: MetricsFixture;
+  /** 레이스 중 「오늘」을 이 스테이지로 옮긴다 */
+  raceStage?: StageKey;
+  /** 골든패스의 ✓가 되는 임시저장 */
+  draft?: { stageKey: StageKey; payload: Prisma.InputJsonObject };
+  /** 그 스테이지 제출을 **지운다**(미제출 탈락) */
+  unsubmit?: StageKey;
+  /** 그 스테이지 제출에 미통과 판정을 단다 */
+  judgeFail?: StageKey;
+  /** 실격 제재를 남긴다 — 헤더가 사유와 소명 기한을 읽는다 */
+  sanction?: boolean;
+  /** 다음 시즌을 모집 중으로 둔다 */
+  nextSeason?: boolean;
+};
+
+export const HUB_PLANS: Record<HubKey, HubPlan> = {
+  h1: {
+    label: "1, 온보딩 미완료", group: "정상 흐름",
+    phase: SeasonPhase.recruiting, stage: EntryStage.applied,
+    solo: false, verified: false,
+  },
+  h2: {
+    label: "2, s1 제출 전", group: "정상 흐름",
+    phase: SeasonPhase.racing, stage: EntryStage.applied,
+    solo: true, verified: true, raceStage: StageKey.s1,
+    /* 셋 중 둘을 끝낸 모양 — 시안 h2가 그렇다 */
+    draft: { stageKey: StageKey.s1, payload: { guideChecks: [true, true, false] } },
+  },
+  h3: {
+    label: "3, s2 진행 중", group: "정상 흐름",
+    phase: SeasonPhase.racing, stage: EntryStage.s1,
+    solo: true, verified: true, raceStage: StageKey.s2,
+    draft: { stageKey: StageKey.s2, payload: { guideChecks: [true, false, false] } },
+  },
+  h4: {
+    label: "4, 1차 심사 대기", group: "정상 흐름",
+    phase: SeasonPhase.racing, stage: EntryStage.s2,
+    solo: true, verified: true, raceStage: StageKey.s2,
+  },
+  h5: {
+    label: "5, s3 빌드와 배포", group: "정상 흐름",
+    phase: SeasonPhase.racing, stage: EntryStage.s3,
+    solo: true, verified: true, raceStage: StageKey.s3,
+    /* 빌더는 골랐고 배포 주소는 아직 — 시안 h5가 그 모양이다 */
+    draft: {
+      stageKey: StageKey.s3,
+      payload: { builder: "[개발용] 러버블", launchChecks: [], aiChecks: [] },
+    },
+  },
+  h6: {
+    label: "6, s4 레이스", group: "정상 흐름",
+    phase: SeasonPhase.racing, stage: EntryStage.s4,
+    solo: true, verified: true, raceStage: StageKey.s4, metrics: "race",
+  },
+  h7: {
+    label: "7, 2차 심사 대기", group: "정상 흐름",
+    phase: SeasonPhase.racing, stage: EntryStage.s5,
+    solo: true, verified: true, raceStage: StageKey.s5, metrics: "final",
+  },
+  h8: {
+    label: "8, 시상 발표", group: "정상 흐름",
+    phase: SeasonPhase.awarded, stage: EntryStage.completed,
+    solo: true, verified: true, metrics: "final",
+  },
+  h9: {
+    label: "9, 시즌 아카이브", group: "정상 흐름",
+    phase: SeasonPhase.archived, stage: EntryStage.completed,
+    solo: true, verified: true, metrics: "final",
+  },
+
+  /*
+    h10 지각 참가 — 온보딩이 안 끝났는데 s1이 이미 열려 있다.
+    h1과 갈리는 것은 페이즈뿐이다(모집 중 → 레이스).
+  */
+  h10: {
+    label: "10, 지각 참가", group: "예외",
+    phase: SeasonPhase.racing, stage: EntryStage.applied,
+    solo: false, verified: false, raceStage: StageKey.s1,
+  },
+  /* h11 게이트 미제출 탈락 — 마감이 지나도록 s2를 안 냈다 */
+  h11: {
+    label: "11, 게이트 미제출 탈락", group: "예외",
+    phase: SeasonPhase.racing, stage: EntryStage.s2,
+    status: EntryStatus.eliminated, solo: true, verified: true,
+    raceStage: StageKey.s3, unsubmit: StageKey.s2,
+  },
+  /* h12 탈락팀 접근 — 냈지만 1차에서 미통과였다 */
+  h12: {
+    label: "12, 탈락팀 접근", group: "예외",
+    phase: SeasonPhase.racing, stage: EntryStage.s2,
+    status: EntryStatus.eliminated, solo: true, verified: true,
+    raceStage: StageKey.s4, judgeFail: StageKey.s2,
+  },
+  /* h13 미배포 레이스 — 레이스에 들어왔는데 측정 연동이 안 끝났다 */
+  h13: {
+    label: "13, 미배포 레이스", group: "예외",
+    phase: SeasonPhase.racing, stage: EntryStage.s4,
+    solo: true, verified: false, raceStage: StageKey.s4, metrics: "race",
+  },
+  h14: {
+    label: "14, 레이스 중 실격", group: "예외",
+    phase: SeasonPhase.racing, stage: EntryStage.s4,
+    status: EntryStatus.disqualified, solo: true, verified: true,
+    raceStage: StageKey.s4, metrics: "race", sanction: true,
+  },
+  /*
+    h15 s5 자동 제출 확인 — 진도는 s4까지이고 **지금 스테이지가 s5**다.
+    h6과 갈리는 것이 그 하나라 `raceStage`가 판을 만든다.
+  */
+  h15: {
+    label: "15, s5 자동 제출 확인", group: "예외",
+    phase: SeasonPhase.racing, stage: EntryStage.s4,
+    solo: true, verified: true, raceStage: StageKey.s5, metrics: "final",
+  },
+  /* h16 종료 후 쓰기 시도 — DB 상태는 h9와 같다. 화면만 다르다 */
+  h16: {
+    label: "16, 종료 후 쓰기 시도", group: "예외",
+    phase: SeasonPhase.archived, stage: EntryStage.completed,
+    solo: true, verified: true, metrics: "final",
+  },
+  /*
+    h17 다음 시즌 참가 — **지금 시즌이 바뀐다.** 지난 시즌은 아카이브되고
+    다음 시즌이 모집 중으로 선다(시안 배너도 「시즌 2, 모집 중」이다).
+    그래서 `phase`는 다음 시즌 것이고, 지난 시즌은 `nextSeason`이 재운다.
+  */
+  h17: {
+    label: "17, 다음 시즌 참가", group: "예외",
+    phase: SeasonPhase.recruiting, stage: EntryStage.completed,
+    solo: true, verified: true, metrics: "final", nextSeason: true,
+  },
+};
+
+/**
+ * 허브 한 판을 만든다 — 시안 `#hubSel`의 한 줄.
+ *
+ * ⚠️ **순서가 뜻을 만든다.** `setSandboxStage`가 그 진도에 필요한 제출물을
+ * 채우고 넘치는 것을 지우므로, 임시저장·미제출·판정은 반드시 그 **뒤**다.
+ * 집계 픽스처는 리더보드 플래그를 켜므로 「오늘」을 옮기는 것보다 앞에 둔다.
+ */
+export async function setSandboxHub(args: {
+  key: HubKey;
+  entryId: string;
+  seasonId: string;
+  userId: string;
+}): Promise<void> {
+  assertSandbox();
+  const { key, entryId, seasonId, userId } = args;
+  const plan = HUB_PLANS[key];
+
+  const entry = await prisma.entry.findUniqueOrThrow({
+    where: { id: entryId },
+    select: { teamId: true },
+  });
+
+  /*
+    ⚠️ h17만 「지금 시즌」이 바뀐다 — 지난 시즌을 재우고 다음 시즌을 깨운다.
+    나머지 판은 지난 세션의 h17이 남긴 다음 시즌을 **다시 재워야** 한다.
+    안 재우면 그 시즌이 계속 「지금 시즌」이라 다른 판이 아무것도 안 바뀐
+    것처럼 보인다.
+  */
+  await prisma.season.update({
+    where: { id: seasonId },
+    data: { phase: plan.nextSeason ? SeasonPhase.archived : plan.phase },
+  });
+  if (!plan.nextSeason) await sleepNextSeason(seasonId);
+  await setSandboxStage({ entryId, stage: plan.stage, userId });
+  await prisma.entry.update({
+    where: { id: entryId },
+    data: { status: plan.status ?? EntryStatus.active },
+  });
+  await prisma.team.update({
+    where: { id: entry.teamId },
+    data: { isSolo: plan.solo },
+  });
+  await prisma.hostname.updateMany({
+    where: { entryId },
+    data: {
+      deployStatus: plan.verified ? DeployStatus.active : DeployStatus.pending,
+      ownershipVerifiedAt: plan.verified ? devNow() : null,
+    },
+  });
+
+  if (plan.draft) {
+    await prisma.submission.upsert({
+      where: {
+        entryId_stageKey_week: { entryId, stageKey: plan.draft.stageKey, week: 0 },
+      },
+      create: {
+        entryId,
+        stageKey: plan.draft.stageKey,
+        week: 0,
+        status: SubmissionStatus.draft,
+        payload: plan.draft.payload,
+      },
+      update: { status: SubmissionStatus.draft, payload: plan.draft.payload },
+    });
+  }
+
+  if (plan.unsubmit) {
+    await prisma.submission.deleteMany({
+      where: { entryId, stageKey: plan.unsubmit },
+    });
+  }
+
+  if (plan.judgeFail) {
+    const submission = await prisma.submission.findFirst({
+      where: { entryId, stageKey: plan.judgeFail },
+      select: { id: true },
+    });
+    if (submission) {
+      await prisma.judgment.deleteMany({
+        where: { submissionId: submission.id },
+      });
+      await prisma.judgment.create({
+        data: {
+          submissionId: submission.id,
+          result: JudgmentResult.fail,
+          feedback:
+            "[개발용] 수요 신호가 부족합니다. 개발자 도구가 만든 판정이라 실제 심사가 아닙니다.",
+        },
+      });
+    }
+  }
+
+  /* 실격은 사유와 소명 기한이 있어야 헤더가 그것을 말할 수 있다 */
+  await prisma.sanction.deleteMany({
+    where: { entryId, stage: SanctionStage.disqualified },
+  });
+  if (plan.sanction) {
+    await prisma.sanction.create({
+      data: {
+        entryId,
+        stage: SanctionStage.disqualified,
+        reason: SanctionReason.bot_traffic,
+        detail: "[개발용] 봇 트래픽이 감지됐습니다. 개발자 도구가 만든 제재입니다.",
+        appealDeadlineAt: new Date(devNow().getTime() + 4 * 86_400_000),
+      },
+    });
+  }
+
+  if (plan.metrics) {
+    await setMetricsFixture({ seasonId, kind: plan.metrics });
+  }
+  /*
+    ⚠️ 「오늘」은 맨 마지막에 옮긴다. `setSandboxCurrentStage`가 집계와 리더보드
+    플래그도 같이 정하는데, 픽스처가 언제나 플래그를 켜기 때문이다.
+  */
+  if (plan.raceStage && plan.phase === SeasonPhase.racing) {
+    await setSandboxCurrentStage({ seasonId, stage: plan.raceStage });
+  }
+
+  if (plan.nextSeason) await ensureNextSeason(seasonId);
+}
+
+/**
+ * 지금 dev DB가 그리고 있는 판이 시안 목록의 어느 줄인가. 없으면 null이다.
+ *
+ * 바에서 눌린 버튼을 표시하려고 쓴다. **한 판을 DB 상태만으로는 못 가르는
+ * 자리가 있다** — h9와 h16은 같은 상태이고(화면만 다르다) 그때는 앞엣것을
+ * 고른다. 「오늘」이 어느 스테이지인지가 h6·h15를 가르는 유일한 축이라
+ * `raceStage`까지 본다.
+ */
+export function matchHubKey(now: {
+  phase: SeasonPhase;
+  stage: EntryStage;
+  status: EntryStatus;
+  solo: boolean;
+  verified: boolean;
+  raceStage: StageKey | null;
+}): HubKey | null {
+  const keys = Object.keys(HUB_PLANS) as HubKey[];
+  const hit = keys.find((key) => {
+    const plan = HUB_PLANS[key];
+    if (plan.phase !== now.phase) return false;
+    if (plan.stage !== now.stage) return false;
+    if ((plan.status ?? EntryStatus.active) !== now.status) return false;
+    if (plan.solo !== now.solo || plan.verified !== now.verified) return false;
+    /* 레이스 밖에서는 「오늘」이 판을 가르지 않는다 */
+    if (plan.raceStage && plan.phase === SeasonPhase.racing) {
+      return plan.raceStage === now.raceStage;
+    }
+    return true;
+  });
+  return hit ?? null;
+}
+
+/** 다음 시즌을 다시 재운다(draft). 그래야 지난 시즌이 「지금 시즌」으로 돌아온다 */
+async function sleepNextSeason(currentId: string): Promise<void> {
+  const current = await prisma.season.findUniqueOrThrow({
+    where: { id: currentId },
+    select: { createdAt: true },
+  });
+  await prisma.season.updateMany({
+    where: {
+      id: { not: currentId },
+      createdAt: { gt: current.createdAt },
+      phase: { not: SeasonPhase.draft },
+    },
+    data: { phase: SeasonPhase.draft },
+  });
+}
+
+/**
+ * 다음 시즌을 모집 중으로 둔다 — 시안 h17이 헤더에 「시즌 2, 모집 중」을 띄운다.
+ *
+ * 없으면 만든다. `loadNextSeason`(header-read.ts)이 **지금 시즌보다 뒤에
+ * 만들어진 것**을 찾으므로 `createdAt`이 뒤여야 한다.
+ */
+async function ensureNextSeason(currentId: string): Promise<void> {
+  const current = await prisma.season.findUniqueOrThrow({
+    where: { id: currentId },
+    select: { createdAt: true, endsAt: true },
+  });
+  const next = await prisma.season.findFirst({
+    where: { id: { not: currentId }, createdAt: { gt: current.createdAt } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (next) {
+    await prisma.season.update({
+      where: { id: next.id },
+      data: { phase: SeasonPhase.recruiting },
+    });
+    return;
+  }
+  const startsAt = new Date(
+    (current.endsAt ?? devNow()).getTime() + 50 * 86_400_000,
+  );
+  await prisma.season.create({
+    data: {
+      slug: "season-2",
+      title: "시즌 2",
+      phase: SeasonPhase.recruiting,
+      startsAt,
+      endsAt: new Date(startsAt.getTime() + 36 * 86_400_000),
+    },
   });
 }

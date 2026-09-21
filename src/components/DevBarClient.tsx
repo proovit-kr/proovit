@@ -7,7 +7,7 @@ import {
   devSetCurrentStage,
   devSetMetrics,
   devSetPhase,
-  devSetStage,
+  devSetHub,
   devSetStatus,
   devSetTeam,
 } from "@/app/actions/dev";
@@ -73,7 +73,10 @@ type Props = {
     metrics: string;
     stage: string | null;
   } | null;
-  stages?: Option<string>[];
+  /* 시안 `#hubSel`의 17종. 그룹은 「정상 흐름」·「예외」 둘이다 */
+  hubs?: (Option<string> & { group: string })[];
+  /** 지금 눌린 판. 되짚지 못하면 null */
+  hubKey?: string | null;
   statuses?: Option<string>[];
   phases?: Option<string>[];
   raceStages?: Option<string>[];
@@ -210,7 +213,8 @@ export function DevBarClient({
   current,
   hasTeam = null,
   season,
-  stages = [],
+  hubs = [],
+  hubKey = null,
   statuses = [],
   phases = [],
   raceStages = [],
@@ -400,29 +404,49 @@ export function DevBarClient({
             </div>
           </div>
 
-          {/* ── 진도 ────────────────────────────────────────── */}
-          <div className={styles.row}>
-            <span className={styles.label}>
-              진도
-              <em className={styles.hint}>제출물도 같이 만들어요</em>
-            </span>
-            <div className={styles.picks}>
-              {current ? (
-                stages.map((stage) => (
-                  <PickButton
-                    key={stage.value}
-                    action={devSetStage}
-                    fields={{ entryId: current.entryId, stage: stage.value }}
-                    active={current.stage === stage.value}
-                  >
-                    {stage.label}
-                  </PickButton>
-                ))
-              ) : (
-                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
-              )}
+          {/*
+            ── 진도 ──────────────────────────────────────────
+            시안 `#hubSel`의 17종을 그대로 둔다(2026-09-21 수연 지시).
+            한 줄이 페이즈·생존 상태·온보딩·집계·「오늘」까지 같이 옮기므로,
+            누르면 아래 줄들의 값도 함께 바뀐다.
+
+            ⚠️ **예외 여덟(10~17)은 화면이 아직 없다.** 눌러도 상태는 제대로
+            만들어지지만 허브는 옛 안내를 그린다 — 그 판을 옮길 때 바로 쓴다.
+          */}
+          {["정상 흐름", "예외"].map((group) => (
+            <div key={group} className={styles.row}>
+              <span className={styles.label}>
+                {group === "정상 흐름" ? "진도" : ""}
+                <em className={styles.hint}>
+                  {group === "정상 흐름" ? "허브 정상 흐름" : "허브 예외"}
+                </em>
+              </span>
+              <div className={styles.picks}>
+                {current && season ? (
+                  hubs
+                    .filter((hub) => hub.group === group)
+                    .map((hub) => (
+                      <PickButton
+                        key={hub.value}
+                        action={devSetHub}
+                        fields={{
+                          entryId: current.entryId,
+                          seasonId: season.id,
+                          key: hub.value,
+                        }}
+                        active={hubKey === hub.value}
+                      >
+                        {hub.label}
+                      </PickButton>
+                    ))
+                ) : (
+                  <span className={styles.empty}>
+                    로그인한 계정에 참가 기록이 없어요
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
+          ))}
 
           {/* ── 생존 상태 ───────────────────────────────────── */}
           <div className={styles.row}>
