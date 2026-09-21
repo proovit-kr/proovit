@@ -22,18 +22,16 @@
  * 사전신청 접수는 메일이 안 나가도 성립한다. 메일 실패로 접수가 깨지면
  * KPI#1의 원천이 사라진다.
  *
- * ## 운영이 아니면 보내지 않는다
+ * ## 테스트만 막는다
  *
- * ⚠️ `.env.development.local`에 **키가 들어 있다.** 그래서 키 유무만 보는
- * 위의 가드로는 개발 서버에서 폼을 한 번 눌러 보는 것이 곧 실제 발송이 된다 —
- * 팀원 초대는 **내가 모르는 남의 주소로 나가는 메일**이라 그게 그대로 사고다.
+ * 개발 서버에서도 **진짜로 나간다**(2026-09-21 수연 지시 — 도달을 봐야 한다).
+ * `.env.development.local`에 키가 들어 있으므로 폼을 누르면 그대로 발송이다.
  *
- * 그래서 `NODE_ENV`가 production이 아니면 기본으로 건너뛴다. 로컬에서 실제
- * 도달을 확인해야 할 때만 한 번씩 켠다.
+ * ⚠️ 그래서 **팀원 초대 이메일 칸에 아무 주소나 넣지 않는다.** 남의 주소로
+ * 나가면 되돌릴 수 없다. 로컬 시험에는 내가 받을 수 있는 주소만 쓴다.
+ * 끄고 싶은 날은 `MAIL_LIVE=0 npm run dev`.
  *
- *     MAIL_LIVE=1 npm run dev
- *
- * 테스트(`NODE_ENV=test`)도 이 가드에 걸린다. 목을 빠뜨린 테스트가 진짜
+ * 테스트(`NODE_ENV=test`)만은 무엇을 켜도 막는다. 목을 빠뜨린 테스트가 진짜
  * 메일을 쏘는 길을 남기지 않기 위해서다.
  */
 
@@ -82,15 +80,14 @@ function configured(): boolean {
 }
 
 /**
- * 진짜로 쏘는 환경인가. 운영이 아니면 `MAIL_LIVE=1`일 때만 나간다(머리 주석).
+ * 진짜로 쏘는 환경인가(머리 주석).
  *
- * ⚠️ 「키가 있으면 보낸다」로 두지 않는 이유는 개발용 env에 키가 들어 있기
- * 때문이다. 메일은 되돌릴 수 없는 **밖으로 나가는 것**이라, 기본값이 안전한
- * 쪽이어야 한다.
+ * 테스트만 무조건 막는다 — 목을 빠뜨린 테스트가 진짜 메일을 쏘면 안 된다.
+ * 개발은 키가 있으면 나가고, `MAIL_LIVE=0`으로만 끈다.
  */
 function live(): boolean {
-  if (process.env.NODE_ENV === "production") return true;
-  return process.env.MAIL_LIVE === "1";
+  if (process.env.NODE_ENV === "test") return false;
+  return process.env.MAIL_LIVE !== "0";
 }
 
 /**
@@ -107,8 +104,8 @@ async function send(mail: {
   if (!live()) {
     /* 조용히 넘기지 않는다 — 「보낸 줄 알았는데 안 갔다」가 제일 나쁘다 */
     console.info(
-      `[mail] 운영이 아니라 보내지 않았습니다 → ${mail.to} / ${mail.subject}` +
-        " (실제로 보내려면 MAIL_LIVE=1)",
+      `[mail] 발송이 꺼져 있어 보내지 않았습니다 → ${mail.to} / ${mail.subject}` +
+        " (테스트이거나 MAIL_LIVE=0)",
     );
     return { ok: true, skipped: true };
   }
