@@ -81,6 +81,11 @@ export const HUB_HEAD: Record<HubPane, { title: string; sub?: string }> = {
   },
   /* 시안 h13. 여기도 부제가 없다 */
   undeployed: { title: "지금이라도 배포해요" },
+  /* 시안 h16. 제목 뒤에 「읽기 전용」 칩이 붙고, 「시즌 1」은 시즌명이다 */
+  readonly: {
+    title: "요약",
+    sub: "시즌이 종료돼 모든 항목은 수정할 수 없어요.",
+  },
   disqualified: {
     title: "소명할 수 있어요",
     sub: "통지 후 5영업일 내에 소명을 접수하면, 근거 지표와 함께 회신해 드려요.",
@@ -265,6 +270,17 @@ export const HUB_ACT = {
     body: "지금 열려 있는 메뉴는 소명뿐이에요.",
     label: "소명 접수하기",
     href: "/dashboard/appeal",
+  },
+  /*
+    시안 h16 — 문구가 시안 그대로다(「쓰기 시도 데모」). 시안이 뷰어용으로 쓴
+    말이라 제품 문구로는 어색하다 — 윤서가 다듬을 자리. 버튼은 토스트만 띄운다.
+  */
+  readonly: {
+    title: "쓰기 시도 데모",
+    body: "버튼을 누르면 안내 토스트가 떠요.",
+    label: "회고 수정하기",
+    chip: "읽기 전용",
+    toast: "시즌이 종료되어 수정할 수 없어요",
   },
   /* 시안 h11 */
   missed: {

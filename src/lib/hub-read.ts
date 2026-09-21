@@ -95,7 +95,7 @@ export type HubView =
       award: string | null;
     }
   | {
-      pane: "archived";
+      pane: "archived" | "readonly";
       rank: number | null;
       teams: number;
       validUsers: number;
@@ -541,6 +541,8 @@ export async function loadHub(
       };
     }
 
+    /* h16은 h9와 재료가 같다 — 갈리는 것은 사건이지 데이터가 아니다 */
+    case "readonly":
     case "archived": {
       const [{ row, teams }, sum, stages, submitted, judgments] =
         await Promise.all([

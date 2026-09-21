@@ -20,6 +20,7 @@ import {
 } from "@/content/consent";
 import { applyConsentRows } from "@/lib/apply-store";
 import { devNow, setDevToday } from "@/lib/dev-clock";
+import { setDevHubKey } from "@/lib/dev-hub";
 import { seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
 
@@ -1244,11 +1245,16 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
       weeklyActive: 512, retention: 31,
     },
   },
-  /* h16 종료 후 쓰기 시도 — DB 상태는 h9와 같다. 화면만 다르다 */
+  /* h16 종료 후 쓰기 시도 — DB 상태는 h9와 같다. 누른 판을 `dev-hub.ts`가 남겨 가른다 */
   h16: {
     label: "16, 종료 후 쓰기 시도", group: "예외",
     phase: SeasonPhase.archived, stage: EntryStage.completed,
     solo: true, verified: true, metrics: "final",
+    /* 시안 h16의 요약 넷은 h9와 같은 값이다 */
+    spec: {
+      validUsers: 1248, revenue: 126_000, rank: 2,
+      weeklyActive: 512, retention: 31, gatePass: true,
+    },
   },
   /*
     h17 다음 시즌 참가 — **지금 시즌이 바뀐다.** 지난 시즌은 아카이브되고
@@ -1429,6 +1435,9 @@ export async function setSandboxHub(args: {
 
   if (plan.nextSeason) await ensureNextSeason(seasonId);
 
+  /* h9와 h16은 DB로 못 가른다 — 누른 판을 남긴다(`dev-hub.ts`) */
+  setDevHubKey(key);
+
   /*
     ⚠️ **자리를 비우는 것은 맨 마지막이다.** 위의 모든 단계가 그 팀의 참가
     기록을 재료로 쓰는데(진도·제출·집계), 먼저 비우면 손댈 자리가 없어진다.
@@ -1453,9 +1462,11 @@ export function matchHubKey(now: {
   raceStage: StageKey | null;
   /** 로그인한 사람의 자리가 보관 계정에 가 있는가 — h10만 그렇다 */
   parked: boolean;
+  /** 마지막으로 누른 판. DB로 못 가르는 짝(h9·h16)을 이것으로 가른다 */
+  pressed: string | null;
 }): HubKey | null {
   const keys = Object.keys(HUB_PLANS) as HubKey[];
-  const hit = keys.find((key) => {
+  const hits = keys.filter((key) => {
     const plan = HUB_PLANS[key];
     if ((plan.parked ?? false) !== now.parked) return false;
     if (plan.phase !== now.phase) return false;
@@ -1468,7 +1479,7 @@ export function matchHubKey(now: {
     }
     return true;
   });
-  return hit ?? null;
+  return hits.find((key) => key === now.pressed) ?? hits[0] ?? null;
 }
 
 /**

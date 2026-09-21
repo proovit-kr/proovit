@@ -25,6 +25,7 @@ import {
 import { guardPage, isOnboardingComplete, type ViewerState } from "@/lib/access";
 import { resolveDashboardState } from "@/lib/dashboard-state";
 import { devNow } from "@/lib/dev-clock";
+import { devHubKey } from "@/lib/dev-hub";
 import { fmtMD, fmtMDHM } from "@/lib/header-state";
 import {
   hasPastEntry,
@@ -38,6 +39,7 @@ import { resolveHubPane } from "@/lib/hub-state";
 import { isRacing, isRecruiting } from "@/lib/season-phase";
 
 import { CopyLink } from "./CopyLink";
+import { ReadonlyDemo } from "./ReadonlyDemo";
 import styles from "./hub.module.css";
 
 /*
@@ -54,9 +56,7 @@ import styles from "./hub.module.css";
   ⚠️ **시안의 경고줄(`.wbar`)은 제목보다 위다**(h10·h11·h13·h14). 그래서 판별
   마크업을 그리는 `Body`가 아니라 `Warn`이 따로 맨 위에 선다.
 
-  ⚠️ **시안 17판 중 둘은 여기서 판으로 서지 않는다.**
-    h16  「종료 후 쓰기 시도」 — DB 상태가 h9와 같다(아래 `Body`의 archived 주석)
-    h17  참가 기록이 없는 판이라 `resolveHubPane`을 거치지 않는다(`NextSeason`)
+  ⚠️ h17은 참가 기록이 없는 판이라 `resolveHubPane`을 거치지 않는다(`NextSeason`).
 */
 
 export const metadata: Metadata = {
@@ -75,8 +75,20 @@ const won = (value: bigint) => `₩${NUM.format(value)}`;
 /* 우리가 세지 않는 지표. 정의가 오면 값이 들어온다(PLN6 6장 1번) */
 const UNKNOWN = "—";
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ readonly?: string }>;
+}) {
   const { viewer } = await guardPage("dashboard", "/dashboard");
+  /*
+    시안 h16 「종료 후 쓰기 시도」 — DB 상태는 h9와 같고, 갈리는 것은 **방금
+    쓰려고 했다**는 사건이다. 막힌 쓰기가 허브로 돌려보내며 `?readonly=1`을
+    붙이고, 개발 바는 그 사건을 못 만들어 마지막으로 누른 판(`dev-hub.ts`)으로
+    대신한다.
+  */
+  const writeAttempt =
+    (await searchParams).readonly === "1" || devHubKey() === "h16";
 
   /*
     **참가 기록이 없어도 여기까지 온다**(access-policy의 `dashboard` 주석).
@@ -114,6 +126,7 @@ export default async function Page() {
     measurementReady: onboarding.measurementReady,
     stageNow: axes.stageNow,
     gateFailed: axes.gateFailed,
+    writeAttempt,
   });
 
   if (!pane) return <Fallback viewer={viewer} />;
@@ -126,7 +139,7 @@ export default async function Page() {
     문구 파일이 들지 않는다.
   */
   const title =
-    pane === "awarded" || pane === "archived"
+    pane === "awarded" || pane === "archived" || pane === "readonly"
       ? `${season.title} ${head.title}`
       : view.pane === "gateFail"
         ? `${HUB_GATE_ORDINAL[view.gate]} ${head.title}`
@@ -135,7 +148,11 @@ export default async function Page() {
   return (
     <section data-probe="hub" data-pane={pane}>
       <Warn view={view} />
-      <h2 className={styles.h1}>{title}</h2>
+      <h2 className={styles.h1}>
+        {title}
+        {/* 시안 h16은 제목 뒤에 칩을 단다 */}
+        {pane === "readonly" ? <> <Chip>{HUB_ACT.readonly.chip}</Chip></> : null}
+      </h2>
       {/* 시안 h10·h13은 부제가 없다 — 없는 자리에 한 줄을 지어 넣지 않는다 */}
       {head.sub ? <p className={styles.sub}>{head.sub}</p> : null}
       <Body view={view} />
@@ -426,15 +443,10 @@ function Body({ view }: { view: HubView }) {
         </>
       );
 
-    /*
-      ⚠️ **시안 h16(「종료 후 쓰기 시도」)도 이 판이다.** DB 상태가 h9와 같고
-      (`matchHubKey` 주석) 시안 배너도 둘이 같다 — 갈리는 것은 「읽기 전용」
-      칩과 「쓰기 시도 데모」 상자뿐인데, 그 상자는 눌러도 아무 일이 없는
-      버튼이라 제품에 둘 자리가 아니다(h8 보증금 버튼과 같은 판단). 읽기
-      전용이라는 사실은 부제가 이미 말한다. 2026-09-21 내가 정함.
-    */
     case "archived":
+    case "readonly":
       return (
+        <>
         <div className={styles.snap}>
           <Card className={styles.snapCard}>
             <small>{HUB_LABEL.archiveRank}</small>
@@ -459,6 +471,20 @@ function Body({ view }: { view: HubView }) {
             </span>
           </Card>
         </div>
+        {view.pane === "readonly" ? (
+          <div className={styles.act}>
+            <div>
+              <h3>{HUB_ACT.readonly.title}</h3>
+              <p>{HUB_ACT.readonly.body}</p>
+            </div>
+            <ReadonlyDemo
+              label={HUB_ACT.readonly.label}
+              toast={HUB_ACT.readonly.toast}
+              className={styles.actBtn}
+            />
+          </div>
+        ) : null}
+        </>
       );
 
     /* ── 예외 여덟 ─────────────────────────────────────── */

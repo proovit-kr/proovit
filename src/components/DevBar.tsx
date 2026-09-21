@@ -14,6 +14,7 @@ import {
   type HubKey,
 } from "@/lib/dev-sandbox";
 import { devToday } from "@/lib/dev-clock";
+import { devHubKey } from "@/lib/dev-hub";
 import { hasParkedSession } from "@/lib/dev-session";
 
 import { DevBarClient } from "./DevBarClient";
@@ -145,6 +146,7 @@ export async function DevBar() {
           verified: current.verified,
           raceStage: state.season.stage,
           parked: parkedEntryId !== null,
+          pressed: devHubKey(),
         })
       : null;
 

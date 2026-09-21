@@ -37,6 +37,7 @@ import {
   type HubKey,
 } from "../../src/lib/dev-sandbox";
 import { devToday, setDevToday } from "../../src/lib/dev-clock";
+import { setDevHubKey } from "../../src/lib/dev-hub";
 import { prisma } from "../../src/lib/prisma";
 
 const check = checkDevSandbox();
@@ -228,8 +229,9 @@ if (mode === "save") {
   await prisma.metricDefinition.deleteMany({
     where: { key: { in: ["weekly_active", "retention"] } },
   });
-  /* 「오늘」도 떠 둔 값으로 되돌린다 */
+  /* 「오늘」도 떠 둔 값으로 되돌린다. 누른 판 표시는 지운다 */
   setDevToday(snap.today ? new Date(snap.today) : null);
+  setDevHubKey(null);
 
   await setSandboxStage({
     entryId: snap.entry.id,

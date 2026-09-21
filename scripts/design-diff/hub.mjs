@@ -2,10 +2,8 @@
   대시보드 허브 — 시안 `#scr-hub` 17판과 `/dashboard`를 대조한다.
 
     STATE=h1 node scripts/design-diff/hub.mjs      # 한 판만
-    node scripts/design-diff/hub.mjs               # 열여섯 판 전부
+    node scripts/design-diff/hub.mjs               # 17판 전부
 
-  ⚠️ **h16은 목록에 없다.** DB 상태가 h9와 같아 아카이브 한 판으로 합쳤다
-  (`hub-state.ts` 머리 주석) — 누를 수 없는 판이라 대조할 것도 없다.
 
   ⚠️ **상태가 데이터로 갈린다.** 시안은 `<select id="hubSel">`로 바꾸지만 우리는
   dev DB가 정한다 — `hub-state.mts`가 페이즈·진도·온보딩·지표를 그 판으로 만들고
@@ -204,7 +202,8 @@ const LIST = {
     ...HERO("h13")],
   h14: [...WBAR("h14", "wbarRed"), ...HEAD, ...HERO("h14")],
   h15: [...HEAD, ...SNAP("h15"), ...HERO("h15")],
-  /* h16은 h9와 같은 판이라 없다(머리 주석) */
+  h16: [...HEAD, ["제목 칩", P("h16") + ".hb-h1 .chip", `${I("h1")} [class*="Surface-module"]`, [], ["width"]],
+    ...SNAP("h16"), ...ACT("h16")],
   h17: [...HEAD, ...HERO("h17")],
 };
 
@@ -306,6 +305,9 @@ const TEXT = {
         ["소명 상자", P("h14") + ".act.hero", `${I("act")}${I("hero")}`]],
   h15: [["머리", S + ".pane.on .hb-h1", I("h1")], ["부제", S + ".pane.on .hb-sub", I("sub")],
         ["확정 라벨", P("h15") + ".snap", I("snap")]],
+  h16: [["머리", S + ".pane.on .hb-h1", I("h1")], ["부제", S + ".pane.on .hb-sub", I("sub")],
+        ["확정 라벨", P("h16") + ".snap", I("snap")],
+        ["쓰기 시도", P("h16") + ".act", `${I("act")}:not(${I("hero")})`]],
   h17: [["부제", S + ".pane.on .hb-sub", I("sub")],
         ["행동 상자", P("h17") + ".act.hero", `${I("act")}${I("hero")}`]],
 };
@@ -333,7 +335,7 @@ const PANE_OF = {
   h1: "onboarding", h2: "s1", h3: "s2", h4: "gate1", h5: "s3",
   h6: "race", h7: "gate2", h8: "awarded", h9: "archived",
   h10: "late", h11: "missed", h12: "gateFail", h13: "undeployed",
-  h14: "disqualified", h15: "s5",
+  h14: "disqualified", h15: "s5", h16: "readonly",
   /* h17은 참가 기록이 없는 판이라 `HubPane`에 없다 — 화면이 직접 찍는다 */
   h17: "nextSeason",
 };
@@ -369,7 +371,7 @@ const setup = (h) =>
 
 const PANES = process.env.STATE ? [process.env.STATE] : Object.keys(LIST);
 for (const h of PANES) {
-  if (!LIST[h]) throw new Error(`STATE는 h1~h15·h17 중 하나(h16은 h9와 같은 판): ${h}`);
+  if (!LIST[h]) throw new Error(`STATE는 h1~h17 중 하나: ${h}`);
 }
 
 /* 지금 dev DB를 떠 둔다 — 끝나면 그대로 되돌린다 */

@@ -5,9 +5,11 @@
   아홉(h1~h9)과 「예외」 여덟(h10~h17)이다. 이 파일이 그중 열넷을 낸다.
   나머지 셋은 여기가 낼 수 없는 자리다.
 
-    h16  DB 상태가 h9와 같다(시안 배너도 같다) — 아카이브 한 판으로 합쳤다
     h17  **이번 시즌에 참가 기록이 없는 사람**이라 여기까지 오지 않는다
          (`page.tsx`가 지난 시즌 기록을 보고 그린다. 문구는 `HUB_NO_ENTRY.next`)
+
+  h16(종료 후 쓰기 시도)은 DB 상태가 h9와 같다 — 갈리는 것은 「방금 쓰려고
+  했다」는 사건이라 `writeAttempt`로 받는다(`page.tsx`가 정한다).
 
   이 파일은 순수하다. `dashboard-state.ts`와 같은 이유다 — DB도 세션도 모른다.
 
@@ -50,7 +52,7 @@ export type HubPane =
   | "gate2"
   /** h8, 시상 발표 */
   | "awarded"
-  /** h9, 시즌 아카이브 (h16 「종료 후 쓰기 시도」도 이 판이다) */
+  /** h9, 시즌 아카이브 */
   | "archived"
   /** h10, 지각 참가 */
   | "late"
@@ -63,7 +65,9 @@ export type HubPane =
   /** h14, 레이스 중 실격 */
   | "disqualified"
   /** h15, s5 자동 제출 확인 */
-  | "s5";
+  | "s5"
+  /** h16, 종료 후 쓰기 시도 */
+  | "readonly";
 
 export type HubInput = {
   phase: SeasonPhase;
@@ -79,6 +83,8 @@ export type HubInput = {
   stageNow: StageKey | null;
   /** 탈락에 미통과 판정이 달려 있는가. 없으면 마감 도달로 자동 처리된 것(h11) */
   gateFailed: boolean;
+  /** 끝난 시즌에서 방금 무언가를 고치려 했는가 — h9와 h16을 가르는 유일한 축 */
+  writeAttempt: boolean;
 };
 
 /**
@@ -103,7 +109,7 @@ export function resolveHubPane(input: HubInput): HubPane | null {
     if (entry.status !== EntryStatus.active) return null;
   }
 
-  if (isArchived(phase)) return "archived";
+  if (isArchived(phase)) return input.writeAttempt ? "readonly" : "archived";
   if (isAwarded(phase)) return "awarded";
 
   /* 사전신청 구간은 시안에 대응하는 판이 없다 */
