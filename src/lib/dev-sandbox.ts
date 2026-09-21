@@ -1221,13 +1221,7 @@ export async function setSandboxHub(args: {
     where: { id: entry.teamId },
     data: { isSolo: plan.solo },
   });
-  await prisma.hostname.updateMany({
-    where: { entryId },
-    data: {
-      deployStatus: plan.verified ? DeployStatus.active : DeployStatus.pending,
-      ownershipVerifiedAt: plan.verified ? devNow() : null,
-    },
-  });
+  await setHostname(entryId, plan.verified);
 
   if (plan.draft) {
     await prisma.submission.upsert({
@@ -1463,9 +1457,12 @@ export async function setSandboxPace(args: {
     where: { id: entryId },
     select: { teamId: true },
   });
-  /* 「참가팀 없음」으로 비워 둔 자리가 있으면 먼저 돌려받는다 */
-  await unparkTeam(entry.teamId);
-
+  /*
+    ⚠️ **여기서 `unparkTeam`을 부르지 않는다.** 이 함수는 이미 「내가 팀장인
+    팀」을 찾은 뒤에 불리므로 비워 둔 자리가 없고, 부르면 **다른 팀의**
+    「참가팀 없음」까지 풀어 버린다 — 2026-09-21에 그것 때문에 한 사람이 두
+    팀의 팀장이 되어 화면과 개발 바가 서로 다른 팀을 봤다.
+  */
   await setSandboxStage({ entryId, stage: STAGE_PACE[stage], userId });
   await prisma.entry.update({
     where: { id: entryId },
@@ -1476,8 +1473,32 @@ export async function setSandboxPace(args: {
     where: { id: entry.teamId },
     data: { isSolo: true },
   });
-  await prisma.hostname.updateMany({
-    where: { entryId },
-    data: { deployStatus: DeployStatus.active, ownershipVerifiedAt: devNow() },
-  });
+  await setHostname(entryId, true);
 }
+
+/**
+ * 측정 연동을 그 상태로 만든다 — **행이 없으면 만든다.**
+ *
+ * ⚠️ `updateMany`만 쓰면 hostname 행이 없는 팀은 영원히 온보딩 미완이다
+ * (2026-09-21에 「ㄴㄴ」 팀이 그랬다 — 주차를 옮겨도 화면이 온보딩에 머물렀다).
+ * 주소는 참가작 주소에서 가져오고, 그것도 없으면 개발용으로 하나 짓는다.
+ */
+async function setHostname(entryId: string, verified: boolean): Promise<void> {
+  const entry = await prisma.entry.findUniqueOrThrow({
+    where: { id: entryId },
+    select: { serviceUrl: true, hostname: { select: { id: true } } },
+  });
+  const state = {
+    deployStatus: verified ? DeployStatus.active : DeployStatus.pending,
+    ownershipVerifiedAt: verified ? devNow() : null,
+  };
+  if (entry.hostname) {
+    await prisma.hostname.update({ where: { entryId }, data: state });
+    return;
+  }
+  const host = entry.serviceUrl
+    ? new URL(entry.serviceUrl).host
+    : `dev-${entryId.slice(0, 8)}.proovit.kr`;
+  await prisma.hostname.create({ data: { entryId, hostname: host, ...state } });
+}
+

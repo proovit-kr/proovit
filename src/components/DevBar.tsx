@@ -3,7 +3,7 @@ import {
   SeasonPhase,
   StageKey,
 } from "@/generated/prisma/enums";
-import { getSessionUser } from "@/lib/access";
+import { getSessionUser, loadViewerState } from "@/lib/access";
 import {
   checkDevSandbox,
   hasSandboxTeam,
@@ -112,8 +112,15 @@ export async function DevBar() {
     user && state.season
       ? await hasSandboxTeam({ userId: user.id, seasonId: state.season.id })
       : null;
+  /*
+    ⚠️ **화면이 보는 그 참가 기록을 고른다.** 한 사람이 여러 팀의 팀장일 수
+    있는데(dev DB에서 실제로 그렇다), 바가 제 순서로 고르면 화면과 다른 팀을
+    집는다 — 2026-09-21에 s1 주차를 눌러도 화면이 s4였던 원인이다.
+    `loadViewerState`는 React cache라 여기서 불러도 왕복이 늘지 않는다.
+  */
+  const viewer = await loadViewerState();
   const current =
-    state.teams.find((team) => team.userId === user?.id) ?? null;
+    state.teams.find((team) => team.entryId === viewer.entry?.id) ?? null;
   /* 지금 눌린 버튼 — DB 상태를 시안 목록의 한 줄로 되짚는다 */
   const hubKey =
     current && state.season
