@@ -430,11 +430,7 @@ export function DevBarClient({
                       <PickButton
                         key={hub.value}
                         action={devSetHub}
-                        fields={{
-                          entryId: current.entryId,
-                          seasonId: season.id,
-                          key: hub.value,
-                        }}
+                        fields={{ entryId: current.entryId, key: hub.value }}
                         active={hubKey === hub.value}
                       >
                         {hub.label}

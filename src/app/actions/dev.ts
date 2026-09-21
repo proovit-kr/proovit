@@ -107,13 +107,12 @@ export async function devSetHub(formData: FormData): Promise<void> {
 
   const entryId = String(formData.get("entryId") ?? "");
   const key = String(formData.get("key") ?? "") as HubKey;
-  const seasonId = String(formData.get("seasonId") ?? "");
-  if (!entryId || !seasonId || !HUB_PLANS[key]) {
-    throw new Error("[dev] entryId·seasonId·key가 잘못됐습니다.");
+  if (!entryId || !HUB_PLANS[key]) {
+    throw new Error("[dev] entryId·key가 잘못됐습니다.");
   }
 
   /* 팀장(제출물의 `submitted_by`)은 보관을 푼 뒤 저쪽이 직접 찾는다 */
-  await setSandboxHub({ key, entryId, seasonId });
+  await setSandboxHub({ key, entryId });
   refresh();
 }
 
@@ -188,7 +187,7 @@ export async function devSetCurrentStage(formData: FormData): Promise<void> {
       select: { id: true },
     });
     if (mine) {
-      await setSandboxPace({ entryId: mine.id, seasonId, stage });
+      await setSandboxPace({ entryId: mine.id, stage });
     }
   }
   refresh();

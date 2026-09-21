@@ -131,10 +131,23 @@ export async function DevBar() {
     !viewer.entry && user && state.season
       ? await findParkedEntry({ userId: user.id, seasonId: state.season.id })
       : null;
+  /*
+    그래도 없으면 **그 사람이 팀장인 기록 중 가장 앞 시즌 것**이다 — h17이
+    다음 시즌을 깨우면 「지금 시즌」이 그쪽이 되어 이번 시즌 기록이 없어지는데,
+    바는 시즌 1의 기록을 계속 잡고 있어야 다른 판으로 돌아올 수 있다. 판은
+    언제나 그 기록의 시즌에 만들어진다(`setSandboxHub`).
+  */
+  const mine = user
+    ? [...state.teams]
+        .filter((team) => team.userId === user.id)
+        .sort((a, b) => a.seasonCreatedAt.getTime() - b.seasonCreatedAt.getTime())
+    : [];
   const current =
     state.teams.find(
       (team) => team.entryId === (viewer.entry?.id ?? parkedEntryId),
-    ) ?? null;
+    ) ??
+    mine[0] ??
+    null;
   /* 지금 눌린 버튼 — DB 상태를 시안 목록의 한 줄로 되짚는다 */
   const hubKey =
     current && state.season

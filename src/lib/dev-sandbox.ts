@@ -109,6 +109,9 @@ export type SandboxTeam = {
   /* 아래 둘은 허브 줄이 「지금 어느 판인가」를 되짚는 데 쓴다 */
   solo: boolean;
   verified: boolean;
+  /* 어느 시즌의 기록인가 — 바가 「지금 시즌」에 기록이 없을 때 되짚어 찾는다 */
+  seasonId: string;
+  seasonCreatedAt: Date;
 };
 
 export type SandboxState = {
@@ -140,6 +143,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
         stage: true,
         status: true,
         ideaTitle: true,
+        season: { select: { id: true, createdAt: true } },
         hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
         team: {
           select: {
@@ -195,6 +199,8 @@ export async function loadSandboxState(): Promise<SandboxState> {
         verified:
           entry.hostname?.deployStatus === DeployStatus.active &&
           entry.hostname.ownershipVerifiedAt !== null,
+        seasonId: entry.season.id,
+        seasonCreatedAt: entry.season.createdAt,
       },
     ];
   });
@@ -1278,18 +1284,24 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
 export async function setSandboxHub(args: {
   key: HubKey;
   entryId: string;
-  seasonId: string;
   /** 집계 픽스처를 건드리지 않는다 — 스테이지 줄이 부를 때 그렇다 */
   skipMetrics?: boolean;
 }): Promise<void> {
   assertSandbox();
-  const { key, entryId, seasonId } = args;
+  const { key, entryId } = args;
   const plan = HUB_PLANS[key];
 
+  /*
+    ⚠️ **시즌은 그 참가 기록의 시즌이다** — 「지금 시즌」이 아니다. h17이 다음
+    시즌을 깨우면 그쪽이 지금 시즌이 되는데, 거기서 또 h17을 받으면 그 다음
+    시즌을 만들어 번호가 계속 올라갔다(2026-09-21 수연 지적 — 「왜 점점 시즌
+    숫자가 올라가」). 목 데이터는 시즌 1과 시즌 2 둘로 고정이다.
+  */
   const entry = await prisma.entry.findUniqueOrThrow({
     where: { id: entryId },
-    select: { teamId: true },
+    select: { teamId: true, seasonId: true },
   });
+  const seasonId = entry.seasonId;
   /*
     ⚠️ **보관 계정이 앉아 있으면 먼저 비운다.** 「참가팀 없음」 줄과 지각
     참가(h10)가 그 사람의 팀 자리를 보관 계정으로 옮기는데, 그 상태로 다른
@@ -1574,9 +1586,10 @@ async function ensureNextSeason(currentId: string): Promise<void> {
     where: { id: currentId },
     select: { createdAt: true, endsAt: true, slug: true, title: true },
   });
+  /* 바로 다음 시즌이다(가장 이른 것) — 목 데이터는 시즌 1·2 둘로 고정이다 */
   const next = await prisma.season.findFirst({
     where: { id: { not: currentId }, createdAt: { gt: current.createdAt } },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
     select: { id: true },
   });
   if (next) {
@@ -1642,17 +1655,10 @@ const STAGE_PANE: Record<StageKey, HubKey> = {
  */
 export async function setSandboxPace(args: {
   entryId: string;
-  seasonId: string;
   stage: StageKey;
 }): Promise<void> {
   assertSandbox();
-  const { entryId, seasonId, stage } = args;
-  await setSandboxHub({
-    key: STAGE_PANE[stage],
-    entryId,
-    seasonId,
-    skipMetrics: true,
-  });
+  await setSandboxHub({ key: STAGE_PANE[args.stage], entryId: args.entryId, skipMetrics: true });
 }
 
 /**
