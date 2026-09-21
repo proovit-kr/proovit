@@ -478,33 +478,36 @@ export async function setSandboxTeamSize(args: {
   assertSandbox();
   const { teamId, size } = args;
 
-  await prisma.$transaction(async (tx) => {
-    if (size === 1) {
-      await tx.teamMember.deleteMany({
-        where: { teamId, role: { not: MemberRole.leader } },
-      });
-      return;
-    }
+  if (size === 1) {
+    await prisma.teamMember.deleteMany({
+      where: { teamId, role: { not: MemberRole.leader } },
+    });
+    return;
+  }
 
-    const count = await tx.teamMember.count({ where: { teamId } });
-    if (count >= 2) return;
-
-    const mate = await tx.user.upsert({
-      where: { email: MATE_EMAIL },
-      update: {},
-      create: {
+  /*
+    왕복을 아낀다(dev DB는 한 번에 ~80ms). 트랜잭션·upsert 사슬 대신 셋으로 —
+    인원 확인, 개발용 계정 찾기(없을 때만 만들기), 자리 만들기(이미 있으면 무시).
+  */
+  const [count, found] = await Promise.all([
+    prisma.teamMember.count({ where: { teamId } }),
+    prisma.user.findUnique({ where: { email: MATE_EMAIL }, select: { id: true } }),
+  ]);
+  if (count >= 2) return;
+  const mate =
+    found ??
+    (await prisma.user.create({
+      data: {
         email: MATE_EMAIL,
         name: "[개발용] 팀원",
         nickname: "[개발용] 팀원",
         onboardedAt: new Date(),
       },
       select: { id: true },
-    });
-    await tx.teamMember.upsert({
-      where: { teamId_userId: { teamId, userId: mate.id } },
-      update: { role: MemberRole.member },
-      create: { teamId, userId: mate.id, role: MemberRole.member },
-    });
+    }));
+  await prisma.teamMember.createMany({
+    data: [{ teamId, userId: mate.id, role: MemberRole.member }],
+    skipDuplicates: true,
   });
 }
 

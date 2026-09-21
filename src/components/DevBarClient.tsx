@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 
 import {
   devSetAuth,
@@ -110,14 +111,34 @@ function PickButton({
       {Object.entries(fields).map(([name, value]) => (
         <input key={name} type="hidden" name={name} value={value} />
       ))}
-      <button
-        type="submit"
-        className={active ? styles.pickOn : styles.pick}
-        aria-pressed={active}
-      >
-        {children}
-      </button>
+      <PickSubmit active={active}>{children}</PickSubmit>
     </form>
+  );
+}
+
+/*
+  누른 칩은 서버가 돌아올 때까지 「…」을 단다. dev DB 왕복이 느려 한 번 누르면
+  1초 남짓 아무 일도 없어 보이는데, 그 사이 다시 누르면 두 번 실행된다.
+*/
+function PickSubmit({
+  active,
+  children,
+}: {
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      className={active ? styles.pickOn : styles.pick}
+      aria-pressed={active}
+      aria-busy={pending || undefined}
+      disabled={pending}
+    >
+      {children}
+      {pending ? " …" : null}
+    </button>
   );
 }
 
