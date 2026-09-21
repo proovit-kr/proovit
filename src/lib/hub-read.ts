@@ -1,16 +1,22 @@
 import "server-only";
 
 import {
+  EntryStage,
+  EntryStatus,
   JudgmentResult,
+  SanctionStage,
   StageKey,
   SubmissionStatus,
 } from "@/generated/prisma/enums";
 import { HUB_GOLDEN_PATH, HUB_ONBOARDING, HUB_STEP_CHIP } from "@/content/hub";
 import type { ViewerState } from "@/lib/access";
-import { conversionRate } from "@/lib/header-state";
+import { addBusinessDays, APPEAL_BUSINESS_DAYS } from "@/lib/appeal";
+import { devNow } from "@/lib/dev-clock";
+import { conversionRate, currentStage } from "@/lib/header-state";
 import type { HubPane } from "@/lib/hub-state";
 import { prisma } from "@/lib/prisma";
 import { loadLeaderboard } from "@/lib/public-read";
+import { isRacing } from "@/lib/season-phase";
 
 /*
   허브가 그릴 **재료를 모으는 곳.** 판정은 hub-state.ts(순수), 그리기는
@@ -96,6 +102,30 @@ export type HubView =
       stages: number;
       gatesPassed: number;
       gates: number;
+    }
+  /* ── 예외 여덟 ─────────────────────────────────────────── */
+  | { pane: "late"; steps: HubStep[]; teamReady: boolean; dueAt: Date | null }
+  | { pane: "missed"; gate: StageKey }
+  | {
+      pane: "gateFail";
+      gate: StageKey;
+      /** 판정에 남은 사유. 운영이 안 적었으면 없다 */
+      reason: string | null;
+      /** 이의신청 마감 — 판정 통지일 + 5영업일(제11조 ①) */
+      appealBy: Date | null;
+    }
+  | { pane: "undeployed"; validUsers: number; rank: number | null }
+  | {
+      pane: "disqualified";
+      /** 제재 사유. 제재 행이 없으면 없다 */
+      reason: string | null;
+    }
+  | {
+      pane: "s5";
+      validUsers: number;
+      revenue: bigint;
+      weeklyActive: number | null;
+      retention: number | null;
     };
 
 /*
@@ -216,6 +246,75 @@ async function totals(entryId: string) {
 async function myRow(seasonId: string, entryId: string) {
   const board = await loadLeaderboard(seasonId);
   return { row: board.rows.find((r) => r.entryId === entryId) ?? null, teams: board.rows.length };
+}
+
+/**
+ * 지난 시즌에 참가한 적이 있는가 — 시안 h17을 그릴지 정한다.
+ *
+ * 다음 시즌이 열리면 그쪽이 「지금 시즌」이 되어(`getCurrentSeason`) 지난
+ * 시즌 참가자는 **이번 시즌 참가 기록이 없는 사람**이 된다. 처음 온 사람과
+ * 같은 온보딩 화면을 그리지 않기 위해 한 번 확인한다.
+ */
+export async function hasPastEntry(
+  userId: string,
+  seasonId: string,
+): Promise<boolean> {
+  const past = await prisma.entry.findFirst({
+    where: {
+      seasonId: { not: seasonId },
+      team: { members: { some: { userId } } },
+    },
+    select: { id: true },
+  });
+  return past !== null;
+}
+
+/**
+ * 판을 고르는 데만 필요한 축. **판을 고르기 전**이라 이것만 먼저 읽는다.
+ *
+ * 나머지 재료는 판이 정해진 뒤 `loadHub`가 읽는다 — 아홉 판이 쓰는 것이 전부
+ * 달라서, 한 번에 다 읽으면 온보딩 화면이 리더보드까지 조회한다.
+ *
+ * ⚠️ 둘 다 **그 상태일 때만** 읽는다. 지금 스테이지는 레이스에서만 판을 가르고
+ * (h6 vs h15), 판정은 탈락일 때만 판을 가른다(h11 vs h12).
+ */
+export async function loadHubAxes(viewer: ViewerState): Promise<{
+  stageNow: StageKey | null;
+  gateFailed: boolean;
+}> {
+  const { season, entry } = viewer;
+  if (!season || !entry) return { stageNow: null, gateFailed: false };
+
+  const [stages, fails] = await Promise.all([
+    isRacing(season.phase)
+      ? prisma.stage.findMany({
+          where: { seasonId: season.id },
+          orderBy: { stageKey: "asc" },
+          select: { stageKey: true, opensAt: true },
+        })
+      : Promise.resolve([]),
+    entry.status === EntryStatus.eliminated
+      ? prisma.judgment.count({
+          where: {
+            submission: { entryId: entry.id },
+            result: JudgmentResult.fail,
+          },
+        })
+      : Promise.resolve(0),
+  ]);
+
+  /* 「지금 스테이지」의 정의는 헤더와 한 곳이다 — 창이 열린 것 중 마지막 */
+  const now = currentStage(
+    stages.map((s) => ({
+      key: s.stageKey,
+      name: "",
+      isGate: false,
+      opensAt: s.opensAt,
+      closesAt: null,
+    })),
+    devNow(),
+  );
+  return { stageNow: now?.key ?? null, gateFailed: fails > 0 };
 }
 
 export async function loadHub(
@@ -464,6 +563,98 @@ export async function loadHub(
         gatesPassed: judgments.filter((j) => j.result === JudgmentResult.pass)
           .length,
         gates: stages.filter((s) => s.isGate).length,
+      };
+    }
+
+    /* ── 예외 여덟 ───────────────────────────────────────── */
+
+    case "late": {
+      /*
+        온보딩은 h1과 같은 두 칸이다. **칩만 없다** — 시안 h10은 경고줄이
+        이미 급하다고 말해 놓고 칸을 「진행 중 / 대기」로 또 설명하지 않는다.
+      */
+      const list = steps([
+        { label: HUB_ONBOARDING.items[0], done: onboarding.teamReady },
+        { label: HUB_ONBOARDING.items[1], done: onboarding.measurementReady },
+      ]);
+      return {
+        pane,
+        steps: list,
+        teamReady: onboarding.teamReady,
+        dueAt: await stageDueAt(season.id, StageKey.s1),
+      };
+    }
+
+    case "missed":
+      /* 게이트는 둘뿐이고, 멈춘 자리가 곧 떨어진 자리다(header-read와 같은 규칙) */
+      return {
+        pane,
+        gate: entry.stage === EntryStage.s5 ? StageKey.s5 : StageKey.s2,
+      };
+
+    case "gateFail": {
+      const gate =
+        entry.stage === EntryStage.s5 ? StageKey.s5 : StageKey.s2;
+      const judgment = await prisma.judgment.findFirst({
+        where: {
+          submission: { entryId: entry.id, stageKey: gate },
+          result: JudgmentResult.fail,
+        },
+        orderBy: { judgedAt: "desc" },
+        select: { feedback: true, judgedAt: true },
+      });
+      return {
+        pane,
+        gate,
+        reason: judgment?.feedback ?? null,
+        /*
+          제11조 ① — 통지 후 5영업일. **기산점은 판정 시각**이고 공휴일은 못
+          세므로(appeal.ts 주석) 실제 기한은 이 값보다 늦어질 수 있다.
+        */
+        appealBy: judgment
+          ? addBusinessDays(judgment.judgedAt, APPEAL_BUSINESS_DAYS)
+          : null,
+      };
+    }
+
+    case "undeployed": {
+      /*
+        ⚠️ **숫자를 0으로 박지 않는다.** 시안 h13이 0과 「-」를 적은 것은
+        미배포 팀에 집계가 쌓일 수 없기 때문이지(`public-read.ts`의
+        `notDeployed`) 화면이 0을 쓰기 때문이 아니다. 읽어서 그린다.
+      */
+      const [{ row }, sum] = await Promise.all([
+        myRow(season.id, entry.id),
+        totals(entry.id),
+      ]);
+      return {
+        pane,
+        validUsers: row?.validVisitors ?? sum.validVisitors,
+        rank: row?.rank ?? null,
+      };
+    }
+
+    case "disqualified": {
+      const sanction = await prisma.sanction.findFirst({
+        where: { entryId: entry.id, stage: SanctionStage.disqualified },
+        orderBy: { createdAt: "desc" },
+        select: { reason: true },
+      });
+      return { pane, reason: sanction?.reason ?? null };
+    }
+
+    case "s5": {
+      const [{ row }, sum, extra] = await Promise.all([
+        myRow(season.id, entry.id),
+        totals(entry.id),
+        loadExtra(entry.id),
+      ]);
+      return {
+        pane,
+        validUsers: row?.validVisitors ?? sum.validVisitors,
+        revenue: row?.revenue ?? sum.revenue,
+        weeklyActive: extra.weekly_active,
+        retention: extra.retention,
       };
     }
   }

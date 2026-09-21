@@ -325,7 +325,13 @@ function publicNav(season: NonNullable<PublicHeaderInput["season"]>): NavItem[] 
 }
 
 /** 사전신청 폼. 「시즌 2 알림 받기」도 같은 폼을 쓴다(시안 판단 필요 P5, 이메일 수집이 같다) */
-const PREREGISTER = "/?preregister=1";
+/**
+ * 사전 신청·다음 시즌 알림이 가는 곳. 랜딩의 알림 폼을 연다.
+ *
+ * 허브의 탈락 판(h11·h12)도 같은 곳으로 보낸다 — 「다음 시즌 소식 받기」가
+ * 공개 헤더의 「알림 받기」와 같은 일이라, 주소를 두 군데 적으면 갈린다.
+ */
+export const PREREGISTER = "/?preregister=1";
 
 /**
  * 탈락 스트립을 닫은 표식. 값은 entry id — 팀이 바뀌면 다시 보인다.

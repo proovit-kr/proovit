@@ -1038,9 +1038,9 @@ export async function setSandboxCurrentStage(args: {
   **같은 표**를 쓴다. 시안 드롭다운을 그대로 옮긴 것이고, 라벨도 시안 그대로다
   (2026-09-21 수연 지시 — 「개발 바에 진도 줄 사진과 동일하게」).
 
-  ⚠️ **화면은 아직 아홉만 있다.** 정상 흐름 h1~h9는 `resolveHubPane()`이 받고,
-  예외 h10~h17은 그 함수가 null을 내 옛 안내가 그려진다. 그래도 **상태는 지금
-  만들 수 있어야 한다** — 다음 사람이 그 판을 옮길 때 바로 눌러서 본다.
+  ⚠️ **화면 열다섯에 이 표 열일곱이 대응한다.** h16은 DB 상태가 h9와 같아
+  아카이브 한 판으로 합쳤고(`hub-state.ts` 머리 주석), h17은 **이번 시즌
+  참가 기록이 없는 사람**이라 `resolveHubPane`을 거치지 않는다.
 
   ⚠️ 한 판이 여러 축을 한꺼번에 옮긴다(페이즈·진도·생존·팀·측정·집계·오늘).
   그래서 이 줄을 누르면 아래 다른 줄들의 값도 같이 바뀐다.
@@ -1225,7 +1225,16 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
   h15: {
     label: "15, s5 자동 제출 확인", group: "예외",
     phase: SeasonPhase.racing, stage: EntryStage.s4,
-    solo: true, verified: true, raceStage: StageKey.s5, metrics: "final",
+    /*
+      ⚠️ 집계는 **레이스**다 — 「최종 지표는 자동으로 집계돼요」가 아직 확정
+      전이라는 말이고, `setSandboxCurrentStage(s5)`도 레이스로 되돌린다.
+      화면에 뜨는 넷은 시안 목업 값이라 아래 `spec`이 얹는다.
+    */
+    solo: true, verified: true, raceStage: StageKey.s5, metrics: "race",
+    spec: {
+      validUsers: 1248, revenue: 126_000, rank: 2,
+      weeklyActive: 512, retention: 31,
+    },
   },
   /* h16 종료 후 쓰기 시도 — DB 상태는 h9와 같다. 화면만 다르다 */
   h16: {
@@ -1335,6 +1344,12 @@ export async function setSandboxHub(args: {
         data: {
           submissionId: submission.id,
           result: JudgmentResult.fail,
+          /*
+            ⚠️ **가정한 「오늘」로 판정한다.** 스키마 기본값은 진짜 지금이라,
+            그대로 두면 허브 h12의 이의신청 기한(통지 + 5영업일)이 화면이
+            말하는 오늘보다 앞선 날짜로 뜬다.
+          */
+          judgedAt: devNow(),
           feedback:
             "[개발용] 수요 신호가 부족합니다. 개발자 도구가 만든 판정이라 실제 심사가 아닙니다.",
         },
@@ -1367,6 +1382,19 @@ export async function setSandboxHub(args: {
   */
   if (plan.raceStage && plan.phase === SeasonPhase.racing) {
     await setSandboxCurrentStage({ seasonId, stage: plan.raceStage });
+  }
+
+  /*
+    ⚠️ **미배포 팀에는 집계가 없다**(시안 h13의 0과 「-」). 공용 픽스처는
+    참가팀 전부에 일별 지표와 스냅샷을 깔아서, 그대로 두면 연동이 안 끝난
+    팀이 순위를 달고 나온다 — 운영에서는 일어날 수 없는 모양이다
+    (`public-read.ts`의 `notDeployed`가 같은 조건을 본다).
+  */
+  if (!plan.verified) {
+    await prisma.$transaction([
+      prisma.metricDaily.deleteMany({ where: { entryId } }),
+      prisma.leaderboardSnapshot.deleteMany({ where: { entryId } }),
+    ]);
   }
 
   /*
@@ -1450,7 +1478,7 @@ async function unparkTeam(teamId: string): Promise<void> {
 }
 
 /** 다음 시즌을 다시 재운다(draft). 그래야 지난 시즌이 「지금 시즌」으로 돌아온다 */
-async function sleepNextSeason(currentId: string): Promise<void> {
+export async function sleepNextSeason(currentId: string): Promise<void> {
   const current = await prisma.season.findUniqueOrThrow({
     where: { id: currentId },
     select: { createdAt: true },

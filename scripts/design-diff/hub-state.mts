@@ -1,11 +1,11 @@
 /*
-  대시보드 허브 대조용 dev DB 상태 스위치 — 시안 「정상 흐름」 h1~h9.
+  대시보드 허브 대조용 dev DB 상태 스위치 — 시안 17판(h1~h17).
 
     node --env-file=.env.development.local --import tsx scripts/design-diff/hub-state.mts save
     node --env-file=.env.development.local --import tsx scripts/design-diff/hub-state.mts h6
     node --env-file=.env.development.local --import tsx scripts/design-diff/hub-state.mts restore
 
-  `h1`~`h9`는 상태를 만든 뒤 **세션 토큰 한 줄**을 찍는다 — `hub.mjs`가 그것을
+  `h1`~`h17`은 상태를 만든 뒤 **세션 토큰 한 줄**을 찍는다 — `hub.mjs`가 그것을
   쿠키로 심어 그 팀의 대시보드를 연다(auth.mjs가 `consent-session.mts`를 쓰는
   것과 같은 방식).
 
@@ -32,6 +32,7 @@ import {
   setMetricsFixture,
   setSandboxHub,
   setSandboxStage,
+  sleepNextSeason,
   type HubKey,
 } from "../../src/lib/dev-sandbox";
 import { devToday, setDevToday } from "../../src/lib/dev-clock";
@@ -178,8 +179,20 @@ if (mode === "save") {
     } | null;
   };
 
+  /*
+    ⚠️ **다음 시즌부터 재운다.** h17이 시즌 2를 모집 중으로 세워 두는데,
+    그러면 그쪽이 「지금 시즌」이라(`getCurrentSeason`) 아래에서 시즌 1을
+    아무리 되돌려도 화면이 안 돌아온다.
+  */
+  await sleepNextSeason(season.id);
+
   /* 픽스처가 만든 스냅샷·일별 지표·수상을 먼저 걷어낸다 */
   await setMetricsFixture({ seasonId: season.id, kind: "none" });
+
+  /* 실격 판(h14)이 남긴 제재도 걷는다 — 헤더가 계속 붉은 띠를 문다 */
+  await prisma.sanction.deleteMany({
+    where: { entryId: snap.entry.id, detail: { startsWith: "[개발용]" } },
+  });
 
   /*
     시안 목업 값도 걷는다 — `setMetricsFixture`가 모르는 것들이다.
@@ -244,7 +257,7 @@ if (mode === "save") {
   rmSync(SNAP, { force: true });
   console.log(`되돌림: 페이즈 ${snap.phase}, 진도 ${snap.entry.stage}`);
 } else {
-  throw new Error("save · h1~h9 · restore 중 하나를 준다");
+  throw new Error("save · h1~h17 · restore 중 하나를 준다");
 }
 
 await prisma.$disconnect();

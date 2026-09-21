@@ -1,8 +1,11 @@
 /*
-  대시보드 허브 — 시안 `#scr-hub`의 「정상 흐름」 h1~h9와 `/dashboard`를 대조한다.
+  대시보드 허브 — 시안 `#scr-hub` 17판과 `/dashboard`를 대조한다.
 
     STATE=h1 node scripts/design-diff/hub.mjs      # 한 판만
-    node scripts/design-diff/hub.mjs               # h1~h9 전부
+    node scripts/design-diff/hub.mjs               # 열여섯 판 전부
+
+  ⚠️ **h16은 목록에 없다.** DB 상태가 h9와 같아 아카이브 한 판으로 합쳤다
+  (`hub-state.ts` 머리 주석) — 누를 수 없는 판이라 대조할 것도 없다.
 
   ⚠️ **상태가 데이터로 갈린다.** 시안은 `<select id="hubSel">`로 바꾸지만 우리는
   dev DB가 정한다 — `hub-state.mts`가 페이즈·진도·온보딩·지표를 그 판으로 만들고
@@ -54,10 +57,35 @@ const P = (h) => `${S}.pane[data-id='${h}'] `;
 */
 const I = (n) => `{{${n}}}`;
 
-/* 아홉 판이 같이 쓰는 머리 두 줄. 글자 길이가 달라 폭은 뺀다 */
+/* 판이 같이 쓰는 머리 두 줄. 글자 길이가 달라 폭은 뺀다 */
 const HEAD = [
   ["h1", S + ".pane.on .hb-h1", I("h1"), [], ["width"]],
   ["sub", S + ".pane.on .hb-sub", I("sub"), [], ["width"]],
+];
+
+/* 부제가 없는 판(h10·h13). 목록에 넣으면 양쪽 다 「못 찾음」이 된다 */
+const TITLE = [HEAD[0]];
+
+/*
+  경고줄(`.wbar`) — 판 맨 위. `kind`는 `wbarWarn`·`wbarRed`.
+
+  아이콘은 우리 쪽이 `Icon` 모듈이라 클래스 이름이 다르다 — h8의 보류 배지와
+  같이 부분 일치로 잡는다. h13은 🚀라 아이콘이 없다(시안 `ICONS` 표 밖).
+*/
+const WBAR = (h, kind, icon = true) => [
+  ["wbar", P(h) + ".wbar", `${I("wbar")}${I(kind)}`],
+  ...(icon
+    ? [["wbar .ic", P(h) + ".wbar .ic", `${I(kind)} [class*="Icon-module"]`]]
+    : []),
+];
+
+/* 주 행동이 아닌 상자(h11·h12). 시안은 버튼도 외곽선이다 */
+const ACT = (h) => [
+  ["act", P(h) + ".act", `${I("act")}:not(${I("hero")})`],
+  ["act h3", P(h) + ".act h3", `${I("act")}:not(${I("hero")}) h3`, [], ["width"]],
+  ["act p", P(h) + ".act p", `${I("act")}:not(${I("hero")}) p`, [], ["width"]],
+  ["act .btn", P(h) + ".act .btn", `${I("act")}:not(${I("hero")}) ${I("actBtn")}`, [],
+    ["width", "margin-left"]],
 ];
 
 /*
@@ -159,6 +187,25 @@ const LIST = {
     ["보증금 버튼", P("h8") + ".act:not(.hero) .btn", `${I("actBtnsCenter")} ${I("actBtn")}`, [],
       ["width", "color", "background-color", "border-top-color", "border-bottom-color"]]],
   h9: [...HEAD, ...SNAP("h9")],
+
+  /* ── 예외 ─────────────────────────────────────────────── */
+
+  /* 시안 h10은 부제가 없고 골든패스 칩도 없다 */
+  h10: [...WBAR("h10", "wbarWarn"), ...TITLE, ...GP("h10", ["now", "wait"]),
+    ...HERO("h10")],
+  h11: [...WBAR("h11", "wbarRed"), ...HEAD, ...ACT("h11")],
+  h12: [...HEAD, ...SUM("h12"), ...ACT("h12")],
+  h13: [...WBAR("h13", "wbarWarn", false), ...TITLE,
+    ["hb-cards", P("h13") + ".hb-cards", I("cards")],
+    ["kpi", P("h13") + ".hb-cards .card", I("kpi")],
+    ["kpi small", P("h13") + ".hb-cards small", `${I("cards")} small`, [], ["width"]],
+    ["kpi .score", P("h13") + ".hb-cards .score", `${I("cards")} .score`, [], ["width"]],
+    ["상태 배지", P("h13") + ".hb-cards .badge", I("cardBadge"), [], ["width"]],
+    ...HERO("h13")],
+  h14: [...WBAR("h14", "wbarRed"), ...HEAD, ...HERO("h14")],
+  h15: [...HEAD, ...SNAP("h15"), ...HERO("h15")],
+  /* h16은 h9와 같은 판이라 없다(머리 주석) */
+  h17: [...HEAD, ...HERO("h17")],
 };
 
 const probe = () => `(() => {
@@ -238,6 +285,28 @@ const TEXT = {
        ["보증금", P("h8") + ".act:not(.hero)", `${I("act")}:not(${I("hero")})`]],
   h9: [["부제", S + ".pane.on .hb-sub", I("sub")],
        ["확정 라벨", P("h9") + ".snap", I("snap")]],
+
+  /*
+    ⚠️ **경고줄은 h13만 대조한다.** 나머지 셋은 문장 안에 데이터가 박혀 있어
+    (h10 s1 마감 · h11 게이트 키 · h14 제재 사유) 시안 목업과 같을 수 없다.
+    h13만 문장이 통째로 고정이다.
+  */
+  h10: [["머리", S + ".pane.on .hb-h1", I("h1")],
+        ["골든패스", P("h10") + ".gp", I("gp")]],
+  h11: [["머리", S + ".pane.on .hb-h1", I("h1")], ["부제", S + ".pane.on .hb-sub", I("sub")],
+        ["다음 시즌", P("h11") + ".act", `${I("act")}:not(${I("hero")})`]],
+  h12: [["부제", S + ".pane.on .hb-sub", I("sub")],
+        ["요약 라벨", P("h12") + ".hb-sum", I("sum")],
+        ["다음 시즌", P("h12") + ".act", `${I("act")}:not(${I("hero")})`]],
+  h13: [["경고줄", P("h13") + ".wbar", I("wbar")],
+        ["머리", S + ".pane.on .hb-h1", I("h1")],
+        ["카드 라벨", P("h13") + ".hb-cards", I("cards")]],
+  h14: [["머리", S + ".pane.on .hb-h1", I("h1")], ["부제", S + ".pane.on .hb-sub", I("sub")],
+        ["소명 상자", P("h14") + ".act.hero", `${I("act")}${I("hero")}`]],
+  h15: [["머리", S + ".pane.on .hb-h1", I("h1")], ["부제", S + ".pane.on .hb-sub", I("sub")],
+        ["확정 라벨", P("h15") + ".snap", I("snap")]],
+  h17: [["부제", S + ".pane.on .hb-sub", I("sub")],
+        ["행동 상자", P("h17") + ".act.hero", `${I("act")}${I("hero")}`]],
 };
 
 /*
@@ -252,6 +321,7 @@ const IGNORE = [
   /proovit\.kr/,              // 주소
   /명$/, /%$/, /^₩/, /^-$/, /^—$/,
   /대기|진행 중/,             // 온보딩 칩 — 시안도 우리도 상태로 갈린다
+  /\[개발용\]/,               // 개발자 도구가 심은 판정·제재 문구(h12)
 ];
 
 /*
@@ -261,6 +331,10 @@ const IGNORE = [
 const PANE_OF = {
   h1: "onboarding", h2: "s1", h3: "s2", h4: "gate1", h5: "s3",
   h6: "race", h7: "gate2", h8: "awarded", h9: "archived",
+  h10: "late", h11: "missed", h12: "gateFail", h13: "undeployed",
+  h14: "disqualified", h15: "s5",
+  /* h17은 참가 기록이 없는 판이라 `HubPane`에 없다 — 화면이 직접 찍는다 */
+  h17: "nextSeason",
 };
 
 /* 구현본이 지금 어느 판을 그리는지 */
@@ -275,6 +349,16 @@ const pickPane = (h) => `(() => {
   return on ? on.dataset.id : "켜진 패널 없음";
 })()`;
 
+/**
+ * 스크롤바를 지운다. **재는 폭에서 10px이 왔다 갔다 하기 때문이다.**
+ *
+ * 구현본은 헤더와 사이드바가 있어 언제나 세로로 넘치는데, 시안 쪽은 짧은 판
+ * (h11·h12처럼 상자 하나뿐인 것)에서 안 넘친다 — 그러면 같은 상자가 시안
+ * 688px, 구현 678px로 잡힌다. 스타일 차이가 아니라 재는 조건의 차이다.
+ */
+const hideScrollbars = (p) =>
+  p.send("Emulation.setScrollbarsHidden", { hidden: true });
+
 /** 그 판의 dev DB 상태를 만들고 세션 토큰을 받는다 */
 const setup = (h) =>
   execFileSync("node", [
@@ -284,7 +368,7 @@ const setup = (h) =>
 
 const PANES = process.env.STATE ? [process.env.STATE] : Object.keys(LIST);
 for (const h of PANES) {
-  if (!LIST[h]) throw new Error(`STATE는 h1~h9 중 하나: ${h}`);
+  if (!LIST[h]) throw new Error(`STATE는 h1~h15·h17 중 하나(h16은 h9와 같은 판): ${h}`);
 }
 
 /* 지금 dev DB를 떠 둔다 — 끝나면 그대로 되돌린다 */
@@ -304,6 +388,7 @@ try {
 
     for (const w of WIDTHS) {
       const spec = await withPage(async (p) => {
+        await hideScrollbars(p);
         /*
           ⚠️ 감축 모션으로 연다. 시안 뷰어는 화면이 들어올 때 `.score`를 0부터
           세고(`countUp`, 750ms rAF) **폭을 바꿀 때마다 다시 센다.** 헤드리스에서는
@@ -333,6 +418,7 @@ try {
       });
 
       const impl = await withPage(async (p) => {
+        await hideScrollbars(p);
         await p.send("Network.clearBrowserCookies");
         await p.send("Network.setCookie", {
           name: "authjs.session-token", value: token,

@@ -18,6 +18,14 @@ export const APPEAL_REASON_MAX = 2000;
 export const RESPONSE_BUSINESS_DAYS = 5;
 
 /**
+ * 제11조 ① — 참가자는 **판정 통지 후** 5영업일 이내에 이의신청을 접수한다.
+ *
+ * 위의 답변 기한과 우연히 같은 값이지만 다른 조항이다. 한 상수로 묶으면
+ * 한쪽이 바뀔 때 다른 쪽도 같이 움직인다.
+ */
+export const APPEAL_BUSINESS_DAYS = 5;
+
+/**
  * 영업일 더하기.
  *
  * 스키마 주석이 "영업일 계산은 애플리케이션이 한다"고 못박아 둔 자리다.
