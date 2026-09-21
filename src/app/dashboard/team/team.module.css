@@ -1,229 +1,84 @@
 /*
-  팀 관리.
+  팀 관리 — 시안 `#scr-team`.
 
-  줄과 괘선으로만 나눈다 — 팀원 두 명과 초대 하나를 카드에 담으면 화면이 상자
-  세 개가 된다(CLAUDE.md §7). 라임은 「초대 코드 만들기」 버튼 한 곳에서만 세게 쓴다.
-  초대 코드는 크게 두되 색을 얹지 않는다 — 크기만으로 충분히 눈에 든다.
+  머리·행동 상자·요약 카드는 hub.module.css의 `.h1`·`.sub`·`.act`·`.hero`·
+  `.actBtn`·`.sum`을 쓴다(참가자 화면이 공유하는 시안 클래스). 여기는 이 화면이
+  자리마다 인라인으로 덮는 값과, 아직 다른 화면에 없는 `.keybox`뿐이다.
+
+  값은 `node scripts/design-diff/fold-spec.mjs '^\.(keybox|hb-sum|act)'`의
+  최종 승자다.
 */
 
-.root {
+/* 시안이 `.hb-sum`에 `style="margin-bottom:16px"`로 덮는다(기본 18px) */
+.sum {
+  margin-bottom: 16px;
+}
+
+/* 시안 `<b>이윤서 <span class="badge" style="margin-left:6px">팀장</span></b>` */
+.leaderBadge {
+  margin-left: 6px;
+}
+
+/* 시안 `.act.hero`의 `style="margin-bottom:16px"` */
+.actGap {
+  margin-bottom: 16px;
+}
+
+/*
+  시안 `.keybox` — 코드·주소처럼 옮겨 적는 값이 서는 상자. 모노스페이스.
+    padding   14px 16px → 15px 18px(v1.8)
+    font-size 14px → 14.5px → 15px(v2.0)
+*/
+.keybox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface-2);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.026),
+    rgba(255, 255, 255, 0) 46%
+  );
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 15px 18px;
+  font-family: var(--mono);
+  font-size: 15px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 16px 40px -28px rgba(0, 0, 0, 0.45);
+  /* 시안에는 없다 — 코드·배지·버튼 둘이 390px에 한 줄로 못 서서 넘긴다 */
+  flex-wrap: wrap;
+}
+
+/* 시안 `.keybox .cp` + ②의 `<span class="cp" style="display:flex;gap:8px">` */
+.cp {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+/* 강퇴·이양 상자 한 쌍. 시안은 첫 상자에 `style="margin-bottom:12px"`를 준다 */
+.rows {
   display: flex;
   flex-direction: column;
-  gap: var(--s-8);
-  padding-block: var(--s-10) var(--s-14);
+  gap: 12px;
 }
 
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
+.rows + .rows {
+  margin-top: 12px;
 }
 
-.title {
-  margin: 0;
-  color: var(--c-text-strong);
-  font-size: var(--fs-3xl);
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.purpose {
-  /* 읽기 폭은 텍스트에만(§6). 한글이라 ch를 쓰지 않는다 */
-  max-width: 34em;
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-md);
-  line-height: 1.7;
-}
-
-.locked {
-  max-width: 34em;
-  margin: 0;
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--c-line-3);
-  border-radius: var(--r-lg);
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-}
-
-.panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-8);
-}
-
+/* 액션 실패 문구. 필드에 붙지 않는 오류라 폼 맨 위에 선다 */
 .error {
-  max-width: 34em;
-  margin: 0;
-  color: var(--c-danger);
-  font-size: var(--fs-sm);
+  margin-bottom: 16px;
+  color: var(--danger);
+  font-size: 14.5px;
   line-height: 1.6;
 }
 
-.notice {
-  max-width: 34em;
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-}
-
-.block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-}
-
-.blockTitle {
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-}
-
-/* ── 팀원 ──────────────────────────────────────────────────── */
-
-.members {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.member {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  padding-block: var(--s-4);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.who {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: var(--s-1);
-}
-
-.nickname {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  color: var(--c-text-strong);
-  font-size: var(--fs-base);
-  font-weight: 600;
-}
-
-.self {
-  color: var(--c-text-faint);
-  font-size: var(--fs-2xs);
-  font-weight: 400;
-}
-
-.joined {
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-}
-
-.rowActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-}
-
-/* ── 초대 ──────────────────────────────────────────────────── */
-
-.invite {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  padding-top: var(--s-4);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.code {
-  margin: 0;
-  color: var(--c-text-strong);
-  font-family: var(--font-mono);
-  font-size: var(--fs-2xl);
-  /* 눈으로 읽고 손으로 옮겨 적는 값이라 글자를 벌린다 */
-  letter-spacing: 0.18em;
-}
-
-.inviteHint {
-  max-width: 34em;
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
-}
-
-.url {
-  color: var(--c-text-dim);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-}
-
-.inviteActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-}
-
-.inviteForm {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s-3);
-  max-width: 26em;
-  padding-top: var(--s-4);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.label {
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-  font-weight: 700;
-}
-
-.optional {
-  color: var(--c-text-faint);
-  font-size: var(--fs-2xs);
-  font-weight: 400;
-}
-
-.input {
-  width: 100%;
-  padding: 13px 16px;
-  border: 1px solid var(--c-line-3);
-  border-radius: var(--r-lg);
-  background: var(--c-field);
-  color: var(--c-text-strong);
-  font-size: var(--fs-md);
-  outline: none;
-  transition: border-color var(--t-fast);
-}
-
-.input:focus {
-  border-color: var(--c-lime);
-}
-
-.hint {
-  max-width: 34em;
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
-}
-
-@media (max-width: 640px) {
-  .member {
-    flex-wrap: wrap;
-  }
-
-  .rowActions {
-    flex-basis: 100%;
-  }
+/* 시안 mdl-transfer의 `<b style="color:var(--danger)">` */
+.dangerText {
+  color: var(--danger);
 }

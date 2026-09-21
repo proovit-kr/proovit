@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import {
   canLeaveTeam,
@@ -84,6 +85,11 @@ export async function manageTeam(
     revalidatePath("/dashboard/team");
     revalidatePath("/dashboard");
   }
+  /*
+    나간 사람에게 이 화면은 더 없다 — 참가 기록이 사라져 다시 그리면 404다.
+    허브로 보내면 「참가 기록 없음」 판(h1)이 다음 할 일을 말해 준다.
+  */
+  if (result.done === "left") redirect("/dashboard");
   return result;
 }
 
