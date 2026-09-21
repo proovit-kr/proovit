@@ -125,14 +125,19 @@
 }
 
 .soloRow input {
+  /*
+    ⚠️ Tailwind 프리플라이트가 `font: inherit`으로 글꼴·색·자간을 물려준다.
+    시안에는 프리플라이트가 없어 체크박스가 UA 기본(400 / 13.333px / Arial /
+    검정)을 쓴다. 그냥 두면 이 줄의 15px·Pretendard·본문색을 물려받는다 —
+    16×16 상자라 눈에는 안 보이지만 대조에서 폭마다 다섯 줄씩 어긋났다.
+    `ConsentFields.module.css`가 같은 함정을 같은 방식으로 막아 두고 있다.
+  */
+  font: revert;
+  color: revert;
+  letter-spacing: revert;
   width: 16px;
   height: 16px;
   accent-color: var(--accent);
-}
-
-/* 줄 전체가 누를 자리다 — 체크박스 16px만 과녁으로 두지 않는다 */
-.soloRow label {
-  cursor: pointer;
 }
 
 /* ───────── 팀원 초대 칸 — 시안 336~337행 ───────── */
