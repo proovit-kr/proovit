@@ -1572,7 +1572,7 @@ export async function sleepNextSeason(currentId: string): Promise<void> {
 async function ensureNextSeason(currentId: string): Promise<void> {
   const current = await prisma.season.findUniqueOrThrow({
     where: { id: currentId },
-    select: { createdAt: true, endsAt: true },
+    select: { createdAt: true, endsAt: true, slug: true, title: true },
   });
   const next = await prisma.season.findFirst({
     where: { id: { not: currentId }, createdAt: { gt: current.createdAt } },
@@ -1589,10 +1589,18 @@ async function ensureNextSeason(currentId: string): Promise<void> {
   const startsAt = new Date(
     (current.endsAt ?? devNow()).getTime() + 50 * 86_400_000,
   );
-  await prisma.season.create({
-    data: {
-      slug: "season-2",
-      title: "시즌 2",
+  /*
+    ⚠️ 이름은 지금 시즌 다음 번호다 — 「season-2」를 박아 두면 시즌 2가 지금
+    시즌일 때(h17의 「참가 신청」으로 시즌 2에 신청한 뒤 다시 누르면 그렇다)
+    같은 slug를 또 만들다 터진다(2026-09-21 수연이 그 에러를 봤다).
+  */
+  const n = Number(current.slug.match(/(\d+)$/)?.[1] ?? 1) + 1;
+  await prisma.season.upsert({
+    where: { slug: `season-${n}` },
+    update: { phase: SeasonPhase.recruiting },
+    create: {
+      slug: `season-${n}`,
+      title: current.title.replace(/\d+$/, String(n)) || `시즌 ${n}`,
       phase: SeasonPhase.recruiting,
       startsAt,
       endsAt: new Date(startsAt.getTime() + 36 * 86_400_000),
