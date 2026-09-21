@@ -40,11 +40,18 @@ import { DevBarClient } from "./DevBarClient";
   「오늘」을 그 판이 성립하도록 한꺼번에 맞춘다(`HUB_PLANS`). 그래서 이 줄을
   누르면 아래 다른 줄들의 값도 같이 바뀐다.
 */
-const HUBS = (Object.keys(HUB_PLANS) as HubKey[]).map((value) => ({
-  value,
-  label: HUB_PLANS[value].label,
-  group: HUB_PLANS[value].group,
-}));
+/*
+  ⚠️ `inBar: false`인 판은 버튼을 두지 않는다 — 지금은 h1 하나다. 「참가팀 없음」
+  줄이 같은 화면(온보딩)을 만들기 때문이다(2026-09-21 수연 결정). 표에는 남아
+  있어서 대조 스크립트는 그대로 쓴다.
+*/
+const HUBS = (Object.keys(HUB_PLANS) as HubKey[])
+  .filter((value) => HUB_PLANS[value].inBar !== false)
+  .map((value) => ({
+    value,
+    label: HUB_PLANS[value].label,
+    group: HUB_PLANS[value].group,
+  }));
 
 const STATUSES: { value: EntryStatus; label: string }[] = [
   { value: EntryStatus.active, label: "정상" },

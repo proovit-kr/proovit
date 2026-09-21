@@ -1041,11 +1041,21 @@ type HubPlan = {
   sanction?: boolean;
   /** 다음 시즌을 모집 중으로 둔다 */
   nextSeason?: boolean;
+  /*
+    개발 바의 「진도」 줄에 버튼을 두는가. 기본은 둔다.
+
+    ⚠️ h1만 빼 두었다 — 「참가팀 없음」 줄이 같은 화면(온보딩)을 만들기
+    때문이다(2026-09-21 수연 결정). **표에서는 지우지 않는다** — 대조
+    스크립트(`hub-state.mts h1`)가 이 판을 계속 쓴다. 그쪽은 참가 기록이
+    있는 채로 온보딩 중인 상태라 헤더 배너와 사이드바가 살아 있다.
+  */
+  inBar?: boolean;
 };
 
 export const HUB_PLANS: Record<HubKey, HubPlan> = {
+  /* h1 온보딩 미완료 — 바에는 없다(위 `inBar` 주석) */
   h1: {
-    label: "1, 온보딩 미완료", group: "정상 흐름",
+    label: "1, 온보딩 미완료", group: "정상 흐름", inBar: false,
     phase: SeasonPhase.recruiting, stage: EntryStage.applied,
     solo: false, verified: false,
   },
