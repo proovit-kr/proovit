@@ -49,7 +49,13 @@ type NavItem = {
     실격  허브·소명만 남긴다 — 열린 길이 소명뿐이다(허브 h14의 말 그대로)
   (2026-09-21 수연 지시 — 「게이트 미제출일 때 사이드바에 비활성 메뉴들 있어야」)
 */
-function closeFor(items: NavItem[], status?: EntryStatus): NavItem[] {
+function closeFor(items: NavItem[], status?: EntryStatus | "none"): NavItem[] {
+  /* 참가 기록이 없다 — 허브 말고는 갈 곳이 없다 */
+  if (status === "none") {
+    return items.map((item) =>
+      item.href === "/dashboard" ? item : { ...item, off: "dim" },
+    );
+  }
   if (status === EntryStatus.eliminated) {
     const struck = new Set(["/dashboard/metrics"]);
     return items.map((item) =>
@@ -113,9 +119,10 @@ export default async function DashboardLayout({
   const header = await loadDashboardHeader(viewer);
 
   /*
-    ⚠️ **참가 기록이 없으면 허브만 남긴다.** 나머지 라우트는 전부 `entry: true`라
-    눌러도 404다 — 「꺼진 기능은 링크를 아예 만들지 않는다」(06 §4.4)와 같은
-    이유다. 허브는 그때 신청 안내를 그린다(2026-09-21 수연 지시).
+    ⚠️ **참가 기록이 없어도 목차는 다 보인다**(2026-09-21 수연 지시 — 「온보딩
+    미완료랑 다음 시즌 참가엔 왜 목차 허브만 있냐」). 시안 h1·h17의 사이드바가
+    그렇다. 다만 나머지 라우트는 전부 `entry: true`라 눌러도 404라서, 허브만
+    살리고 나머지는 닫아 둔다(실격의 흐림과 같은 모양) — 신청하면 열린다.
 
     ⚠️ **이름과 순서는 시안 3626행 `MENU` 그대로다**(2026-09-21 수연 지시).
     「홈」이 아니라 「허브」, 「팀」이 아니라 「팀 관리」이고, 혜택과 크레딧이
@@ -154,11 +161,10 @@ export default async function DashboardLayout({
 
       <div className={styles.db}>
         <SideNav
-          groups={
-            viewer.entry
-              ? [{ items: closeFor(items, viewer.entry.status) }, HOLD]
-              : [{ items: items.slice(0, 1) }]
-          }
+          groups={[
+            { items: closeFor(items, viewer.entry?.status ?? "none") },
+            HOLD,
+          ]}
           label="대시보드"
           roots={["/dashboard"]}
         />
