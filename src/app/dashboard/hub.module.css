@@ -1,267 +1,461 @@
 /*
-  대시보드 허브.
+  대시보드 허브 — 시안 `#scr-hub`의 `.db-body > .pane` 아홉(h1~h9, 「정상 흐름」).
 
-  상자를 쓰지 않는다 — 괘선과 여백으로만 나눈다(CLAUDE.md §7). 참가자가 이 화면에서
-  찾는 건 "지금 무엇을 하나" 하나뿐이라, 그 문장을 제일 크게 두고 나머지는 눌러둔다.
-  라임은 CTA 버튼 한 곳에서만 세게 쓴다(§7) — 체크·배지에는 쓰지 않는다.
+  값은 `node scripts/design-diff/fold-spec.mjs --media '\.hb-|\.gp|\.act|\.snap|\.lockpill'`
+  의 최종 승자를 그대로 옮긴 것이다. 근사치로 반올림하지 않는다.
 
-  밀도를 일부러 다르게 준다: 머리(할 일)는 넓게, 아래 목록들은 좁게.
+  ⚠️ `.card`·`.chip`·`.badge`·`.btn`은 이미 시안 값을 들고 있다
+  (Surface.module.css · Badge · Button). 여기서 값을 다시 적지 않고,
+  시안이 자리마다 덮는 것(`.hb-cards .card`의 padding 등)만 덮는다.
+
+  ⚠️ 전역 `.score`는 모듈 안에서 `:global(.score)`로 써야 걸린다 — 그냥
+  `.score`라고 쓰면 CSS 모듈이 해시해 전역 규칙에 안 걸린다(참가작 상세 전례).
 */
 
-.root {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-10);
-  padding-block: var(--s-10) var(--s-14);
+/* ── 머리 ─────────────────────────────────────────────── */
+
+/*
+  시안 `.hb-h1`. `text-wrap: balance`와 자간은 globals의 `h1,h2,h3,h4,.hb-h1`이
+  준다 — 우리도 시안처럼 `<h2>`라 그 규칙에 그대로 걸린다.
+*/
+.h1 {
+  font-size: 26px;
+  font-weight: 800;
+  margin-bottom: 6px;
 }
 
-/* ── 머리 — 지금 할 일 ─────────────────────────────────────── */
-
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
+.sub {
+  color: var(--muted);
+  font-size: 15.5px;
+  margin-bottom: 24px;
 }
 
-.headTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
+/* ── 골든패스(`.gp`) ──────────────────────────────────── */
+
+.gp {
+  background: var(--surface);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.026),
+    rgba(255, 255, 255, 0) 46%
+  );
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-l);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 16px 40px -28px rgba(0, 0, 0, 0.45);
+  padding: 8px 0;
+  margin-bottom: 18px;
 }
 
-.season {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  margin: 0;
-  font-size: var(--fs-sm);
-}
-
-.seasonLink {
-  color: var(--c-text-muted);
-  text-decoration: none;
-}
-
-.seasonLink:hover {
-  color: var(--c-text-strong);
-}
-
-.team {
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-}
-
-.title {
-  /* 읽기 폭은 텍스트에만. 한글이라 ch를 쓰지 않는다(CLAUDE.md §6) */
-  max-width: 24em;
-  margin: 0;
-  color: var(--c-text-strong);
-  font-size: var(--fs-4xl);
+.gpTitle {
+  padding: 15px 22px 9px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--faint);
   font-weight: 700;
-  line-height: 1.25;
+  font-family: var(--mono);
 }
 
-.lead {
-  max-width: 34em;
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-md);
-  line-height: 1.7;
-}
-
-.cta {
+.gpItem {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-4);
-  padding-top: var(--s-2);
+  gap: 13px;
+  padding: 14px 22px;
+  font-size: 15.5px;
+  border-top: 1px solid var(--line);
 }
 
-.ctaNote {
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-}
-
-/* ── 스테이지 진행 ─────────────────────────────────────────── */
-
-.stages {
-  padding-block: var(--s-6);
-  border-block: 1px solid var(--c-line-2);
-}
-
-/* ── 목록 블록 공통 ────────────────────────────────────────── */
-
-.block {
+.mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 99px;
   display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 800;
+  font-family: var(--mono);
 }
 
-.blockTitle {
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
+.done {
+  color: var(--muted);
 }
 
-.checklist,
-.reasons,
-.links {
+.done .mark {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid rgba(200, 255, 61, 0.4);
+}
+
+.now {
+  font-weight: 700;
+  background: rgba(200, 255, 61, 0.05);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.now .mark {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.wait {
+  color: var(--faint);
+}
+
+.wait .mark {
+  border: 1px solid var(--line-strong);
+  color: var(--faint);
+}
+
+/* 시안 `.gp-i .rgt` — 오른쪽 끝으로 미는 칩 */
+.rgt {
+  margin-left: auto;
+}
+
+/* ── 행동 상자(`.act`) ────────────────────────────────── */
+
+.act {
+  background: var(--surface);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.026),
+    rgba(255, 255, 255, 0) 46%
+  );
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-l);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 16px 40px -28px rgba(0, 0, 0, 0.45);
+  padding: 26px;
   display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
 }
 
-/* ── 온보딩 체크리스트 ─────────────────────────────────────── */
-
-.item {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-4);
-  padding-block: var(--s-4);
-  border-top: 1px solid var(--c-line-2);
+.hero {
+  border-color: rgba(200, 255, 61, 0.4);
+  background: linear-gradient(
+    135deg,
+    rgba(200, 255, 61, 0.06),
+    var(--surface)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 18px 44px -26px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(200, 255, 61, 0.07);
 }
 
-.itemDone {
-  composes: item;
-  color: var(--c-text-faint);
+.act h3 {
+  font-size: 18px;
+  margin-bottom: 5px;
+}
+
+.act p {
+  font-size: 14.5px;
+  color: var(--muted);
+  line-height: 1.65;
 }
 
 /*
-  원형 체크 불릿을 쓰지 않는다(§7). 완료는 글자로 적고 색만 눌러 구분한다 —
-  화면을 읽어주는 도구에서도 같은 정보가 나간다.
+  시안 `.act .btn`. `Button`이 해시된 클래스를 쓰므로 자손 셀렉터로는 못 잡는다
+  — 버튼에 이 클래스를 함께 준다(`.hb-cards .card`와 같은 사정).
 */
-.mark {
-  flex: 0 0 auto;
-  min-width: 2.5em;
-  color: var(--c-text-faint);
-  font-size: var(--fs-2xs);
-  letter-spacing: 0.06em;
+.actBtn {
+  margin-left: auto;
+  flex: none;
 }
 
-.itemDone .mark {
-  color: var(--c-text-dim);
-}
-
-.itemBody {
+/*
+  시안이 버튼 둘을 묶을 때 쓰는 인라인 상자
+  (`<span style="display:flex;gap:10px;margin-left:auto">`, h6).
+  @760에서 `.act>span[style*="margin-left:auto"]`가 걸리는 그 자리다.
+*/
+.actBtns {
   display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: var(--s-1);
+  gap: 10px;
+  margin-left: auto;
 }
 
-.itemLabel {
-  color: var(--c-text-strong);
-  font-size: var(--fs-base);
+/*
+  시안 h8은 같은 묶음에 `align-items:center`를 더한다 — 배지와 버튼의 높이가
+  달라서다(h6은 버튼 둘이라 늘어나도 같다).
+*/
+.actBtnsCenter {
+  align-items: center;
+}
+
+/* 시안 h8의 수상 배지는 `style="font-size:13px"`로 한 급 크다 */
+.awardBadge {
+  font-size: 13px;
+}
+
+/* 시안이 `.act` 위에 직접 주는 아래 여백(h3의 카운트다운, h8의 최종 순위) */
+.actGap {
+  margin-bottom: 18px;
+}
+
+/* 시안 `style="align-self:center"` — 카운트다운 옆 칩과 수상 배지 */
+.selfCenter {
+  align-self: center;
+}
+
+/* ── 숫자 ─────────────────────────────────────────────── */
+
+/*
+  시안 `.hb-cd` — 카운트다운과 최종 순위의 큰 숫자.
+
+  ⚠️ `font-variant-numeric`을 여기 다시 적는다. globals의
+  `.score,.mono,.hb-cd,…` 규칙은 **전역 클래스 이름**에 걸리는데 우리 것은
+  모듈이라 해시된다(참가작 상세의 `.rkv`와 같은 사정). 자식(`.cdUnit`)은
+  상속으로 따라온다.
+*/
+.cd {
+  font-family: var(--mono);
+  font-weight: 800;
+  font-size: 36px;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  text-shadow: 0 0 20px rgba(200, 255, 61, 0.16);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 시안 `.hb-cd > span` — 「/ 12팀」 */
+.cdUnit {
+  font-size: 16px;
+  color: var(--text);
+}
+
+/* 시안 `<small class="mono" style="font-size:10px;...">` — 큰 숫자의 머리 */
+.cdLabel {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 시안 h8의 `<p style="margin-top:6px">` */
+.cdNote {
+  margin-top: 6px;
+}
+
+/* ── 지표 카드 ────────────────────────────────────────── */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+/*
+  시안 `.hb-cards .card`. `Card`가 해시된 클래스를 쓰므로 자손 셀렉터로는
+  못 잡는다 — 쓰는 쪽에서 이 클래스를 함께 준다.
+*/
+.kpi {
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi:nth-child(3n + 1) {
+  --tint: var(--blue);
+}
+
+.kpi:nth-child(3n + 2) {
+  --tint: var(--accent);
+}
+
+.kpi:nth-child(3n + 3) {
+  --tint: var(--teal);
+}
+
+.kpi::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--tint, transparent), transparent 75%);
+}
+
+.cards small {
+  font-family: var(--font);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
   font-weight: 600;
 }
 
-.itemDone .itemLabel {
-  color: var(--c-text-muted);
-  font-weight: 400;
+.cards small::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--tint, var(--faint));
+  margin-right: 8px;
+  flex: none;
 }
 
-.itemHint {
-  max-width: 34em;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
+.cards :global(.score) {
+  font-size: 28px;
+  letter-spacing: -0.02em;
 }
 
-.itemDone .itemHint {
-  color: var(--c-text-faint);
+/* 시안이 값 자체를 흐리게 두는 자리(미배포의 0) */
+.off {
+  color: var(--faint);
 }
 
-.itemLink {
-  flex: 0 0 auto;
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  text-decoration: none;
-  border-bottom: 1px solid var(--c-line-3);
+/* 시안 `.hb-cards .score > span` — 「 / 12」 */
+.rankTotal {
+  font-size: 14px;
+  color: var(--faint);
 }
 
-.itemLink:hover {
-  color: var(--c-text-strong);
-  border-bottom-color: var(--c-line-strong);
+/* 시안이 증감에 쓰는 강조색 */
+.up {
+  color: var(--accent);
 }
 
-/* ── 막고 있는 것 · 알아두실 것 ────────────────────────────── */
+/* ── 확정 지표(`.snap`) ───────────────────────────────── */
 
-.reason {
+.snap {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.snapCard {
+  padding: 18px;
+}
+
+.snap small {
+  font-family: var(--font);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-2) var(--s-4);
-  padding-block: var(--s-4);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.reasonTitle {
-  color: var(--c-text-strong);
-  font-size: var(--fs-base);
-}
-
-.reasonHint {
-  flex: 1 1 20em;
-  max-width: 34em;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
-}
-
-/* ── 바로가기 ──────────────────────────────────────────────── */
-
-.link {
-  display: flex;
-  align-items: baseline;
-  /* 균등 분할하지 않는다(§7) — 이름은 좁게 두고 설명이 남는 폭을 먹는다 */
-  gap: var(--s-4);
-  padding-block: var(--s-4);
-  border-top: 1px solid var(--c-line-2);
-  text-decoration: none;
-}
-
-.link:hover .linkLabel {
-  color: var(--c-lime);
-}
-
-.linkLabel {
-  flex: 0 0 7em;
-  color: var(--c-text-strong);
-  font-size: var(--fs-base);
+  align-items: center;
+  margin-bottom: 4px;
   font-weight: 600;
-  transition: color var(--t-fast);
 }
 
-.linkDesc {
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
+.snap :global(.score) {
+  font-size: 21px;
 }
 
-@media (max-width: 640px) {
-  .headTop {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--s-2);
+/* ── 요약 줄(`.hb-sum`) ───────────────────────────────── */
+
+/* 시안이 `class="card hb-sum"`이라 카드 값은 `Card`가 든다 */
+.sum {
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+
+.sum div {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14.5px;
+  padding: 6px 0;
+}
+
+.sum span {
+  color: var(--faint);
+}
+
+.sum b {
+  font-family: var(--mono);
+  font-weight: 700;
+}
+
+/* 시안이 값에 직접 주는 색(h5의 「검증됨 ✓」) */
+.ok {
+  color: var(--accent);
+}
+
+/* ── 잠금 알림(`.lockpill`) ───────────────────────────── */
+
+.lockpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  padding: 11px 20px;
+  color: var(--muted);
+  font-size: 14.5px;
+}
+
+/* ── 좁은 폭 ──────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .cards,
+  .snap {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .h1 {
+    font-size: 21px;
   }
 
-  .title {
-    font-size: var(--fs-3xl);
+  .sub {
+    font-size: 14px;
   }
 
-  .link {
-    flex-direction: column;
-    gap: var(--s-1);
+  .cards {
+    grid-template-columns: 1fr;
   }
 
-  .linkLabel {
-    flex: 0 0 auto;
+  .snap {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cd {
+    font-size: 28px;
+  }
+
+  .act {
+    padding: 18px;
+    gap: 14px;
+  }
+
+  .actBtn {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .actBtns {
+    margin-left: 0;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .actBtns .actBtn {
+    flex: 1;
+  }
+
+  .gpItem {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  .lockpill {
+    font-size: 13px;
+    padding: 10px 14px;
   }
 }

@@ -106,21 +106,33 @@
   --side-top: 56px;
 }
 
-/* 시안 `.db-body` — 본문은 860 상한을 둔다(읽는 폭) */
+/* 시안 `.db-body` — 본문은 860 상한을 둔다(읽는 폭). 값은 ver4 승자 */
 .body {
   flex: 1;
-  padding: 34px 38px 80px;
+  padding: 36px 40px 84px;
   min-width: 0;
   max-width: 860px;
 }
 
+@media (max-width: 1024px) {
+  .body {
+    max-width: none;
+  }
+}
+
+/*
+  ⚠️ 시안은 `.db`도 1024에서 세로로 눕힌다(사이드바가 가로줄이 된다).
+  여기가 860인 것은 사이드바가 아직 그 가로줄 모양을 안 갖췄기 때문이다 —
+  크롬(`.db-side`)을 옮길 때 이 폭도 1024로 맞춘다.
+*/
 @media (max-width: 860px) {
   .db {
     flex-direction: column;
   }
+}
 
+@media (max-width: 760px) {
   .body {
-    max-width: none;
-    padding: 24px 18px 72px;
+    padding: 20px 16px 60px;
   }
 }

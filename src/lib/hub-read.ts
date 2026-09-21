@@ -1,0 +1,405 @@
+import "server-only";
+
+import {
+  JudgmentResult,
+  StageKey,
+  SubmissionStatus,
+} from "@/generated/prisma/enums";
+import { HUB_GOLDEN_PATH, HUB_ONBOARDING, HUB_STEP_CHIP } from "@/content/hub";
+import type { ViewerState } from "@/lib/access";
+import { conversionRate } from "@/lib/header-state";
+import type { HubPane } from "@/lib/hub-state";
+import { prisma } from "@/lib/prisma";
+import { loadLeaderboard } from "@/lib/public-read";
+
+/*
+  허브가 그릴 **재료를 모으는 곳.** 판정은 hub-state.ts(순수), 그리기는
+  `app/dashboard/page.tsx`가 한다 — header-read.ts와 같은 삼분할이다.
+
+  ⚠️ **숫자를 지어내지 않는다.** 시안 목업의 471·24·1,248은 전부 데이터다.
+  우리가 세지 않는 값(주간 활성·재방문율)은 만들지 않고 「—」로 둔다.
+
+  ⚠️ **순위는 여기서 계산하지 않는다.** 정본은 `leaderboard_snapshots`이고
+  `loadLeaderboard()`가 그것을 읽는다 — 허브가 자기 식으로 세면 리더보드와
+  다른 등수가 나오고, 그게 곧 분쟁이 된다(dashboard-read.ts와 같은 규칙).
+
+  ⚠️ **판을 고른 뒤에 필요한 것만 읽는다.** 아홉 판이 쓰는 재료가 전부 달라서
+  한 번에 다 읽으면 온보딩 화면이 리더보드까지 조회한다.
+*/
+
+/** 골든패스 한 칸. 시안 `.gp-i`의 done·now·wait */
+export type StepState = "done" | "now" | "wait";
+
+export type HubStep = {
+  label: string;
+  state: StepState;
+  /** 오른쪽 끝 칩(시안 h1의 「대기」, h3의 「24명」) */
+  chip?: string;
+  /*
+    숫자 칩인가. 시안 h3은 그 칩에만 `mono`를 붙여 자릿수를 고정한다
+    (h1의 「대기」에는 없다).
+  */
+  chipMono?: boolean;
+};
+
+export type HubView =
+  | { pane: "onboarding"; steps: HubStep[]; teamReady: boolean }
+  | { pane: "s1"; steps: HubStep[]; dueAt: Date | null }
+  | { pane: "s2"; steps: HubStep[]; dueAt: Date | null }
+  | {
+      pane: "gate1";
+      landingUrl: string | null;
+      visitors: number;
+      leads: number;
+      conversion: number | null;
+    }
+  | {
+      pane: "s3";
+      steps: HubStep[];
+      hostname: string | null;
+      verified: boolean;
+    }
+  | {
+      pane: "race";
+      validUsers: number;
+      rank: number | null;
+      teams: number;
+      today: number | null;
+      shareUrl: string | null;
+    }
+  | {
+      pane: "gate2";
+      validUsers: number;
+      revenue: bigint;
+      announceAt: Date | null;
+    }
+  | {
+      pane: "awarded";
+      rank: number | null;
+      teams: number;
+      teamName: string;
+      validUsers: number;
+      award: string | null;
+    }
+  | {
+      pane: "archived";
+      rank: number | null;
+      teams: number;
+      validUsers: number;
+      submitted: number;
+      stages: number;
+      gatesPassed: number;
+      gates: number;
+    };
+
+/*
+  골든패스 칸을 만든다.
+
+  ⚠️ **미체크 중 첫 칸 하나만 `now`다.** 시안 h3은 둘을 동시에 `now`로 칠했지만
+  h1·h2·h5는 순차다 — 목업이 자리마다 손으로 칠린 것이라 규칙이 섞여 있다.
+  「지금 할 것 하나」가 이 화면의 목적이므로(허브 옛 주석) 순차로 통일했다.
+*/
+function steps(
+  items: { label: string; done: boolean; chip?: string; chipMono?: boolean }[],
+): HubStep[] {
+  let marked = false;
+  return items.map((item) => {
+    const base = { label: item.label, chip: item.chip, chipMono: item.chipMono };
+    if (item.done) return { ...base, state: "done" };
+    if (marked) return { ...base, state: "wait" };
+    marked = true;
+    return { ...base, state: "now" };
+  });
+}
+
+/** 저장된 payload에서 가이드 체크 배열만 꺼낸다. 없으면 전부 미체크다 */
+function guideChecks(payload: unknown, count: number): boolean[] {
+  const raw =
+    payload && typeof payload === "object"
+      ? (payload as { guideChecks?: unknown }).guideChecks
+      : null;
+  const list = Array.isArray(raw) ? raw : [];
+  return Array.from({ length: count }, (_, i) => list[i] === true);
+}
+
+function stringField(payload: unknown, key: string): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function boolList(payload: unknown, key: string): boolean[] {
+  if (!payload || typeof payload !== "object") return [];
+  const value = (payload as Record<string, unknown>)[key];
+  return Array.isArray(value) ? value.map((v) => v === true) : [];
+}
+
+/** 그 스테이지에 저장된 것 한 건(임시저장이든 제출이든) */
+async function stageDraft(entryId: string, stageKey: StageKey) {
+  return prisma.submission.findFirst({
+    where: { entryId, stageKey },
+    orderBy: { updatedAt: "desc" },
+    select: { payload: true, status: true },
+  });
+}
+
+async function stageDueAt(
+  seasonId: string,
+  stageKey: StageKey,
+): Promise<Date | null> {
+  const stage = await prisma.stage.findUnique({
+    where: { seasonId_stageKey: { seasonId, stageKey } },
+    select: { closesAt: true },
+  });
+  return stage?.closesAt ?? null;
+}
+
+/** 그 참가작의 누적 지표. 리더보드에 행이 없을 때도 쓴다 */
+async function totals(entryId: string) {
+  const sum = await prisma.metricDaily.aggregate({
+    where: { entryId },
+    _sum: { validVisitors: true, signups: true, revenue: true },
+  });
+  return {
+    validVisitors: sum._sum.validVisitors ?? 0,
+    signups: sum._sum.signups ?? 0,
+    /* `0n` 리터럴은 tsconfig target(ES2017)에서 못 쓴다 — 값은 같다 */
+    revenue: sum._sum.revenue ?? BigInt(0),
+  };
+}
+
+/**
+ * 내 행과 참가팀 수. 순위·증감·매출이 전부 여기서 나온다.
+ *
+ * `loadLeaderboard`는 시즌 전체를 읽지만 참가팀이 열 단위라 무겁지 않고,
+ * **순위의 정본이 한 곳뿐이어야 한다**는 것이 더 중요하다.
+ */
+async function myRow(seasonId: string, entryId: string) {
+  const board = await loadLeaderboard(seasonId);
+  return { row: board.rows.find((r) => r.entryId === entryId) ?? null, teams: board.rows.length };
+}
+
+export async function loadHub(
+  viewer: ViewerState,
+  pane: HubPane,
+): Promise<HubView> {
+  const { season, entry, team, onboarding } = viewer;
+  /* 판을 고를 때 이미 본 것들이다. 타입을 좁히려고 한 번 더 막는다 */
+  if (!season || !entry || !team) throw new Error("허브 재료를 읽을 수 없다");
+
+  switch (pane) {
+    case "onboarding": {
+      const list = steps([
+        { label: HUB_ONBOARDING.items[0], done: onboarding.teamReady },
+        { label: HUB_ONBOARDING.items[1], done: onboarding.measurementReady },
+      ]);
+      /* 시안 h1은 끝나지 않은 칸에만 칩을 단다 */
+      return {
+        pane,
+        teamReady: onboarding.teamReady,
+        steps: list.map((step) =>
+          step.state === "done"
+            ? step
+            : { ...step, chip: HUB_STEP_CHIP[step.state] },
+        ),
+      };
+    }
+
+    case "s1": {
+      const gp = HUB_GOLDEN_PATH.s1;
+      const [draft, dueAt] = await Promise.all([
+        stageDraft(entry.id, StageKey.s1),
+        stageDueAt(season.id, StageKey.s1),
+      ]);
+      const checks = guideChecks(draft?.payload, gp.checks.length);
+      return {
+        pane,
+        dueAt,
+        steps: steps([
+          ...gp.checks.map((label, i) => ({ label, done: checks[i] })),
+          { label: gp.last, done: false },
+        ]),
+      };
+    }
+
+    case "s2": {
+      const gp = HUB_GOLDEN_PATH.s2;
+      const [draft, dueAt, leads] = await Promise.all([
+        stageDraft(entry.id, StageKey.s2),
+        stageDueAt(season.id, StageKey.s2),
+        /* 시안 h3이 세 번째 칸에 다는 「24명」. 미인증 리드는 점수에 안 들어간다 */
+        prisma.entryLead.count({
+          where: { entryId: entry.id, verifiedAt: { not: null } },
+        }),
+      ]);
+      const checks = guideChecks(draft?.payload, gp.checks.length);
+      return {
+        pane,
+        dueAt,
+        steps: steps([
+          ...gp.checks.map((label, i) => ({
+            label,
+            done: checks[i],
+            chip: i === 2 ? `${leads}명` : undefined,
+            chipMono: i === 2,
+          })),
+          { label: gp.last, done: false },
+        ]),
+      };
+    }
+
+    case "gate1": {
+      const [submission, leads, sum] = await Promise.all([
+        stageDraft(entry.id, StageKey.s2),
+        prisma.entryLead.count({
+          where: { entryId: entry.id, verifiedAt: { not: null } },
+        }),
+        totals(entry.id),
+      ]);
+      /* 리드를 따로 세지 못한 구간에서는 집계된 가입 수가 같은 값을 든다 */
+      const applicants = leads || sum.signups;
+      return {
+        pane,
+        landingUrl: stringField(submission?.payload, "landingUrl"),
+        visitors: sum.validVisitors,
+        leads: applicants,
+        conversion: conversionRate(applicants, sum.validVisitors),
+      };
+    }
+
+    case "s3": {
+      const gp = HUB_GOLDEN_PATH.s3;
+      const [draft, host] = await Promise.all([
+        stageDraft(entry.id, StageKey.s3),
+        prisma.hostname.findUnique({
+          where: { entryId: entry.id },
+          select: { hostname: true, ownershipVerifiedAt: true },
+        }),
+      ]);
+      const payload = draft?.payload;
+      const launch = boolList(payload, "launchChecks");
+      const ai = boolList(payload, "aiChecks");
+      const aiFeature =
+        payload && typeof payload === "object"
+          ? (payload as { aiFeature?: unknown }).aiFeature === true
+          : false;
+      const verified = host?.ownershipVerifiedAt !== null && host !== null;
+      /*
+        ⚠️ s3은 폼의 모양이 달라 가이드 체크 배열 하나로 1:1이 되지 않는다.
+        칸마다 대응시킨 것이 아래다 — 빌더를 골랐는가, 배포한 주소를 적었는가,
+        그 주소의 소유 확인이 끝났는가, 출시 전 점검을 다 눌렀는가.
+        점검은 A1~A10이 전부이고, 생성형 AI 기능이 있으면 B1~B5도 함께다.
+      */
+      return {
+        pane,
+        hostname: host?.hostname ?? null,
+        verified,
+        steps: steps([
+          {
+            label: gp.checks[0],
+            done: stringField(payload, "builder") !== null,
+          },
+          {
+            label: gp.checks[1],
+            done: stringField(payload, "serviceUrl") !== null,
+          },
+          { label: gp.checks[2], done: verified },
+          {
+            label: gp.last,
+            done:
+              launch.length > 0 &&
+              launch.every(Boolean) &&
+              (!aiFeature || (ai.length > 0 && ai.every(Boolean))),
+          },
+        ]),
+      };
+    }
+
+    case "race": {
+      const [{ row, teams }, host, sum] = await Promise.all([
+        myRow(season.id, entry.id),
+        prisma.hostname.findUnique({
+          where: { entryId: entry.id },
+          select: { hostname: true },
+        }),
+        totals(entry.id),
+      ]);
+      return {
+        pane,
+        validUsers: row?.validVisitors ?? sum.validVisitors,
+        rank: row?.rank ?? null,
+        teams,
+        today: row?.deltaVisitors ?? null,
+        shareUrl: host ? `https://${host.hostname}` : null,
+      };
+    }
+
+    case "gate2": {
+      const [{ row }, sum, seasonRow] = await Promise.all([
+        myRow(season.id, entry.id),
+        totals(entry.id),
+        prisma.season.findUnique({
+          where: { id: season.id },
+          select: { endsAt: true },
+        }),
+      ]);
+      return {
+        pane,
+        validUsers: row?.validVisitors ?? sum.validVisitors,
+        revenue: row?.revenue ?? sum.revenue,
+        /* 랜딩 ④의 「시상 발표」와 같은 값이다 */
+        announceAt: seasonRow?.endsAt ?? null,
+      };
+    }
+
+    case "awarded": {
+      const [{ row, teams }, sum] = await Promise.all([
+        myRow(season.id, entry.id),
+        totals(entry.id),
+      ]);
+      return {
+        pane,
+        rank: row?.rank ?? null,
+        teams,
+        teamName: team.name,
+        validUsers: row?.validVisitors ?? sum.validVisitors,
+        /* 수상은 운영이 `awards`에 남긴 것만이다 — 순위에서 유추하지 않는다 */
+        award: row?.award?.label ?? null,
+      };
+    }
+
+    case "archived": {
+      const [{ row, teams }, sum, stages, submitted, judgments] =
+        await Promise.all([
+          myRow(season.id, entry.id),
+          totals(entry.id),
+          prisma.stage.findMany({
+            where: { seasonId: season.id },
+            select: { stageKey: true, isGate: true },
+          }),
+          prisma.submission.count({
+            where: {
+              entryId: entry.id,
+              status: { not: SubmissionStatus.draft },
+            },
+          }),
+          /* 판정은 제출에 달린다 — 참가작으로 바로 세지 못한다 */
+          prisma.judgment.findMany({
+            where: { submission: { entryId: entry.id } },
+            select: { result: true },
+          }),
+        ]);
+      return {
+        pane,
+        rank: row?.rank ?? null,
+        teams,
+        validUsers: row?.validVisitors ?? sum.validVisitors,
+        submitted,
+        stages: stages.length,
+        gatesPassed: judgments.filter((j) => j.result === JudgmentResult.pass)
+          .length,
+        gates: stages.filter((s) => s.isGate).length,
+      };
+    }
+  }
+}
