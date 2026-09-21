@@ -1,9 +1,15 @@
 /*
   대시보드 허브가 **어느 화면인가**를 정하는 곳.
 
-  시안 `#scr-hub`의 `<select id="hubSel">`가 17종을 나열하는데, 그중
-  「정상 흐름」 아홉(h1~h9)이 이 파일이 내는 값이다. 「예외」 여덟(h10~h17)은
-  아직 옮기지 않았다 — 그 상태에서는 `null`이 나가고 화면이 옛 안내를 그린다.
+  시안 `#scr-hub`의 `<select id="hubSel">`가 17종을 나열한다 — 「정상 흐름」
+  아홉(h1~h9)과 「예외」 여덟(h10~h17)이다. 이 파일이 그중 열넷을 낸다.
+  나머지 셋은 여기가 낼 수 없는 자리다.
+
+    h17  **이번 시즌에 참가 기록이 없는 사람**이라 여기까지 오지 않는다
+         (`page.tsx`가 지난 시즌 기록을 보고 그린다. 문구는 `HUB_NO_ENTRY.next`)
+
+  h16(종료 후 쓰기 시도)은 DB 상태가 h9와 같다 — 갈리는 것은 「방금 쓰려고
+  했다」는 사건이라 `writeAttempt`로 받는다(`page.tsx`가 정한다).
 
   이 파일은 순수하다. `dashboard-state.ts`와 같은 이유다 — DB도 세션도 모른다.
 
@@ -18,9 +24,10 @@
 import {
   EntryStage,
   EntryStatus,
+  StageKey,
   type SeasonPhase,
 } from "@/generated/prisma/client";
-import { isArchived, isAwarded, isPreApply } from "@/lib/season-phase";
+import { isArchived, isAwarded, isPreApply, isRacing } from "@/lib/season-phase";
 
 /**
  * 허브가 그리는 판. 뒤의 주석이 시안 `#hubSel`의 값이다.
@@ -46,42 +53,72 @@ export type HubPane =
   /** h8, 시상 발표 */
   | "awarded"
   /** h9, 시즌 아카이브 */
-  | "archived";
+  | "archived"
+  /** h10, 지각 참가 */
+  | "late"
+  /** h11, 게이트 미제출 탈락 */
+  | "missed"
+  /** h12, 탈락팀 접근 — 게이트 미통과 */
+  | "gateFail"
+  /** h13, 미배포 레이스 */
+  | "undeployed"
+  /** h14, 레이스 중 실격 */
+  | "disqualified"
+  /** h15, s5 자동 제출 확인 */
+  | "s5"
+  /** h16, 종료 후 쓰기 시도 */
+  | "readonly";
 
 export type HubInput = {
   phase: SeasonPhase;
   entry: { stage: EntryStage; status: EntryStatus } | null;
   onboardingComplete: boolean;
+  /**
+   * 측정 연동이 끝났는가. **리더보드의 「미배포」와 같은 판정이다**
+   * (`public-read.ts`의 `notDeployed`, access.ts의 `measurementReady`) —
+   * 그래서 시안 h13이 「리더보드에 미배포로 표시되고」라고 말할 수 있다.
+   */
+  measurementReady: boolean;
+  /** 지금 열린 스테이지. 레이스에서 h6과 h15를 가르는 유일한 축이다 */
+  stageNow: StageKey | null;
+  /** 탈락에 미통과 판정이 달려 있는가. 없으면 마감 도달로 자동 처리된 것(h11) */
+  gateFailed: boolean;
+  /** 끝난 시즌에서 방금 무언가를 고치려 했는가 — h9와 h16을 가르는 유일한 축 */
+  writeAttempt: boolean;
 };
 
 /**
- * 어느 판을 그리는가. 「정상 흐름」이 아니면 null이다.
+ * 어느 판을 그리는가. 시안에 대응하는 판이 없으면 null이다.
  *
- * 순서가 뜻을 만든다 — **생존 상태가 진도보다 앞서고, 시즌의 끝이 진도보다
- * 앞선다.** 실격된 팀에게 「s4 레이스」를, 끝난 시즌에 「이번 주 제출」을
- * 보여주지 않기 위해서다.
+ * 순서가 뜻을 만든다 — **생존 상태가 진도보다 앞서고, 아카이브가 생존 상태보다
+ * 앞선다.** 실격된 팀에게 「s4 레이스」를 보여주지 않기 위해서이고, 끝난 시즌
+ * 에서는 탈락한 팀도 요약을 보기 때문이다(헤더의 D6·D7도 같은 순서다).
  */
 export function resolveHubPane(input: HubInput): HubPane | null {
-  const { phase, entry, onboardingComplete } = input;
+  const { phase, entry, onboardingComplete, measurementReady, stageNow } = input;
 
-  /* 참가 기록이 없으면 허브에 올 일이 없다(page가 404를 낸다). 방어다 */
+  /* 참가 기록이 없으면 `page.tsx`가 따로 그린다(h1 재사용 · h17) */
   if (!entry) return null;
 
-  /*
-    탈락·실격·자진포기는 시안 h11·h12·h14가 맡는다. 아직 안 옮겼으므로
-    여기서 정상 흐름으로 떨어뜨리지 않는다 — 떨어뜨리면 실격된 팀이
-    레이스 화면을 본다.
-  */
-  if (entry.status !== EntryStatus.active) return null;
+  if (!isArchived(phase)) {
+    if (entry.status === EntryStatus.disqualified) return "disqualified";
+    if (entry.status === EntryStatus.eliminated) {
+      return input.gateFailed ? "gateFail" : "missed";
+    }
+    /* 자진 포기는 시안에 판이 없다 */
+    if (entry.status !== EntryStatus.active) return null;
+  }
 
-  if (isArchived(phase)) return "archived";
+  if (isArchived(phase)) return input.writeAttempt ? "readonly" : "archived";
   if (isAwarded(phase)) return "awarded";
 
-  /* 사전신청 구간은 시안에 대응하는 정상 흐름 판이 없다 */
+  /* 사전신청 구간은 시안에 대응하는 판이 없다 */
   if (isPreApply(phase)) return null;
 
   if (entry.stage === EntryStage.applied) {
-    return onboardingComplete ? "s1" : "onboarding";
+    if (onboardingComplete) return "s1";
+    /* 레이스가 이미 돌고 있는데 온보딩이 남았다 — 시안 h10 */
+    return isRacing(phase) ? "late" : "onboarding";
   }
 
   switch (entry.stage) {
@@ -92,7 +129,13 @@ export function resolveHubPane(input: HubInput): HubPane | null {
     case EntryStage.s3:
       return "s3";
     case EntryStage.s4:
-      return "race";
+      /*
+        미배포가 먼저다 — 연동이 없으면 집계가 0이라 레이스 화면에 볼 것이
+        없고, 마지막 주차라도 먼저 할 일은 배포다.
+      */
+      if (!measurementReady) return "undeployed";
+      /* 마지막 주차는 제출이 아니라 **확인**이다(시안 h15) */
+      return stageNow === StageKey.s5 ? "s5" : "race";
     case EntryStage.s5:
       return "gate2";
     /*

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { EntryStage } from "@/generated/prisma/enums";
+import { EntryStage, EntryStatus } from "@/generated/prisma/enums";
 
 import { DashboardTop } from "@/components/DashboardTop";
 import { Footer } from "@/components/Footer";
@@ -36,7 +36,42 @@ import styles from "./dashboard.module.css";
   요청당 DB는 한 번만 읽는다.
 */
 
-type NavItem = { href: string; label: string; activePrefix?: string };
+type NavItem = {
+  href: string;
+  label: string;
+  activePrefix?: string;
+  off?: "dim" | "strike";
+};
+
+/*
+  생존 상태에 따라 닫히는 항목 — 시안 `#scr-hub[data-side]`(370행).
+    탈락  스테이지 제출·내 지표에 줄을 긋는다 — 더 낼 것도 쌓일 것도 없다
+    실격  허브·소명만 남긴다 — 열린 길이 소명뿐이다(허브 h14의 말 그대로)
+  (2026-09-21 수연 지시 — 「게이트 미제출일 때 사이드바에 비활성 메뉴들 있어야」)
+*/
+function closeFor(items: NavItem[], status?: EntryStatus | "none"): NavItem[] {
+  /* 참가 기록이 없다 — 허브 말고는 갈 곳이 없다 */
+  if (status === "none") {
+    return items.map((item) =>
+      item.href === "/dashboard" ? item : { ...item, off: "dim" },
+    );
+  }
+  if (status === EntryStatus.eliminated) {
+    const struck = new Set(["/dashboard/metrics"]);
+    return items.map((item) =>
+      struck.has(item.href) || item.activePrefix === "/dashboard/submit"
+        ? { ...item, off: "strike" }
+        : item,
+    );
+  }
+  if (status === EntryStatus.disqualified) {
+    const open = new Set(["/dashboard", "/dashboard/appeal"]);
+    return items.map((item) =>
+      open.has(item.href) ? item : { ...item, off: "dim" },
+    );
+  }
+  return items;
+}
 
 /*
   「스테이지 제출」이 가리킬 곳 — **지금 낼 스테이지**다.
@@ -84,9 +119,10 @@ export default async function DashboardLayout({
   const header = await loadDashboardHeader(viewer);
 
   /*
-    ⚠️ **참가 기록이 없으면 허브만 남긴다.** 나머지 라우트는 전부 `entry: true`라
-    눌러도 404다 — 「꺼진 기능은 링크를 아예 만들지 않는다」(06 §4.4)와 같은
-    이유다. 허브는 그때 신청 안내를 그린다(2026-09-21 수연 지시).
+    ⚠️ **참가 기록이 없어도 목차는 다 보인다**(2026-09-21 수연 지시 — 「온보딩
+    미완료랑 다음 시즌 참가엔 왜 목차 허브만 있냐」). 시안 h1·h17의 사이드바가
+    그렇다. 다만 나머지 라우트는 전부 `entry: true`라 눌러도 404라서, 허브만
+    살리고 나머지는 닫아 둔다(실격의 흐림과 같은 모양) — 신청하면 열린다.
 
     ⚠️ **이름과 순서는 시안 3626행 `MENU` 그대로다**(2026-09-21 수연 지시).
     「홈」이 아니라 「허브」, 「팀」이 아니라 「팀 관리」이고, 혜택과 크레딧이
@@ -125,7 +161,10 @@ export default async function DashboardLayout({
 
       <div className={styles.db}>
         <SideNav
-          groups={viewer.entry ? [{ items }, HOLD] : [{ items: items.slice(0, 1) }]}
+          groups={[
+            { items: closeFor(items, viewer.entry?.status ?? "none") },
+            HOLD,
+          ]}
           label="대시보드"
           roots={["/dashboard"]}
         />

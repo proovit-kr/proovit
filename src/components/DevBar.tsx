@@ -6,6 +6,7 @@ import {
 import { getSessionUser, loadViewerState } from "@/lib/access";
 import {
   checkDevSandbox,
+  findParkedEntry,
   hasSandboxTeam,
   HUB_PLANS,
   loadSandboxState,
@@ -13,6 +14,7 @@ import {
   type HubKey,
 } from "@/lib/dev-sandbox";
 import { devToday } from "@/lib/dev-clock";
+import { devHubKey } from "@/lib/dev-hub";
 import { hasParkedSession } from "@/lib/dev-session";
 
 import { DevBarClient } from "./DevBarClient";
@@ -119,8 +121,36 @@ export async function DevBar() {
     `loadViewerState`는 React cache라 여기서 불러도 왕복이 늘지 않는다.
   */
   const viewer = await loadViewerState();
-  const current =
-    state.teams.find((team) => team.entryId === viewer.entry?.id) ?? null;
+  /*
+    화면에는 참가 기록이 없어도 **자리만 비워 둔 것**이면 그 팀을 잡는다 —
+    지각 참가(h10)와 「참가팀 없음」이 그 상태다. 안 잡으면 진도 줄이 통째로
+    「참가 기록이 없어요」가 되어 다음 판으로 못 넘어간다(2026-09-21 수연 지시
+    — 「예외에 지각 참가 칩은 보여야지」).
+  */
+  const parkedEntryId =
+    !viewer.entry && user && state.season
+      ? await findParkedEntry({ userId: user.id, seasonId: state.season.id })
+      : null;
+  /*
+    판을 앉힐 기록은 **그 팀의 가장 앞 시즌 기록**이다 — 목 데이터는 시즌 1이
+    정본이고 시즌 2는 h17이 깨우는 「다음 시즌」이다. 화면이 보는 기록(지금
+    시즌 것)을 그대로 잡으면, 시즌 2가 열린 뒤 「참가팀 있음」 등으로 거기
+    기록이 생겼을 때 그 기록에 판을 앉혀 시즌 3·4가 생겼다(2026-09-21).
+    팀은 화면이 보는 팀이고(한 사람이 여러 팀 팀장일 수 있다), 없으면 자리가
+    비어 있는 팀, 그것도 없으면 그 사람이 팀장인 아무 팀이다.
+  */
+  const seen =
+    state.teams.find(
+      (team) => team.entryId === (viewer.entry?.id ?? parkedEntryId),
+    ) ?? null;
+  const mine = user
+    ? [...state.teams]
+        .filter((team) =>
+          seen ? team.teamId === seen.teamId : team.userId === user.id,
+        )
+        .sort((a, b) => a.seasonCreatedAt.getTime() - b.seasonCreatedAt.getTime())
+    : [];
+  const current = mine[0] ?? null;
   /* 지금 눌린 버튼 — DB 상태를 시안 목록의 한 줄로 되짚는다 */
   const hubKey =
     current && state.season
@@ -131,6 +161,8 @@ export async function DevBar() {
           solo: current.solo,
           verified: current.verified,
           raceStage: state.season.stage,
+          parked: parkedEntryId !== null,
+          pressed: devHubKey(),
         })
       : null;
 

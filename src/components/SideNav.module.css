@@ -69,6 +69,16 @@
   background: var(--violet-dim);
 }
 
+/* 시안 `[data-side="elim"] .db-it`·`[data-side="dq"] .db-it` — 닫힌 항목 */
+.off {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.strike {
+  text-decoration: line-through;
+}
+
 .hold {
   opacity: 0.4;
   cursor: not-allowed;

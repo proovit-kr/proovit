@@ -1,11 +1,11 @@
 /*
-  대시보드 허브 대조용 dev DB 상태 스위치 — 시안 「정상 흐름」 h1~h9.
+  대시보드 허브 대조용 dev DB 상태 스위치 — 시안 17판(h1~h17).
 
     node --env-file=.env.development.local --import tsx scripts/design-diff/hub-state.mts save
     node --env-file=.env.development.local --import tsx scripts/design-diff/hub-state.mts h6
     node --env-file=.env.development.local --import tsx scripts/design-diff/hub-state.mts restore
 
-  `h1`~`h9`는 상태를 만든 뒤 **세션 토큰 한 줄**을 찍는다 — `hub.mjs`가 그것을
+  `h1`~`h17`은 상태를 만든 뒤 **세션 토큰 한 줄**을 찍는다 — `hub.mjs`가 그것을
   쿠키로 심어 그 팀의 대시보드를 연다(auth.mjs가 `consent-session.mts`를 쓰는
   것과 같은 방식).
 
@@ -32,9 +32,12 @@ import {
   setMetricsFixture,
   setSandboxHub,
   setSandboxStage,
+  sleepNextSeason,
+  unparkTeam,
   type HubKey,
 } from "../../src/lib/dev-sandbox";
 import { devToday, setDevToday } from "../../src/lib/dev-clock";
+import { setDevHubKey } from "../../src/lib/dev-hub";
 import { prisma } from "../../src/lib/prisma";
 
 const check = checkDevSandbox();
@@ -63,23 +66,28 @@ const entry = await prisma.entry.findFirstOrThrow({
     stage: true,
     status: true,
     teamId: true,
-    team: {
-      select: {
-        isSolo: true,
-        members: {
-          where: { role: "leader" },
-          take: 1,
-          select: { userId: true },
-        },
-      },
-    },
+    team: { select: { isSolo: true } },
     hostname: {
       select: { deployStatus: true, ownershipVerifiedAt: true },
     },
   },
 });
 
-const leader = entry.team?.members[0]?.userId;
+/*
+  ⚠️ **팀장을 읽기 전에 보관을 푼다.** 지각 참가(h10)는 그 사람의 참가 자리를
+  보관 계정으로 옮겨 두는데(「참가팀 없음」과 같은 일), 그 상태로 다음 판을
+  만들면 **팀장이 보관 계정으로 읽혀** 세션이 엉뚱한 사람으로 열린다 —
+  화면이 계속 「참가 기록 없음」이라 다음 판이 통째로 안 뜬다(09-21에 대조
+  가드가 잡았다: 「구현본이 late을 그린다 — h11는 missed여야 한다」).
+*/
+await unparkTeam(entry.teamId);
+
+const leader = (
+  await prisma.teamMember.findFirst({
+    where: { teamId: entry.teamId, role: "leader" },
+    select: { userId: true },
+  })
+)?.userId;
 if (!leader) throw new Error(`[hub-state] ${TEAM} 팀장을 못 찾았다`);
 
 /*
@@ -122,10 +130,16 @@ if (mode === "save") {
   const snapshots = await prisma.leaderboardSnapshot.count({
     where: { seasonId: season.id },
   });
+  /*
+    `HUB_SAVE_FORCE=1`은 이 가드를 넘는다 — 수연이 같은 dev DB에서 개발 바를
+    눌러 둔 판이 곧 「지금 상태」일 때다. 되돌리면 그 판의 페이즈·진도는
+    돌아오지만 집계 픽스처는 걷힌다(다시 누르면 된다).
+  */
   if (
-    snapshots > 0 ||
-    season.phase === SeasonPhase.awarded ||
-    season.phase === SeasonPhase.archived
+    process.env.HUB_SAVE_FORCE !== "1" &&
+    (snapshots > 0 ||
+      season.phase === SeasonPhase.awarded ||
+      season.phase === SeasonPhase.archived)
   ) {
     throw new Error(
       `[hub-state] 픽스처가 켜진 상태다(페이즈 ${season.phase}, 스냅샷 ${snapshots}개). ` +
@@ -161,7 +175,7 @@ if (mode === "save") {
 } else if (mode && HUB_PLANS[mode as HubKey]) {
   const key = mode as HubKey;
   const plan = HUB_PLANS[key];
-  await setSandboxHub({ key, entryId: entry.id, seasonId: season.id, userId: leader });
+  await setSandboxHub({ key, entryId: entry.id });
   console.error(`${mode}: ${plan.label} — 페이즈 ${plan.phase}, 진도 ${plan.stage}`);
   console.log(await session());
 } else if (mode === "restore") {
@@ -178,8 +192,20 @@ if (mode === "save") {
     } | null;
   };
 
+  /*
+    ⚠️ **다음 시즌부터 재운다.** h17이 시즌 2를 모집 중으로 세워 두는데,
+    그러면 그쪽이 「지금 시즌」이라(`getCurrentSeason`) 아래에서 시즌 1을
+    아무리 되돌려도 화면이 안 돌아온다.
+  */
+  await sleepNextSeason(season.id);
+
   /* 픽스처가 만든 스냅샷·일별 지표·수상을 먼저 걷어낸다 */
   await setMetricsFixture({ seasonId: season.id, kind: "none" });
+
+  /* 실격 판(h14)이 남긴 제재도 걷는다 — 헤더가 계속 붉은 띠를 문다 */
+  await prisma.sanction.deleteMany({
+    where: { entryId: snap.entry.id, detail: { startsWith: "[개발용]" } },
+  });
 
   /*
     시안 목업 값도 걷는다 — `setMetricsFixture`가 모르는 것들이다.
@@ -188,8 +214,14 @@ if (mode === "save") {
   await prisma.entryLead.deleteMany({
     where: { contactHash: { startsWith: "dev-lead-" } },
   });
+  /* 개발용 판정 — h12의 것은 문구가 시안 그대로라 `aiReport`의 표시로 찾는다 */
   await prisma.judgment.deleteMany({
-    where: { feedback: { startsWith: "[개발용]" } },
+    where: {
+      OR: [
+        { feedback: { startsWith: "[개발용]" } },
+        { aiReport: { path: ["dev"], equals: true } },
+      ],
+    },
   });
   await prisma.metricExtraDaily.deleteMany({
     where: { definition: { key: { in: ["weekly_active", "retention"] } } },
@@ -197,8 +229,9 @@ if (mode === "save") {
   await prisma.metricDefinition.deleteMany({
     where: { key: { in: ["weekly_active", "retention"] } },
   });
-  /* 「오늘」도 떠 둔 값으로 되돌린다 */
+  /* 「오늘」도 떠 둔 값으로 되돌린다. 누른 판 표시는 지운다 */
   setDevToday(snap.today ? new Date(snap.today) : null);
+  setDevHubKey(null);
 
   await setSandboxStage({
     entryId: snap.entry.id,
@@ -244,7 +277,7 @@ if (mode === "save") {
   rmSync(SNAP, { force: true });
   console.log(`되돌림: 페이즈 ${snap.phase}, 진도 ${snap.entry.stage}`);
 } else {
-  throw new Error("save · h1~h9 · restore 중 하나를 준다");
+  throw new Error("save · h1~h17 · restore 중 하나를 준다");
 }
 
 await prisma.$disconnect();

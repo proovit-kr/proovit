@@ -1,5 +1,5 @@
 /*
-  대시보드 허브에 실제로 나가는 문구 — 시안 `#scr-hub` h1~h9.
+  대시보드 허브에 실제로 나가는 문구 — 시안 `#scr-hub` h1~h17.
 
   ⚠️ **문구의 정본은 시안이다.** 여기 있는 문장은 시안에서 그대로 옮긴 것이고,
   시안에 없는 자리(온보딩의 두 번째 단계 등)만 만들어 썼다. 만든 문장에는
@@ -14,10 +14,16 @@
   ⚠️ 문구에 숫자를 넣지 않는다. 마감·순위·지표는 DB에서 온 값만 화면이 그린다.
 */
 
+import { PREREGISTER } from "@/lib/header-state";
 import type { HubPane } from "@/lib/hub-state";
 
-/** 판마다 제목 한 줄과 부제 한 줄. 시안 `.hb-h1`·`.hb-sub` */
-export const HUB_HEAD: Record<HubPane, { title: string; sub: string }> = {
+/**
+ * 판마다 제목 한 줄과 부제 한 줄. 시안 `.hb-h1`·`.hb-sub`
+ *
+ * ⚠️ **부제가 없는 판이 있다**(h10·h13) — 시안이 경고줄로 사정을 이미 말해
+ * 놓고 제목 바로 아래에 할 일을 둔다. 없는 자리에 한 줄을 지어 넣지 않는다.
+ */
+export const HUB_HEAD: Record<HubPane, { title: string; sub?: string }> = {
   onboarding: {
     title: "온보딩을 시작해요",
     sub: "두 가지만 마치면 s1 제출이 열려요.",
@@ -55,6 +61,59 @@ export const HUB_HEAD: Record<HubPane, { title: string; sub: string }> = {
     title: "요약",
     sub: "시즌이 아카이브됐어요. 모든 기록은 읽기 전용이에요.",
   },
+
+  /* ── 예외 ─────────────────────────────────────────────── */
+
+  /* 시안 h10. 부제가 없다 — 경고줄이 사정을 말하고 바로 할 일로 간다 */
+  late: { title: "온보딩을 서둘러요" },
+  s5: {
+    title: "s5, 트래픽과 매출",
+    sub: "최종 지표는 자동으로 집계돼요, 이 화면은 확인 버튼 역할이에요.",
+  },
+  missed: {
+    title: "이번 시즌은 여기까지예요",
+    sub: "마감 도달로 게이트가 fail 처리됐어요. 만든 랜딩과 데이터는 그대로 남아요.",
+  },
+  /* 제목의 「1차」는 게이트 차수라 화면이 데이터로 채운다(`HUB_GATE_ORDINAL`) */
+  gateFail: {
+    title: "심사 결과, 미통과",
+    sub: "대시보드는 계속 볼 수 있지만, 지표와 제출 메뉴는 닫혔어요.",
+  },
+  /* 시안 h13. 여기도 부제가 없다 */
+  undeployed: { title: "지금이라도 배포해요" },
+  /* 시안 h16. 제목 뒤에 「읽기 전용」 칩이 붙고, 「시즌 1」은 시즌명이다 */
+  readonly: {
+    title: "요약",
+    sub: "시즌이 종료돼 모든 항목은 수정할 수 없어요.",
+  },
+  disqualified: {
+    title: "소명할 수 있어요",
+    sub: "통지 후 5영업일 내에 소명을 접수하면, 근거 지표와 함께 회신해 드려요.",
+  },
+};
+
+/*
+  실격 사유 — 시안 h14의 「사유: 지표 조작 의심 (봇 트래픽 감지)」 자리.
+
+  ⚠️ **헤더의 `SANCTION_REASON`과 같은 enum, 다른 꼴이다**(header-state.ts).
+  저쪽은 문장 속 부사절(「…판정으로 실격 처리되었어요」)이고 여기는 「사유:」
+  뒤에 오는 명사다. 사유가 늘면 두 표를 같이 고친다.
+*/
+export const HUB_SANCTION_REASON: Record<string, string> = {
+  /* 시안 h14 문구 그대로(2026-09-21 수연 지시). 나머지는 시안에 예문이 없다 */
+  bot_traffic: "지표 조작 의심 (봇 트래픽 감지)",
+  multi_account: "다중 계정",
+  paid_signup: "유료 가입 유도",
+  evidence_forged: "증빙 위조",
+  undisclosed_ad: "광고 미표기",
+  attack_or_spam: "공격과 스팸",
+  false_representation: "허위 기재",
+};
+
+/** 게이트의 차수. 시안 h12의 「1차 심사 결과, 미통과」 */
+export const HUB_GATE_ORDINAL: Record<string, string> = {
+  s2: "1차",
+  s5: "2차",
 };
 
 /*
@@ -177,6 +236,88 @@ export const HUB_ACT = {
     label: "보증금 환불 신청",
     badge: "도입 미정",
   },
+
+  /* ── 예외 ─────────────────────────────────────────────── */
+
+  /* 시안 h10 */
+  late: {
+    title: "남은 시간이 짧아요",
+    body: "개인 참가로 확정하면 바로 다음 단계로 갈 수 있어요.",
+    label: "팀 구성하기",
+    href: "/dashboard/team",
+  },
+  /* 시안 h15 */
+  s5: {
+    title: "회고와 공개 동의만 남았어요",
+    body: "제출 폼에서 회고를 쓰고 최종 제출을 확인해요.",
+    label: "최종 제출 확인",
+    href: "/dashboard/submit/s5",
+  },
+  /*
+    시안 h13. 버튼이 가는 곳은 **측정 연동**이다 — 「미배포」를 만드는 것이
+    배포 주소의 소유 확인이라(`public-read.ts`의 `notDeployed`) 제출 폼으로
+    보내면 화면이 말한 일을 그 자리에서 끝낼 수 없다.
+  */
+  undeployed: {
+    title: "배포하는 순간부터 집계돼요",
+    body: "늦지 않았어요. 핵심 기능 1개면 충분해요.",
+    label: "제품 배포하기",
+    href: "/dashboard/measurement",
+  },
+  /* 시안 h14 */
+  disqualified: {
+    title: "소명 접수",
+    body: "지금 열려 있는 메뉴는 소명뿐이에요.",
+    label: "소명 접수하기",
+    href: "/dashboard/appeal",
+  },
+  /*
+    시안 h16 — 문구가 시안 그대로다(「쓰기 시도 데모」). 시안이 뷰어용으로 쓴
+    말이라 제품 문구로는 어색하다 — 윤서가 다듬을 자리. 버튼은 토스트만 띄운다.
+  */
+  readonly: {
+    title: "쓰기 시도 데모",
+    body: "버튼을 누르면 안내 토스트가 떠요.",
+    label: "회고 수정하기",
+    chip: "읽기 전용",
+    toast: "시즌이 종료되어 수정할 수 없어요",
+  },
+  /* 시안 h11 */
+  missed: {
+    title: "다음 시즌에 다시 만나요",
+    body: "같은 아이디어로 재도전할 수 있어요, 팀도 그대로 쓸 수 있어요.",
+    label: "다음 시즌 소식 받기",
+    href: PREREGISTER,
+  },
+  /* 시안 h12 */
+  gateFail: {
+    title: "다음 시즌 재도전",
+    body: "이번에 만든 랜딩과 학습이 다음 시즌의 출발점이 돼요.",
+    label: "다음 시즌 소식 받기",
+    href: PREREGISTER,
+  },
+} as const;
+
+/*
+  경고줄(`.wbar`) — 시안 h10·h11·h13·h14가 판 맨 위에 두는 한 줄.
+
+  ⚠️ **⚠️·⏰·⛔은 문구에 넣지 않는다.** 시안은 마크업에 이모지를 쓰지만 로드
+  직후 스크립트가 SVG로 바꿔치운다(`ICONS` 표) — 우리는 `Icon`으로 낸다.
+  표에 없는 🚀는 시안에서도 글자 그대로라 아래 문장에 남아 있다.
+*/
+export const HUB_WBAR = {
+  /* 시안 h10 — 가운데에 s1 마감이 들어간다 */
+  late: {
+    head: "지각 참가, 온보딩은 지금 해도 되지만, s1 마감",
+    tail: "은 동일해요.",
+  },
+  /* 시안 h11 — 앞에 게이트 스테이지가 붙는다 */
+  missed: "마감이 지나 자동 미통과 처리됐어요.",
+  /* 시안 h13 */
+  undeployed:
+    '🚀 아직 미배포 상태로 레이스에 들어왔어요, 리더보드에 "미배포"로 표시되고 지표는 0이에요.',
+  /* 시안 h14 — 뒤에 제재 사유가 붙는다 */
+  disqualified: "실격 처리, 리더보드에서 제외됐어요. 사유:",
 } as const;
 
 /*
@@ -192,6 +333,21 @@ export const HUB_ACT = {
   모집 구간이 아니면 신청 자체가 닫혀 있어 아래 `closed`를 쓴다.
 */
 export const HUB_NO_ENTRY = {
+  /*
+    **지난 시즌에 참가했던 사람** — 시안 h17. 다음 시즌이 열리는 순간 그쪽이
+    「지금 시즌」이 되어(`getCurrentSeason`) 이번 시즌 참가 기록이 없는 사람이
+    된다. 처음 온 사람과 같은 온보딩 화면을 그리면 지난 시즌이 없던 일이 된다.
+
+    제목과 버튼 앞의 시즌명은 데이터라 화면이 채운다.
+  */
+  next: {
+    title: "모집이 시작됐어요",
+    sub: "이전 시즌 기록은 아카이브에 그대로 남아 있어요.",
+    actTitle: "새 엔트리로 다시 도전해요",
+    actBody: "팀은 그대로 쓸 수 있어요, 아이디어만 새로 정하면 돼요.",
+    label: "참가 신청하기",
+    href: "/apply",
+  },
   closed: {
     title: "이번 시즌 참가 기록이 없어요",
     sub: "모집이 열리면 이 화면에서 신청할 수 있어요.",
@@ -235,4 +391,16 @@ export const HUB_LABEL = {
   leads: "사전 신청자",
   conversion: "전환율",
   measurement: "측정 연동",
+  /* 시안 h13의 상태 카드. 「미배포」는 리더보드·참가작이 쓰는 말과 같다 */
+  status: "상태",
+  notDeployed: "미배포",
+  /* 시안 h12의 `.hb-sum` 세 줄 */
+  verdict: "판정",
+  reasonSummary: "사유 요지",
+  appeal: "이의신청",
+  /*
+    ⚠️ 「5영업일」은 규칙 제11조의 값이다(`appeal.ts`의 `APPEAL_BUSINESS_DAYS`).
+    뒤에 붙는 날짜는 화면이 그 상수로 계산한다 — 조항이 바뀌면 둘 다 고친다.
+  */
+  appealNote: "통지 후 5영업일 내",
 } as const;

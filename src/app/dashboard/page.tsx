@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { StageKey } from "@/generated/prisma/enums";
 import { Badge } from "@/components/Badge";
 import { Button, LinkButton } from "@/components/Button";
 import { Countdown } from "@/components/Countdown";
@@ -10,27 +11,39 @@ import { Card, Chip } from "@/components/Surface";
 import { BLOCKED_COPY } from "@/content/dashboard";
 import {
   HUB_ACT,
+  HUB_GATE_ORDINAL,
   HUB_GOLDEN_PATH,
   HUB_HEAD,
   HUB_LABEL,
   HUB_LOCK,
   HUB_NO_ENTRY,
   HUB_ONBOARDING,
+  HUB_SANCTION_REASON,
   HUB_STEP_CHIP,
+  HUB_WBAR,
 } from "@/content/hub";
 import { guardPage, isOnboardingComplete, type ViewerState } from "@/lib/access";
 import { resolveDashboardState } from "@/lib/dashboard-state";
 import { devNow } from "@/lib/dev-clock";
+import { devHubKey } from "@/lib/dev-hub";
 import { fmtMD, fmtMDHM } from "@/lib/header-state";
-import { loadHub, type HubStep, type HubView } from "@/lib/hub-read";
+import {
+  hasPastEntry,
+  loadHub,
+  loadHubAxes,
+  stageDueAt,
+  type HubStep,
+  type HubView,
+} from "@/lib/hub-read";
 import { resolveHubPane } from "@/lib/hub-state";
-import { isRecruiting } from "@/lib/season-phase";
+import { isRacing, isRecruiting } from "@/lib/season-phase";
 
 import { CopyLink } from "./CopyLink";
+import { ReadonlyDemo } from "./ReadonlyDemo";
 import styles from "./hub.module.css";
 
 /*
-  대시보드 허브 — 시안 `#scr-hub`의 「정상 흐름」 아홉(h1~h9).
+  대시보드 허브 — 시안 `#scr-hub` 17판(정상 흐름 h1~h9 · 예외 h10~h17).
 
   **이 화면은 판정을 하지 않는다.** 어느 판인지는 `resolveHubPane()`이, 재료는
   `loadHub()`가 정한다. 여기가 정하는 것은 마크업과 문구 자리뿐이고, 문구 자체는
@@ -40,9 +53,10 @@ import styles from "./hub.module.css";
   우리가 세지 않는 값(주간 활성·재방문율)은 만들지 않고 「—」로 둔다 —
   참가작 ② 미배포에서 순위를 「-」로 둔 것과 같은 규칙이다.
 
-  ⚠️ **예외 여덟(h10~h17)은 아직 안 옮겼다.** 탈락·실격·미배포 레이스 같은
-  상태에서는 `resolveHubPane()`이 null을 내고, 아래 `Fallback`이 옛 안내를
-  그린다. 그 판들을 옮길 때 이 자리가 없어진다.
+  ⚠️ **시안의 경고줄(`.wbar`)은 제목보다 위다**(h10·h11·h13·h14). 그래서 판별
+  마크업을 그리는 `Body`가 아니라 `Warn`이 따로 맨 위에 선다.
+
+  ⚠️ h17은 참가 기록이 없는 판이라 `resolveHubPane`을 거치지 않는다(`NextSeason`).
 */
 
 export const metadata: Metadata = {
@@ -61,8 +75,20 @@ const won = (value: bigint) => `₩${NUM.format(value)}`;
 /* 우리가 세지 않는 지표. 정의가 오면 값이 들어온다(PLN6 6장 1번) */
 const UNKNOWN = "—";
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ readonly?: string }>;
+}) {
   const { viewer } = await guardPage("dashboard", "/dashboard");
+  /*
+    시안 h16 「종료 후 쓰기 시도」 — DB 상태는 h9와 같고, 갈리는 것은 **방금
+    쓰려고 했다**는 사건이다. 막힌 쓰기가 허브로 돌려보내며 `?readonly=1`을
+    붙이고, 개발 바는 그 사건을 못 만들어 마지막으로 누른 판(`dev-hub.ts`)으로
+    대신한다.
+  */
+  const writeAttempt =
+    (await searchParams).readonly === "1" || devHubKey() === "h16";
 
   /*
     **참가 기록이 없어도 여기까지 온다**(access-policy의 `dashboard` 주석).
@@ -70,16 +96,37 @@ export default async function Page() {
     그대로 그리고, 팀을 만드는 곳(참가 신청)으로 보낸다.
   */
   if (!viewer.season || !viewer.entry) {
-    if (!viewer.season || !isRecruiting(viewer.season.phase)) return <NoEntry />;
+    if (!viewer.season) return <NoEntry />;
+    const { phase, id, title } = viewer.season;
+    /*
+      레이스가 시작된 뒤에 온 사람 — **시안 h10**. 아직 팀이 없어 온보딩을
+      이제부터 해야 한다(2026-09-21 수연 지시). 모집 중의 같은 사람은 h1이고
+      (아래), 갈리는 것은 페이즈다.
+    */
+    if (isRacing(phase)) return <Late seasonId={id} />;
+    if (!isRecruiting(phase)) return <NoEntry />;
+    /*
+      지난 시즌에 참가했던 사람이면 시안 h17이다 — 다음 시즌이 열리는 순간
+      그쪽이 「지금 시즌」이 되어(`getCurrentSeason`) 이번 시즌 참가 기록이
+      없는 사람이 된다.
+    */
+    if (viewer.user && (await hasPastEntry(viewer.user.id, id))) {
+      return <NextSeason title={title} />;
+    }
     return <Onboarding />;
   }
 
   const { season, entry, onboarding } = viewer;
   const onboardingComplete = isOnboardingComplete(onboarding);
+  const axes = await loadHubAxes(viewer);
   const pane = resolveHubPane({
     phase: season.phase,
     entry,
     onboardingComplete,
+    measurementReady: onboarding.measurementReady,
+    stageNow: axes.stageNow,
+    gateFailed: axes.gateFailed,
+    writeAttempt,
   });
 
   if (!pane) return <Fallback viewer={viewer} />;
@@ -87,20 +134,80 @@ export default async function Page() {
   const view = await loadHub(viewer, pane);
   const head = HUB_HEAD[pane];
   /*
-    시상·아카이브의 제목은 시즌명이 앞에 선다(시안 「시즌 1 결과」).
-    시즌명은 데이터라 문구 파일이 들지 않는다.
+    시상·아카이브의 제목은 시즌명이, 탈락(h12)의 제목은 게이트 차수가 앞에
+    선다(시안 「시즌 1 결과」·「1차 심사 결과, 미통과」). 둘 다 데이터라
+    문구 파일이 들지 않는다.
   */
   const title =
-    pane === "awarded" || pane === "archived"
+    pane === "awarded" || pane === "archived" || pane === "readonly"
       ? `${season.title} ${head.title}`
-      : head.title;
+      : view.pane === "gateFail"
+        ? `${HUB_GATE_ORDINAL[view.gate]} ${head.title}`
+        : head.title;
 
   return (
     <section data-probe="hub" data-pane={pane}>
-      <h2 className={styles.h1}>{title}</h2>
-      <p className={styles.sub}>{head.sub}</p>
+      <Warn view={view} />
+      <h2 className={styles.h1}>
+        {title}
+        {/* 시안 h16은 제목 뒤에 칩을 단다 */}
+        {pane === "readonly" ? <> <Chip>{HUB_ACT.readonly.chip}</Chip></> : null}
+      </h2>
+      {/* 시안 h10·h13은 부제가 없다 — 없는 자리에 한 줄을 지어 넣지 않는다 */}
+      {head.sub ? <p className={styles.sub}>{head.sub}</p> : null}
       <Body view={view} />
     </section>
+  );
+}
+
+/*
+  경고줄(`.wbar`) — 시안이 판 맨 위, **제목보다 위**에 두는 한 줄.
+
+  ⚠️ 이모지는 `Icon`으로 낸다(⚠️·⏰·⛔은 시안도 SVG로 바꿔치운다). 표에 없는
+  🚀만 문구에 글자로 남아 있다(content/hub.ts 주석).
+*/
+function Warn({ view }: { view: HubView }) {
+  switch (view.pane) {
+    case "late":
+      return <LateBar dueAt={view.dueAt} />;
+
+    case "missed":
+      return (
+        <div className={`${styles.wbar} ${styles.wbarRed}`}>
+          <Icon name="clock" fixed /> {view.gate} {HUB_WBAR.missed}
+        </div>
+      );
+
+    case "undeployed":
+      return (
+        <div className={`${styles.wbar} ${styles.wbarWarn}`}>
+          {HUB_WBAR.undeployed}
+        </div>
+      );
+
+    case "disqualified":
+      return (
+        <div className={`${styles.wbar} ${styles.wbarRed}`}>
+          <Icon name="ban" fixed /> {HUB_WBAR.disqualified}{" "}
+          {/* 사유를 모르면 적지 않는다 — 틀린 사유를 박는 것보다 낫다 */}
+          {view.reason ? (HUB_SANCTION_REASON[view.reason] ?? view.reason) : UNKNOWN}
+        </div>
+      );
+
+    default:
+      return null;
+  }
+}
+
+/** 시안 h10의 경고줄. 참가 기록이 있든 없든 같은 한 줄이다 */
+function LateBar({ dueAt }: { dueAt: Date | null }) {
+  return (
+    <div className={`${styles.wbar} ${styles.wbarWarn}`}>
+      <Icon name="warn" fixed />{" "}
+      {dueAt
+        ? `${HUB_WBAR.late.head}(${fmtMDHM(dueAt)})${HUB_WBAR.late.tail}`
+        : `${HUB_WBAR.late.head}${HUB_WBAR.late.tail}`}
+    </div>
   );
 }
 
@@ -337,7 +444,9 @@ function Body({ view }: { view: HubView }) {
       );
 
     case "archived":
+    case "readonly":
       return (
+        <>
         <div className={styles.snap}>
           <Card className={styles.snapCard}>
             <small>{HUB_LABEL.archiveRank}</small>
@@ -362,6 +471,132 @@ function Body({ view }: { view: HubView }) {
             </span>
           </Card>
         </div>
+        {view.pane === "readonly" ? (
+          <div className={styles.act}>
+            <div>
+              <h3>{HUB_ACT.readonly.title}</h3>
+              <p>{HUB_ACT.readonly.body}</p>
+            </div>
+            <ReadonlyDemo
+              label={HUB_ACT.readonly.label}
+              toast={HUB_ACT.readonly.toast}
+              className={styles.actBtn}
+            />
+          </div>
+        ) : null}
+        </>
+      );
+
+    /* ── 예외 여덟 ─────────────────────────────────────── */
+
+    case "late":
+      return (
+        <>
+          <GoldenPath title={HUB_ONBOARDING.title} steps={view.steps} numbered />
+          {/* 팀을 먼저 끝냈으면 남은 것은 측정 연동이다(h1과 같은 사정) */}
+          <Hero
+            act={view.teamReady ? HUB_ACT.onboardingMeasurement : HUB_ACT.late}
+          />
+        </>
+      );
+
+    case "missed":
+      return <Act act={HUB_ACT.missed} />;
+
+    case "gateFail":
+      return (
+        <>
+          <Card className={styles.sum}>
+            <div>
+              <span>{HUB_LABEL.verdict}</span>
+              {/* 이 판 자체가 미통과다 — 판정 값을 다시 읽어 가르지 않는다 */}
+              <b className={styles.fail}>FAIL</b>
+            </div>
+            <div>
+              <span>{HUB_LABEL.reasonSummary}</span>
+              <b>{view.reason ?? UNKNOWN}</b>
+            </div>
+            <div>
+              <span>{HUB_LABEL.appeal}</span>
+              <b>
+                {view.appealBy
+                  ? `${HUB_LABEL.appealNote}, ${fmtMDHM(view.appealBy)}까지`
+                  : HUB_LABEL.appealNote}
+              </b>
+            </div>
+          </Card>
+          <Act act={HUB_ACT.gateFail} />
+        </>
+      );
+
+    case "undeployed":
+      return (
+        <>
+          <div className={styles.cards}>
+            {/*
+              시안이 값 자체를 흐리게 둔다. 미배포 팀에는 집계가 쌓일 수 없어
+              (`public-read.ts`의 `notDeployed`) 0과 「-」가 값이 아니라 자리다.
+            */}
+            <Card className={styles.kpi}>
+              <small>{HUB_LABEL.validUsers}</small>
+              <span className={`score ${styles.off}`}>
+                {NUM.format(view.validUsers)}
+              </span>
+            </Card>
+            <Card className={styles.kpi}>
+              <small>{HUB_LABEL.myRank}</small>
+              <span className={`score ${styles.off}`}>
+                {rankText(view.rank)}
+              </span>
+            </Card>
+            <Card className={styles.kpi}>
+              <small>{HUB_LABEL.status}</small>
+              <Badge tone="gray" className={styles.cardBadge}>
+                {HUB_LABEL.notDeployed}
+              </Badge>
+            </Card>
+          </div>
+          <Hero act={HUB_ACT.undeployed} />
+        </>
+      );
+
+    case "disqualified":
+      return <Hero act={HUB_ACT.disqualified} />;
+
+    case "s5":
+      return (
+        <>
+          <div className={styles.snap}>
+            <Card className={styles.snapCard}>
+              <small>{HUB_LABEL.snapValidUsers}</small>
+              <span className="score">{NUM.format(view.validUsers)}</span>
+            </Card>
+            {/* 참고 지표 — 정의가 없으면 「—」다(h7과 같은 규칙) */}
+            <Card className={styles.snapCard}>
+              <small>{HUB_LABEL.snapWeeklyActive}</small>
+              <span
+                className={`score ${view.weeklyActive === null ? styles.off : ""}`}
+              >
+                {view.weeklyActive === null
+                  ? UNKNOWN
+                  : NUM.format(view.weeklyActive)}
+              </span>
+            </Card>
+            <Card className={styles.snapCard}>
+              <small>{HUB_LABEL.snapRetention}</small>
+              <span
+                className={`score ${view.retention === null ? styles.off : ""}`}
+              >
+                {view.retention === null ? UNKNOWN : `${view.retention}%`}
+              </span>
+            </Card>
+            <Card className={styles.snapCard}>
+              <small>{HUB_LABEL.snapRevenue}</small>
+              <span className="score">{won(view.revenue)}</span>
+            </Card>
+          </div>
+          <Hero act={HUB_ACT.s5} />
+        </>
       );
   }
 }
@@ -396,6 +631,62 @@ function Onboarding() {
         ]}
       />
       <Hero act={{ ...HUB_ACT.onboardingTeam, href: "/apply" }} />
+    </section>
+  );
+}
+
+/*
+  레이스가 시작된 뒤에 온 사람 — **시안 h10**. 아직 팀이 없어 온보딩을 이제부터
+  해야 하고, 그래도 s1 마감은 남들과 같다는 것이 이 화면의 말이다.
+
+  ⚠️ **버튼만 `/apply`로 간다**(h1의 참가 기록 없음과 같은 사정) — 팀을 만드는
+  곳이 참가 신청 폼이라서다. ⚠️ 지금 `/apply`는 **모집 구간에서만 열린다**
+  (`access-policy.ts`) — 레이스 중에 늦게 받아 줄 것인지는 정해진 바가 없다.
+*/
+async function Late({ seasonId }: { seasonId: string }) {
+  const head = HUB_HEAD.late;
+  return (
+    <section data-probe="hub" data-pane="late">
+      <LateBar dueAt={await stageDueAt(seasonId, StageKey.s1)} />
+      <h2 className={styles.h1}>{head.title}</h2>
+      {/* 시안 h10은 칩이 없다 — 경고줄이 이미 급하다고 말했다 */}
+      <GoldenPath
+        title={HUB_ONBOARDING.title}
+        numbered
+        steps={[
+          { label: HUB_ONBOARDING.items[0], state: "now" },
+          { label: HUB_ONBOARDING.items[1], state: "wait" },
+        ]}
+      />
+      <Hero act={{ ...HUB_ACT.late, href: "/apply" }} />
+    </section>
+  );
+}
+
+/*
+  지난 시즌에 참가했던 사람이 다음 시즌 모집을 만났을 때 — **시안 h17**.
+
+  ⚠️ 이 사람은 이번 시즌 참가 기록이 없다. 그래서 크롬도 참가자 헤더가 아니라
+  공개 헤더다(`header-read.ts`의 `loadNextSeason` 주석 — 다음 시즌이 열리는
+  순간 그쪽이 「지금 시즌」이 된다). 시안의 `.db-ban` 「시즌 2, 모집 중」은
+  지난 시즌을 보고 있을 때의 배너(D9)라 이 화면과 짝이 아니다.
+*/
+function NextSeason({ title }: { title: string }) {
+  const copy = HUB_NO_ENTRY.next;
+  return (
+    <section data-probe="hub" data-pane="nextSeason">
+      <h2 className={styles.h1}>
+        {title} {copy.title}
+      </h2>
+      <p className={styles.sub}>{copy.sub}</p>
+      <Hero
+        act={{
+          title: copy.actTitle,
+          body: copy.actBody,
+          label: `${title} ${copy.label}`,
+          href: copy.href,
+        }}
+      />
     </section>
   );
 }
@@ -475,6 +766,30 @@ function Hero({
   );
 }
 
+/**
+ * 시안 `.act` — `.hero`가 아닌 상자. 버튼도 외곽선이다(h11·h12).
+ *
+ * 이미 끝난 시즌을 말하는 자리라 라임 상자를 쓰지 않는다 — 지금 할 일이
+ * 아니라 다음 시즌 이야기다.
+ */
+function Act({
+  act,
+}: {
+  act: { title: string; body: string; label: string; href: string };
+}) {
+  return (
+    <div className={styles.act}>
+      <div>
+        <h3>{act.title}</h3>
+        <p>{act.body}</p>
+      </div>
+      <LinkButton href={act.href} variant="outline" className={styles.actBtn}>
+        {act.label}
+      </LinkButton>
+    </div>
+  );
+}
+
 /** 시안 h3의 카운트다운 줄 */
 function Due({ dueAt }: { dueAt: Date }) {
   return (
@@ -494,10 +809,11 @@ function Due({ dueAt }: { dueAt: Date }) {
 }
 
 /*
-  아직 안 옮긴 판(예외 h10~h17)에서 그리는 옛 안내.
+  시안에 대응하는 판이 없는 상태에서 그리는 옛 안내.
 
-  ⚠️ 이 자리는 **임시다.** 시안의 예외 판을 옮기면 통째로 없어진다. 그때까지
-  실격·탈락 팀이 빈 화면을 보지 않게만 한다.
+  예외 여덟을 옮기고 남은 자리는 셋뿐이다 — **사전신청 구간**(시즌이 아직
+  안 열렸다) · **자진 포기** · **진도를 다 뺐는데 시즌은 레이스 중**. 시안이
+  그리지 않는 조합이라 여기서 사실만 말한다.
 */
 function Fallback({ viewer }: { viewer: ViewerState }) {
   if (!viewer.season || !viewer.entry) notFound();

@@ -20,6 +20,7 @@ import {
 } from "@/content/consent";
 import { applyConsentRows } from "@/lib/apply-store";
 import { devNow, setDevToday } from "@/lib/dev-clock";
+import { setDevHubKey } from "@/lib/dev-hub";
 import { seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
 
@@ -108,6 +109,10 @@ export type SandboxTeam = {
   /* 아래 둘은 허브 줄이 「지금 어느 판인가」를 되짚는 데 쓴다 */
   solo: boolean;
   verified: boolean;
+  /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
+  teamId: string;
+  seasonId: string;
+  seasonCreatedAt: Date;
 };
 
 export type SandboxState = {
@@ -139,9 +144,11 @@ export async function loadSandboxState(): Promise<SandboxState> {
         stage: true,
         status: true,
         ideaTitle: true,
+        season: { select: { id: true, createdAt: true } },
         hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
         team: {
           select: {
+            id: true,
             name: true,
             isSolo: true,
             members: {
@@ -194,6 +201,9 @@ export async function loadSandboxState(): Promise<SandboxState> {
         verified:
           entry.hostname?.deployStatus === DeployStatus.active &&
           entry.hostname.ownershipVerifiedAt !== null,
+        teamId: entry.team.id,
+        seasonId: entry.season.id,
+        seasonCreatedAt: entry.season.createdAt,
       },
     ];
   });
@@ -1038,9 +1048,9 @@ export async function setSandboxCurrentStage(args: {
   **같은 표**를 쓴다. 시안 드롭다운을 그대로 옮긴 것이고, 라벨도 시안 그대로다
   (2026-09-21 수연 지시 — 「개발 바에 진도 줄 사진과 동일하게」).
 
-  ⚠️ **화면은 아직 아홉만 있다.** 정상 흐름 h1~h9는 `resolveHubPane()`이 받고,
-  예외 h10~h17은 그 함수가 null을 내 옛 안내가 그려진다. 그래도 **상태는 지금
-  만들 수 있어야 한다** — 다음 사람이 그 판을 옮길 때 바로 눌러서 본다.
+  ⚠️ **화면 열다섯에 이 표 열일곱이 대응한다.** h16은 DB 상태가 h9와 같아
+  아카이브 한 판으로 합쳤고(`hub-state.ts` 머리 주석), h17은 **이번 시즌
+  참가 기록이 없는 사람**이라 `resolveHubPane`을 거치지 않는다.
 
   ⚠️ 한 판이 여러 축을 한꺼번에 옮긴다(페이즈·진도·생존·팀·측정·집계·오늘).
   그래서 이 줄을 누르면 아래 다른 줄들의 값도 같이 바뀐다.
@@ -1073,6 +1083,12 @@ type HubPlan = {
   sanction?: boolean;
   /** 다음 시즌을 모집 중으로 둔다 */
   nextSeason?: boolean;
+  /*
+    로그인한 계정의 참가 자리를 보관 계정으로 옮긴다 — 「참가팀 없음」 줄과
+    같은 일이다(`setSandboxTeam`). 지각 참가(h10)가 그 상태다: 아직 팀이
+    없어서 온보딩을 이제부터 해야 하는 사람이다(2026-09-21 수연 지시).
+  */
+  parked?: boolean;
   /*
     시안 목업이 그 판에 적어 둔 값. 화면을 시안과 같게 보려고 심는다.
 
@@ -1184,13 +1200,13 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
     },  },
 
   /*
-    h10 지각 참가 — 온보딩이 안 끝났는데 s1이 이미 열려 있다.
-    h1과 갈리는 것은 페이즈뿐이다(모집 중 → 레이스).
+    h10 지각 참가 — 레이스가 시작된 뒤에 온 사람이라 **참가팀이 아직 없다**
+    (2026-09-21 수연 지시). h1과 갈리는 것은 페이즈다(모집 중 → 레이스).
   */
   h10: {
     label: "10, 지각 참가", group: "예외",
     phase: SeasonPhase.racing, stage: EntryStage.applied,
-    solo: false, verified: false, raceStage: StageKey.s1,
+    solo: false, verified: false, raceStage: StageKey.s1, parked: true,
   },
   /* h11 게이트 미제출 탈락 — 마감이 지나도록 s2를 안 냈다 */
   h11: {
@@ -1205,6 +1221,8 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
     phase: SeasonPhase.racing, stage: EntryStage.s2,
     status: EntryStatus.eliminated, solo: true, verified: true,
     raceStage: StageKey.s4, judgeFail: StageKey.s2,
+    /* 시안 「신청 3명, 전환율 0.8%」 — 3/375가 실제로 0.8%다 */
+    leads: 3, visitors: 375,
   },
   /* h13 미배포 레이스 — 레이스에 들어왔는데 측정 연동이 안 끝났다 */
   h13: {
@@ -1225,13 +1243,27 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
   h15: {
     label: "15, s5 자동 제출 확인", group: "예외",
     phase: SeasonPhase.racing, stage: EntryStage.s4,
-    solo: true, verified: true, raceStage: StageKey.s5, metrics: "final",
+    /*
+      ⚠️ 집계는 **레이스**다 — 「최종 지표는 자동으로 집계돼요」가 아직 확정
+      전이라는 말이고, `setSandboxCurrentStage(s5)`도 레이스로 되돌린다.
+      화면에 뜨는 넷은 시안 목업 값이라 아래 `spec`이 얹는다.
+    */
+    solo: true, verified: true, raceStage: StageKey.s5, metrics: "race",
+    spec: {
+      validUsers: 1248, revenue: 126_000, rank: 2,
+      weeklyActive: 512, retention: 31,
+    },
   },
-  /* h16 종료 후 쓰기 시도 — DB 상태는 h9와 같다. 화면만 다르다 */
+  /* h16 종료 후 쓰기 시도 — DB 상태는 h9와 같다. 누른 판을 `dev-hub.ts`가 남겨 가른다 */
   h16: {
     label: "16, 종료 후 쓰기 시도", group: "예외",
     phase: SeasonPhase.archived, stage: EntryStage.completed,
     solo: true, verified: true, metrics: "final",
+    /* 시안 h16의 요약 넷은 h9와 같은 값이다 */
+    spec: {
+      validUsers: 1248, revenue: 126_000, rank: 2,
+      weeklyActive: 512, retention: 31, gatePass: true,
+    },
   },
   /*
     h17 다음 시즌 참가 — **지금 시즌이 바뀐다.** 지난 시즌은 아카이브되고
@@ -1255,27 +1287,41 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
 export async function setSandboxHub(args: {
   key: HubKey;
   entryId: string;
-  seasonId: string;
-  userId: string;
   /** 집계 픽스처를 건드리지 않는다 — 스테이지 줄이 부를 때 그렇다 */
   skipMetrics?: boolean;
 }): Promise<void> {
   assertSandbox();
-  const { key, entryId, seasonId, userId } = args;
+  const { key, entryId } = args;
   const plan = HUB_PLANS[key];
 
+  /*
+    ⚠️ **시즌은 그 참가 기록의 시즌이다** — 「지금 시즌」이 아니다. h17이 다음
+    시즌을 깨우면 그쪽이 지금 시즌이 되는데, 거기서 또 h17을 받으면 그 다음
+    시즌을 만들어 번호가 계속 올라갔다(2026-09-21 수연 지적 — 「왜 점점 시즌
+    숫자가 올라가」). 목 데이터는 시즌 1과 시즌 2 둘로 고정이다.
+  */
   const entry = await prisma.entry.findUniqueOrThrow({
     where: { id: entryId },
-    select: { teamId: true },
+    select: { teamId: true, seasonId: true },
   });
+  const seasonId = entry.seasonId;
   /*
-    ⚠️ **보관 계정이 앉아 있으면 먼저 비운다.** 「참가팀 없음」 줄이 그 사람의
-    팀 자리를 보관 계정으로 옮기는데, 그 상태로 허브 줄을 누르면 진도만 바뀌고
-    **로그인한 사람에게는 여전히 참가 기록이 없다** — 허브가 「참가 신청부터
-    해요」를 그린다(2026-09-21에 수연이 그 화면을 봤다). 허브 17판은 전부
-    참가자 화면이라 「참가 기록이 있다」가 전제다.
+    ⚠️ **보관 계정이 앉아 있으면 먼저 비운다.** 「참가팀 없음」 줄과 지각
+    참가(h10)가 그 사람의 팀 자리를 보관 계정으로 옮기는데, 그 상태로 다른
+    허브 줄을 누르면 진도만 바뀌고 **로그인한 사람에게는 여전히 참가 기록이
+    없다** — 허브가 엉뚱한 판을 그린다(2026-09-21에 수연이 그 화면을 봤다).
+
+    ⚠️ **팀장은 그 뒤에 찾는다.** 부르는 쪽이 넘겨주게 두면 보관 중일 때
+    보관 계정의 id가 들어와, 제출물의 `submitted_by`가 그 계정이 되고 h10은
+    보관의 보관을 만든다(hub-state.mts에서 실제로 그랬다).
   */
   await unparkTeam(entry.teamId);
+  const leader = await prisma.teamMember.findFirst({
+    where: { teamId: entry.teamId, role: MemberRole.leader },
+    select: { userId: true },
+  });
+  if (!leader) throw new Error("[dev] 그 팀에 팀장이 없습니다.");
+  const userId = leader.userId;
 
   /*
     ⚠️ h17만 「지금 시즌」이 바뀐다 — 지난 시즌을 재우고 다음 시즌을 깨운다.
@@ -1335,8 +1381,19 @@ export async function setSandboxHub(args: {
         data: {
           submissionId: submission.id,
           result: JudgmentResult.fail,
-          feedback:
-            "[개발용] 수요 신호가 부족합니다. 개발자 도구가 만든 판정이라 실제 심사가 아닙니다.",
+          /*
+            ⚠️ **가정한 「오늘」로 판정한다.** 스키마 기본값은 진짜 지금이라,
+            그대로 두면 허브 h12의 이의신청 기한(통지 + 5영업일)이 화면이
+            말하는 오늘보다 앞선 날짜로 뜬다.
+          */
+          judgedAt: devNow(),
+          /*
+            사유는 시안 h12의 요지 그대로다(「수요 신호 부족」) — 괄호 안 숫자는
+            화면이 리드·방문에서 붙인다. 개발용 표시는 문구가 아니라 `aiReport`에
+            둔다(2026-09-21 수연 지시 — 「시안처럼 표시」). 되돌릴 때 이 표시로 지운다.
+          */
+          feedback: "수요 신호 부족",
+          aiReport: { dev: true },
         },
       });
     }
@@ -1370,6 +1427,19 @@ export async function setSandboxHub(args: {
   }
 
   /*
+    ⚠️ **미배포 팀에는 집계가 없다**(시안 h13의 0과 「-」). 공용 픽스처는
+    참가팀 전부에 일별 지표와 스냅샷을 깔아서, 그대로 두면 연동이 안 끝난
+    팀이 순위를 달고 나온다 — 운영에서는 일어날 수 없는 모양이다
+    (`public-read.ts`의 `notDeployed`가 같은 조건을 본다).
+  */
+  if (!plan.verified) {
+    await prisma.$transaction([
+      prisma.metricDaily.deleteMany({ where: { entryId } }),
+      prisma.leaderboardSnapshot.deleteMany({ where: { entryId } }),
+    ]);
+  }
+
+  /*
     ⚠️ **시안 목업 값은 맨 마지막에 심는다.** 위의 집계 픽스처와
     `setSandboxCurrentStage`가 `metric_daily`를 비우므로, 먼저 넣으면
     방문자가 도로 0이 된다(2026-09-21).
@@ -1379,6 +1449,15 @@ export async function setSandboxHub(args: {
   if (plan.spec) await setSpec(entryId, seasonId, plan.spec);
 
   if (plan.nextSeason) await ensureNextSeason(seasonId);
+
+  /* h9와 h16은 DB로 못 가른다 — 누른 판을 남긴다(`dev-hub.ts`) */
+  setDevHubKey(key);
+
+  /*
+    ⚠️ **자리를 비우는 것은 맨 마지막이다.** 위의 모든 단계가 그 팀의 참가
+    기록을 재료로 쓰는데(진도·제출·집계), 먼저 비우면 손댈 자리가 없어진다.
+  */
+  if (plan.parked) await setSandboxTeam({ userId, seasonId, on: false });
 }
 
 /**
@@ -1396,10 +1475,15 @@ export function matchHubKey(now: {
   solo: boolean;
   verified: boolean;
   raceStage: StageKey | null;
+  /** 로그인한 사람의 자리가 보관 계정에 가 있는가 — h10만 그렇다 */
+  parked: boolean;
+  /** 마지막으로 누른 판. DB로 못 가르는 짝(h9·h16)을 이것으로 가른다 */
+  pressed: string | null;
 }): HubKey | null {
   const keys = Object.keys(HUB_PLANS) as HubKey[];
-  const hit = keys.find((key) => {
+  const hits = keys.filter((key) => {
     const plan = HUB_PLANS[key];
+    if ((plan.parked ?? false) !== now.parked) return false;
     if (plan.phase !== now.phase) return false;
     if (plan.stage !== now.stage) return false;
     if ((plan.status ?? EntryStatus.active) !== now.status) return false;
@@ -1410,7 +1494,36 @@ export function matchHubKey(now: {
     }
     return true;
   });
-  return hit ?? null;
+  return hits.find((key) => key === now.pressed) ?? hits[0] ?? null;
+}
+
+/**
+ * 로그인한 사람의 자리를 보관 계정이 대신 앉아 있는 참가 기록. 없으면 null.
+ *
+ * 개발 바가 쓴다 — 지각 참가(h10)는 자리를 비워 두는 판이라, 화면이 보는
+ * 참가 기록(`loadViewerState`)이 없다. 그래도 바의 진도 줄은 그 사람 팀의
+ * 판을 계속 보여 줘야 다음 판으로 넘어갈 수 있다(2026-09-21 수연 지시 —
+ * 「예외에 지각 참가 칩은 보여야지」).
+ */
+export async function findParkedEntry(args: {
+  userId: string;
+  seasonId: string;
+}): Promise<string | null> {
+  assertSandbox();
+  const seat = await prisma.teamMember.findFirst({
+    where: {
+      user: { email: parkedEmail(args.userId) },
+      team: { entries: { some: { seasonId: args.seasonId } } },
+    },
+    select: {
+      team: {
+        select: {
+          entries: { where: { seasonId: args.seasonId }, take: 1, select: { id: true } },
+        },
+      },
+    },
+  });
+  return seat?.team.entries[0]?.id ?? null;
 }
 
 /**
@@ -1419,7 +1532,7 @@ export function matchHubKey(now: {
  * 보관 계정의 메일이 `devbar-parked-<원래 userId>@example.com`이라 주인을
  * 되찾을 수 있다. 보관이 겹쳐 쌓였을 수도 있어(보관의 보관) 체인을 푼다.
  */
-async function unparkTeam(teamId: string): Promise<void> {
+export async function unparkTeam(teamId: string): Promise<void> {
   const prefix = "devbar-parked-";
   for (let round = 0; round < 5; round++) {
     const sitting = await prisma.teamMember.findMany({
@@ -1450,7 +1563,7 @@ async function unparkTeam(teamId: string): Promise<void> {
 }
 
 /** 다음 시즌을 다시 재운다(draft). 그래야 지난 시즌이 「지금 시즌」으로 돌아온다 */
-async function sleepNextSeason(currentId: string): Promise<void> {
+export async function sleepNextSeason(currentId: string): Promise<void> {
   const current = await prisma.season.findUniqueOrThrow({
     where: { id: currentId },
     select: { createdAt: true },
@@ -1474,11 +1587,12 @@ async function sleepNextSeason(currentId: string): Promise<void> {
 async function ensureNextSeason(currentId: string): Promise<void> {
   const current = await prisma.season.findUniqueOrThrow({
     where: { id: currentId },
-    select: { createdAt: true, endsAt: true },
+    select: { createdAt: true, endsAt: true, slug: true, title: true },
   });
+  /* 바로 다음 시즌이다(가장 이른 것) — 목 데이터는 시즌 1·2 둘로 고정이다 */
   const next = await prisma.season.findFirst({
     where: { id: { not: currentId }, createdAt: { gt: current.createdAt } },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
     select: { id: true },
   });
   if (next) {
@@ -1491,10 +1605,18 @@ async function ensureNextSeason(currentId: string): Promise<void> {
   const startsAt = new Date(
     (current.endsAt ?? devNow()).getTime() + 50 * 86_400_000,
   );
-  await prisma.season.create({
-    data: {
-      slug: "season-2",
-      title: "시즌 2",
+  /*
+    ⚠️ 이름은 지금 시즌 다음 번호다 — 「season-2」를 박아 두면 시즌 2가 지금
+    시즌일 때(h17의 「참가 신청」으로 시즌 2에 신청한 뒤 다시 누르면 그렇다)
+    같은 slug를 또 만들다 터진다(2026-09-21 수연이 그 에러를 봤다).
+  */
+  const n = Number(current.slug.match(/(\d+)$/)?.[1] ?? 1) + 1;
+  await prisma.season.upsert({
+    where: { slug: `season-${n}` },
+    update: { phase: SeasonPhase.recruiting },
+    create: {
+      slug: `season-${n}`,
+      title: current.title.replace(/\d+$/, String(n)) || `시즌 ${n}`,
       phase: SeasonPhase.recruiting,
       startsAt,
       endsAt: new Date(startsAt.getTime() + 36 * 86_400_000),
@@ -1536,19 +1658,10 @@ const STAGE_PANE: Record<StageKey, HubKey> = {
  */
 export async function setSandboxPace(args: {
   entryId: string;
-  seasonId: string;
-  userId: string;
   stage: StageKey;
 }): Promise<void> {
   assertSandbox();
-  const { entryId, seasonId, userId, stage } = args;
-  await setSandboxHub({
-    key: STAGE_PANE[stage],
-    entryId,
-    seasonId,
-    userId,
-    skipMetrics: true,
-  });
+  await setSandboxHub({ key: STAGE_PANE[args.stage], entryId: args.entryId, skipMetrics: true });
 }
 
 /**
@@ -1671,6 +1784,7 @@ async function setSpec(
           submissionId: gate.id,
           result: JudgmentResult.pass,
           feedback: "[개발용] 개발자 도구가 만든 판정입니다.",
+          aiReport: { dev: true },
         },
       });
     }

@@ -1,7 +1,7 @@
 /*
-  대시보드 허브 — 시안 `#scr-hub`의 `.db-body > .pane` 아홉(h1~h9, 「정상 흐름」).
+  대시보드 허브 — 시안 `#scr-hub`의 `.db-body > .pane` 열일곱.
 
-  값은 `node scripts/design-diff/fold-spec.mjs --media '\.hb-|\.gp|\.act|\.snap|\.lockpill'`
+  값은 `node scripts/design-diff/fold-spec.mjs --media '\.hb-|\.gp|\.act|\.snap|\.lockpill|\.wbar'`
   의 최종 승자를 그대로 옮긴 것이다. 근사치로 반올림하지 않는다.
 
   ⚠️ `.card`·`.chip`·`.badge`·`.btn`은 이미 시안 값을 들고 있다
@@ -11,6 +11,35 @@
   ⚠️ 전역 `.score`는 모듈 안에서 `:global(.score)`로 써야 걸린다 — 그냥
   `.score`라고 쓰면 CSS 모듈이 해시해 전역 규칙에 안 걸린다(참가작 상세 전례).
 */
+
+/* ── 경고줄(`.wbar`) ──────────────────────────────────── */
+
+/*
+  시안 `.wbar` — 판 맨 위, 제목보다 위에 서는 한 줄(h10·h11·h13·h14).
+
+  아이콘은 `Icon`의 `fixed`가 17px로 고정한다(시안 `.wbar .ic`).
+*/
+.wbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: var(--r-m);
+  padding: 14px 18px;
+  font-size: 14.5px;
+  margin-bottom: 20px;
+}
+
+.wbarWarn {
+  background: rgba(255, 183, 77, 0.08);
+  border: 1px solid rgba(255, 183, 77, 0.4);
+  color: var(--warn);
+}
+
+.wbarRed {
+  background: rgba(255, 93, 93, 0.08);
+  border: 1px solid rgba(255, 93, 93, 0.4);
+  color: var(--danger);
+}
 
 /* ── 머리 ─────────────────────────────────────────────── */
 
@@ -328,6 +357,14 @@
   color: var(--accent);
 }
 
+/*
+  시안 h13의 `<span class="badge bd-gray" style="margin-top:6px">` — 숫자
+  자리에 배지가 들어가는 카드라 `.score`가 아니라 이 여백이 줄을 맞춘다.
+*/
+.cardBadge {
+  margin-top: 6px;
+}
+
 /* ── 확정 지표(`.snap`) ───────────────────────────────── */
 
 .snap {
@@ -383,6 +420,11 @@
 /* 시안이 값에 직접 주는 색(h5의 「검증됨 ✓」) */
 .ok {
   color: var(--accent);
+}
+
+/* 시안 h12의 `<b style="color:var(--danger)">FAIL` */
+.fail {
+  color: var(--danger);
 }
 
 /* ── 잠금 알림(`.lockpill`) ───────────────────────────── */
@@ -457,5 +499,10 @@
   .lockpill {
     font-size: 13px;
     padding: 10px 14px;
+  }
+
+  .wbar {
+    font-size: 13px;
+    padding: 12px 14px;
   }
 }
