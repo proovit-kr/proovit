@@ -22,6 +22,7 @@ import { applyConsentRows } from "@/lib/apply-store";
 import { devNow, setDevToday } from "@/lib/dev-clock";
 import { setDevHubKey } from "@/lib/dev-hub";
 import { seoulDateOnly } from "@/lib/measure";
+import { accountConsentRows } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -283,18 +284,18 @@ function devPayload(key: StageKey, host: string | null): Prisma.InputJsonObject 
   switch (key) {
     case StageKey.s1:
       return {
-        concept: "[개발용] 1인 카페 사장님을 위한 시그니처 레시피 구독",
+        concept: "1인 카페 사장님을 위한 시그니처 레시피 구독",
         problemDoc:
-          "[개발용] 화면 검토를 위해 개발자 도구가 만든 제출물입니다. 실제 참가자가 쓴 내용이 아닙니다.",
-        coreFeature: "[개발용] 매주 레시피와 원가표 발송",
-        notBuilding: ["[개발용] 재고 관리", "[개발용] POS 연동"],
-        riskiest: "[개발용] 구독료를 낼 의사가 있는가",
+          "화면 검토를 위해 개발 바가 만든 제출물입니다. 실제 참가자가 쓴 내용이 아닙니다.",
+        coreFeature: "매주 레시피와 원가표 발송",
+        notBuilding: ["재고 관리", "POS 연동"],
+        riskiest: "구독료를 낼 의사가 있는가",
         guideChecks: [true, true, true],
       };
     case StageKey.s3:
       return {
         serviceUrl: "https://example.com",
-        builder: "[개발용] 러버블",
+        builder: "러버블",
         signupConnected: true,
         launchChecks: Array.from({ length: 10 }, () => true),
         aiFeature: false,
@@ -303,13 +304,13 @@ function devPayload(key: StageKey, host: string | null): Prisma.InputJsonObject 
     case StageKey.s2:
       return {
         landingUrl: host ? `https://${host}` : "",
-        channels: ["[개발용] 스레드"],
+        channels: ["스레드"],
         postUrl: "https://example.com/dev-post",
         guideChecks: [true, true, true],
       };
     default:
       /* s4·s5는 아직 폼이 없다. 자리만 채워 「냈다」가 성립하게 한다 */
-      return { note: "[개발용] 개발자 도구가 만든 제출물" };
+      return { note: "개발 바가 만든 제출물" };
   }
 }
 
@@ -460,6 +461,50 @@ const parkedEmail = (userId: string) => `devbar-parked-${userId}@example.com`;
 const MATE_EMAIL = "devbar-mate@example.com";
 
 /**
+ * 개발용 팀원 계정 「지민」을 만든다. **계정 동의 행까지** 같이 — 없으면 이 계정으로
+ * 들어가는 순간 동의 모달이 모든 화면을 덮어(ConsentGate) 개발 바까지 못 누른다.
+ */
+async function createMate(): Promise<{ id: string }> {
+  const user = await prisma.user.create({
+    data: {
+      email: MATE_EMAIL,
+      name: "지민",
+      nickname: "지민",
+      onboardedAt: new Date(),
+    },
+    select: { id: true },
+  });
+  await prisma.consent.createMany({
+    data: accountConsentRows({
+      userId: user.id,
+      marketing: false,
+      ipHash: null,
+      userAgent: null,
+    }),
+  });
+  return user;
+}
+
+export type MockAccount = { id: string; nickname: string; email: string };
+
+/**
+ * 「계정」 줄에 늘어놓는 목 계정 — 시드의 데모 계정(`@demo.proovit.local`)과
+ * 「팀원」 줄이 만드는 「지민」 계정. 소셜로 들어온 진짜 계정은 여기 없다;
+ * 그쪽은 「로그인」 줄이 빼 뒀다 돌려놓는다.
+ */
+export async function listMockAccounts(): Promise<MockAccount[]> {
+  assertSandbox();
+  const users = await prisma.user.findMany({
+    where: {
+      OR: [{ email: { endsWith: "@demo.proovit.local" } }, { email: MATE_EMAIL }],
+    },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, nickname: true, email: true },
+  });
+  return users;
+}
+
+/**
  * 팀원 수를 1인·2인으로 맞춘다 — 팀 관리 화면의 두 판(개인 참가·2인 팀)을
  * 보려고 쓴다.
  *
@@ -493,18 +538,17 @@ export async function setSandboxTeamSize(args: {
     prisma.teamMember.count({ where: { teamId } }),
     prisma.user.findUnique({ where: { email: MATE_EMAIL }, select: { id: true } }),
   ]);
+  const mate = found ?? (await createMate());
+  /*
+    개발용 팀원은 한 계정이라 **한 팀에만** 앉힌다. 두 팀에 걸쳐 있으면
+    그 계정으로 들어갔을 때 화면이 어느 팀을 잡을지 정해지지 않는다(2026-09-21에
+    실제로 다른 사람이 만든 팀이 잡혔다). 마지막으로 2인을 누른 팀이 이긴다 —
+    이 팀이 이미 2인이어도 다른 팀의 자리는 정리한다.
+  */
+  await prisma.teamMember.deleteMany({
+    where: { userId: mate.id, role: MemberRole.member, teamId: { not: teamId } },
+  });
   if (count >= 2) return;
-  const mate =
-    found ??
-    (await prisma.user.create({
-      data: {
-        email: MATE_EMAIL,
-        name: "[개발용] 팀원",
-        nickname: "[개발용] 팀원",
-        onboardedAt: new Date(),
-      },
-      select: { id: true },
-    }));
   await prisma.teamMember.createMany({
     data: [{ teamId, userId: mate.id, role: MemberRole.member }],
     skipDuplicates: true,
@@ -541,8 +585,8 @@ export async function setSandboxTeam(args: {
       update: {},
       create: {
         email: parkedEmail(userId),
-        name: "[개발용] 보관",
-        nickname: "[개발용] 보관",
+        name: "보관",
+        nickname: "보관",
         onboardedAt: new Date(),
       },
       select: { id: true },
@@ -578,7 +622,7 @@ export async function setSandboxTeam(args: {
       (
         await tx.team.create({
           data: {
-            name: `[개발용] ${user.nickname}`.slice(0, 60),
+            name: `${user.nickname}팀`.slice(0, 60),
             isSolo: true,
             members: { create: { userId, role: MemberRole.leader } },
           },
@@ -590,7 +634,7 @@ export async function setSandboxTeam(args: {
       data: {
         seasonId,
         teamId,
-        ideaTitle: "[개발용] 개발 바가 만든 참가작",
+        ideaTitle: "개발 바가 만든 참가작",
         appliedAt: new Date(),
       },
       select: { id: true },
@@ -1224,7 +1268,7 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
     /* 빌더는 골랐고 배포 주소는 아직 — 시안 h5가 그 모양이다 */
     draft: {
       stageKey: StageKey.s3,
-      payload: { builder: "[개발용] 러버블", launchChecks: [], aiChecks: [] },
+      payload: { builder: "러버블", launchChecks: [], aiChecks: [] },
     },
   },
   h6: {
@@ -1468,7 +1512,7 @@ export async function setSandboxHub(args: {
         entryId,
         stage: SanctionStage.disqualified,
         reason: SanctionReason.bot_traffic,
-        detail: "[개발용] 봇 트래픽이 감지됐습니다. 개발자 도구가 만든 제재입니다.",
+        detail: "봇 트래픽이 감지됐습니다. 개발 바가 만든 제재입니다.",
         appealDeadlineAt: new Date(devNow().getTime() + 4 * 86_400_000),
       },
     });
@@ -1842,7 +1886,7 @@ async function setSpec(
         data: {
           submissionId: gate.id,
           result: JudgmentResult.pass,
-          feedback: "[개발용] 개발자 도구가 만든 판정입니다.",
+          feedback: "개발 바가 만든 판정입니다.",
           aiReport: { dev: true },
         },
       });

@@ -10,6 +10,7 @@ import {
   devSetPhase,
   devSetHub,
   devSetStatus,
+  devLoginAs,
   devSetTeam,
   devSetTeamSize,
 } from "@/app/actions/dev";
@@ -63,9 +64,11 @@ type Option<T extends string> = { value: T; label: string };
 
 type Props = {
   blocked?: string;
-  me?: { nickname: string; onboarded: boolean } | null;
+  me?: { id: string; nickname: string; onboarded: boolean } | null;
   /** 비로그인으로 빼 둔 세션이 있는가. 없으면 「로그인」으로 돌아올 수 없다 */
   parked?: boolean;
+  /** 「계정」 줄의 목 계정들. 소셜 없이 바로 들어간다 */
+  accounts?: { id: string; nickname: string; email: string }[];
   /** 가정한 「오늘」(ISO). null이면 진짜 오늘 */
   today?: string | null;
   current?: Team | null;
@@ -150,6 +153,36 @@ function PickSubmit({
   그리는 렌더는 바꾸기 전의 쿠키를 읽는다 — 그대로 두면 바가 한 단계 옛 상태를
   보여준다(actions/dev.ts의 `devSetAuth` 주석). 새로 부르면 새 쿠키로 읽는다.
 */
+function ReloadPick({
+  action,
+  fields,
+  active,
+  children,
+}: {
+  action: (formData: FormData) => Promise<void>;
+  fields: Record<string, string>;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <form
+      action={async (formData: FormData) => {
+        await action(formData);
+        /*
+          `router.refresh()`로는 바가 안 갱신된다(2026-09-21 확인) — 문서를
+          통째로 다시 받아야 새 쿠키로 그린다.
+        */
+        window.location.reload();
+      }}
+    >
+      {Object.entries(fields).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
+      ))}
+      <PickSubmit active={active}>{children}</PickSubmit>
+    </form>
+  );
+}
+
 function AuthPick({
   on,
   active,
@@ -160,25 +193,9 @@ function AuthPick({
   children: React.ReactNode;
 }) {
   return (
-    <form
-      action={async (formData: FormData) => {
-        await devSetAuth(formData);
-        /*
-          `router.refresh()`로는 바가 안 갱신된다(2026-09-21 확인) — 문서를
-          통째로 다시 받아야 새 쿠키로 그린다.
-        */
-        window.location.reload();
-      }}
-    >
-      <input type="hidden" name="on" value={on ? "1" : "0"} />
-      <button
-        type="submit"
-        className={active ? styles.pickOn : styles.pick}
-        aria-pressed={active}
-      >
-        {children}
-      </button>
-    </form>
+    <ReloadPick action={devSetAuth} fields={{ on: on ? "1" : "0" }} active={active}>
+      {children}
+    </ReloadPick>
   );
 }
 
@@ -233,6 +250,7 @@ function savePos(p: Pos) {
 export function DevBarClient({
   blocked,
   me,
+  accounts = [],
   parked = false,
   today = null,
   current,
@@ -400,6 +418,35 @@ export function DevBarClient({
             </div>
           </div>
 
+          {/*
+            ── 계정 ─────────────────────────────────────────
+            소셜 로그인 없이 목 계정으로 들어가는 줄. 시드의 데모 계정과
+            「팀원」 줄이 만든 「지민」 계정이다(lib/dev-session.ts `loginAs`).
+            누르면 지금 세션은 빼 두므로, 위 「로그인」이 내 계정으로 돌아오는 길이다.
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              계정
+              <em className={styles.hint}>목 계정으로 들어가요</em>
+            </span>
+            <div className={styles.picks}>
+              {accounts.length === 0 ? (
+                <span className={styles.empty}>목 계정이 없어요 — db:seed</span>
+              ) : (
+                accounts.map((account) => (
+                  <ReloadPick
+                    key={account.id}
+                    action={devLoginAs}
+                    fields={{ userId: account.id }}
+                    active={me?.id === account.id}
+                  >
+                    {account.nickname}
+                  </ReloadPick>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* ── 참가팀 ──────────────────────────────────────── */}
           <div className={styles.row}>
             <span className={styles.label}>
@@ -432,7 +479,7 @@ export function DevBarClient({
           {/*
             ── 팀원 ──────────────────────────────────────────
             팀 관리 화면의 두 판(시안 ① 2인 팀 · ② 개인 참가)을 보는 줄.
-            2인은 「[개발용] 팀원」 계정을 앉히고, 1인은 팀장 아닌 팀원을 뺀다.
+            2인은 「지민」 계정을 앉히고, 1인은 팀장 아닌 팀원을 뺀다.
           */}
           <div className={styles.row}>
             <span className={styles.label}>
@@ -559,7 +606,7 @@ export function DevBarClient({
           ) : null}
 
           <p className={styles.foot}>
-            dev DB에만 붙습니다. 여기서 만든 제출물은 「[개발용]」으로, 지표는
+            dev DB에만 붙습니다. 여기서 만든 제출물은 「개발 바가 만든」으로, 지표는
             「운영자 보정」으로 표시돼요. 리더보드는 페이즈가 레이스 이상이고
             스테이지가 s4부터일 때 열려요 — 스테이지 줄이 함께 켜요.
           </p>

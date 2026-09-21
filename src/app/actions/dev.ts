@@ -19,12 +19,13 @@ import {
   setSandboxStatus,
   setSandboxTeam,
   setSandboxTeamSize,
+  listMockAccounts,
   setMetricsFixture,
   type HubKey,
   type MetricsFixture,
 } from "@/lib/dev-sandbox";
 import { getSessionUser } from "@/lib/access";
-import { parkSession, restoreSession } from "@/lib/dev-session";
+import { loginAs, parkSession, restoreSession } from "@/lib/dev-session";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -232,6 +233,23 @@ export async function devSetMetrics(formData: FormData): Promise<void> {
   세션은 **만들지 않는다** — 쿠키를 빼 뒀다 돌려놓을 뿐이다(dev-session.ts).
   그래서 처음 한 번은 평소대로 로그인해야 하고, 그 뒤부터 이 줄로 오간다.
 */
+/**
+ * 목 계정으로 로그인 — 「계정」 줄. `devSetAuth`처럼 쿠키를 바꾸므로 화면을
+ * 다시 불러야 하고(DevBarClient의 `ReloadPick`), 같은 이유로 `refresh()`를 안 한다.
+ * 대상이 dev DB의 목 계정인지는 여기서 다시 본다 — 아무 userId나 받아 세션을
+ * 만들어 주는 자리가 되면 안 된다.
+ */
+export async function devLoginAs(formData: FormData): Promise<void> {
+  guard();
+
+  const userId = String(formData.get("userId") ?? "");
+  if (!userId) throw new Error("[dev] userId가 없습니다.");
+  const mock = (await listMockAccounts()).find((a) => a.id === userId);
+  if (!mock) throw new Error("[dev] 목 계정이 아닙니다.");
+
+  await loginAs(mock.id);
+}
+
 export async function devSetAuth(formData: FormData): Promise<void> {
   guard();
 

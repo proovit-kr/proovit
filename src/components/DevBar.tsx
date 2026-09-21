@@ -9,6 +9,7 @@ import {
   findParkedEntry,
   hasSandboxTeam,
   HUB_PLANS,
+  listMockAccounts,
   loadSandboxState,
   matchHubKey,
   type HubKey,
@@ -114,12 +115,13 @@ export async function DevBar() {
     있어서(dev DB가 실제로 그렇다) 바가 제 순서로 고르면 화면과 다른 팀을
     집는다(2026-09-21에 s1 주차를 눌러도 화면이 s4였던 원인).
   */
-  const [user, parked, state, viewer] = await Promise.all([
+  const [user, parked, state, viewer, accounts] = await Promise.all([
     getSessionUser(),
     /* 비로그인으로 둔 세션이 있는가 — 있으면 「로그인」 줄로 돌아올 수 있다 */
     hasParkedSession(),
     loadSandboxState(),
     loadViewerState(),
+    listMockAccounts(),
   ]);
   /* 가정한 오늘. 스테이지 줄이 정하고, 안 정했으면 진짜 오늘이다 */
   const today = devToday();
@@ -173,8 +175,13 @@ export async function DevBar() {
 
   return (
     <DevBarClient
-      me={user ? { nickname: user.nickname, onboarded: !!user.onboardedAt } : null}
+      me={
+        user
+          ? { id: user.id, nickname: user.nickname, onboarded: !!user.onboardedAt }
+          : null
+      }
       parked={parked}
+      accounts={accounts}
       today={today ? today.toISOString() : null}
       current={current}
       hasTeam={hasTeam}
