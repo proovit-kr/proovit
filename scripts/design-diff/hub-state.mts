@@ -129,10 +129,16 @@ if (mode === "save") {
   const snapshots = await prisma.leaderboardSnapshot.count({
     where: { seasonId: season.id },
   });
+  /*
+    `HUB_SAVE_FORCE=1`은 이 가드를 넘는다 — 수연이 같은 dev DB에서 개발 바를
+    눌러 둔 판이 곧 「지금 상태」일 때다. 되돌리면 그 판의 페이즈·진도는
+    돌아오지만 집계 픽스처는 걷힌다(다시 누르면 된다).
+  */
   if (
-    snapshots > 0 ||
-    season.phase === SeasonPhase.awarded ||
-    season.phase === SeasonPhase.archived
+    process.env.HUB_SAVE_FORCE !== "1" &&
+    (snapshots > 0 ||
+      season.phase === SeasonPhase.awarded ||
+      season.phase === SeasonPhase.archived)
   ) {
     throw new Error(
       `[hub-state] 픽스처가 켜진 상태다(페이즈 ${season.phase}, 스냅샷 ${snapshots}개). ` +

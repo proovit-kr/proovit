@@ -95,7 +95,8 @@ export const HUB_HEAD: Record<HubPane, { title: string; sub?: string }> = {
   뒤에 오는 명사다. 사유가 늘면 두 표를 같이 고친다.
 */
 export const HUB_SANCTION_REASON: Record<string, string> = {
-  bot_traffic: "레이스 지표 어뷰징",
+  /* 시안 h14 문구 그대로(2026-09-21 수연 지시). 나머지는 시안에 예문이 없다 */
+  bot_traffic: "지표 조작 의심 (봇 트래픽 감지)",
   multi_account: "다중 계정",
   paid_signup: "유료 가입 유도",
   evidence_forged: "증빙 위조",
