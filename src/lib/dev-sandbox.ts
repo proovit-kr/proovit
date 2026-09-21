@@ -1044,10 +1044,11 @@ type HubPlan = {
   /*
     개발 바의 「진도」 줄에 버튼을 두는가. 기본은 둔다.
 
-    ⚠️ h1만 빼 두었다 — 「참가팀 없음」 줄이 같은 화면(온보딩)을 만들기
-    때문이다(2026-09-21 수연 결정). **표에서는 지우지 않는다** — 대조
-    스크립트(`hub-state.mts h1`)가 이 판을 계속 쓴다. 그쪽은 참가 기록이
-    있는 채로 온보딩 중인 상태라 헤더 배너와 사이드바가 살아 있다.
+    ⚠️ **다른 줄이 이미 만드는 판은 뺐다**(2026-09-21 수연 결정).
+      h1        「참가팀 없음」 줄이 같은 화면(온보딩)을 만든다
+      h2·h3·h5·h6·h7  스테이지 줄이 그 주차의 팀으로 진도까지 옮긴다(`setSandboxPace`)
+    **표에서는 지우지 않는다** — 대조 스크립트(`hub-state.mts h2` …)가 이 판들을
+    계속 쓰고, 그쪽은 세 폭을 돌며 한 판씩 정확히 세워야 한다.
   */
   inBar?: boolean;
 };
@@ -1060,14 +1061,14 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
     solo: false, verified: false,
   },
   h2: {
-    label: "2, s1 제출 전", group: "정상 흐름",
+    label: "2, s1 제출 전", group: "정상 흐름", inBar: false,
     phase: SeasonPhase.racing, stage: EntryStage.applied,
     solo: true, verified: true, raceStage: StageKey.s1,
     /* 셋 중 둘을 끝낸 모양 — 시안 h2가 그렇다 */
     draft: { stageKey: StageKey.s1, payload: { guideChecks: [true, true, false] } },
   },
   h3: {
-    label: "3, s2 진행 중", group: "정상 흐름",
+    label: "3, s2 진행 중", group: "정상 흐름", inBar: false,
     phase: SeasonPhase.racing, stage: EntryStage.s1,
     solo: true, verified: true, raceStage: StageKey.s2,
     draft: { stageKey: StageKey.s2, payload: { guideChecks: [true, false, false] } },
@@ -1078,7 +1079,7 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
     solo: true, verified: true, raceStage: StageKey.s2,
   },
   h5: {
-    label: "5, s3 빌드와 배포", group: "정상 흐름",
+    label: "5, s3 빌드와 배포", group: "정상 흐름", inBar: false,
     phase: SeasonPhase.racing, stage: EntryStage.s3,
     solo: true, verified: true, raceStage: StageKey.s3,
     /* 빌더는 골랐고 배포 주소는 아직 — 시안 h5가 그 모양이다 */
@@ -1088,12 +1089,12 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
     },
   },
   h6: {
-    label: "6, s4 레이스", group: "정상 흐름",
+    label: "6, s4 레이스", group: "정상 흐름", inBar: false,
     phase: SeasonPhase.racing, stage: EntryStage.s4,
     solo: true, verified: true, raceStage: StageKey.s4, metrics: "race",
   },
   h7: {
-    label: "7, 2차 심사 대기", group: "정상 흐름",
+    label: "7, 2차 심사 대기", group: "정상 흐름", inBar: false,
     phase: SeasonPhase.racing, stage: EntryStage.s5,
     solo: true, verified: true, raceStage: StageKey.s5, metrics: "final",
   },
@@ -1418,5 +1419,65 @@ async function ensureNextSeason(currentId: string): Promise<void> {
       startsAt,
       endsAt: new Date(startsAt.getTime() + 36 * 86_400_000),
     },
+  });
+}
+
+/*
+  「내 팀은 시즌 일정대로 간다」 — 개발 바 스테이지 줄이 오늘을 옮길 때
+  **내 팀 진도도 그 주차에 맞춘다**(2026-09-21 수연 지시).
+
+  그 전에는 두 축이 따로 놀아서, 페이즈를 레이스로 두고 s1 주차를 골라도
+  진도가 s3이면 화면이 s3 그대로였다 — 수연이 「화면이 안 바뀌네」로 잡았다.
+  화면을 보려고 누르는 줄이니 그 주차에 있을 법한 팀이 되는 편이 쓸모 있다.
+
+  ⚠️ `EntryStage`는 **마지막으로 완료한 단계**다. s2 주차를 진행 중인 팀은
+  s1까지 낸 상태(`s1`)이고, s3 주차 팀은 s2 게이트를 통과한 상태(`s3`)다.
+  게이트에 멈춘 상태(판정 대기 `s2`·`s5`)는 그 주차를 「정상으로 지나는」
+  모습이 아니라 여기 없다 — 진도 줄의 「4, 1차 심사 대기」가 그 자리다.
+*/
+const STAGE_PACE: Record<StageKey, EntryStage> = {
+  [StageKey.s1]: EntryStage.applied,
+  [StageKey.s2]: EntryStage.s1,
+  [StageKey.s3]: EntryStage.s3,
+  [StageKey.s4]: EntryStage.s4,
+  [StageKey.s5]: EntryStage.s5,
+};
+
+/**
+ * 그 주차를 정상으로 지나는 팀으로 만든다 — 진도와 온보딩.
+ *
+ * ⚠️ **집계는 건드리지 않는다.** `setSandboxCurrentStage`가 스테이지별 규칙을
+ * 이미 갖고 있고(s4는 고르는 자리라 그대로 둔다), 여기서 덮으면 s4의 집계 줄이
+ * 무슨 값을 눌러도 되돌아간다.
+ */
+export async function setSandboxPace(args: {
+  entryId: string;
+  seasonId: string;
+  userId: string;
+  stage: StageKey;
+}): Promise<void> {
+  assertSandbox();
+  const { entryId, userId, stage } = args;
+
+  const entry = await prisma.entry.findUniqueOrThrow({
+    where: { id: entryId },
+    select: { teamId: true },
+  });
+  /* 「참가팀 없음」으로 비워 둔 자리가 있으면 먼저 돌려받는다 */
+  await unparkTeam(entry.teamId);
+
+  await setSandboxStage({ entryId, stage: STAGE_PACE[stage], userId });
+  await prisma.entry.update({
+    where: { id: entryId },
+    data: { status: EntryStatus.active },
+  });
+  /* 일정대로 왔다면 온보딩은 이미 끝난 팀이다 */
+  await prisma.team.update({
+    where: { id: entry.teamId },
+    data: { isSolo: true },
+  });
+  await prisma.hostname.updateMany({
+    where: { entryId },
+    data: { deployStatus: DeployStatus.active, ownershipVerifiedAt: devNow() },
   });
 }
