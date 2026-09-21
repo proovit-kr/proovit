@@ -207,8 +207,14 @@ if (mode === "save") {
   await prisma.entryLead.deleteMany({
     where: { contactHash: { startsWith: "dev-lead-" } },
   });
+  /* 개발용 판정 — h12의 것은 문구가 시안 그대로라 `aiReport`의 표시로 찾는다 */
   await prisma.judgment.deleteMany({
-    where: { feedback: { startsWith: "[개발용]" } },
+    where: {
+      OR: [
+        { feedback: { startsWith: "[개발용]" } },
+        { aiReport: { path: ["dev"], equals: true } },
+      ],
+    },
   });
   await prisma.metricExtraDaily.deleteMany({
     where: { definition: { key: { in: ["weekly_active", "retention"] } } },

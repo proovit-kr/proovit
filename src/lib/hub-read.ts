@@ -14,6 +14,7 @@ import { addBusinessDays, APPEAL_BUSINESS_DAYS } from "@/lib/appeal";
 import { devNow } from "@/lib/dev-clock";
 import { conversionRate, currentStage } from "@/lib/header-state";
 import type { HubPane } from "@/lib/hub-state";
+import { seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
 import { loadLeaderboard } from "@/lib/public-read";
 import { isRacing } from "@/lib/season-phase";
@@ -224,6 +225,11 @@ async function loadExtra(
     if (out[key] === null) out[key] = Number(row.value);
   }
   return out;
+}
+
+/** 그날의 끝(서울 23:59). 이의신청 기한이 「그날 이내」라서다 */
+function endOfSeoulDay(at: Date): Date {
+  return new Date(seoulDateOnly(at).getTime() + (24 * 60 - 9 * 60 - 1) * 60_000);
 }
 
 /** 그 참가작의 누적 지표. 리더보드에 행이 없을 때도 쓴다 */
@@ -598,24 +604,42 @@ export async function loadHub(
     case "gateFail": {
       const gate =
         entry.stage === EntryStage.s5 ? StageKey.s5 : StageKey.s2;
-      const judgment = await prisma.judgment.findFirst({
-        where: {
-          submission: { entryId: entry.id, stageKey: gate },
-          result: JudgmentResult.fail,
-        },
-        orderBy: { judgedAt: "desc" },
-        select: { feedback: true, judgedAt: true },
-      });
+      const [judgment, leads, sum] = await Promise.all([
+        prisma.judgment.findFirst({
+          where: {
+            submission: { entryId: entry.id, stageKey: gate },
+            result: JudgmentResult.fail,
+          },
+          orderBy: { judgedAt: "desc" },
+          select: { feedback: true, judgedAt: true },
+        }),
+        prisma.entryLead.count({
+          where: { entryId: entry.id, verifiedAt: { not: null } },
+        }),
+        totals(entry.id),
+      ]);
+      /*
+        사유 요지 — 시안 h12는 「수요 신호 부족 (신청 3명, 전환율 0.8%)」다.
+        괄호 안은 운영이 적는 것이 아니라 **1차 게이트가 본 숫자**라(h4와 같은
+        재료) 화면이 붙인다. 2차 게이트는 수요 숫자가 근거가 아니라 안 붙인다.
+      */
+      const applicants = leads || sum.signups;
+      const rate = conversionRate(applicants, sum.validVisitors);
+      const numbers =
+        gate === StageKey.s2
+          ? ` (신청 ${applicants}명, 전환율 ${rate === null ? "—" : `${rate}%`})`
+          : "";
       return {
         pane,
         gate,
-        reason: judgment?.feedback ?? null,
+        reason: judgment?.feedback ? `${judgment.feedback}${numbers}` : null,
         /*
           제11조 ① — 통지 후 5영업일. **기산점은 판정 시각**이고 공휴일은 못
           세므로(appeal.ts 주석) 실제 기한은 이 값보다 늦어질 수 있다.
+          마감은 그날 **23:59(서울)**이다 — 「이내」의 끝은 그날 끝이다.
         */
         appealBy: judgment
-          ? addBusinessDays(judgment.judgedAt, APPEAL_BUSINESS_DAYS)
+          ? endOfSeoulDay(addBusinessDays(judgment.judgedAt, APPEAL_BUSINESS_DAYS))
           : null,
       };
     }

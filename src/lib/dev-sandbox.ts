@@ -1211,6 +1211,8 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
     phase: SeasonPhase.racing, stage: EntryStage.s2,
     status: EntryStatus.eliminated, solo: true, verified: true,
     raceStage: StageKey.s4, judgeFail: StageKey.s2,
+    /* 시안 「신청 3명, 전환율 0.8%」 — 3/375가 실제로 0.8%다 */
+    leads: 3, visitors: 375,
   },
   /* h13 미배포 레이스 — 레이스에 들어왔는데 측정 연동이 안 끝났다 */
   h13: {
@@ -1364,8 +1366,13 @@ export async function setSandboxHub(args: {
             말하는 오늘보다 앞선 날짜로 뜬다.
           */
           judgedAt: devNow(),
-          feedback:
-            "[개발용] 수요 신호가 부족합니다. 개발자 도구가 만든 판정이라 실제 심사가 아닙니다.",
+          /*
+            사유는 시안 h12의 요지 그대로다(「수요 신호 부족」) — 괄호 안 숫자는
+            화면이 리드·방문에서 붙인다. 개발용 표시는 문구가 아니라 `aiReport`에
+            둔다(2026-09-21 수연 지시 — 「시안처럼 표시」). 되돌릴 때 이 표시로 지운다.
+          */
+          feedback: "수요 신호 부족",
+          aiReport: { dev: true },
         },
       });
     }
@@ -1749,6 +1756,7 @@ async function setSpec(
           submissionId: gate.id,
           result: JudgmentResult.pass,
           feedback: "[개발용] 개발자 도구가 만든 판정입니다.",
+          aiReport: { dev: true },
         },
       });
     }

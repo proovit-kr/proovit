@@ -494,7 +494,7 @@ function Body({ view }: { view: HubView }) {
               <span>{HUB_LABEL.appeal}</span>
               <b>
                 {view.appealBy
-                  ? `${HUB_LABEL.appealNote}, ${fmtMD(view.appealBy)}까지`
+                  ? `${HUB_LABEL.appealNote}, ${fmtMDHM(view.appealBy)}까지`
                   : HUB_LABEL.appealNote}
               </b>
             </div>
