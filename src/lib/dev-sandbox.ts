@@ -1181,6 +1181,14 @@ export async function setSandboxHub(args: {
     where: { id: entryId },
     select: { teamId: true },
   });
+  /*
+    ⚠️ **보관 계정이 앉아 있으면 먼저 비운다.** 「참가팀 없음」 줄이 그 사람의
+    팀 자리를 보관 계정으로 옮기는데, 그 상태로 허브 줄을 누르면 진도만 바뀌고
+    **로그인한 사람에게는 여전히 참가 기록이 없다** — 허브가 「참가 신청부터
+    해요」를 그린다(2026-09-21에 수연이 그 화면을 봤다). 허브 17판은 전부
+    참가자 화면이라 「참가 기록이 있다」가 전제다.
+  */
+  await unparkTeam(entry.teamId);
 
   /*
     ⚠️ h17만 「지금 시즌」이 바뀐다 — 지난 시즌을 재우고 다음 시즌을 깨운다.
@@ -1312,6 +1320,42 @@ export function matchHubKey(now: {
     return true;
   });
   return hit ?? null;
+}
+
+/**
+ * 그 팀에 앉아 있는 개발용 보관 계정을 원래 주인에게 돌려준다.
+ *
+ * 보관 계정의 메일이 `devbar-parked-<원래 userId>@example.com`이라 주인을
+ * 되찾을 수 있다. 보관이 겹쳐 쌓였을 수도 있어(보관의 보관) 체인을 푼다.
+ */
+async function unparkTeam(teamId: string): Promise<void> {
+  const prefix = "devbar-parked-";
+  for (let round = 0; round < 5; round++) {
+    const sitting = await prisma.teamMember.findMany({
+      where: { teamId, user: { email: { startsWith: prefix } } },
+      select: { userId: true, user: { select: { email: true } } },
+    });
+    if (!sitting.length) return;
+
+    let moved = 0;
+    for (const member of sitting) {
+      const ownerId = member.user.email
+        .slice(prefix.length)
+        .replace("@example.com", "");
+      const owner = await prisma.user.findUnique({
+        where: { id: ownerId },
+        select: { id: true },
+      });
+      if (!owner) continue;
+      const done = await prisma.teamMember.updateMany({
+        where: { teamId, userId: member.userId },
+        data: { userId: owner.id },
+      });
+      moved += done.count;
+    }
+    /* 주인을 못 찾는 자리만 남았으면 더 풀 것이 없다 */
+    if (!moved) return;
+  }
 }
 
 /** 다음 시즌을 다시 재운다(draft). 그래야 지난 시즌이 「지금 시즌」으로 돌아온다 */
