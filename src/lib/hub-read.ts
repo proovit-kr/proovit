@@ -72,6 +72,12 @@ export type HubView =
       validUsers: number;
       revenue: bigint;
       announceAt: Date | null;
+      /*
+        참고 지표 — 채점 축이 아니라 아직 무엇을 셀지 정해지지 않았다
+        (PLN6 6장 1번). 값이 없으면 화면이 「—」로 둔다.
+      */
+      weeklyActive: number | null;
+      retention: number | null;
     }
   | {
       pane: "awarded";
@@ -160,6 +166,31 @@ async function stageDueAt(
     select: { closesAt: true },
   });
   return stage?.closesAt ?? null;
+}
+
+/*
+  참고 지표 — 가장 최근 하루치를 키별로 준다.
+
+  ⚠️ **무엇을 참고 지표로 셀지는 아직 정해지지 않았다**(PLN6 6장 1번).
+  정의 행이 없으면 값도 없고, 화면은 그때 「—」를 그린다 — 지어내지 않는다.
+*/
+async function loadExtra(
+  entryId: string,
+): Promise<Record<string, number | null>> {
+  const rows = await prisma.metricExtraDaily.findMany({
+    where: { entryId },
+    orderBy: { metricDate: "desc" },
+    select: { value: true, definition: { select: { key: true } } },
+  });
+  const out: Record<string, number | null> = {
+    weekly_active: null,
+    retention: null,
+  };
+  for (const row of rows) {
+    const key = row.definition.key;
+    if (out[key] === null) out[key] = Number(row.value);
+  }
+  return out;
 }
 
 /** 그 참가작의 누적 지표. 리더보드에 행이 없을 때도 쓴다 */
@@ -366,13 +397,14 @@ export async function loadHub(
     }
 
     case "gate2": {
-      const [{ row }, sum, seasonRow] = await Promise.all([
+      const [{ row }, sum, seasonRow, extra] = await Promise.all([
         myRow(season.id, entry.id),
         totals(entry.id),
         prisma.season.findUnique({
           where: { id: season.id },
           select: { endsAt: true },
         }),
+        loadExtra(entry.id),
       ]);
       return {
         pane,
@@ -380,6 +412,8 @@ export async function loadHub(
         revenue: row?.revenue ?? sum.revenue,
         /* 랜딩 ④의 「시상 발표」와 같은 값이다 */
         announceAt: seasonRow?.endsAt ?? null,
+        weeklyActive: extra.weekly_active,
+        retention: extra.retention,
       };
     }
 

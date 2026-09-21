@@ -256,14 +256,27 @@ function Body({ view }: { view: HubView }) {
               <small>{HUB_LABEL.snapValidUsers}</small>
               <span className="score">{NUM.format(view.validUsers)}</span>
             </Card>
-            {/* 주간 활성·재방문율은 아직 세지 않는다 */}
+            {/*
+              참고 지표 — 무엇을 셀지 아직 정해지지 않아(PLN6 6장 1번) 값이
+              없을 수 있다. 그때는 「—」로 두고 지어내지 않는다.
+            */}
             <Card className={styles.snapCard}>
               <small>{HUB_LABEL.snapWeeklyActive}</small>
-              <span className={`score ${styles.off}`}>{UNKNOWN}</span>
+              <span
+                className={`score ${view.weeklyActive === null ? styles.off : ""}`}
+              >
+                {view.weeklyActive === null
+                  ? UNKNOWN
+                  : NUM.format(view.weeklyActive)}
+              </span>
             </Card>
             <Card className={styles.snapCard}>
               <small>{HUB_LABEL.snapRetention}</small>
-              <span className={`score ${styles.off}`}>{UNKNOWN}</span>
+              <span
+                className={`score ${view.retention === null ? styles.off : ""}`}
+              >
+                {view.retention === null ? UNKNOWN : `${view.retention}%`}
+              </span>
             </Card>
             <Card className={styles.snapCard}>
               <small>{HUB_LABEL.snapRevenue}</small>

@@ -34,6 +34,7 @@ import {
   setSandboxStage,
   type HubKey,
 } from "../../src/lib/dev-sandbox";
+import { devToday, setDevToday } from "../../src/lib/dev-clock";
 import { prisma } from "../../src/lib/prisma";
 
 const check = checkDevSandbox();
@@ -144,6 +145,8 @@ if (mode === "save") {
         featureFlags: season.featureFlags,
         stages,
         entry: { id: entry.id, stage: entry.stage, status: entry.status },
+        /* 픽스처가 「오늘」을 옮긴다(raceStage) — 떠 두고 되돌린다 */
+        today: devToday()?.toISOString() ?? null,
         isSolo: entry.team?.isSolo ?? false,
         hostname: entry.hostname ?? null,
       },
@@ -167,6 +170,7 @@ if (mode === "save") {
     featureFlags: unknown;
     stages: { stageKey: string; opensAt: string | null; closesAt: string | null }[];
     entry: { id: string; stage: EntryStage; status: EntryStatus };
+    today: string | null;
     isSolo: boolean;
     hostname: {
       deployStatus: DeployStatus;
@@ -176,6 +180,25 @@ if (mode === "save") {
 
   /* 픽스처가 만든 스냅샷·일별 지표·수상을 먼저 걷어낸다 */
   await setMetricsFixture({ seasonId: season.id, kind: "none" });
+
+  /*
+    시안 목업 값도 걷는다 — `setMetricsFixture`가 모르는 것들이다.
+    개발용으로 만든 것만 지운다(사전 신청 리드는 접두사, 판정은 문구).
+  */
+  await prisma.entryLead.deleteMany({
+    where: { contactHash: { startsWith: "dev-lead-" } },
+  });
+  await prisma.judgment.deleteMany({
+    where: { feedback: { startsWith: "[개발용]" } },
+  });
+  await prisma.metricExtraDaily.deleteMany({
+    where: { definition: { key: { in: ["weekly_active", "retention"] } } },
+  });
+  await prisma.metricDefinition.deleteMany({
+    where: { key: { in: ["weekly_active", "retention"] } },
+  });
+  /* 「오늘」도 떠 둔 값으로 되돌린다 */
+  setDevToday(snap.today ? new Date(snap.today) : null);
 
   await setSandboxStage({
     entryId: snap.entry.id,

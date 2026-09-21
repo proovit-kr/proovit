@@ -352,6 +352,13 @@ export async function setSandboxStage(args: {
       뒤로 되돌릴 때는 넘치는 제출물을 **지운다.** 남겨두면 "s1인데 s3 제출이
       있는" 상태가 되어 화면이 실제로는 나올 수 없는 조합을 그린다.
     */
+    /*
+      ⚠️ **판정을 먼저 지운다.** `judgments.submission_id`가 이 행을 가리켜
+      그냥 지우면 외래키에 걸린다(2026-09-21에 되돌리기가 그것으로 막혔다).
+    */
+    await tx.judgment.deleteMany({
+      where: { submission: { entryId, stageKey: { notIn: needed } } },
+    });
     await tx.submission.deleteMany({
       where: { entryId, stageKey: { notIn: needed } },
     });
@@ -1076,6 +1083,28 @@ type HubPlan = {
   leads?: number;
   visitors?: number;
   /*
+    확정 집계가 끝난 판(h7·h8·h9)이 그리는 값. 시안 목업이 적어 둔 그대로다 —
+    유효 이용자 1,248 · 주간 활성 512 · 재방문율 31% · 매출 ₩126,000 · 2위,
+    수상은 「🏆 우수상」.
+
+    ⚠️ **주간 활성과 재방문율은 채점 축이 아니라 참고 지표다**(`metric_extra_daily`).
+    무엇을 참고 지표로 셀지는 아직 정해지지 않았고(PLN6 6장 1번), 여기서 만드는
+    것은 **화면 검토용 dev 데이터**다 — 정의가 오면 엣지가 센 값이 들어온다.
+  */
+  spec?: {
+    validUsers?: number;
+    revenue?: number;
+    rank?: number;
+    /** 참고 지표 — 사람 수 */
+    weeklyActive?: number;
+    /** 참고 지표 — 퍼센트 */
+    retention?: number;
+    /** 종합 시상 문구 */
+    award?: string;
+    /** 게이트 둘(s2·s5)을 통과 처리한다 — 시안 h9의 「2 PASS」 */
+    gatePass?: boolean;
+  };
+  /*
     개발 바의 「진도」 줄에 버튼을 두는가. 기본은 둔다.
 
     ⚠️ **다른 줄이 이미 만드는 판은 뺐다**(2026-09-21 수연 결정).
@@ -1132,17 +1161,27 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
     label: "7, 2차 심사 대기", group: "정상 흐름", inBar: false,
     phase: SeasonPhase.racing, stage: EntryStage.s5,
     solo: true, verified: true, raceStage: StageKey.s5, metrics: "final",
-  },
+    spec: {
+      validUsers: 1248, revenue: 126_000, rank: 2,
+      weeklyActive: 512, retention: 31,
+    },  },
   h8: {
     label: "8, 시상 발표", group: "정상 흐름",
     phase: SeasonPhase.awarded, stage: EntryStage.completed,
     solo: true, verified: true, metrics: "final",
+    spec: {
+      validUsers: 1248, revenue: 126_000, rank: 2,
+      weeklyActive: 512, retention: 31, award: "🏆 우수상", gatePass: true,
+    },
   },
   h9: {
     label: "9, 시즌 아카이브", group: "정상 흐름",
     phase: SeasonPhase.archived, stage: EntryStage.completed,
     solo: true, verified: true, metrics: "final",
-  },
+    spec: {
+      validUsers: 1248, revenue: 126_000, rank: 2,
+      weeklyActive: 512, retention: 31, gatePass: true,
+    },  },
 
   /*
     h10 지각 참가 — 온보딩이 안 끝났는데 s1이 이미 열려 있다.
@@ -1337,6 +1376,7 @@ export async function setSandboxHub(args: {
   */
   if (plan.leads !== undefined) await setLeads(entryId, plan.leads);
   if (plan.visitors !== undefined) await setVisitors(entryId, plan.visitors);
+  if (plan.spec) await setSpec(entryId, seasonId, plan.spec);
 
   if (plan.nextSeason) await ensureNextSeason(seasonId);
 }
@@ -1553,6 +1593,121 @@ async function setVisitors(entryId: string, total: number): Promise<void> {
       source: MetricSource.manual,
     },
   });
+}
+
+/** 참고 지표의 정의. 시안 h7·h9가 그리는 두 가지다 */
+const EXTRA_DEFS = [
+  { key: "weekly_active", name: "주간 활성", unit: "명" },
+  { key: "retention", name: "재방문율", unit: "%" },
+] as const;
+
+/**
+ * 확정 집계 판(h7·h8·h9)의 값을 시안 목업 그대로 만든다.
+ *
+ * 최종 스냅샷과 시상은 그 팀 것만 덮고, 참고 지표는 `metric_extra_daily`에
+ * 하루치로 넣는다 — 화면이 보는 것은 가장 최근 값 하나다.
+ */
+async function setSpec(
+  entryId: string,
+  seasonId: string,
+  spec: NonNullable<HubPlan["spec"]>,
+): Promise<void> {
+  const day = seoulDateOnly(devNow());
+
+  const snapshot = await prisma.leaderboardSnapshot.findFirst({
+    where: { entryId, seasonId },
+    orderBy: { snapshotDate: "desc" },
+    select: { id: true },
+  });
+  const board = {
+    rank: spec.rank ?? 1,
+    validVisitorsTotal: spec.validUsers ?? 0,
+    revenueTotal: BigInt(spec.revenue ?? 0),
+  };
+  if (snapshot) {
+    await prisma.leaderboardSnapshot.update({
+      where: { id: snapshot.id },
+      data: board,
+    });
+  } else {
+    await prisma.leaderboardSnapshot.create({
+      data: {
+        seasonId,
+        entryId,
+        snapshotDate: day,
+        isFinal: true,
+        /* 채점식이 미확정이라 점수는 유효 이용자 수를 그대로 쓴다(픽스처 관례) */
+        score: board.validVisitorsTotal,
+        ...board,
+      },
+    });
+  }
+
+  if (spec.award) {
+    const award = await prisma.award.findFirst({
+      where: { seasonId, entryId },
+      select: { id: true },
+    });
+    const data = { rank: spec.rank ?? null, prizeDesc: spec.award };
+    if (award) {
+      await prisma.award.update({ where: { id: award.id }, data });
+    } else {
+      await prisma.award.create({
+        data: { seasonId, entryId, awardedAt: devNow(), ...data },
+      });
+    }
+  }
+
+  if (spec.gatePass) {
+    /* 게이트 둘의 제출에 통과 판정을 단다 — 시안 h9의 「2 PASS」 */
+    const gates = await prisma.submission.findMany({
+      where: { entryId, stageKey: { in: [StageKey.s2, StageKey.s5] } },
+      select: { id: true },
+    });
+    for (const gate of gates) {
+      await prisma.judgment.deleteMany({ where: { submissionId: gate.id } });
+      await prisma.judgment.create({
+        data: {
+          submissionId: gate.id,
+          result: JudgmentResult.pass,
+          feedback: "[개발용] 개발자 도구가 만든 판정입니다.",
+        },
+      });
+    }
+  }
+
+  /* 참고 지표 — 정의가 없으면 만든다(시즌1 dev DB에는 아직 없다) */
+  const values: Record<string, number | undefined> = {
+    weekly_active: spec.weeklyActive,
+    retention: spec.retention,
+  };
+  for (const def of EXTRA_DEFS) {
+    const value = values[def.key];
+    if (value === undefined) continue;
+    const definition = await prisma.metricDefinition.upsert({
+      where: { key: def.key },
+      update: {},
+      create: { key: def.key, name: def.name, unit: def.unit },
+      select: { id: true },
+    });
+    await prisma.metricExtraDaily.upsert({
+      where: {
+        entryId_metricDate_definitionId: {
+          entryId,
+          metricDate: day,
+          definitionId: definition.id,
+        },
+      },
+      update: { value },
+      create: {
+        entryId,
+        metricDate: day,
+        definitionId: definition.id,
+        value,
+        source: MetricSource.manual,
+      },
+    });
+  }
 }
 
 /**
