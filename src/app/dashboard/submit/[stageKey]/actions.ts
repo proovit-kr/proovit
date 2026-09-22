@@ -89,7 +89,11 @@ export async function saveStageAction(
   if (!parsed.success) {
     return {
       errors: flatten(parsed.error),
-      message: intent === "draft" ? "글자수를 넘긴 칸이 있어요." : undefined,
+      /* 칸 옆의 빨간 글씨만으로는 버튼 쪽에서 아무 일도 없어 보인다 — 배너도 준다 */
+      message:
+        intent === "draft"
+          ? "글자수를 넘긴 칸이 있어요."
+          : "채우지 않았거나 넘친 칸이 있어요. 표시된 칸을 확인해 주세요.",
       ...echo,
     };
   }

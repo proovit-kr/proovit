@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
@@ -120,6 +120,20 @@ const ACCENT = { color: "var(--accent)" } as const;
 export function StageForm(props: StageFormProps) {
   const { stageKey, defaults, canWrite } = props;
   const [state, formAction, pending] = useActionState(saveStageAction, INITIAL);
+  /*
+    결과 배너는 폼 맨 위에 있고 버튼은 맨 아래다 — 긴 s1에서 검증에 걸리면 버튼만
+    보는 사람에겐 아무 일도 없어 보인다. 응답이 오면 걸린 첫 칸으로, 칸이 없으면
+    배너로 옮겨 준다.
+  */
+  const formRef = useRef<HTMLFormElement>(null);
+  const bannerRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (!state.message && !state.done) return;
+    const target =
+      (state.errors && formRef.current?.querySelector(`.${styles.fieldError}`)) ||
+      bannerRef.current;
+    target?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [state]);
   const v = state.values;
 
   /* 되돌려받은 값이 있으면 그것을, 없으면 저장된 값을 채운다 */
@@ -134,6 +148,7 @@ export function StageForm(props: StageFormProps) {
 
   return (
     <form
+      ref={formRef}
       action={formAction}
       noValidate
       className={styles.frm}
@@ -154,15 +169,15 @@ export function StageForm(props: StageFormProps) {
       </div>
 
       {state.message ? (
-        <p className={styles.error} role="alert">
+        <p className={styles.error} role="alert" ref={bannerRef}>
           {state.message}
         </p>
       ) : state.done === "draft" ? (
-        <p className={styles.notice} role="status">
+        <p className={styles.notice} role="status" ref={bannerRef}>
           임시 저장했어요. 아직 제출되지 않았어요.
         </p>
       ) : state.done === "submitted" ? (
-        <p className={styles.notice} role="status">
+        <p className={styles.notice} role="status" ref={bannerRef}>
           제출했어요. 마감 전까지 다시 고쳐 낼 수 있어요.
         </p>
       ) : null}
