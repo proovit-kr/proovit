@@ -1,18 +1,24 @@
+import { createHash } from "node:crypto";
+
 import type { Prisma } from "@/generated/prisma/client";
 import {
+  ChargeType,
   ConsentType,
   DeployStatus,
   EntryStage,
   EntryStatus,
+  IntegrationStatus,
   InvitationStatus,
   JudgmentResult,
   MemberRole,
   MetricSource,
+  PaymentProvider,
   SanctionReason,
   SanctionStage,
   SeasonPhase,
   StageKey,
   SubmissionStatus,
+  TransactionStatus,
 } from "@/generated/prisma/enums";
 import {
   ACCOUNT_PRIVACY_CONSENT_VERSION,
@@ -22,8 +28,26 @@ import {
 import { applyConsentRows } from "@/lib/apply-store";
 import { devNow, setDevToday } from "@/lib/dev-clock";
 import { setDevHubKey } from "@/lib/dev-hub";
+import { EVIDENCE_KINDS, buildEvidenceKey, kindOfName } from "@/lib/evidence";
+import { evidenceStorage } from "@/lib/evidence-storage";
+import {
+  DEV_FILE_BYTES,
+  SPEC_FILES,
+  SPEC_S1,
+  SPEC_S2_LEADS,
+  SPEC_S2_VISITORS,
+  SPEC_S4,
+  SPEC_S4_SIGNUPS,
+  SPEC_S4_VISITORS,
+  SPEC_S4_WEEK1,
+  SPEC_S5,
+  specS2,
+  specS3,
+} from "@/lib/dev-submit-fixture";
 import { seoulDateOnly } from "@/lib/measure";
 import { measurementState, type MeasurementState } from "@/lib/measurement";
+import { paymentPane, type PaymentPane } from "@/lib/payment";
+import { encryptSecret } from "@/lib/payment-crypto";
 import { accountConsentRows } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
 import { INVITE_TTL_DAYS } from "@/lib/team";
@@ -116,6 +140,10 @@ export type SandboxTeam = {
   verified: boolean;
   /** 측정 연동 화면의 판(시안 ①②③). 행이 없으면 none — 「측정 연동」 줄이 되짚는다 */
   measurement: MeasurementState | "none";
+  /** 결제 연동 화면의 판(시안 ①②③ + 확인 대기). 「결제 연동」 줄이 되짚는다 */
+  payment: PaymentPane;
+  /** 스테이지 제출 화면의 판. 「제출」 줄이 되짚는다 — 시안 목업이 심긴 판만 */
+  submit: SubmitPane | null;
   /** 팀원 수. 「팀원」 줄이 1인·2인 중 어느 쪽이 눌렸는지 되짚는 데 쓴다 */
   members: number;
   /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
@@ -160,6 +188,9 @@ export async function loadSandboxState(): Promise<SandboxState> {
         ideaTitle: true,
         season: { select: { id: true, createdAt: true } },
         hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
+        chargeType: true,
+        integration: { select: { status: true } },
+        submissions: { select: { stageKey: true, week: true, status: true } },
         team: {
           select: {
             id: true,
@@ -240,6 +271,11 @@ export async function loadSandboxState(): Promise<SandboxState> {
               verifiedAt: entry.hostname.ownershipVerifiedAt,
             })
           : "none",
+        payment: paymentPane({
+          chargeType: entry.chargeType,
+          status: entry.integration?.status ?? null,
+        }),
+        submit: submitPane(entry.submissions),
         teamId: entry.team.id,
         seasonId: entry.season.id,
         seasonCreatedAt: entry.season.createdAt,
@@ -2023,3 +2059,356 @@ export async function setSandboxMeasurement(args: {
   await setHostnameState(args.entryId, args.state);
 }
 
+/*
+  결제 연동 화면의 판을 앉힌다 — 시안 ① 미등록 · ② 등록과 확인 완료 · ③ 문의형,
+  그리고 시안에 없는 「확인 대기」(등록은 했는데 확인 전).
+
+  과금 유형은 s1 제출값이라 화면에서는 못 바꾸지만 여기서는 바꾼다 — 판을 보려고
+  누르는 줄이다. ③은 문의 수단 주소가 비어 있으면 팀 주소의 /contact를 채운다
+  (시안 목업 「https://little-potion.proovit.kr/contact」와 같아진다).
+*/
+export async function setSandboxPayment(args: {
+  entryId: string;
+  pane: PaymentPane;
+}): Promise<void> {
+  assertSandbox();
+  const { entryId, pane } = args;
+
+  if (pane === "inq") {
+    const entry = await prisma.entry.findUniqueOrThrow({
+      where: { id: entryId },
+      select: { inquiryUrl: true, hostname: { select: { hostname: true } } },
+    });
+    await setSandboxRevenue(entryId, false);
+    await setSandboxInquiries(entryId, true);
+    await prisma.entry.update({
+      where: { id: entryId },
+      data: {
+        chargeType: ChargeType.inquiry,
+        ...(entry.inquiryUrl
+          ? {}
+          : {
+              inquiryUrl: `https://${entry.hostname?.hostname ?? `dev-${entryId.slice(0, 8)}.proovit.kr`}/contact`,
+            }),
+      },
+    });
+    return;
+  }
+
+  await prisma.entry.update({
+    where: { id: entryId },
+    data: { chargeType: ChargeType.payment },
+  });
+  await setSandboxRevenue(entryId, pane === "ok");
+  await setSandboxInquiries(entryId, false);
+  if (pane === "none") {
+    await prisma.paymentIntegration.deleteMany({ where: { entryId } });
+    return;
+  }
+
+  const now = devNow();
+  const data = {
+    status: pane === "ok" ? IntegrationStatus.verified : IntegrationStatus.pending,
+    verifiedAt: pane === "ok" ? now : null,
+    lastTestedAt: pane === "ok" ? now : null,
+  };
+  await prisma.paymentIntegration.upsert({
+    where: { entryId },
+    create: {
+      entryId,
+      provider: PaymentProvider.toss,
+      /* 가리면 시안 목업 「sk_live_••••••••3f2a」와 같아지는 가짜 키 */
+      readonlyKeyEnc: encryptSecret("sk_live_sandbox_only_3f2a"),
+      ...data,
+    },
+    update: data,
+  });
+}
+
+// ═════════════════════════════════════════════════════════════
+// 스테이지 제출 — 시안 `#scr-submit` 다섯 판
+// ═════════════════════════════════════════════════════════════
+
+/*
+  두 판이면 다섯 탭이 전부 시안 모양이 된다.
+
+    s3  진도 h5(s3 빌드와 배포) 위에 시안 목업을 얹는다 — s1 제출됨·s2 통과(잠김)·
+        s3 임시저장·s4 「주간 반복」·s5 「예정」. 시안의 s1·s2·s3·s5 판이 이 상태다.
+    s4  진도 h6(s4 레이스) 위에 s4 1주차 임시저장. 시안의 s4 판이 이 상태다 —
+        ⚠️ 시안은 「1주차 제출됨 · 2주차 작성 중」인데 dev 일정은 s4가 한 주라
+        2주차가 없다. 1주차 작성 중으로 심는다(2026-09-22).
+
+  판을 만드는 순서가 뜻을 만든다 — `setSandboxHub`가 그 진도에 필요한 제출물을
+  개발용 payload로 채우고 집계 픽스처와 「오늘」을 정하므로, 시안 목업 제출물·
+  판정·방문자는 반드시 그 **뒤**에 얹는다.
+*/
+/** s4w2 — s4를 두 주로 늘리고 1주차 제출·2주차 작성 중. s5 — s5 열림, 작성 중(h15 위에) */
+export type SubmitPane = "s3" | "s4" | "s4w2" | "s5";
+
+/** 지금 dev DB가 그리는 제출 판. 시안 목업이 심긴 모양이 아니면 null */
+function submitPane(
+  rows: { stageKey: StageKey; week: number; status: SubmissionStatus }[],
+): SubmitPane | null {
+  const has = (stageKey: StageKey, status: SubmissionStatus, week?: number) =>
+    rows.some(
+      (r) =>
+        r.stageKey === stageKey &&
+        r.status === status &&
+        (week === undefined ? true : r.week >= week),
+    );
+  if (has(StageKey.s5, SubmissionStatus.draft)) return "s5";
+  if (has(StageKey.s4, SubmissionStatus.draft, 2)) return "s4w2";
+  if (has(StageKey.s4, SubmissionStatus.draft, 1)) return "s4";
+  if (has(StageKey.s3, SubmissionStatus.draft) && has(StageKey.s2, SubmissionStatus.locked)) {
+    return "s3";
+  }
+  return null;
+}
+
+export async function setSandboxSubmit(args: {
+  entryId: string;
+  pane: SubmitPane;
+}): Promise<void> {
+  assertSandbox();
+  const { entryId, pane } = args;
+
+  await setSandboxHub({ key: pane === "s3" ? "h5" : pane === "s5" ? "h15" : "h6", entryId });
+
+  /*
+    dev 일정은 스테이지마다 한 주라 s4에 2주차가 없다. 「s4 2주차」는 s4 마감을 한 주
+    미루고 s5를 그만큼 뒤로 민다(시즌 종료는 그대로). 다른 줄(스테이지·집계·허브)을
+    누르면 `scheduleStageDates`가 한 주짜리로 되돌린다.
+  */
+  if (pane === "s4w2") {
+    const { seasonId } = await prisma.entry.findUniqueOrThrow({
+      where: { id: entryId },
+      select: { seasonId: true },
+    });
+    const [s4, s5] = await Promise.all(
+      [StageKey.s4, StageKey.s5].map((stageKey) =>
+        prisma.stage.findFirstOrThrow({ where: { seasonId, stageKey } }),
+      ),
+    );
+    if (s4.closesAt && s5.closesAt) {
+      const s4Closes = new Date(s4.closesAt.getTime() + WEEK_MS);
+      const s5Opens = new Date(s4Closes.getTime() + MIN_MS);
+      const s5Closes = new Date(Math.max(s5.closesAt.getTime(), s5Opens.getTime() + 86_400_000));
+      await prisma.$transaction([
+        prisma.stage.update({ where: { id: s4.id }, data: { closesAt: s4Closes } }),
+        prisma.stage.update({ where: { id: s5.id }, data: { opensAt: s5Opens, closesAt: s5Closes } }),
+      ]);
+    }
+  }
+
+  const entry = await prisma.entry.findUniqueOrThrow({
+    where: { id: entryId },
+    select: {
+      seasonId: true,
+      teamId: true,
+      hostname: { select: { hostname: true } },
+      season: {
+        select: {
+          stages: { select: { stageKey: true, opensAt: true, closesAt: true } },
+        },
+      },
+    },
+  });
+  const leader = await prisma.teamMember.findFirst({
+    where: { teamId: entry.teamId, role: MemberRole.leader },
+    select: { userId: true },
+  });
+  if (!leader) throw new Error("[dev] 그 팀에 팀장이 없습니다.");
+  const host = entry.hostname?.hostname ?? `dev-${entryId.slice(0, 8)}.proovit.kr`;
+  const stageOf = (key: StageKey) => entry.season.stages.find((s) => s.stageKey === key);
+  /* 제출 시각은 마감 이틀 전 — 시안 「마감 10.04 · 제출 10.02」의 간격 */
+  const submittedAt = (key: StageKey) => {
+    const closes = stageOf(key)?.closesAt;
+    return closes ? new Date(closes.getTime() - 2 * 86_400_000) : devNow();
+  };
+
+  /*
+    시안 칩의 파일을 실제로 심는다 — 칩이 열려야 화면 검토가 된다. 키의 id는
+    이름에서 정해지므로 몇 번을 눌러도 같은 파일 하나다. 되돌릴 때는
+    submit-state.mts가 스냅에 없는 키를 저장소에서 걷어낸다.
+  */
+  const storage = evidenceStorage();
+  const seedFiles = async (stageKey: StageKey, names: readonly string[]) => {
+    if (!storage) return [];
+    const keys: string[] = [];
+    for (const name of names) {
+      const kind = kindOfName(name);
+      if (!kind || !(kind in DEV_FILE_BYTES)) continue;
+      const key = buildEvidenceKey({
+        entryId,
+        stageKey,
+        slot: "evidence",
+        id: createHash("md5").update(`dev:${name}`).digest("hex"),
+        name,
+      });
+      await storage.put(key, DEV_FILE_BYTES[kind as keyof typeof DEV_FILE_BYTES], EVIDENCE_KINDS[kind]);
+      keys.push(key);
+    }
+    return keys;
+  };
+
+  const put = async (
+    stageKey: StageKey,
+    week: number,
+    status: SubmissionStatus,
+    payload: Prisma.InputJsonObject,
+    evidenceUrls: string[] = [],
+  ) => {
+    const submitted = status !== SubmissionStatus.draft;
+    const data = {
+      status,
+      payload,
+      evidenceUrls,
+      submittedBy: submitted ? leader.userId : null,
+      submittedAt: submitted ? submittedAt(stageKey) : null,
+    };
+    return prisma.submission.upsert({
+      where: { entryId_stageKey_week: { entryId, stageKey, week } },
+      create: { entryId, stageKey, week, ...data },
+      update: data,
+      select: { id: true },
+    });
+  };
+
+  await put(
+    StageKey.s1,
+    0,
+    SubmissionStatus.submitted,
+    SPEC_S1,
+    await seedFiles(StageKey.s1, SPEC_FILES.s1),
+  );
+  const s2 = await put(
+    StageKey.s2,
+    0,
+    SubmissionStatus.locked,
+    specS2(host),
+    await seedFiles(StageKey.s2, SPEC_FILES.s2),
+  );
+  /* 1차 통과 — 시안 s2의 「pass」. 되돌릴 때 `aiReport.dev`로 찾아 지운다 */
+  await prisma.judgment.deleteMany({ where: { submissionId: s2.id } });
+  await prisma.judgment.create({
+    data: {
+      submissionId: s2.id,
+      result: JudgmentResult.pass,
+      judgedAt: submittedAt(StageKey.s2),
+      feedback: "개발 바가 만든 판정입니다.",
+      aiReport: { dev: true },
+    },
+  });
+  await put(
+    StageKey.s3,
+    0,
+    pane === "s3" ? SubmissionStatus.draft : SubmissionStatus.submitted,
+    specS3(host, pane === "s4"),
+  );
+  /* s2 판의 방문자·사전 신청자 — 허브 h4와 같은 수. 방문은 s2 구간 안의 날이어야 센다 */
+  await setLeads(entryId, SPEC_S2_LEADS);
+  if (pane === "s3") {
+    const closes = stageOf(StageKey.s2)?.closesAt;
+    await prisma.metricDaily.deleteMany({ where: { entryId } });
+    await prisma.metricDaily.create({
+      data: {
+        entryId,
+        metricDate: seoulDateOnly(closes ? new Date(closes.getTime() - 60_000) : devNow()),
+        validVisitors: SPEC_S2_VISITORS,
+        source: MetricSource.manual,
+      },
+    });
+    return;
+  }
+
+  /* s5 작성 중 — h15(s5 구간, 진도 s4)가 일정·지표·「오늘」을 앉혔다. 초안만 얹는다 */
+  if (pane === "s5") {
+    await put(StageKey.s5, 0, SubmissionStatus.draft, SPEC_S5);
+    return;
+  }
+
+  /*
+    s4 작성 중 — 「s4 1주차」는 1주차 초안, 「s4 2주차」는 1주차 제출 + 2주차 초안(시안 그대로).
+    「오늘」은 이번 주 마감 이틀 전 낮 — 시안 「D-2」
+  */
+  const week = pane === "s4w2" ? 2 : 1;
+  if (week === 2) await put(StageKey.s4, 1, SubmissionStatus.submitted, SPEC_S4_WEEK1);
+  await put(
+    StageKey.s4,
+    week,
+    SubmissionStatus.draft,
+    SPEC_S4,
+    await seedFiles(StageKey.s4, SPEC_FILES.s4),
+  );
+  const closes = stageOf(StageKey.s4)?.closesAt;
+  if (closes) {
+    setDevToday(new Date(closes.getTime() - 2 * 86_400_000 - (11 * 60 + 59) * 60_000));
+  }
+  /*
+    주간 지표 「방문 214 · 가입 38」 — 집계 픽스처는 「오늘」을 옮기기 전의 날짜에
+    행을 깔아 이 주에는 없다. 이 주의 오늘 하루치를 시안 수치로 얹는다.
+  */
+  await prisma.metricDaily.upsert({
+    where: { entryId_metricDate: { entryId, metricDate: seoulDateOnly(devNow()) } },
+    update: { validVisitors: SPEC_S4_VISITORS, signups: SPEC_S4_SIGNUPS },
+    create: {
+      entryId,
+      metricDate: seoulDateOnly(devNow()),
+      validVisitors: SPEC_S4_VISITORS,
+      signups: SPEC_S4_SIGNUPS,
+      source: MetricSource.manual,
+    },
+  });
+}
+
+/*
+  시안 ②의 요약 「집계된 매출 ₩126,000 · 결제 건수 7건」을 **진짜 거래 행**으로
+  만든다(2026-09-22 수연 지시 — 허브의 주간 활성·재방문율 픽스처와 같은 방식).
+  화면은 여전히 거래 표를 집계해 그리고, 이 행들은 멱등키 접두로 구별해 다른
+  판으로 옮길 때 지운다. 결제자 해시를 각각 달리 둬 유효 결제자 수도 7이 된다.
+*/
+export const SANDBOX_TX_PREFIX = "sandbox-tx:";
+
+export async function setSandboxRevenue(entryId: string, on: boolean): Promise<void> {
+  const prefix = `${SANDBOX_TX_PREFIX}${entryId}:`;
+  await prisma.transaction.deleteMany({
+    where: { entryId, providerTxId: { startsWith: prefix } },
+  });
+  if (!on) return;
+  const now = devNow().getTime();
+  await prisma.transaction.createMany({
+    data: Array.from({ length: 7 }, (_, i) => ({
+      entryId,
+      providerTxId: `${prefix}${i + 1}`,
+      amount: BigInt(18000),
+      status: TransactionStatus.paid,
+      /* 최근 일주일에 하루 한 건씩 */
+      paidAt: new Date(now - (7 - i) * 24 * 60 * 60 * 1000),
+      rawPayload: { sandbox: true },
+      payerHash: `sandbox-payer-${i + 1}`,
+    })),
+  });
+}
+
+/*
+  시안 ③의 「현재 단계 L2, 유효 문의 2건」을 **진짜 리드 행**으로 만든다
+  (2026-09-22 수연 지시, 매출 픽스처와 같은 방식). 인증된 리드 2건이면 L2다.
+*/
+export const SANDBOX_LEAD_PREFIX = "sandbox-lead:";
+
+export async function setSandboxInquiries(entryId: string, on: boolean): Promise<void> {
+  const prefix = `${SANDBOX_LEAD_PREFIX}${entryId.slice(0, 8)}:`;
+  await prisma.entryLead.deleteMany({
+    where: { entryId, contactHash: { startsWith: prefix } },
+  });
+  if (!on) return;
+  const now = devNow().getTime();
+  await prisma.entryLead.createMany({
+    data: [1, 2].map((i) => ({
+      entryId,
+      contactHash: `${prefix}${i}`,
+      verifiedAt: new Date(now - i * 24 * 60 * 60 * 1000),
+      sourceHost: "little-potion.proovit.kr",
+    })),
+  });
+}

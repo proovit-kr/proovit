@@ -15,15 +15,19 @@ import {
   setSandboxHub,
   setSandboxMeasurement,
   setSandboxPace,
+  setSandboxPayment,
   setSandboxPhase,
   setSandboxStage,
   setSandboxStatus,
+  setSandboxSubmit,
   setSandboxTeam,
   setSandboxTeamSize,
   setMetricsFixture,
   type HubKey,
   type MetricsFixture,
+  type SubmitPane,
 } from "@/lib/dev-sandbox";
+import type { PaymentPane } from "@/lib/payment";
 import { getSessionUser } from "@/lib/access";
 import { loginAsTestAccount, logout } from "@/lib/dev-session";
 import { prisma } from "@/lib/prisma";
@@ -182,6 +186,31 @@ export async function devSetMeasurement(formData: FormData): Promise<void> {
     throw new Error("[dev] entryId·state가 잘못됐습니다.");
   }
   await setSandboxMeasurement({ entryId, state: raw as "wait" | "ok" | "fail" });
+  refresh();
+}
+
+export async function devSetPayment(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const raw = String(formData.get("pane") ?? "");
+  if (!entryId || !["none", "pending", "ok", "inq"].includes(raw)) {
+    throw new Error("[dev] entryId·pane가 잘못됐습니다.");
+  }
+  await setSandboxPayment({ entryId, pane: raw as PaymentPane });
+  refresh();
+}
+
+/** 스테이지 제출 화면의 판 — 시안 목업 제출물을 심는다(`setSandboxSubmit`) */
+export async function devSetSubmit(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const raw = String(formData.get("pane") ?? "");
+  if (!entryId || !["s3", "s4", "s4w2", "s5"].includes(raw)) {
+    throw new Error("[dev] entryId·pane가 잘못됐습니다.");
+  }
+  await setSandboxSubmit({ entryId, pane: raw as SubmitPane });
   refresh();
 }
 

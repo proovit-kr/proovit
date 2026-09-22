@@ -52,3 +52,6 @@ next-env.d.ts
 
 # Claude Code 개인 로컬 설정 (팀 공유 대상이 아니다)
 .claude/settings.local.json
+
+# 증빙 파일의 로컬 저장소 (R2 키가 없을 때 개발 서버가 쓴다)
+.data/

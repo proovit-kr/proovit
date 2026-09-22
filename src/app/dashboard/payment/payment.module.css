@@ -1,151 +1,130 @@
 /*
-  결제 연동. 측정 연동과 같은 골격을 쓴다 — 둘 다 「등록하고 확인을 기다리는」 화면이라
-  참가자가 같은 모양으로 읽게 두는 편이 낫다. 라임은 등록 버튼 하나에만(§7).
+  결제 연동 — 시안 `#scr-payment` 세 판(① 결제형 미등록 · ② 등록됨 · ③ 문의형).
+
+  머리(`.hb-h1`·`.hb-sub`)·경고줄·안내줄(`.info-strip`)·상점 상자(`.keybox`)·
+  요약 카드(`.hb-sum`)는 hub.module.css의 것을 쓴다(참가자 화면이 공유하는 시안
+  클래스). 입력 묶음은 `Field`, 배지·버튼·카드는 각 컴포넌트가 시안 값을 들고
+  있다. 여기는 이 화면에만 있는 과금 유형 칩(`.py-type`)과 수익화 단계 표(`.lv`),
+  자리마다 덮는 값뿐이다.
+
+  값은 `node scripts/design-diff/fold-spec.mjs --media '^\.(py-type|lk|lv|k|pt)$'`
+  의 최종 승자다. 근사치로 반올림하지 않는다.
 */
 
-.root {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-8);
-  padding-block: var(--s-10) var(--s-14);
-}
+/* ── 과금 유형 칩(`.py-type`) ─────────────────────────── */
 
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-
-.headTop {
-  display: flex;
+.pyType {
+  display: inline-flex;
   align-items: center;
-  gap: var(--s-4);
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  padding: 6px 13px;
+  margin-bottom: 18px;
 }
 
-.title {
-  margin: 0;
-  color: var(--c-text-strong);
-  font-size: var(--fs-3xl);
+.pyType b {
+  color: var(--text);
+}
+
+/* 시안 `.py-type .lk` — 「🔒 s1 제출값」 */
+.lk {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  letter-spacing: 0.08em;
+}
+
+/* ── 수익화 단계 표(`.lv`, 시안 ③) ───────────────────── */
+
+/* 시안 `<div class="card" style="padding:8px 18px;margin-bottom:16px">` */
+.levels {
+  padding: 8px 18px;
+  margin-bottom: 16px;
+}
+
+.lv {
+  display: grid;
+  grid-template-columns: 52px 1fr 60px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.lv:last-of-type {
+  border-bottom: 0;
+}
+
+.k {
+  font-family: var(--mono);
+  font-weight: 800;
+  color: var(--violet);
+}
+
+.pt {
+  font-family: var(--mono);
+  text-align: right;
+  color: var(--text);
   font-weight: 700;
-  line-height: 1.3;
 }
 
-.purpose {
-  /* 읽기 폭은 텍스트에만(§6) */
-  max-width: 34em;
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-md);
-  line-height: 1.7;
+/* ── 자리마다 덮는 값 ─────────────────────────────────── */
+
+/* 시안 ② `.keybox .cp` + `<span class="cp" style="display:flex;gap:8px">` */
+.cp {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
 }
 
+/* 시안 ③ 맨 아래 `<p class="hint" style="margin-top:12px">` — `.fld` 밖이라 힌트 규칙이 안 걸린다 */
 .note {
-  max-width: 34em;
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
+  margin-top: 12px;
 }
 
-.locked {
-  max-width: 34em;
-  margin: 0;
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--c-line-3);
-  border-radius: var(--r-lg);
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
+/* ── 시안에 없는 것 ──────────────────────────────────── */
+
+/* ③의 「주소 저장하기」 자리. 입력 묶음과 같은 간격으로 요약 카드와 띄운다 */
+.inqSave {
+  margin-bottom: 22px;
+}
+
+/* 액션 실패 문구. 필드에 붙지 않는 오류라 폼 맨 위에 선다(측정 연동과 같다) */
+.error {
+  margin-bottom: 16px;
+  color: var(--danger);
+  font-size: 14.5px;
   line-height: 1.6;
 }
 
-/* ── 폼 ────────────────────────────────────────────────────── */
-
-.form {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s-6);
-  max-width: 36em;
-}
-
-.fieldset {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-5);
-}
-
-.choice {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  color: var(--c-text-muted);
-  font-size: var(--fs-base);
-  cursor: pointer;
-}
-
-.choice input {
-  accent-color: var(--c-lime);
-}
-
-.formError {
-  margin: 0;
-  color: var(--c-danger);
-  font-size: var(--fs-sm);
+/* 연동 테스트 결과 한 줄 */
+.notice {
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 14.5px;
   line-height: 1.6;
 }
 
-.saved {
+/* 칸 오류. 참가 신청의 `.fieldError`와 같은 규칙 — 아직 안 채운 것이라 주황 */
+.fieldError {
   margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--warn);
 }
 
-/* ── 아직 안 되는 것 ───────────────────────────────────────── */
-
-.pendingBlock {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  padding-top: var(--s-5);
-  border-top: 1px solid var(--c-line-2);
+/* 좁은 폭에서만 문장 사이에서 넘기는 줄바꿈(③ 안내줄). 시안의 760 분기와 같다 */
+.narrowBreak {
+  display: none;
 }
 
-.pendingTitle {
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-}
-
-.steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  max-width: 34em;
-  margin: 0;
-  padding-left: var(--s-5);
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
-}
-
-.link {
-  color: var(--c-text-muted);
-  text-decoration: none;
-  border-bottom: 1px solid var(--c-line-3);
-}
-
-.link:hover {
-  color: var(--c-text-strong);
+@media (max-width: 760px) {
+  .narrowBreak {
+    display: inline;
+  }
 }

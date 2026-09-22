@@ -10,7 +10,9 @@ import {
   devSetPhase,
   devSetHub,
   devSetMeasurement,
+  devSetPayment,
   devSetStatus,
+  devSetSubmit,
   devSetTeam,
   devSetTeamSize,
 } from "@/app/actions/dev";
@@ -59,6 +61,10 @@ type Team = {
   members: number;
   /** 측정 연동 화면의 판. 「측정 연동」 줄의 대기·검증됨·실패 */
   measurement: "none" | "wait" | "ok" | "fail";
+  /** 결제 연동 화면의 판. 「결제 연동」 줄의 미등록·확인 대기·확인됨·문의형 */
+  payment: "none" | "pending" | "ok" | "inq";
+  /** 스테이지 제출 화면의 판. 「제출」 줄의 s3 작성 중·s4 1주차. 시안 목업이 아니면 null */
+  submit: "s3" | "s4" | "s4w2" | "s5" | null;
   teamId: string;
 };
 
@@ -495,6 +501,76 @@ export function DevBarClient({
                     action={devSetMeasurement}
                     fields={{ entryId: current.entryId, state: pick.state }}
                     active={current.measurement === pick.state}
+                  >
+                    {pick.label}
+                  </PickButton>
+                ))
+              ) : (
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
+              )}
+            </div>
+          </div>
+
+          {/*
+            ── 결제 연동 ─────────────────────────────────────
+            결제 연동 화면의 판(시안 ① 미등록 · ② 등록과 확인 완료 · ③ 문의형,
+            그리고 시안에 없는 「확인 대기」). 과금 유형(s1 제출값)도 같이 바꾼다.
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              결제 연동
+              <em className={styles.hint}>결제 연동 ①②③</em>
+            </span>
+            <div className={styles.picks}>
+              {current ? (
+                [
+                  { pane: "none", label: "미등록" },
+                  { pane: "pending", label: "확인 대기" },
+                  { pane: "ok", label: "확인됨" },
+                  { pane: "inq", label: "문의형" },
+                ].map((pick) => (
+                  <PickButton
+                    key={pick.pane}
+                    action={devSetPayment}
+                    fields={{ entryId: current.entryId, pane: pick.pane }}
+                    active={current.payment === pick.pane}
+                  >
+                    {pick.label}
+                  </PickButton>
+                ))
+              ) : (
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
+              )}
+            </div>
+          </div>
+
+          {/*
+            ── 제출 ──────────────────────────────────────────
+            스테이지 제출 화면의 다섯 판. 「s3 작성 중」이 시안의 s1 제출됨·s2 통과·
+            s3 임시저장·s5 예정을 한 번에 만들고(진도 h5 위에 시안 목업 제출물을
+            얹는다), 「s4 1주차」가 s4 주간 판을 만든다(h6 위에). 「s4 2주차」는 s4를
+            두 주로 늘려 시안의 「1주차 제출됨 · 2주차 작성 중」을 만든다 — 다른 줄을
+            누르면 일정이 한 주짜리로 돌아온다. 「s5 작성 중」은 h15(s5 구간) 위에
+            토글이 켜진 초안을 얹는다. 탭은 화면에서 누른다.
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              제출
+              <em className={styles.hint}>스테이지 제출 s1~s5</em>
+            </span>
+            <div className={styles.picks}>
+              {current ? (
+                [
+                  { pane: "s3", label: "s3 작성 중" },
+                  { pane: "s4", label: "s4 1주차" },
+                  { pane: "s4w2", label: "s4 2주차" },
+                  { pane: "s5", label: "s5 작성 중" },
+                ].map((pick) => (
+                  <PickButton
+                    key={pick.pane}
+                    action={devSetSubmit}
+                    fields={{ entryId: current.entryId, pane: pick.pane }}
+                    active={current.submit === pick.pane}
                   >
                     {pick.label}
                   </PickButton>

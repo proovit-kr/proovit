@@ -738,6 +738,10 @@ model Entry {
   /// 과금 유형. R3 심사 트랙을 결정하며 s1 제출 후 변경 불가.
   chargeType ChargeType @default(payment) @map("charge_type")
 
+  /// 문의형의 문의 수단 주소(결제 연동 ③). 팀 주소 경로만 인정한다 —
+  /// 문의 도달 이벤트가 팀 주소 경유 접속으로 세어지기 때문이다.
+  inquiryUrl String? @map("inquiry_url")
+
   /// 신청 접수 시각. createdAt과 따로 두는 이유는 운영자가 대신 만든 행이
   /// 있을 수 있어서다 — "언제 행이 생겼나"와 "언제 신청했나"는 다른 질문이다.
   /// 참가 동의 3종을 신청 전에 받으므로, 팀장이 신청을 시작할 때 행을 먼저 만들고
@@ -847,6 +851,8 @@ model PaymentIntegration {
 
   status     IntegrationStatus @default(pending)
   verifiedAt DateTime?         @map("verified_at") @db.Timestamptz(6)
+  /// 참가자가 「연동 테스트」를 마지막으로 누른 시각(결제 연동 ②의 힌트).
+  lastTestedAt DateTime? @map("last_tested_at") @db.Timestamptz(6)
 
   entry Entry @relation(fields: [entryId], references: [id])
 
