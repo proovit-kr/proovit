@@ -9,6 +9,7 @@ import {
   devSetMetrics,
   devSetPhase,
   devSetHub,
+  devSetMeasurement,
   devSetStatus,
   devSetTeam,
   devSetTeamSize,
@@ -56,6 +57,8 @@ type Team = {
   status: string;
   /** 팀원 수. 「팀원」 줄의 1인·2인 */
   members: number;
+  /** 측정 연동 화면의 판. 「측정 연동」 줄의 대기·검증됨·실패 */
+  measurement: "none" | "wait" | "ok" | "fail";
   teamId: string;
 };
 
@@ -460,6 +463,38 @@ export function DevBarClient({
                         ? current.members < 2
                         : current.members >= 2
                     }
+                  >
+                    {pick.label}
+                  </PickButton>
+                ))
+              ) : (
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
+              )}
+            </div>
+          </div>
+
+          {/*
+            ── 측정 연동 ─────────────────────────────────────
+            측정 연동 화면의 세 판(시안 ① 검증 대기 · ② 검증됨 · ③ 실패).
+            hostname 행이 없으면 만들고, 배포 주소는 참가작 주소로 채운다.
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              측정 연동
+              <em className={styles.hint}>측정 연동 ①②③</em>
+            </span>
+            <div className={styles.picks}>
+              {current ? (
+                [
+                  { state: "wait", label: "검증 대기" },
+                  { state: "ok", label: "검증됨" },
+                  { state: "fail", label: "실패" },
+                ].map((pick) => (
+                  <PickButton
+                    key={pick.state}
+                    action={devSetMeasurement}
+                    fields={{ entryId: current.entryId, state: pick.state }}
+                    active={current.measurement === pick.state}
                   >
                     {pick.label}
                   </PickButton>

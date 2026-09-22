@@ -13,6 +13,7 @@ import {
   HUB_PLANS,
   setSandboxCurrentStage,
   setSandboxHub,
+  setSandboxMeasurement,
   setSandboxPace,
   setSandboxPhase,
   setSandboxStage,
@@ -168,6 +169,19 @@ export async function devSetTeamSize(formData: FormData): Promise<void> {
     throw new Error("[dev] teamId·size가 잘못됐습니다.");
   }
   await setSandboxTeamSize({ teamId, size: raw === "1" ? 1 : 2 });
+  refresh();
+}
+
+/** 측정 연동 세 판(시안 ①②③) — 검증 대기·검증됨·실패 */
+export async function devSetMeasurement(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const raw = String(formData.get("state") ?? "");
+  if (!entryId || !["wait", "ok", "fail"].includes(raw)) {
+    throw new Error("[dev] entryId·state가 잘못됐습니다.");
+  }
+  await setSandboxMeasurement({ entryId, state: raw as "wait" | "ok" | "fail" });
   refresh();
 }
 

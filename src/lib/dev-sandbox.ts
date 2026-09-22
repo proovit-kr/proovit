@@ -23,6 +23,7 @@ import { applyConsentRows } from "@/lib/apply-store";
 import { devNow, setDevToday } from "@/lib/dev-clock";
 import { setDevHubKey } from "@/lib/dev-hub";
 import { seoulDateOnly } from "@/lib/measure";
+import { measurementState, type MeasurementState } from "@/lib/measurement";
 import { accountConsentRows } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
 import { INVITE_TTL_DAYS } from "@/lib/team";
@@ -113,6 +114,8 @@ export type SandboxTeam = {
   /* 아래 둘은 허브 줄이 「지금 어느 판인가」를 되짚는 데 쓴다 */
   solo: boolean;
   verified: boolean;
+  /** 측정 연동 화면의 판(시안 ①②③). 행이 없으면 none — 「측정 연동」 줄이 되짚는다 */
+  measurement: MeasurementState | "none";
   /** 팀원 수. 「팀원」 줄이 1인·2인 중 어느 쪽이 눌렸는지 되짚는 데 쓴다 */
   members: number;
   /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
@@ -231,6 +234,12 @@ export async function loadSandboxState(): Promise<SandboxState> {
         verified:
           entry.hostname?.deployStatus === DeployStatus.active &&
           entry.hostname.ownershipVerifiedAt !== null,
+        measurement: entry.hostname
+          ? measurementState({
+              deployStatus: entry.hostname.deployStatus,
+              verifiedAt: entry.hostname.ownershipVerifiedAt,
+            })
+          : "none",
         teamId: entry.team.id,
         seasonId: entry.season.id,
         seasonCreatedAt: entry.season.createdAt,
@@ -1963,21 +1972,54 @@ async function setSpec(
  * 주소는 참가작 주소에서 가져오고, 그것도 없으면 개발용으로 하나 짓는다.
  */
 async function setHostname(entryId: string, verified: boolean): Promise<void> {
+  await setHostnameState(entryId, verified ? "ok" : "wait");
+}
+
+/**
+ * 측정 연동 화면의 세 판(시안 ①②③) 중 하나로 만든다 — 「측정 연동」 줄.
+ *
+ * 배포 주소(`originUrl`)가 비어 있으면 참가작 주소로 채운다 — 화면 ③이
+ * 그 값을 「배포 주소」 칸에 그리고, 「다시 검증하기」가 그 주소를 실제로 부른다.
+ */
+async function setHostnameState(
+  entryId: string,
+  state: MeasurementState,
+): Promise<void> {
   const entry = await prisma.entry.findUniqueOrThrow({
     where: { id: entryId },
-    select: { serviceUrl: true, hostname: { select: { id: true } } },
+    select: {
+      serviceUrl: true,
+      hostname: { select: { id: true, originUrl: true } },
+    },
   });
-  const state = {
-    deployStatus: verified ? DeployStatus.active : DeployStatus.pending,
-    ownershipVerifiedAt: verified ? devNow() : null,
+  const data = {
+    deployStatus:
+      state === "ok"
+        ? DeployStatus.active
+        : state === "fail"
+          ? DeployStatus.failed
+          : DeployStatus.pending,
+    ownershipVerifiedAt: state === "ok" ? devNow() : null,
+    lastCheckedAt: state === "wait" ? null : devNow(),
+    ...(entry.hostname?.originUrl
+      ? {}
+      : { originUrl: entry.serviceUrl ?? "https://example.com" }),
   };
   if (entry.hostname) {
-    await prisma.hostname.update({ where: { entryId }, data: state });
+    await prisma.hostname.update({ where: { entryId }, data });
     return;
   }
   const host = entry.serviceUrl
     ? new URL(entry.serviceUrl).host
     : `dev-${entryId.slice(0, 8)}.proovit.kr`;
-  await prisma.hostname.create({ data: { entryId, hostname: host, ...state } });
+  await prisma.hostname.create({ data: { entryId, hostname: host, ...data } });
+}
+
+export async function setSandboxMeasurement(args: {
+  entryId: string;
+  state: MeasurementState;
+}): Promise<void> {
+  assertSandbox();
+  await setHostnameState(args.entryId, args.state);
 }
 

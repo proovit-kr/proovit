@@ -1,275 +1,149 @@
 /*
-  측정 연동.
+  측정 연동 — 시안 `#scr-measurement` 세 판(① 검증 대기 · ② 검증됨 · ③ 실패).
 
-  주소가 주인공이라 고정폭으로 크게 둔다 — 참가자가 이 문자열을 다른 화면
-  (빌더 설정·결제 복귀 주소)에 옮겨 적는다. 라임은 「등록하기」 하나에만(§7).
+  머리(`.hb-h1`·`.hb-sub`)·경고줄·주소 상자(`.keybox`)는 hub.module.css의 것을
+  쓴다(참가자 화면이 공유하는 시안 클래스). 입력 묶음은 `Field`, 배지·버튼·카드는
+  각 컴포넌트가 시안 값을 들고 있다. 여기는 이 화면에만 있는 절차 띠(`.vsteps`)와
+  자리마다 덮는 값뿐이다.
+
+  값은 `node scripts/design-diff/fold-spec.mjs --media '^\.(vsteps|vstep|vsep|keybox)'`
+  의 최종 승자다. 근사치로 반올림하지 않는다.
 */
 
-.root {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-8);
-  padding-block: var(--s-10) var(--s-14);
-}
+/* ── 절차 띠(`.vsteps`) ───────────────────────────────── */
 
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-
-.headTop {
+.vsteps {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
-}
-
-.title {
-  margin: 0;
-  color: var(--c-text-strong);
-  font-size: var(--fs-3xl);
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.purpose {
-  /* 읽기 폭은 텍스트에만(§6) */
-  max-width: 34em;
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-md);
-  line-height: 1.7;
-}
-
-.locked {
-  max-width: 34em;
-  margin: 0;
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--c-line-3);
-  border-radius: var(--r-lg);
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-}
-
-/* ── 지금 등록된 것 ────────────────────────────────────────── */
-
-.current {
-  display: flex;
+  margin: 20px 0 8px;
   flex-wrap: wrap;
-  /* 균등 분할하지 않는다(§7) */
-  gap: var(--s-6) var(--s-10);
-  margin: 0;
-  padding-top: var(--s-5);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.current dt {
-  color: var(--c-text-dim);
-  font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
-}
-
-.current dd {
-  margin: var(--s-1) 0 0;
-  color: var(--c-text-strong);
-  font-size: var(--fs-base);
-}
-
-.mono {
-  font-family: var(--font-mono);
-  font-size: var(--fs-sm) !important;
-  word-break: break-all;
-}
-
-/* ── 폼 ────────────────────────────────────────────────────── */
-
-.form {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s-6);
-  max-width: 36em;
-}
-
-.formError {
-  margin: 0;
-  color: var(--c-danger);
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-}
-
-.saved {
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-}
-
-.hostRow {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  width: 100%;
-}
-
-.rootDomain {
-  color: var(--c-text-dim);
-  font-family: var(--font-mono);
-  font-size: var(--fs-sm);
-  white-space: nowrap;
-}
-
-.note {
-  margin: 0;
-  color: var(--c-text-faint);
-  font-size: var(--fs-sm);
-}
-
-/* ── 진행 상태 ─────────────────────────────────────────────── */
-
-.pending {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  padding-top: var(--s-5);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.pendingTitle {
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
 }
 
 /*
-  절차 띠. 세로 목록이 아니라 가로로 세우고 칸 사이를 선으로 잇는다 —
-  순서가 있는 절차라 "어디서 멈췄나"가 형태로 읽혀야 한다(시안 vsteps).
-  좁은 화면에서는 세로로 접힌다.
+  시안 `.vstep`. 글자 13px → 13.5px(v1.8) → 14px(v2.0)
 */
-.steps {
+.vstep {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-5);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  color: var(--faint);
 }
 
-.step,
-.stepDone,
-.stepNow,
-.stepFailed {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-3);
-  max-width: 16em;
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-}
-
-/* 칸과 칸을 잇는 선. 마지막 칸 뒤에는 안 붙인다 */
-.steps > li:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  top: 13px;
-  right: calc(var(--s-5) * -1);
-  width: var(--s-5);
-  height: 1.5px;
-  background: var(--c-line-3);
-}
-
+/* 시안 `.vstep .dot`. 27px → 29px(v1.8), 글자 11px → 11.5px */
 .dot {
+  width: 29px;
+  height: 29px;
+  border-radius: 99px;
+  border: 1.5px solid var(--line-strong);
   display: flex;
-  flex: none;
   align-items: center;
   justify-content: center;
-  width: 27px;
-  height: 27px;
-  border: 1.5px solid var(--c-line-4);
-  border-radius: var(--r-pill);
-  color: var(--c-text-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-2xs);
+  font-family: var(--mono);
+  font-size: 11.5px;
   font-weight: 800;
+  flex: none;
 }
 
-.stepBody {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.done {
+  color: var(--muted);
 }
 
-.stepLabel {
-  font-weight: 600;
+.done .dot {
+  background: var(--teal-dim);
+  border-color: rgba(69, 214, 190, 0.5);
+  color: var(--teal);
 }
 
-.stepNote {
-  color: var(--c-text-faint);
-  font-size: var(--fs-xs);
+.now {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.now .dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.fail {
+  color: var(--danger);
+}
+
+.fail .dot {
+  background: rgba(255, 93, 93, 0.12);
+  border-color: rgba(255, 93, 93, 0.5);
+  color: var(--danger);
+}
+
+/* 시안 `.vsep`. 32px → 36px(v1.8) */
+.vsep {
+  flex: 0 0 36px;
+  height: 1.5px;
+  background: var(--line-strong);
+  margin: 0 8px;
+}
+
+/* 시안 `.keybox .cp` — 복사 버튼을 오른쪽 끝으로 민다 */
+.cp {
+  margin-left: auto;
+}
+
+/* ── 이 화면이 자리마다 덮는 값 ─────────────────────── */
+
+/* 시안 `<span class="badge" style="margin:6px 0 18px">` */
+.stateBadge {
+  margin: 6px 0 18px;
+}
+
+/* 시안 ③ 원인 카드 `style="padding:18px 20px;margin-bottom:16px"` */
+.cause {
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+.cause b {
+  font-size: 14px;
+  color: var(--danger);
+}
+
+.cause p {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+/* 시안 「연결 방법」 카드 `style="padding:18px 20px;margin-bottom:18px"` */
+.howto {
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+
+.howto b {
+  font-size: 14px;
+}
+
+.howto p {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin-top: 6px;
+  line-height: 1.8;
+}
+
+/* ── 시안에 없는 것 ──────────────────────────────────── */
+
+/* 액션 실패 문구. 필드에 붙지 않는 오류라 폼 맨 위에 선다(팀 관리와 같다) */
+.error {
+  margin-bottom: 16px;
+  color: var(--danger);
+  font-size: 14.5px;
   line-height: 1.6;
 }
 
-/* 아직 오지 않은 칸 */
-.step {
-  color: var(--c-text-faint);
-}
-
-/* 지나온 칸 — 틸은 「우리가 확인한 것」이다 */
-.stepDone {
-  color: var(--c-text-muted);
-}
-
-.stepDone .dot {
-  border-color: var(--c-teal-45);
-  background: var(--c-teal-13);
-  color: var(--c-teal);
-}
-
-/* 지금 여기 — 라임은 「지금 할 일」에만 */
-.stepNow {
-  color: var(--c-text-strong);
-  font-weight: 600;
-}
-
-.stepNow .dot {
-  border-color: var(--c-lime);
-  background: var(--c-lime);
-  color: var(--c-bg);
-}
-
-.stepFailed {
-  color: var(--c-danger);
-  font-weight: 600;
-}
-
-.stepFailed .dot {
-  border-color: rgba(255, 107, 107, 0.5);
-  background: rgba(255, 107, 107, 0.12);
-  color: var(--c-danger);
-}
-
-.failed {
-  max-width: 40em;
+/* 칸 오류. 참가 신청의 `.fieldError`와 같은 규칙 — 아직 안 채운 것이라 주황 */
+.fieldError {
   margin: 0;
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid rgba(255, 107, 107, 0.35);
-  border-radius: var(--r-lg);
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
-}
-
-@media (max-width: 640px) {
-  .steps {
-    flex-direction: column;
-    gap: var(--s-3);
-  }
-
-  /* 세로로 접히면 가로선이 엉뚱한 자리에 남는다 */
-  .steps > li:not(:last-child)::after {
-    display: none;
-  }
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--warn);
 }

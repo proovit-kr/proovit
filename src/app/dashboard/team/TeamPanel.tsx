@@ -190,7 +190,7 @@ export function TeamPanel({
 
       {invite ? (
         <Field label="초대 대기">
-          <div className={styles.keybox}>
+          <div className={hub.keybox}>
             {invite.email ?? formatInviteCode(invite.code)}
             <Badge tone="warn">수락 대기</Badge>
             <span className={styles.cp}>
@@ -240,7 +240,7 @@ export function TeamPanel({
           label="초대코드"
           hint="코드로 합류하면 초대 메일 없이 바로 팀이 완성돼요."
         >
-          <div className={styles.keybox}>
+          <div className={hub.keybox}>
             {formatInviteCode(joinedWith)}
             <span className={styles.cp}>
               <Button
