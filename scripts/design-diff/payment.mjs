@@ -9,9 +9,8 @@
   세션 토큰을 준다. 구현본이 실제로 그 판을 그리는지(`data-state`) 먼저 확인한다.
   시안에 없는 `pending` 판은 재지 않는다(②와 배지 톤만 다르다).
 
-  ⚠️ 시안과 일부러 다른 자리는 글자를 재지 않는다 — PaymentPanel.tsx 머리 주석.
-  ①의 안내줄·둘째 칸 라벨·힌트·버튼(키 대신 상점 아이디), ②의 라벨·힌트,
-  ③의 「주소 저장하기」. 값·구조는 그 자리도 잰다.
+  ⚠️ 시안과 일부러 다른 자리(③의 「주소 저장하기」)는 글자를 재지 않는다 —
+  PaymentPanel.tsx 머리 주석. 값·구조는 그 자리도 잰다.
 
   헤더(`.db-top`)와 사이드바(`.db-side`)는 크롬이라 `header-states.mjs`가 본다.
   네 축 — 값·상태(hover)·글자·구조.
@@ -79,9 +78,8 @@ const LIST = {
     ["select", S + "select.inp", `${ROOT} select`],
     ["fld 2", S + ".fld ~ .fld", FLD2, [], ["height"]],
     ["fld 2 label", S + ".fld ~ .fld > label", `${FLD2} > label`, [], ["width"]],
-    ["input", S + "input.inp", `${ROOT} input[name="merchantId"]`, [], MONO_INPUT_SKIP],
-    /* 힌트는 우리 문구(결제사별)라 줄 수가 다르다 — 높이는 안 본다 */
-    ["hint", S + ".fld .hint", `${FLD} > p`, [], ["height"]],
+    ["input", S + "input.inp", `${ROOT} input[name="readonlyKey"]`, [], MONO_INPUT_SKIP],
+    ["hint", S + ".fld .hint", `${FLD} > p`],
     ["btn", S + ".btn-primary", `${ROOT} button[type="submit"]`, [], ["width"]],
   ],
   ok: [
@@ -155,13 +153,20 @@ const HEAD_TEXT = [
 const TEXT = {
   none: [
     ...HEAD_TEXT,
+    ["안내줄", S + ".info-strip", H("infoStrip")],
     ["결제사 라벨", S + ".fld > label", `${FLD} > label`],
     ["결제사 선택지", S + "select.inp", `${ROOT} select`],
+    ["조회키 라벨", S + ".fld ~ .fld > label", `${FLD2} > label`],
+    ["힌트", S + ".fld .hint", `${FLD} > p`],
+    ["버튼", S + ".btn-primary", `${ROOT} button[type="submit"]`],
   ],
   ok: [
     ...HEAD_TEXT,
-    ["배지", S + ".keybox .badge", BADGE],
-    ["버튼", S + ".keybox .cp", I("cp")],
+    ["안내줄", S + ".info-strip", H("infoStrip")],
+    ["라벨", S + ".fld > label", `${FLD} > label`],
+    /* 가린 키는 개발 바가 심는 가짜 키라 시안 목업과 글자가 같다 */
+    ["키 상자", S + ".keybox", H("keybox")],
+    ["힌트(시각은 데이터)", S + ".fld .hint", `${FLD} > p`],
     ["요약 라벨", S + ".hb-sum", H("sum")],
   ],
   inq: [
@@ -176,7 +181,7 @@ const TEXT = {
 };
 const IGNORE = {
   none: [],
-  ok: [/^₩/, /^\d+건$/],
+  ok: [/^₩/, /^\d+건$/, /^마지막 테스트 /, /^토스페이먼츠$/],
   inq: [/^L\d, /, /^판정 전/, /^문의 수단 등록 전/],
 };
 

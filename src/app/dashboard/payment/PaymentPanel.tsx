@@ -10,8 +10,8 @@ import { Card } from "@/components/Surface";
 import {
   INQUIRY_LEVELS,
   INQUIRY_URL_MAX,
-  MERCHANT_ID_MAX,
   PROVIDERS,
+  READONLY_KEY_MAX,
   formatSeoulShort,
   type PaymentPane,
 } from "@/lib/payment";
@@ -28,11 +28,10 @@ import styles from "./payment.module.css";
   액션이 `canAccess`를 다시 부르는 것으로 한다(actions.ts 머리 주석).
 
   시안과 일부러 다른 것(내가 정함, 2026-09-22, 수연 확인 대기):
-    · ①의 둘째 칸은 조회키가 아니라 **상점 아이디**다(page.tsx 머리 주석). 안내줄·
-      칸 라벨·힌트·버튼 문구가 그래서 다르다.
-    · ②의 「연동 테스트」는 지금 확인 상태를 다시 읽고 누른 시각을 남긴다
-      (payment-store.ts). 「삭제」는 시안대로 두었지만 확인이 끝난 뒤에는 서버가
-      거부한다 — 비활성으로 바꿀지는 수연 판단.
+    · ②의 「연동 테스트」는 키가 읽히는지 보고 누른 시각을 남긴다(payment-store.ts).
+      「삭제」는 시안대로 두었지만 확인이 끝난 뒤에는 서버가 거부한다 — 비활성으로
+      바꿀지는 수연 판단.
+    · ②에서 키를 못 풀면(키 회전) 가린 키 대신 「다시 등록해 주세요」 — 시안에 없는 상태.
     · `pending` 판 — ②의 모양에 회색 「확인 대기」 배지.
     · ③에 「주소 저장하기」 버튼 — 시안 ③은 입력 칸만 있고 저장할 자리가 없다.
   대조 스크립트(`payment.mjs`)는 그 자리를 재지 않는다.
@@ -57,7 +56,7 @@ const VIOLET = { color: "var(--violet)" } as const;
 export function PaymentPanel({
   pane,
   provider,
-  merchantId,
+  keyMasked,
   lastTestedAt,
   revenue,
   inquiryUrl,
@@ -66,7 +65,8 @@ export function PaymentPanel({
 }: {
   pane: PaymentPane;
   provider: string;
-  merchantId: string;
+  /** 가린 조회키. 등록됐는데 null이면 못 푼 것 — 다시 등록 */
+  keyMasked: string | null;
   /** ISO. 아직 안 눌렀으면 null */
   lastTestedAt: string | null;
   revenue: { amount: number; count: number };
@@ -80,8 +80,6 @@ export function PaymentPanel({
 
   const providerLabel =
     PROVIDERS.find((item) => item.value === provider)?.label ?? provider;
-  const pickedHint =
-    PROVIDERS.find((item) => item.value === picked)?.hint ?? PROVIDERS[0].hint;
 
   const typeChip = (label: string) => (
     <span className={styles.pyType}>
@@ -187,8 +185,8 @@ export function PaymentPanel({
         <>
           {typeChip("결제형")}
           <div className={hub.infoStrip}>
-            <Icon name="info" fixed /> 지금은 상점 아이디만 받아요, 결제를 대신
-            일으킬 수 없는 공개 값이에요.
+            <Icon name="info" fixed /> 조회 전용 키만 받아요, 결제를 대신 일으킬 수
+            없는 키예요.
           </div>
           <Field label="결제사" htmlFor="provider">
             <Select
@@ -205,20 +203,25 @@ export function PaymentPanel({
               ))}
             </Select>
           </Field>
-          <Field label="상점 아이디" htmlFor="merchantId" hint={pickedHint}>
+          <Field
+            label="조회키"
+            htmlFor="readonlyKey"
+            hint="대시보드 → 개발자 센터에서 조회 전용 키를 발급받을 수 있어요."
+          >
+            {/* 비밀값이라 password — 실패해도 되돌려 채우지 않는다 */}
             <Input
               mono
-              id="merchantId"
-              name="merchantId"
-              maxLength={MERCHANT_ID_MAX}
-              placeholder="store-id"
-              defaultValue={state.values?.merchantId ?? merchantId}
+              id="readonlyKey"
+              name="readonlyKey"
+              type="password"
+              maxLength={READONLY_KEY_MAX}
+              placeholder="sk_live_…"
               disabled={!canWrite || pending}
               autoComplete="off"
               spellCheck={false}
             />
-            {state.errors?.merchantId ? (
-              <p className={styles.fieldError}>{state.errors.merchantId}</p>
+            {state.errors?.readonlyKey ? (
+              <p className={styles.fieldError}>{state.errors.readonlyKey}</p>
             ) : null}
           </Field>
           {canWrite ? (
@@ -229,7 +232,7 @@ export function PaymentPanel({
               variant="primary"
               disabled={pending}
             >
-              {pending ? "등록하는 중…" : "상점 등록하기"}
+              {pending ? "등록하는 중…" : "키 등록하기"}
             </Button>
           ) : null}
         </>
@@ -238,11 +241,11 @@ export function PaymentPanel({
         <>
           {typeChip("결제형")}
           <div className={hub.infoStrip}>
-            <Icon name="info" fixed /> 지금은 상점 아이디만 받아요, 결제를 대신
-            일으킬 수 없는 공개 값이에요.
+            <Icon name="info" fixed /> 조회 전용 키만 받아요, 결제를 대신 일으킬 수
+            없는 키예요.
           </div>
           <Field
-            label="등록된 상점"
+            label="등록된 키"
             note={providerLabel}
             hint={
               lastTestedAt
@@ -251,7 +254,7 @@ export function PaymentPanel({
             }
           >
             <div className={hub.keybox}>
-              {merchantId}
+              {keyMasked ?? "읽을 수 없는 키예요. 삭제하고 다시 등록해 주세요."}
               {pane === "ok" ? (
                 <Badge tone="teal">연동 확인됨 ✓</Badge>
               ) : (

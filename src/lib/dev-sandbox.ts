@@ -28,6 +28,7 @@ import { setDevHubKey } from "@/lib/dev-hub";
 import { seoulDateOnly } from "@/lib/measure";
 import { measurementState, type MeasurementState } from "@/lib/measurement";
 import { paymentPane, type PaymentPane } from "@/lib/payment";
+import { encryptSecret } from "@/lib/payment-crypto";
 import { accountConsentRows } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
 import { INVITE_TTL_DAYS } from "@/lib/team";
@@ -2089,7 +2090,8 @@ export async function setSandboxPayment(args: {
     create: {
       entryId,
       provider: PaymentProvider.toss,
-      merchantId: "little-potion",
+      /* 가리면 시안 목업 「sk_live_••••••••3f2a」와 같아지는 가짜 키 */
+      readonlyKeyEnc: encryptSecret("sk_live_sandbox_only_3f2a"),
       ...data,
     },
     update: data,

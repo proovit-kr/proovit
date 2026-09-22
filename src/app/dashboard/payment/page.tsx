@@ -21,10 +21,9 @@ import { PaymentPanel } from "./PaymentPanel";
   (payment.ts `paymentPane`). 시안에 없는 `pending`(등록은 했는데 확인 전)은
   ②의 모양에 회색 배지다. 네 판을 보려면 개발 바의 「결제 연동」 줄을 누른다.
 
-  ⚠️ **키 대신 상점 아이디를 받는다.** 시안 ①은 조회 전용 키를 받지만 암호화
-  저장이 아직 없어 키를 받지 않는다(payment.ts 머리 주석, 팀 결정). 그래서
-  ①의 둘째 칸과 안내줄·버튼 문구, ②의 라벨이 시안과 다르다 — 그 자리는 대조에서
-  글자를 재지 않는다(payment.mjs).
+  ①은 시안대로 조회 전용 키를 받는다. 저장은 잠그고(payment-crypto.ts) 화면에는
+  가린 모양만 나간다(payment-store.ts). 조회키가 안 읽히면(키 회전·값 손상) ②에
+  「다시 등록」 안내가 선다.
 
   보기는 팀원도 하고 쓰기는 팀장만 한다 — 정책의 `leaderOnly`가 팀원에게는
   `access.ok=false`와 안내 문구를 주고, 화면은 그 문구를 경고줄로 올린 채
@@ -74,7 +73,7 @@ export default async function Page() {
       <PaymentPanel
         pane={pane}
         provider={view.provider ?? "toss"}
-        merchantId={view.merchantId ?? ""}
+        keyMasked={view.keyMasked}
         lastTestedAt={view.lastTestedAt?.toISOString() ?? null}
         revenue={revenue}
         inquiryUrl={entry.inquiryUrl ?? ""}

@@ -3,54 +3,52 @@ import { z } from "@/lib/z";
 /*
   결제 연동의 **순수** 절반. 클라이언트도 읽는다(CLAUDE.md §8).
 
-  ⚠️ **키를 받지 않는다.** 스키마의 `readonly_key_enc`·`webhook_secret_enc`는 이름이
-  말하듯 암호화 저장을 전제하는데, 그 암호화 키가 아직 없다. 평문으로 받아두고
-  "나중에 암호화하자"로 두면 그 사이에 유출되는 것은 참가팀의 PG 자격증명이다 —
-  우리 것이 아니라 남의 것이라 더 위험하다.
+  시안 ①(ver4, 2026-09-10)대로 **조회 전용 키**를 받는다. 저장은 payment-crypto.ts가
+  잠근다 — 평문은 DB에 남지 않고, 화면에는 가린 모양(`maskKey`)만 나간다.
+  웹훅 시크릿은 웹훅 경로가 붙을 때 같은 방식으로 받는다.
 
-  그래서 지금 받는 것은 **비밀이 아닌 값**뿐이다: 어느 PG를 쓰는지, 상점 아이디가
-  무엇인지. 웹훅 시크릿·조회 키는 암호화 저장이 붙은 뒤에 연다.
-  Turnstile 키가 없으면 위젯을 통째로 건너뛰는 것과 같은 판단이다.
+  2026-08-15~09-22에는 키를 안 받고 상점 아이디를 받았다(dc9ab65, 암호화 키가 없다는
+  내 판단). ver4가 더 나중이라 시안을 따른다(09-22 수연 지시). `merchant_id` 칸은
+  그때 것이라 지금은 안 쓴다.
 */
 
 export const PROVIDERS = [
-  {
-    value: "toss",
-    label: "토스페이먼츠",
-    hint: "개발자센터의 「내 상점」에서 확인할 수 있어요.",
-  },
-  {
-    value: "portone",
-    label: "포트원",
-    hint: "콘솔의 「상점 식별코드」예요.",
-  },
+  { value: "toss", label: "토스페이먼츠" },
+  { value: "portone", label: "포트원" },
 ] as const;
 
-export const MERCHANT_ID_MAX = 120;
+export const READONLY_KEY_MAX = 255;
 
 /**
- * 상점 아이디.
- *
- * 비밀값이 아니다 — 결제창을 여는 스크립트에 그대로 실리는 공개 식별자다.
- * 그래서 평문으로 저장해도 되고, 매출 대사(對査) 때 어느 상점 건인지 가리는
- * 근거가 된다.
+ * 조회 전용 키. 비밀값이라 화면에 되돌려 주지 않는다 — 검사에 걸려도 값은 비운다.
  */
-export const MerchantIdSchema = z
+export const ReadonlyKeySchema = z
   .string()
   .trim()
-  .min(1, "상점 아이디를 적어 주세요.")
-  .max(MERCHANT_ID_MAX, `${MERCHANT_ID_MAX}자까지 쓸 수 있어요.`)
-  /* 공백이 섞여 들어오면 대사에서 안 맞는다. 눈에 안 보이는 실수라 여기서 막는다 */
+  .min(1, "조회키를 붙여 넣어 주세요.")
+  .max(READONLY_KEY_MAX, `${READONLY_KEY_MAX}자까지 쓸 수 있어요.`)
+  /* 공백이 섞여 들어오면 결제사 호출이 조용히 실패한다. 눈에 안 보이는 실수라 여기서 막는다 */
   .refine(
     (value) => !/\s/.test(value),
     "공백 없이 붙여 주세요. 복사할 때 앞뒤 공백이 딸려오는 일이 잦아요.",
-  );
+  )
+  .refine((value) => value.length >= 12, "너무 짧아요. 발급받은 키를 그대로 붙여 넣어 주세요.");
 
-export type PaymentFailureCode = "NOT_FOUND" | "LOCKED" | "NO_HOSTNAME";
+/**
+ * 시안 ②의 「sk_live_••••••••3f2a」 — 접두(`xx_yyyy_` 꼴이면 그것, 아니면 앞 3자) +
+ * 가림 8자 + 끝 4자. 접두와 끝만으로는 키를 되살릴 수 없다.
+ */
+export function maskKey(key: string): string {
+  const prefix = key.match(/^[A-Za-z]+_[A-Za-z]+_/)?.[0] ?? key.slice(0, 3);
+  return `${prefix}••••••••${key.slice(-4)}`;
+}
+
+export type PaymentFailureCode = "NOT_FOUND" | "LOCKED" | "UNREADABLE" | "NO_HOSTNAME";
 
 export const PAYMENT_FAILURE_MESSAGE: Record<PaymentFailureCode, string> = {
   NOT_FOUND: "참가 기록을 찾을 수 없어요.",
   LOCKED: "연동 확인이 끝난 뒤에는 바꿀 수 없어요. 운영에 문의해 주세요.",
+  UNREADABLE: "저장된 키를 읽을 수 없어요. 키를 다시 등록해 주세요.",
   NO_HOSTNAME: "먼저 측정 연동에서 팀 주소를 발급받아 주세요.",
 };
 

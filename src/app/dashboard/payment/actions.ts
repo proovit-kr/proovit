@@ -6,8 +6,8 @@ import { PaymentProvider } from "@/generated/prisma/enums";
 import { canAccess, loadViewerState, toAccessContext } from "@/lib/access";
 import { loadMeasurement } from "@/lib/measurement-store";
 import {
-  MerchantIdSchema,
   PAYMENT_FAILURE_MESSAGE,
+  ReadonlyKeySchema,
   inquiryUrlSchema,
 } from "@/lib/payment";
 import {
@@ -24,16 +24,16 @@ import {
   ⚠️ 판정은 `canAccess("dashboardPayment")` 하나가 한다 — 화면이 폼을 그릴 때
   부르는 것과 같은 함수다. 정책의 `leaderOnly`가 팀장만 쓰게 걸고 있다.
 
-  ⚠️ 키는 받지 않는다(payment.ts 머리 주석). 폼에 칸이 없고, 있더라도 이 액션이
-  읽지 않는다 — 화면만 고쳐서 키를 흘려보낼 수 있는 길을 만들지 않는다.
+  ⚠️ 조회키는 **되돌려 주지 않는다.** 검사에 걸려도 `values`에 키를 싣지 않는다 —
+  서버 액션의 반환값은 클라이언트로 그대로 간다.
 */
 
 export type PaymentActionState = {
   message?: string;
-  errors?: { merchantId?: string; inquiryUrl?: string };
+  errors?: { readonlyKey?: string; inquiryUrl?: string };
   /** 액션이 끝난 뒤 한 줄로 알릴 것(연동 테스트 결과 등) */
   notice?: string;
-  values?: { provider: string; merchantId: string; inquiryUrl: string };
+  values?: { provider: string; inquiryUrl: string };
 };
 
 export async function managePayment(
@@ -43,9 +43,10 @@ export async function managePayment(
   const op = String(formData.get("op") ?? "");
   const values = {
     provider: String(formData.get("provider") ?? ""),
-    merchantId: String(formData.get("merchantId") ?? ""),
     inquiryUrl: String(formData.get("inquiryUrl") ?? ""),
   };
+  /* 키는 values에 넣지 않는다 — 반환값에 실려 나가면 안 된다 */
+  const readonlyKey = String(formData.get("readonlyKey") ?? "");
 
   const viewer = await loadViewerState();
   if (!viewer.user) {
@@ -69,17 +70,17 @@ export async function managePayment(
           : null;
     if (!provider) return { message: "결제사를 골라 주세요.", values };
 
-    const merchantId = MerchantIdSchema.safeParse(values.merchantId);
-    if (!merchantId.success) {
+    const key = ReadonlyKeySchema.safeParse(readonlyKey);
+    if (!key.success) {
       return {
-        errors: { merchantId: merchantId.error.issues[0]?.message },
+        errors: { readonlyKey: key.error.issues[0]?.message },
         values,
       };
     }
     const result = await savePaymentIntegration({
       entryId,
       provider,
-      merchantId: merchantId.data,
+      readonlyKey: key.data,
     });
     if (!result.ok) {
       return { message: PAYMENT_FAILURE_MESSAGE[result.code], values };

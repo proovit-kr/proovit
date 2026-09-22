@@ -4,20 +4,22 @@ import {
   TransactionStatus,
 } from "@/generated/prisma/enums";
 import { devNow } from "@/lib/dev-clock";
-import type { PaymentFailureCode } from "@/lib/payment";
+import { maskKey, type PaymentFailureCode } from "@/lib/payment";
+import { decryptSecret, encryptSecret } from "@/lib/payment-crypto";
 import { prisma } from "@/lib/prisma";
 
 /*
   결제 연동 저장. **서버 전용이다** — 규칙은 payment.ts에 있다.
 
-  ⚠️ 이 파일은 **키를 다루지 않는다.** `readonly_key_enc`·`webhook_secret_enc`는
-  건드리지 않고 그대로 비워 둔다(payment.ts 머리 주석). 암호화가 붙으면 그때
-  이 파일에 함수가 하나 더 생기고, 그 함수만 키를 안다.
+  조회키는 `readonly_key_enc`에 잠가 둔다(payment-crypto.ts). 이 파일 밖으로는
+  **가린 모양만** 나간다 — 평문을 돌려주는 함수를 두지 않는다. 결제사에 실제로
+  물을 일이 생기면(웹훅·매출 조회) 그 함수가 여기서 풀어 바로 쓰고 버린다.
 */
 
 export type PaymentView = {
   provider: PaymentProvider | null;
-  merchantId: string | null;
+  /** 가린 키(시안 ② 「sk_live_••••••••3f2a」). 못 풀면 null — 다시 등록해야 한다 */
+  keyMasked: string | null;
   status: IntegrationStatus | null;
   verifiedAt: Date | null;
   /** 참가자가 「연동 테스트」를 마지막으로 누른 시각(시안 ② 힌트) */
@@ -33,7 +35,7 @@ export async function loadPaymentIntegration(
     where: { entryId },
     select: {
       provider: true,
-      merchantId: true,
+      readonlyKeyEnc: true,
       status: true,
       verifiedAt: true,
       lastTestedAt: true,
@@ -43,7 +45,7 @@ export async function loadPaymentIntegration(
   if (!row) {
     return {
       provider: null,
-      merchantId: null,
+      keyMasked: null,
       status: null,
       verifiedAt: null,
       lastTestedAt: null,
@@ -51,9 +53,10 @@ export async function loadPaymentIntegration(
     };
   }
 
+  const plain = row.readonlyKeyEnc ? decryptSecret(row.readonlyKeyEnc) : null;
   return {
     provider: row.provider,
-    merchantId: row.merchantId,
+    keyMasked: plain ? maskKey(plain) : null,
     status: row.status,
     verifiedAt: row.verifiedAt,
     lastTestedAt: row.lastTestedAt,
@@ -73,9 +76,10 @@ export type PaymentResult = { ok: true } | { ok: false; code: PaymentFailureCode
 export async function savePaymentIntegration(args: {
   entryId: string;
   provider: PaymentProvider;
-  merchantId: string;
+  readonlyKey: string;
 }): Promise<PaymentResult> {
-  const { entryId, provider, merchantId } = args;
+  const { entryId, provider, readonlyKey } = args;
+  const readonlyKeyEnc = encryptSecret(readonlyKey);
 
   const current = await prisma.paymentIntegration.findUnique({
     where: { entryId },
@@ -90,12 +94,12 @@ export async function savePaymentIntegration(args: {
     create: {
       entryId,
       provider,
-      merchantId,
+      readonlyKeyEnc,
       status: IntegrationStatus.pending,
     },
     update: {
       provider,
-      merchantId,
+      readonlyKeyEnc,
       /* 바꾸면 확인 절차를 처음부터 다시 한다 */
       status: IntegrationStatus.pending,
       verifiedAt: null,
@@ -118,9 +122,12 @@ export async function testPaymentIntegration(
 ): Promise<PaymentResult & { verified?: boolean }> {
   const current = await prisma.paymentIntegration.findUnique({
     where: { entryId },
-    select: { status: true },
+    select: { status: true, readonlyKeyEnc: true },
   });
   if (!current) return { ok: false, code: "NOT_FOUND" };
+  if (!current.readonlyKeyEnc || decryptSecret(current.readonlyKeyEnc) === null) {
+    return { ok: false, code: "UNREADABLE" };
+  }
   await prisma.paymentIntegration.update({
     where: { entryId },
     data: { lastTestedAt: devNow() },
