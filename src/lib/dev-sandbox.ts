@@ -16,6 +16,7 @@ import {
   SeasonPhase,
   StageKey,
   SubmissionStatus,
+  TransactionStatus,
 } from "@/generated/prisma/enums";
 import {
   ACCOUNT_PRIVACY_CONSENT_VERSION,
@@ -2056,6 +2057,7 @@ export async function setSandboxPayment(args: {
       where: { id: entryId },
       select: { inquiryUrl: true, hostname: { select: { hostname: true } } },
     });
+    await setSandboxRevenue(entryId, false);
     await prisma.entry.update({
       where: { id: entryId },
       data: {
@@ -2074,6 +2076,7 @@ export async function setSandboxPayment(args: {
     where: { id: entryId },
     data: { chargeType: ChargeType.payment },
   });
+  await setSandboxRevenue(entryId, pane === "ok");
   if (pane === "none") {
     await prisma.paymentIntegration.deleteMany({ where: { entryId } });
     return;
@@ -2095,5 +2098,34 @@ export async function setSandboxPayment(args: {
       ...data,
     },
     update: data,
+  });
+}
+
+/*
+  시안 ②의 요약 「집계된 매출 ₩126,000 · 결제 건수 7건」을 **진짜 거래 행**으로
+  만든다(2026-09-22 수연 지시 — 허브의 주간 활성·재방문율 픽스처와 같은 방식).
+  화면은 여전히 거래 표를 집계해 그리고, 이 행들은 멱등키 접두로 구별해 다른
+  판으로 옮길 때 지운다. 결제자 해시를 각각 달리 둬 유효 결제자 수도 7이 된다.
+*/
+export const SANDBOX_TX_PREFIX = "sandbox-tx:";
+
+export async function setSandboxRevenue(entryId: string, on: boolean): Promise<void> {
+  const prefix = `${SANDBOX_TX_PREFIX}${entryId}:`;
+  await prisma.transaction.deleteMany({
+    where: { entryId, providerTxId: { startsWith: prefix } },
+  });
+  if (!on) return;
+  const now = devNow().getTime();
+  await prisma.transaction.createMany({
+    data: Array.from({ length: 7 }, (_, i) => ({
+      entryId,
+      providerTxId: `${prefix}${i + 1}`,
+      amount: BigInt(18000),
+      status: TransactionStatus.paid,
+      /* 최근 일주일에 하루 한 건씩 */
+      paidAt: new Date(now - (7 - i) * 24 * 60 * 60 * 1000),
+      rawPayload: { sandbox: true },
+      payerHash: `sandbox-payer-${i + 1}`,
+    })),
   });
 }
