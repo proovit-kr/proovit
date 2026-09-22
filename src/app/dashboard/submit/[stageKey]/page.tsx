@@ -3,47 +3,64 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/Badge";
-import { Scaffold } from "@/components/Scaffold";
+import { Chip } from "@/components/Surface";
 import {
-  ChargeType,
+  PAYMENT_STATE_LABEL,
+  S5_FIELDS,
+  SUBMIT_BUTTONS,
+  SUBMIT_HEAD,
+  SUBMIT_INFO,
+  SUBMIT_META,
+  SUBMIT_PANE,
+  SUBMIT_WHO,
+} from "@/content/submission";
+import {
   EntryStage,
-  IntegrationStatus,
+  JudgmentResult,
   StageKey,
   SubmissionStatus,
 } from "@/generated/prisma/enums";
 import { canSubmitStage, guardPage, toAccessContext } from "@/lib/access";
 import { devNow } from "@/lib/dev-clock";
+import { paymentPane } from "@/lib/payment";
+import { loadPaymentIntegration } from "@/lib/payment-store";
 import { prisma } from "@/lib/prisma";
-import { isStageKey, type S1Payload, type S3Payload } from "@/lib/submission";
 import {
-  loadHostnameStatus,
-  loadStageView,
-  type StageView,
+  conversionRate,
+  dDay,
+  formatDay,
+  formatDeadline,
+  formatMoment,
+  isStageKey,
+  paneBadge,
+  tabTail,
+  weekRange,
+} from "@/lib/submission";
+import { toForm } from "@/lib/submission-fields";
+import {
+  loadFinalSnapshot,
+  loadStageMetrics,
+  loadSubmitOverview,
+  loadVerifiedLeads,
+  type StageRow,
 } from "@/lib/submission-store";
 
-import { S1Form, type S1Defaults } from "./S1Form";
-import { S3Form, type S3Defaults } from "./S3Form";
-import {
-  S2Form,
-  S4Form,
-  S5Form,
-  type S2Defaults,
-  type S4Defaults,
-  type S5Defaults,
-} from "./StageForms";
-import { loadStageMetrics } from "./stage-store";
+import hub from "../../hub.module.css";
+import { StageForm, type StageActions, type StageFormProps } from "./StageForm";
 
 import styles from "./submit.module.css";
 
 /*
-  스테이지 제출 — PLN3 2장 「스테이지 제출」 · 라우트는 `/dashboard/submit/:stageKey`.
+  스테이지 제출 — 시안 `#scr-submit`. 탭 다섯(`.st-tab`)이 판이고, 라우트가
+  `/dashboard/submit/:stageKey`라 탭은 링크다. 판의 내용은 그 스테이지의 제출
+  행·판정·일정이 정한다(submission.ts `tabTail`·`paneBadge`).
 
-  라우트 하나가 s1~s5를 받고 **스테이지마다 폼이 다르다**(PLN6 4장). 지금 채운 것은
-  s1·s3이고 나머지는 자리표시다 — s2는 지표 칸이 입력인지 확인인지가 미정이고
-  (PLN6 6장 5번), s4는 주차 반복이라 시즌 캘린더가 확정돼야 한다.
+  시안의 다섯 판을 한 DB 상태로 보려면 개발 바 「제출」 줄을 누른다 — 「s3 작성 중」이
+  s1 제출됨·s2 통과·s3 임시저장·s5 예정을, 「s4 1주차」가 s4 주간 판을 만든다.
 
-  ⚠️ 화면은 팀원에게도 열려 있고 **제출 버튼만 팀장**이다(canSubmitStage).
-  팀원이 자기 팀이 무엇을 냈는지 못 보면 2인 팀에서 확인할 방법이 없다.
+  ⚠️ 화면은 팀원에게도 열려 있고 **쓰기만 팀장**이다(canSubmitStage). 팀원이
+  자기 팀이 무엇을 냈는지 못 보면 2인 팀에서 확인할 방법이 없다. 팀원에게는
+  경고줄만 올리고 버튼을 뺀다(다른 참가자 화면과 같은 자리).
 */
 
 export const metadata: Metadata = {
@@ -51,59 +68,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const EMPTY: S1Defaults = {
-  concept: "",
-  problemDoc: "",
-  coreFeature: "",
-  notBuilding: [],
-  riskiest: "",
-  memo: "",
-  guideChecks: [],
-  chargeType: "payment",
-};
-
-/* 저장된 payload는 JSON이라 타입이 없다. 화면에 넣기 전에 문자열로 좁힌다 */
-function toDefaults(payload: unknown, chargeType: string): S1Defaults {
-  const p = (payload ?? {}) as Partial<S1Payload>;
-  return {
-    concept: p.concept ?? "",
-    problemDoc: p.problemDoc ?? "",
-    coreFeature: p.coreFeature ?? "",
-    notBuilding: Array.isArray(p.notBuilding) ? p.notBuilding : [],
-    riskiest: p.riskiest ?? "",
-    memo: p.memo ?? "",
-    guideChecks: Array.isArray(p.guideChecks) ? p.guideChecks : [],
-    chargeType,
-  };
-}
-
-const EMPTY_S3: S3Defaults = {
-  serviceUrl: "",
-  builder: "replit",
-  builderOther: "",
-  signupConnected: false,
-  paymentReturnRegistered: false,
-  launchChecks: [],
-  aiFeature: false,
-  aiChecks: [],
-  memo: "",
-};
-
-function toS3Defaults(payload: unknown, serviceUrl: string | null): S3Defaults {
-  const p = (payload ?? {}) as Partial<S3Payload>;
-  return {
-    /* 제출을 안 냈어도 참가 기록에 신고된 주소가 있으면 그것을 채운다 */
-    serviceUrl: p.serviceUrl ?? serviceUrl ?? "",
-    builder: p.builder ?? "replit",
-    builderOther: p.builderOther ?? "",
-    signupConnected: p.signupConnected ?? false,
-    paymentReturnRegistered: p.paymentReturnRegistered ?? false,
-    launchChecks: Array.isArray(p.launchChecks) ? p.launchChecks : [],
-    aiFeature: p.aiFeature ?? false,
-    aiChecks: Array.isArray(p.aiChecks) ? p.aiChecks : [],
-    memo: p.memo ?? "",
-  };
-}
+const fmt = (n: number) => n.toLocaleString("ko-KR");
 
 export default async function Page({
   params,
@@ -116,461 +81,248 @@ export default async function Page({
   const next = `/dashboard/submit/${stageKey}`;
   const { viewer, access } = await guardPage("dashboardSubmit", next);
   if (!viewer.season || !viewer.entry) notFound();
+  const entryId = viewer.entry.id;
+  const seasonId = viewer.season.id;
 
-  const view = await loadStageView(viewer.entry.id, viewer.season.id, stageKey);
+  const now = devNow();
+  const overview = await loadSubmitOverview(entryId, seasonId, now);
+  const row = overview?.stages.find((s) => s.stageKey === stageKey);
   /* stages 표에 없는 스테이지 = 이 시즌에 없는 단계다 */
-  if (!view) notFound();
+  if (!overview || !row) notFound();
 
   /*
     제출 가능 여부. EntryStage와 StageKey가 s1~s5에서 값이 겹쳐 그대로 넘긴다 —
     canSubmitStage가 진도·게이트 대기·팀장 여부를 한 번에 본다.
   */
   const submit = canSubmitStage(stageKey as unknown as EntryStage, toAccessContext(viewer));
-  const canWrite = access.ok && submit.ok && view.editable;
+  const leader = submit.ok || submit.code !== "FORBIDDEN";
+  const canWrite = access.ok && submit.ok && row.editable;
+  /*
+    경고줄 — 정책 문구, 아니면 진도·팀장 문구. 아직 안 열린 판은 잠긴 것으로
+    이미 보이므로 진도 문구를 겹쳐 올리지 않는다.
+  */
+  const warning = !access.ok
+    ? access.message
+    : !submit.ok && row.lockedReason !== "STAGE_NOT_OPEN"
+      ? submit.message
+      : null;
 
-  if (stageKey === StageKey.s3) {
-    const [hostname, entry] = await Promise.all([
-      loadHostnameStatus(viewer.entry.id),
+  const props: StageFormProps = {
+    stageKey,
+    title: SUBMIT_PANE[stageKey].title,
+    chip: SUBMIT_PANE[stageKey].chip,
+    gate: row.isGate,
+    badge: paneBadge(row, now),
+    meta: metaLines(row, now),
+    info: stageKey in SUBMIT_INFO ? SUBMIT_INFO[stageKey as keyof typeof SUBMIT_INFO] : null,
+    who: whoLine(row),
+    actions: actionsOf(row, { leader, canWrite }),
+    canWrite,
+    defaults: toForm(stageKey, row.submission?.payload),
+  };
+
+  if (stageKey === StageKey.s1) {
+    props.s1 = {
+      chargeType: overview.chargeType,
+      chargeTypeLocked: overview.chargeTypeLocked,
+    };
+  } else if (stageKey === StageKey.s2) {
+    const [metrics, leads] = await Promise.all([
+      loadStageMetrics(entryId, row.opensAt, row.closesAt),
+      loadVerifiedLeads(entryId),
+    ]);
+    /* 리드를 따로 세지 못한 구간에서는 집계된 가입 수가 같은 값을 든다(허브와 같다) */
+    const applicants = leads || metrics.signups;
+    props.s2 = {
+      range:
+        row.opensAt && row.closesAt
+          ? `${formatDay(row.opensAt)}~${formatDay(new Date(row.closesAt.getTime() - 60_000))}`
+          : "",
+      visitors: metrics.hasData ? fmt(metrics.validVisitors) : "—",
+      leads: metrics.hasData || applicants > 0 ? fmt(applicants) : "—",
+      conversion: conversionRate(applicants, metrics.validVisitors) ?? "—",
+    };
+  } else if (stageKey === StageKey.s4) {
+    const { from, to } = weekRange(row.opensAt, row.week);
+    const metrics = await loadStageMetrics(entryId, from, to);
+    props.s4 = {
+      weeks: Array.from({ length: row.week }, (_, i) => {
+        const week = i + 1;
+        const found = row.weeks.find((w) => w.week === week);
+        const done = found !== undefined && found.status !== SubmissionStatus.draft;
+        return {
+          week,
+          state: done ? "done" : week === row.week ? "now" : "missed",
+        };
+      }),
+      visitors: metrics.hasData ? fmt(metrics.validVisitors) : "—",
+      signups: metrics.hasData ? fmt(metrics.signups) : "—",
+    };
+  } else if (stageKey === StageKey.s5) {
+    const [snapshot, integration, entry] = await Promise.all([
+      loadFinalSnapshot(entryId, seasonId),
+      loadPaymentIntegration(entryId),
       prisma.entry.findUniqueOrThrow({
-        where: { id: viewer.entry.id },
-        select: { serviceUrl: true, chargeType: true },
+        where: { id: entryId },
+        select: { chargeType: true },
       }),
     ]);
-
-    return (
-      <section className={styles.root}>
-        <header className={styles.head}>
-          <div className={styles.headTop}>
-            <p className={styles.stage}>STAGE 3 · {view.name}</p>
-            <StatusBadge status={view.submission?.status} />
-          </div>
-          <h1 className={styles.title}>배포한 서비스를 제출합니다</h1>
-          <p className={styles.purpose}>
-            여기서부터 지표가 쌓입니다. 제출 전에 개인정보·AI 표시 점검을 마쳐
-            주세요 — 규칙이 정한 순서는 「점검 후 배포」입니다.
-          </p>
-
-          {/*
-            측정 연동은 이 폼이 아니라 별도 화면이 정본이다. 안 된 상태로 배포하면
-            지표가 0으로 쌓이므로, 사실만 알리고 그 화면으로 보낸다.
-          */}
-          <p className={hostname.verified ? styles.note : styles.locked}>
-            {hostname.verified ? (
-              <>측정 연동이 확인됐습니다 — {hostname.hostname}</>
-            ) : hostname.registered ? (
-              <>
-                측정 주소({hostname.hostname})의 소유 확인이 아직 끝나지
-                않았습니다. <Link href="/dashboard/measurement">측정 연동</Link>
-                에서 마저 진행해 주세요.
-              </>
-            ) : (
-              <>
-                측정 주소가 아직 등록되지 않았습니다. 등록 전에는 방문·가입이
-                집계되지 않습니다.{" "}
-                <Link href="/dashboard/measurement">측정 연동</Link>에서 먼저
-                등록해 주세요.
-              </>
-            )}
-          </p>
-
-          {!canWrite ? (
-            <p className={styles.locked}>
-              {!access.ok
-                ? access.message
-                : !submit.ok
-                  ? submit.message
-                  : view.lockedReason === "STAGE_CLOSED"
-                    ? "제출 마감이 지나 더 낼 수 없습니다. 내용은 그대로 볼 수 있습니다."
-                    : "심사가 시작돼 더 고칠 수 없습니다."}
-            </p>
-          ) : null}
-        </header>
-
-        <S3Form
-          defaults={
-            view.submission
-              ? toS3Defaults(view.submission.payload, entry.serviceUrl)
-              : { ...EMPTY_S3, serviceUrl: entry.serviceUrl ?? "" }
-          }
-          canWrite={canWrite}
-          askPaymentReturn={entry.chargeType === ChargeType.payment}
-        />
-      </section>
-    );
-  }
-
-  /*
-    s2 — 랜딩·수요조사. GATE 1의 심사 대상이다.
-
-    ⚠️ 방문자·사전 신청자·전환율은 **입력이 아니라 집계**다(PLN6 6장 5번이
-    미정으로 남겨 둔 자리를, 랜딩을 서브도메인에 올리는 쪽으로 확정해 읽기
-    전용이 됐다). 참가자가 숫자를 적지 않는 것이 이 제품의 약속이라, 이 칸은
-    폼이 아니라 아래 `ReadOnlyMetrics`가 그린다.
-  */
-  if (stageKey === StageKey.s2) {
-    const metrics = await loadStageMetrics(
-      viewer.entry.id,
-      view.opensAt,
-      view.closesAt,
-    );
-    const p = (view.submission?.payload ?? {}) as Record<string, unknown>;
-    const defaults: S2Defaults = {
-      landingUrl: str(p.landingUrl),
-      channels: strList(p.channels),
-      postUrl: str(p.postUrl),
-      guideChecks: boolList(p.guideChecks),
-      memo: str(p.memo),
+    const labels = S5_FIELDS.final.cards;
+    props.s5 = {
+      cards: [
+        { label: labels[0], value: snapshot.validUsers === null ? "—" : fmt(snapshot.validUsers) },
+        { label: labels[1], value: snapshot.weeklyActive === null ? "—" : fmt(snapshot.weeklyActive) },
+        { label: labels[2], value: snapshot.retention === null ? "—" : `${snapshot.retention}%` },
+        { label: labels[3], value: snapshot.revenue === null ? "—" : `₩${fmt(snapshot.revenue)}` },
+      ],
+      paymentLabel:
+        PAYMENT_STATE_LABEL[
+          paymentPane({ chargeType: entry.chargeType, status: integration.status })
+        ],
     };
-
-    return (
-      <section className={styles.root}>
-        <StageHead
-          no="STAGE 2"
-          view={view}
-          title="랜딩과 수요조사를 제출합니다"
-          purpose="방문자와 사전 신청자 수는 팀 주소를 거친 접속을 플랫폼이 직접 셉니다. 여기서는 확인만 하고 숫자를 입력하지 않습니다."
-          canWrite={canWrite}
-          access={access}
-          submit={submit}
-        />
-
-        <ReadOnlyMetrics
-          items={[
-            {
-              label: "방문자 수",
-              value: metrics.hasData ? metrics.validVisitors.toLocaleString() : "집계 전",
-              note: "유효 방문, 중복 제거",
-            },
-            {
-              label: "사전 신청자 수",
-              value: metrics.hasData ? metrics.signups.toLocaleString() : "집계 전",
-              note: "팀원 제외, 중복 제거",
-            },
-            {
-              label: "전환율",
-              value:
-                metrics.hasData && metrics.validVisitors > 0
-                  ? `${((metrics.signups / metrics.validVisitors) * 100).toFixed(1)}%`
-                  : "-",
-              note: "신청자 ÷ 방문자, 자동 계산",
-            },
-          ]}
-        />
-
-        <S2Form defaults={defaults} canWrite={canWrite} />
-      </section>
-    );
   }
-
-  /*
-    s4 — 마케팅과 유저 유입. **주차마다 한 번씩** 낸다.
-
-    주차는 화면이 고르게 하지 않는다. 스테이지 시작일부터 몇 주가 지났는지로
-    시스템이 정한다 — 참가팀이 주차를 고를 수 있으면 지난 주를 나중에 채워
-    넣게 되고, 그러면 「그 주에 한 활동」이 주간 기록이 아니게 된다.
-  */
-  if (stageKey === StageKey.s4) {
-    const week = currentWeek(view.opensAt);
-    /* 주차가 행을 가르므로 그 주의 제출을 따로 읽는다 */
-    const weekView = await loadStageView(
-      viewer.entry.id,
-      viewer.season.id,
-      StageKey.s4,
-      week,
-    );
-    const weekStart = weekRange(view.opensAt, week);
-    const metrics = await loadStageMetrics(
-      viewer.entry.id,
-      weekStart.from,
-      weekStart.to,
-    );
-    const p = (weekView?.submission?.payload ?? {}) as Record<string, unknown>;
-    const defaults: S4Defaults = {
-      activity: str(p.activity),
-      channels: strList(p.channels),
-      improved: str(p.improved),
-      guideChecks: boolList(p.guideChecks),
-      memo: str(p.memo),
-    };
-    const weekWritable = access.ok && submit.ok && (weekView?.editable ?? view.editable);
-
-    return (
-      <section className={styles.root}>
-        <StageHead
-          no="STAGE 4"
-          view={{ ...view, submission: weekView?.submission ?? null }}
-          title={`${week}주차 활동을 제출합니다`}
-          purpose="주차는 시스템이 지정합니다. 지표는 자동으로 집계되니 활동 내역만 적으면 됩니다."
-          canWrite={weekWritable}
-          access={access}
-          submit={submit}
-        />
-
-        <ReadOnlyMetrics
-          items={[
-            {
-              label: "이번 주 방문",
-              value: metrics.hasData ? metrics.validVisitors.toLocaleString() : "집계 전",
-              note: "엣지에서 자동 집계",
-            },
-            {
-              label: "이번 주 가입",
-              value: metrics.hasData ? metrics.signups.toLocaleString() : "집계 전",
-              note: "중복 제거",
-            },
-          ]}
-        />
-
-        <S4Form defaults={defaults} canWrite={weekWritable} week={week} />
-      </section>
-    );
-  }
-
-  /*
-    s5 — 트래픽과 매출. GATE 2의 심사 대상이고, **제출이 곧 확인**이다.
-    최종 지표는 마감 시각에 자동 확정되므로 이 화면이 받는 것은 신고 둘과
-    회고, 그리고 아카이브 공개 동의뿐이다.
-  */
-  if (stageKey === StageKey.s5) {
-    const [metrics, payment] = await Promise.all([
-      loadStageMetrics(viewer.entry.id, null, null),
-      prisma.paymentIntegration.findFirst({
-        where: { entryId: viewer.entry.id },
-        select: { status: true },
-      }),
-    ]);
-    const p = (view.submission?.payload ?? {}) as Record<string, unknown>;
-    const defaults: S5Defaults = {
-      monetized: p.monetized === true,
-      paymentConnected: p.paymentConnected === true,
-      retro: str(p.retro),
-      guideChecks: boolList(p.guideChecks),
-      archiveConsent: p.archiveConsent === true,
-      memo: str(p.memo),
-    };
-
-    return (
-      <section className={styles.root}>
-        <StageHead
-          no="STAGE 5"
-          view={view}
-          title="시즌의 마지막 제출입니다"
-          purpose="최종 지표는 자동으로 집계됩니다. 이 화면의 제출은 확인 버튼 역할입니다."
-          canWrite={canWrite}
-          access={access}
-          submit={submit}
-        />
-
-        <ReadOnlyMetrics
-          items={[
-            {
-              label: "유효 이용자",
-              value: metrics.hasData ? metrics.validVisitors.toLocaleString() : "집계 전",
-              note: "시즌 누적",
-            },
-            {
-              label: "가입",
-              value: metrics.hasData ? metrics.signups.toLocaleString() : "집계 전",
-              note: "시즌 누적",
-            },
-            {
-              label: "매출",
-              value: metrics.hasData
-                ? `₩${metrics.revenue.toLocaleString()}`
-                : "집계 전",
-              note: "결제사 정산 기준",
-            },
-          ]}
-        />
-
-        <S5Form
-          defaults={defaults}
-          canWrite={canWrite}
-          paymentVerified={payment?.status === IntegrationStatus.verified}
-        />
-      </section>
-    );
-  }
-
-  if (stageKey !== StageKey.s1) {
-    return (
-      <Scaffold
-        title={`${view.name} 제출`}
-        purpose="스테이지별 필드는 PLN6 필드 정의서 4장이 정본이다."
-        locked={submit.ok ? undefined : submit.message}
-        elements={["스테이지별 필드 (PLN6 4장)", "가이드 완료 체크리스트"]}
-      />
-    );
-  }
-
-  const status = view.submission?.status;
 
   return (
-    <section className={styles.root}>
-      <header className={styles.head}>
-        <div className={styles.headTop}>
-          <p className={styles.stage}>
-            STAGE 1 · {view.name}
-            {view.isGate ? <Badge tone="outline">심사 게이트</Badge> : null}
-          </p>
-          <StatusBadge status={status} />
+    <>
+      {warning ? (
+        <div className={`${hub.wbar} ${hub.wbarWarn}`} role="status">
+          {warning}
         </div>
-        <h1 className={styles.title}>문제 정의 1페이지를 제출합니다</h1>
-        <p className={styles.purpose}>
-          가이드 CH.1에서 AI로 만든 결과를 옮겨 적는 자리입니다. 다음 스테이지
-          랜딩의 준비물이 그대로 여기 들어갑니다.
-        </p>
+      ) : null}
 
-        {!canWrite ? (
-          <p className={styles.locked}>
-            {/* 못 쓰는 이유가 셋이다 — 권한(팀장 아님) · 진도 · 마감/잠금 */}
-            {!access.ok
-              ? access.message
-              : !submit.ok
-                ? submit.message
-                : view.lockedReason === "STAGE_CLOSED"
-                  ? "제출 마감이 지나 더 낼 수 없습니다. 내용은 그대로 볼 수 있습니다."
-                  : "심사가 시작돼 더 고칠 수 없습니다."}
-          </p>
-        ) : null}
-      </header>
+      <h2 className={hub.h1}>{SUBMIT_HEAD.title}</h2>
+      <p className={hub.sub}>{SUBMIT_HEAD.sub}</p>
 
-      <S1Form
-        defaults={
-          view.submission
-            ? toDefaults(view.submission.payload, view.chargeType)
-            : { ...EMPTY, chargeType: view.chargeType }
-        }
-        chargeTypeLocked={view.chargeTypeLocked}
-        canWrite={canWrite}
-      />
-    </section>
+      <nav className={styles.tabs} aria-label="스테이지">
+        {overview.stages.map((stage) => {
+          const tail = tabTail(stage, now);
+          const on = stage.stageKey === stageKey;
+          return (
+            <Link
+              key={stage.stageKey}
+              href={`/dashboard/submit/${stage.stageKey}`}
+              className={on ? `${styles.tab} ${styles.on}` : styles.tab}
+              aria-current={on ? "page" : undefined}
+            >
+              <span className={styles.k}>{stage.stageKey}</span>
+              {stage.name}
+              {tail?.kind === "badge" ? <Badge tone={tail.tone}>{tail.label}</Badge> : null}
+              {tail?.kind === "chip" ? <Chip>{tail.label}</Chip> : null}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <StageForm {...props} />
+    </>
   );
-}
-
-function StatusBadge({ status }: { status: SubmissionStatus | undefined }) {
-  if (!status) return null;
-  if (status === SubmissionStatus.draft) {
-    return <Badge tone="neutral">임시 저장</Badge>;
-  }
-  if (status === SubmissionStatus.submitted) {
-    return <Badge tone="lime">제출 완료</Badge>;
-  }
-  return <Badge tone="outline">심사 중 · 잠김</Badge>;
-}
-
-/* ── s2·s4·s5가 함께 쓰는 조각 ───────────────────────────── */
-
-/* payload는 JSON이라 타입이 없다. 화면에 넣기 전에 좁힌다 — s1·s3의 toDefaults와 같은 일 */
-function str(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-function strList(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
-}
-function boolList(value: unknown): boolean[] {
-  return Array.isArray(value) ? value.map(Boolean) : [];
-}
-
-/**
- * 지금이 s4의 몇 주차인가.
- *
- * ⚠️ 참가팀이 고르지 않는다(page.tsx의 s4 분기 주석). 스테이지 시작일로부터
- * 몇 번째 7일 구간인지가 곧 주차다. 시작일이 비어 있으면(시즌1 캘린더가 잠정)
- * 1주차로 둔다 — 주차를 모른다고 제출을 막을 이유는 없다.
- */
-function currentWeek(opensAt: Date | null): number {
-  if (!opensAt) return 1;
-  const days = Math.floor((devNow().getTime() - opensAt.getTime()) / 86_400_000);
-  return Math.max(1, Math.floor(days / 7) + 1);
-}
-
-/** 그 주차의 날짜 구간. 주간 지표를 그 구간으로만 센다 */
-function weekRange(opensAt: Date | null, week: number) {
-  if (!opensAt) return { from: null, to: null };
-  const from = new Date(opensAt.getTime() + (week - 1) * 7 * 86_400_000);
-  const to = new Date(from.getTime() + 6 * 86_400_000);
-  return { from, to };
 }
 
 /*
-  스테이지 머리말.
-
-  s1·s3은 각자 머리말을 인라인으로 그린다. 셋을 한 번에 채우면서 같은 모양이
-  세 번 반복되기에 여기서만 묶었다 — s1·s3도 이 조각으로 모으는 것이 맞고,
-  화면을 훑을 때 함께 정리한다.
+  시안 `.frm-meta` — 마감(남은 날)·제출/임시저장·게이트 판정 회신.
+    s1  마감 10.04 23:59 · 제출 이윤서, 10.02 21:14
+    s2  마감 10.11 23:59 · 제출 이윤서, 10.10 18:40 · 판정 10.12, 48시간 내 회신
+    s3  마감 10.18 23:59, D-4 · 임시저장 진수연, 10.15 02:11
+    s4  이번 주 마감 10.25 23:59, D-2 · 주차는 시스템이 지정해요
+    s5  집계 확정 11.01 24:00
 */
-function StageHead({
-  no,
-  view,
-  title,
-  purpose,
-  canWrite,
-  access,
-  submit,
-}: {
-  no: string;
-  view: StageView;
-  title: string;
-  purpose: string;
-  canWrite: boolean;
-  access: { ok: boolean; message?: string };
-  submit: { ok: boolean; message?: string };
-}) {
-  return (
-    <header className={styles.head}>
-      <div className={styles.headTop}>
-        <p className={styles.stage}>
-          {no} · {view.name}
-          {view.isGate ? <Badge tone="outline">심사 게이트</Badge> : null}
-        </p>
-        <StatusBadge status={view.submission?.status} />
-      </div>
-      <h1 className={styles.title}>{title}</h1>
-      <p className={styles.purpose}>{purpose}</p>
-
-      {!canWrite ? (
-        <p className={styles.locked}>
-          {/* 못 쓰는 이유가 셋이다 — 권한(팀장 아님) · 진도 · 마감/잠금 */}
-          {!access.ok
-            ? access.message
-            : !submit.ok
-              ? submit.message
-              : view.lockedReason === "STAGE_CLOSED"
-                ? "제출 마감이 지나 더 낼 수 없습니다. 내용은 그대로 볼 수 있습니다."
-                : "심사가 시작돼 더 고칠 수 없습니다."}
-        </p>
-      ) : null}
-    </header>
-  );
+function metaLines(row: StageRow, now: Date): string[] {
+  const lines: string[] = [];
+  if (row.closesAt) {
+    const due = formatDeadline(row.closesAt);
+    const left = dDay(row.closesAt, now);
+    if (row.stageKey === StageKey.s5) lines.push(`집계 확정 ${due}`);
+    else if (row.stageKey === StageKey.s4) {
+      lines.push(`이번 주 마감 ${due}${left ? `, ${left}` : ""}`);
+    } else lines.push(`마감 ${due}${left ? `, ${left}` : ""}`);
+  }
+  const s = row.submission;
+  if (row.stageKey === StageKey.s4) {
+    /* s4는 주차 줄이 둘째이고, 제출·임시저장은 발자국(`.who`)이 주차별로 적는다 */
+    lines.push(SUBMIT_META.s4Week);
+    return lines;
+  }
+  if (s && s.status !== SubmissionStatus.draft && s.submittedAt) {
+    lines.push(`제출 ${s.submitter ?? ""}, ${formatMoment(s.submittedAt)}`.replace(" ,", ","));
+  } else if (s) {
+    /* 임시저장한 사람은 남지 않는다(StageForm.tsx 머리 주석) */
+    lines.push(`임시저장 ${formatMoment(s.updatedAt)}`);
+  }
+  if (row.isGate && row.closesAt && s && s.status !== SubmissionStatus.draft) {
+    /* 판정일은 마감 다음 날 — 시안 「마감 10.11 → 판정 10.12」 */
+    lines.push(`판정 ${formatDay(new Date(row.closesAt.getTime() + 86_400_000))}, 48시간 내 회신`);
+  }
+  return lines;
 }
 
-/**
- * 읽기 전용 지표.
- *
- * ⚠️ **입력으로 바꾸지 않는다.** 시안이 자물쇠(`🔒 입력 불가`)로 그린 자리이고,
- * 랜딩이 「참가자가 숫자를 입력하지 않는다」고 약속한 자리다. 숫자를 받는 순간
- * 그 약속이 깨지고 심사의 근거도 자기신고가 된다.
- */
-function ReadOnlyMetrics({
-  items,
-}: {
-  items: { label: string; value: string; note: string }[];
-}) {
-  return (
-    <section className={styles.metrics} aria-label="자동 집계 지표">
-      <p className={styles.metricsNote}>
-        아래 숫자는 팀 주소를 거친 접속을 플랫폼이 직접 셉니다. 입력할 수 없습니다.
-      </p>
-      <div className={styles.metricsGrid}>
-        {items.map((item) => (
-          <div key={item.label} className={styles.metric}>
-            <small>{item.label}</small>
-            <strong>{item.value}</strong>
-            <span>{item.note}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+/*
+  시안 `.frm-ft .who` — 제출을 누른 사람의 기록.
+    submitted_by 이윤서, 10.02 21:14 / …, locked / 미제출, draft 임시저장 … /
+    1주차 submitted_by 이윤서, 10.20 22:03 / 2주차 draft
+*/
+function whoLine(row: StageRow): string {
+  if (row.stageKey === StageKey.s4) {
+    if (row.weeks.length === 0) return SUBMIT_WHO.none;
+    return row.weeks
+      .map((w) =>
+        w.status === SubmissionStatus.draft || !w.submittedAt
+          ? `${w.week}주차 draft`
+          : `${w.week}주차 submitted_by ${w.submitter ?? ""}, ${formatMoment(w.submittedAt)}`,
+      )
+      .join(" / ");
+  }
+  const s = row.submission;
+  if (!s) {
+    return row.stageKey === StageKey.s5 && row.closesAt
+      ? SUBMIT_WHO.s5.replace("{closesAt}", formatDeadline(row.closesAt))
+      : SUBMIT_WHO.none;
+  }
+  if (s.status === SubmissionStatus.draft || !s.submittedAt) {
+    return `${SUBMIT_WHO.none}, draft 임시저장 ${formatMoment(s.updatedAt)}`;
+  }
+  const base = `submitted_by ${s.submitter ?? ""}, ${formatMoment(s.submittedAt)}`;
+  return s.status === SubmissionStatus.locked ? `${base}, locked` : base;
+}
+
+/*
+  버튼 묶음 — 시안 `.frm-ft .sp`.
+    s1 제출됨   임시저장(ghost) + 재제출하기(outline)
+    s3 작성 중  임시저장 + 제출하기(primary)
+    s4          임시저장 + 이번 주 제출하기
+    s5          최종 제출 확인
+    s2 통과     「통과 후 잠김」 disabled
+  팀원에게는 없다. 잠긴 판(마감·미개시)은 같은 버튼을 잠근 채 둔다.
+*/
+function actionsOf(
+  row: StageRow,
+  ctx: { leader: boolean; canWrite: boolean },
+): StageActions {
+  if (!ctx.leader) return { kind: "none" };
+  if (row.lockedReason === "STAGE_LOCKED") {
+    return {
+      kind: "locked",
+      label:
+        row.judgment === JudgmentResult.pass
+          ? SUBMIT_BUTTONS.lockedPass
+          : SUBMIT_BUTTONS.lockedJudging,
+    };
+  }
+  if (row.lockedReason === "STAGE_CLOSED") {
+    return { kind: "locked", label: SUBMIT_BUTTONS.closed };
+  }
+  const disabled = !ctx.canWrite;
+  if (row.stageKey === StageKey.s5) return { kind: "final", disabled };
+  const submitted =
+    row.submission !== null && row.submission.status !== SubmissionStatus.draft;
+  return {
+    kind: "pair",
+    submitLabel:
+      row.stageKey === StageKey.s4
+        ? SUBMIT_BUTTONS.weekly
+        : submitted
+          ? SUBMIT_BUTTONS.resubmit
+          : SUBMIT_BUTTONS.submit,
+    resubmit: submitted && row.stageKey !== StageKey.s4,
+    disabled,
+  };
 }

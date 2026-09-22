@@ -26,6 +26,16 @@ import {
 import { applyConsentRows } from "@/lib/apply-store";
 import { devNow, setDevToday } from "@/lib/dev-clock";
 import { setDevHubKey } from "@/lib/dev-hub";
+import {
+  SPEC_S1,
+  SPEC_S2_LEADS,
+  SPEC_S2_VISITORS,
+  SPEC_S4,
+  SPEC_S4_SIGNUPS,
+  SPEC_S4_VISITORS,
+  specS2,
+  specS3,
+} from "@/lib/dev-submit-fixture";
 import { seoulDateOnly } from "@/lib/measure";
 import { measurementState, type MeasurementState } from "@/lib/measurement";
 import { paymentPane, type PaymentPane } from "@/lib/payment";
@@ -124,6 +134,8 @@ export type SandboxTeam = {
   measurement: MeasurementState | "none";
   /** 결제 연동 화면의 판(시안 ①②③ + 확인 대기). 「결제 연동」 줄이 되짚는다 */
   payment: PaymentPane;
+  /** 스테이지 제출 화면의 판. 「제출」 줄이 되짚는다 — 시안 목업이 심긴 판만 */
+  submit: SubmitPane | null;
   /** 팀원 수. 「팀원」 줄이 1인·2인 중 어느 쪽이 눌렸는지 되짚는 데 쓴다 */
   members: number;
   /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
@@ -170,6 +182,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
         hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
         chargeType: true,
         integration: { select: { status: true } },
+        submissions: { select: { stageKey: true, week: true, status: true } },
         team: {
           select: {
             id: true,
@@ -254,6 +267,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
           chargeType: entry.chargeType,
           status: entry.integration?.status ?? null,
         }),
+        submit: submitPane(entry.submissions),
         teamId: entry.team.id,
         seasonId: entry.season.id,
         seasonCreatedAt: entry.season.createdAt,
@@ -2100,6 +2114,157 @@ export async function setSandboxPayment(args: {
       ...data,
     },
     update: data,
+  });
+}
+
+// ═════════════════════════════════════════════════════════════
+// 스테이지 제출 — 시안 `#scr-submit` 다섯 판
+// ═════════════════════════════════════════════════════════════
+
+/*
+  두 판이면 다섯 탭이 전부 시안 모양이 된다.
+
+    s3  진도 h5(s3 빌드와 배포) 위에 시안 목업을 얹는다 — s1 제출됨·s2 통과(잠김)·
+        s3 임시저장·s4 「주간 반복」·s5 「예정」. 시안의 s1·s2·s3·s5 판이 이 상태다.
+    s4  진도 h6(s4 레이스) 위에 s4 1주차 임시저장. 시안의 s4 판이 이 상태다 —
+        ⚠️ 시안은 「1주차 제출됨 · 2주차 작성 중」인데 dev 일정은 s4가 한 주라
+        2주차가 없다. 1주차 작성 중으로 심는다(2026-09-22).
+
+  판을 만드는 순서가 뜻을 만든다 — `setSandboxHub`가 그 진도에 필요한 제출물을
+  개발용 payload로 채우고 집계 픽스처와 「오늘」을 정하므로, 시안 목업 제출물·
+  판정·방문자는 반드시 그 **뒤**에 얹는다.
+*/
+export type SubmitPane = "s3" | "s4";
+
+/** 지금 dev DB가 그리는 제출 판. 시안 목업이 심긴 모양이 아니면 null */
+function submitPane(
+  rows: { stageKey: StageKey; week: number; status: SubmissionStatus }[],
+): SubmitPane | null {
+  const has = (stageKey: StageKey, status: SubmissionStatus, week?: number) =>
+    rows.some(
+      (r) =>
+        r.stageKey === stageKey &&
+        r.status === status &&
+        (week === undefined ? true : r.week >= week),
+    );
+  if (has(StageKey.s4, SubmissionStatus.draft, 1)) return "s4";
+  if (has(StageKey.s3, SubmissionStatus.draft) && has(StageKey.s2, SubmissionStatus.locked)) {
+    return "s3";
+  }
+  return null;
+}
+
+export async function setSandboxSubmit(args: {
+  entryId: string;
+  pane: SubmitPane;
+}): Promise<void> {
+  assertSandbox();
+  const { entryId, pane } = args;
+
+  await setSandboxHub({ key: pane === "s3" ? "h5" : "h6", entryId });
+
+  const entry = await prisma.entry.findUniqueOrThrow({
+    where: { id: entryId },
+    select: {
+      seasonId: true,
+      teamId: true,
+      hostname: { select: { hostname: true } },
+      season: {
+        select: {
+          stages: { select: { stageKey: true, opensAt: true, closesAt: true } },
+        },
+      },
+    },
+  });
+  const leader = await prisma.teamMember.findFirst({
+    where: { teamId: entry.teamId, role: MemberRole.leader },
+    select: { userId: true },
+  });
+  if (!leader) throw new Error("[dev] 그 팀에 팀장이 없습니다.");
+  const host = entry.hostname?.hostname ?? `dev-${entryId.slice(0, 8)}.proovit.kr`;
+  const stageOf = (key: StageKey) => entry.season.stages.find((s) => s.stageKey === key);
+  /* 제출 시각은 마감 이틀 전 — 시안 「마감 10.04 · 제출 10.02」의 간격 */
+  const submittedAt = (key: StageKey) => {
+    const closes = stageOf(key)?.closesAt;
+    return closes ? new Date(closes.getTime() - 2 * 86_400_000) : devNow();
+  };
+
+  const put = async (
+    stageKey: StageKey,
+    week: number,
+    status: SubmissionStatus,
+    payload: Prisma.InputJsonObject,
+  ) => {
+    const submitted = status !== SubmissionStatus.draft;
+    const data = {
+      status,
+      payload,
+      submittedBy: submitted ? leader.userId : null,
+      submittedAt: submitted ? submittedAt(stageKey) : null,
+    };
+    return prisma.submission.upsert({
+      where: { entryId_stageKey_week: { entryId, stageKey, week } },
+      create: { entryId, stageKey, week, ...data },
+      update: data,
+      select: { id: true },
+    });
+  };
+
+  await put(StageKey.s1, 0, SubmissionStatus.submitted, SPEC_S1);
+  const s2 = await put(StageKey.s2, 0, SubmissionStatus.locked, specS2(host));
+  /* 1차 통과 — 시안 s2의 「pass」. 되돌릴 때 `aiReport.dev`로 찾아 지운다 */
+  await prisma.judgment.deleteMany({ where: { submissionId: s2.id } });
+  await prisma.judgment.create({
+    data: {
+      submissionId: s2.id,
+      result: JudgmentResult.pass,
+      judgedAt: submittedAt(StageKey.s2),
+      feedback: "개발 바가 만든 판정입니다.",
+      aiReport: { dev: true },
+    },
+  });
+  await put(
+    StageKey.s3,
+    0,
+    pane === "s3" ? SubmissionStatus.draft : SubmissionStatus.submitted,
+    specS3(host, pane === "s4"),
+  );
+  /* s2 판의 방문자·사전 신청자 — 허브 h4와 같은 수. 방문은 s2 구간 안의 날이어야 센다 */
+  await setLeads(entryId, SPEC_S2_LEADS);
+  if (pane === "s3") {
+    const closes = stageOf(StageKey.s2)?.closesAt;
+    await prisma.metricDaily.deleteMany({ where: { entryId } });
+    await prisma.metricDaily.create({
+      data: {
+        entryId,
+        metricDate: seoulDateOnly(closes ? new Date(closes.getTime() - 60_000) : devNow()),
+        validVisitors: SPEC_S2_VISITORS,
+        source: MetricSource.manual,
+      },
+    });
+    return;
+  }
+
+  /* s4 1주차 작성 중. 「오늘」은 이번 주 마감 이틀 전 낮 — 시안 「D-2」 */
+  await put(StageKey.s4, 1, SubmissionStatus.draft, SPEC_S4);
+  const closes = stageOf(StageKey.s4)?.closesAt;
+  if (closes) {
+    setDevToday(new Date(closes.getTime() - 2 * 86_400_000 - (11 * 60 + 59) * 60_000));
+  }
+  /*
+    주간 지표 「방문 214 · 가입 38」 — 집계 픽스처는 「오늘」을 옮기기 전의 날짜에
+    행을 깔아 이 주에는 없다. 이 주의 오늘 하루치를 시안 수치로 얹는다.
+  */
+  await prisma.metricDaily.upsert({
+    where: { entryId_metricDate: { entryId, metricDate: seoulDateOnly(devNow()) } },
+    update: { validVisitors: SPEC_S4_VISITORS, signups: SPEC_S4_SIGNUPS },
+    create: {
+      entryId,
+      metricDate: seoulDateOnly(devNow()),
+      validVisitors: SPEC_S4_VISITORS,
+      signups: SPEC_S4_SIGNUPS,
+      source: MetricSource.manual,
+    },
   });
 }
 

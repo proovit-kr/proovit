@@ -187,3 +187,10 @@ select.inp option {
 .rowSw .sw {
   margin-left: auto;
 }
+
+/* 시안 1327행 `@media (max-width:760px) .row-sw{flex-wrap:wrap}` — 제목이 길면 토글이 줄을 넘긴다 */
+@media (max-width: 760px) {
+  .rowSw {
+    flex-wrap: wrap;
+  }
+}

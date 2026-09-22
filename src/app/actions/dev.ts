@@ -19,11 +19,13 @@ import {
   setSandboxPhase,
   setSandboxStage,
   setSandboxStatus,
+  setSandboxSubmit,
   setSandboxTeam,
   setSandboxTeamSize,
   setMetricsFixture,
   type HubKey,
   type MetricsFixture,
+  type SubmitPane,
 } from "@/lib/dev-sandbox";
 import type { PaymentPane } from "@/lib/payment";
 import { getSessionUser } from "@/lib/access";
@@ -196,6 +198,19 @@ export async function devSetPayment(formData: FormData): Promise<void> {
     throw new Error("[dev] entryId·pane가 잘못됐습니다.");
   }
   await setSandboxPayment({ entryId, pane: raw as PaymentPane });
+  refresh();
+}
+
+/** 스테이지 제출 화면의 판 — 시안 목업 제출물을 심는다(`setSandboxSubmit`) */
+export async function devSetSubmit(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const raw = String(formData.get("pane") ?? "");
+  if (!entryId || !["s3", "s4"].includes(raw)) {
+    throw new Error("[dev] entryId·pane가 잘못됐습니다.");
+  }
+  await setSandboxSubmit({ entryId, pane: raw as SubmitPane });
   refresh();
 }
 
