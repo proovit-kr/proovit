@@ -69,12 +69,21 @@ export const specS3 = (host: string, submitted: boolean): Prisma.InputJsonObject
   memo: "",
 });
 
-/** s4 주간 — 시안의 「2주차 작성 중」 내용. dev 일정은 s4가 한 주라 1주차에 심는다 */
+/** s4 주간 — 시안의 「2주차 작성 중」 내용. 「s4 2주차」 픽이 2주차에, 「s4 1주차」 픽이 1주차에 심는다 */
 export const SPEC_S4: Prisma.InputJsonObject = {
   activity: "스레드 연재 3편 발행, 카페 사장님 오픈채팅 2곳에 소개, 첫 유료 문의 1건 응대",
   channels: ["인스타 릴스"],
   improved: "가입 폼 필드 6개 → 2개로 축소",
   guideChecks: [true, true, false],
+  memo: "",
+};
+
+/** s4 1주차 제출물 — 시안 「1주차 제출됨」 칩의 속. 시안에 본문이 없어 2주차 앞 주의 일로 지었다 */
+export const SPEC_S4_WEEK1: Prisma.InputJsonObject = {
+  activity: "랜딩 재배포, 스레드 연재 1편 발행, 오픈채팅 1곳에 소개",
+  channels: ["스레드"],
+  improved: "가입 버튼 문구 변경",
+  guideChecks: [true, true, true],
   memo: "",
 };
 

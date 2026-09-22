@@ -7,7 +7,7 @@
   ⚠️ **상태가 데이터로 갈린다.** 시안은 `.st-tab`을 눌러 `.pane.on`을 바꾸지만
   우리는 라우트가 판이고 내용은 제출 행·판정·일정이 정한다. `submit-state.mts`가
   그 판을 만들고 세션 토큰을 준다 — s1·s2·s3·s5는 「s3」 상태(s1 제출됨·s2 통과·
-  s3 임시저장·s5 예정) 하나에서, s4는 「s4」 상태(1주차 작성 중)에서 본다.
+  s3 임시저장·s5 예정) 하나에서, s4는 「s4w2」 상태(1주차 제출됨 · 2주차 작성 중)에서 본다.
 
   ⚠️ 시안과 일부러 다른 자리는 재지 않는다(StageForm.tsx 머리 주석):
     · 증빙 파일의 드롭 칸(`.drop`) — 열린 판에만 그린다. 시안은 잠긴 s1·s5에 있고 작성 중인
@@ -15,7 +15,6 @@
     · 파일 칩의 이름은 링크(`<a>`), ×는 버튼이다 — 시안은 글자와 `<i>`다.
     · 힌트는 절 단위로 접는다(Clauses) — 좁은 폭에서 시안보다 한 줄 길 수 있다(s1 ① 페르소나).
     · s1의 버튼 둘 — dev 일정상 s1은 마감이 지나 「마감됨」 하나다.
-    · s4의 「1주차 제출됨」 칩 — dev 일정은 s4가 한 주라 2주차가 없다.
     · s5의 토글 두 개의 켜짐과 버튼 색 — 아직 안 열린 판이라 꺼져 있고 잠겨 있다.
     · 시안 s1 ③의 빈 `.seg-p` 둘 — 그 칸(`.fld`)의 높이를 안 본다.
 
@@ -278,13 +277,14 @@ const LIST = {
     ...pair("btn-ghost", "btn-primary"),
   ],
   s4: [
-    /* s4 판의 s3 탭은 제출됨(회색)이고 시안은 작성 중(주황) — 상태가 다르다 */
-    ...COMMON(true).map((row) =>
+    /* s4 판의 s3 탭은 제출됨(회색)이고 시안은 작성 중(주황) — 상태가 다르다. 발자국 높이는
+       제출자 줄(「1주차 submitted_by … / 2주차 draft」)의 이름 길이가 정한다 — 데이터 */
+    ...COMMON(true, ["height"]).map((row) =>
       row[0] === "tab 3 badge"
         ? [row[0], row[1], row[2], [], [...W, "color", "background-color", "border-top-color", "border-bottom-color"]]
         : row),
-    /* 시안은 「1주차 제출됨 · 2주차 작성 중」 둘, dev 일정은 1주차뿐(머리 주석) — 자식 수·폭을 안 본다 */
-    ["weeks", S + D(3).trim(), I("weeks"), [], ["width", "count"]],
+    ["weeks", S + D(3).trim(), I("weeks")],
+    ["wk done", S + ".wk.done", I("wkDone"), [], W],
     ["wk now", S + ".wk.now", I("wkNow"), [], W],
     ...fld(4, { hint: false }), textarea(4),
     ...fld(5, { hint: false, small: true, narrow: ["height"] }), ...tags(5),
@@ -360,8 +360,8 @@ const IGNORE = {
   s1: [/^(임시저장|재제출하기|마감됨)$/, /^파일을 끌어다 놓거나/],
   s2: [],
   s3: [],
-  /* dev 일정은 s4가 한 주라 「1주차 제출됨」 칩이 없고, s3 탭은 제출됨이다. 드롭 칸은 우리에게만 */
-  s4: [/^1주차 제출됨$/, /^작성 중$/, /^파일을 끌어다 놓거나/],
+  /* s4 판의 s3 탭은 제출됨(시안은 작성 중). 드롭 칸은 우리에게만 */
+  s4: [/^작성 중$/, /^파일을 끌어다 놓거나/],
   /* s5는 아직 안 열려 드롭 칸이 없다 */
   s5: [/^파일을 끌어다 놓거나/, /^이용자 개별 식별 항목/],
 };
@@ -449,7 +449,7 @@ const state = (...args) =>
   ], { cwd: REPO, encoding: "utf8" });
 
 /* s1·s2·s3·s5는 「s3」 상태에서, s4는 「s4」 상태에서 본다 */
-const DB_STATE = { s1: "s3", s2: "s3", s3: "s3", s4: "s4", s5: "s3" };
+const DB_STATE = { s1: "s3", s2: "s3", s3: "s3", s4: "s4w2", s5: "s3" };
 
 const STATES = process.env.STATE ? [process.env.STATE] : ["s1", "s2", "s3", "s5", "s4"];
 for (const st of STATES) {

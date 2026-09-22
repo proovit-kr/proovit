@@ -39,6 +39,7 @@ import {
   SPEC_S4,
   SPEC_S4_SIGNUPS,
   SPEC_S4_VISITORS,
+  SPEC_S4_WEEK1,
   specS2,
   specS3,
 } from "@/lib/dev-submit-fixture";
@@ -2140,7 +2141,8 @@ export async function setSandboxPayment(args: {
   개발용 payload로 채우고 집계 픽스처와 「오늘」을 정하므로, 시안 목업 제출물·
   판정·방문자는 반드시 그 **뒤**에 얹는다.
 */
-export type SubmitPane = "s3" | "s4";
+/** s4w2 — s4를 두 주로 늘리고 1주차 제출·2주차 작성 중(시안 s4 판 그대로) */
+export type SubmitPane = "s3" | "s4" | "s4w2";
 
 /** 지금 dev DB가 그리는 제출 판. 시안 목업이 심긴 모양이 아니면 null */
 function submitPane(
@@ -2153,6 +2155,7 @@ function submitPane(
         r.status === status &&
         (week === undefined ? true : r.week >= week),
     );
+  if (has(StageKey.s4, SubmissionStatus.draft, 2)) return "s4w2";
   if (has(StageKey.s4, SubmissionStatus.draft, 1)) return "s4";
   if (has(StageKey.s3, SubmissionStatus.draft) && has(StageKey.s2, SubmissionStatus.locked)) {
     return "s3";
@@ -2168,6 +2171,32 @@ export async function setSandboxSubmit(args: {
   const { entryId, pane } = args;
 
   await setSandboxHub({ key: pane === "s3" ? "h5" : "h6", entryId });
+
+  /*
+    dev 일정은 스테이지마다 한 주라 s4에 2주차가 없다. 「s4 2주차」는 s4 마감을 한 주
+    미루고 s5를 그만큼 뒤로 민다(시즌 종료는 그대로). 다른 줄(스테이지·집계·허브)을
+    누르면 `scheduleStageDates`가 한 주짜리로 되돌린다.
+  */
+  if (pane === "s4w2") {
+    const { seasonId } = await prisma.entry.findUniqueOrThrow({
+      where: { id: entryId },
+      select: { seasonId: true },
+    });
+    const [s4, s5] = await Promise.all(
+      [StageKey.s4, StageKey.s5].map((stageKey) =>
+        prisma.stage.findFirstOrThrow({ where: { seasonId, stageKey } }),
+      ),
+    );
+    if (s4.closesAt && s5.closesAt) {
+      const s4Closes = new Date(s4.closesAt.getTime() + WEEK_MS);
+      const s5Opens = new Date(s4Closes.getTime() + MIN_MS);
+      const s5Closes = new Date(Math.max(s5.closesAt.getTime(), s5Opens.getTime() + 86_400_000));
+      await prisma.$transaction([
+        prisma.stage.update({ where: { id: s4.id }, data: { closesAt: s4Closes } }),
+        prisma.stage.update({ where: { id: s5.id }, data: { opensAt: s5Opens, closesAt: s5Closes } }),
+      ]);
+    }
+  }
 
   const entry = await prisma.entry.findUniqueOrThrow({
     where: { id: entryId },
@@ -2290,10 +2319,15 @@ export async function setSandboxSubmit(args: {
     return;
   }
 
-  /* s4 1주차 작성 중. 「오늘」은 이번 주 마감 이틀 전 낮 — 시안 「D-2」 */
+  /*
+    s4 작성 중 — 「s4 1주차」는 1주차 초안, 「s4 2주차」는 1주차 제출 + 2주차 초안(시안 그대로).
+    「오늘」은 이번 주 마감 이틀 전 낮 — 시안 「D-2」
+  */
+  const week = pane === "s4w2" ? 2 : 1;
+  if (week === 2) await put(StageKey.s4, 1, SubmissionStatus.submitted, SPEC_S4_WEEK1);
   await put(
     StageKey.s4,
-    1,
+    week,
     SubmissionStatus.draft,
     SPEC_S4,
     await seedFiles(StageKey.s4, SPEC_FILES.s4),

@@ -6,7 +6,8 @@
     node --env-file=.env.development.local --import tsx scripts/design-diff/submit-state.mts restore
 
     s3  s1 제출됨 · s2 통과(잠김) · s3 임시저장 · s4 주간 반복 · s5 예정 — 시안의 s1·s2·s3·s5 판
-    s4  s4 1주차 작성 중 — 시안의 s4 판
+    s4  s4 1주차 작성 중
+    s4w2  s4를 두 주로 늘려 1주차 제출됨 · 2주차 작성 중 — 시안의 s4 판
 
   판 이름은 상태를 만든 뒤 **세션 토큰 한 줄**을 찍는다 — `submit.mjs`가 그것을
   쿠키로 심어 그 팀의 제출 화면을 연다(payment-state.mts와 같은 방식).
@@ -117,7 +118,7 @@ type Snap = {
   }[];
 };
 
-const PANES: SubmitPane[] = ["s3", "s4"];
+const PANES: SubmitPane[] = ["s3", "s4", "s4w2"];
 const mode = process.argv[2];
 
 if (mode === "save") {
