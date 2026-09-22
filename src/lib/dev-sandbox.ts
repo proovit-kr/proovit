@@ -40,6 +40,7 @@ import {
   SPEC_S4_SIGNUPS,
   SPEC_S4_VISITORS,
   SPEC_S4_WEEK1,
+  SPEC_S5,
   specS2,
   specS3,
 } from "@/lib/dev-submit-fixture";
@@ -2141,8 +2142,8 @@ export async function setSandboxPayment(args: {
   개발용 payload로 채우고 집계 픽스처와 「오늘」을 정하므로, 시안 목업 제출물·
   판정·방문자는 반드시 그 **뒤**에 얹는다.
 */
-/** s4w2 — s4를 두 주로 늘리고 1주차 제출·2주차 작성 중(시안 s4 판 그대로) */
-export type SubmitPane = "s3" | "s4" | "s4w2";
+/** s4w2 — s4를 두 주로 늘리고 1주차 제출·2주차 작성 중. s5 — s5 열림, 작성 중(h15 위에) */
+export type SubmitPane = "s3" | "s4" | "s4w2" | "s5";
 
 /** 지금 dev DB가 그리는 제출 판. 시안 목업이 심긴 모양이 아니면 null */
 function submitPane(
@@ -2155,6 +2156,7 @@ function submitPane(
         r.status === status &&
         (week === undefined ? true : r.week >= week),
     );
+  if (has(StageKey.s5, SubmissionStatus.draft)) return "s5";
   if (has(StageKey.s4, SubmissionStatus.draft, 2)) return "s4w2";
   if (has(StageKey.s4, SubmissionStatus.draft, 1)) return "s4";
   if (has(StageKey.s3, SubmissionStatus.draft) && has(StageKey.s2, SubmissionStatus.locked)) {
@@ -2170,7 +2172,7 @@ export async function setSandboxSubmit(args: {
   assertSandbox();
   const { entryId, pane } = args;
 
-  await setSandboxHub({ key: pane === "s3" ? "h5" : "h6", entryId });
+  await setSandboxHub({ key: pane === "s3" ? "h5" : pane === "s5" ? "h15" : "h6", entryId });
 
   /*
     dev 일정은 스테이지마다 한 주라 s4에 2주차가 없다. 「s4 2주차」는 s4 마감을 한 주
@@ -2316,6 +2318,12 @@ export async function setSandboxSubmit(args: {
         source: MetricSource.manual,
       },
     });
+    return;
+  }
+
+  /* s5 작성 중 — h15(s5 구간, 진도 s4)가 일정·지표·「오늘」을 앉혔다. 초안만 얹는다 */
+  if (pane === "s5") {
+    await put(StageKey.s5, 0, SubmissionStatus.draft, SPEC_S5);
     return;
   }
 

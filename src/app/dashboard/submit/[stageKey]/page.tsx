@@ -273,11 +273,12 @@ function whoLine(row: StageRow): string {
       .join(" / ");
   }
   const s = row.submission;
-  if (!s) {
-    return row.stageKey === StageKey.s5 && row.closesAt
-      ? SUBMIT_WHO.s5.replace("{closesAt}", formatDeadline(row.closesAt))
-      : SUBMIT_WHO.none;
+  /* s5는 최종 제출을 누르기 전까지 「확인 버튼을 누른 팀원으로 기록」 — 초안도 아직 그 전이다 */
+  const unsubmitted = !s || s.status === SubmissionStatus.draft || !s.submittedAt;
+  if (unsubmitted && row.stageKey === StageKey.s5 && row.closesAt) {
+    return SUBMIT_WHO.s5.replace("{closesAt}", formatDeadline(row.closesAt));
   }
+  if (!s) return SUBMIT_WHO.none;
   if (s.status === SubmissionStatus.draft || !s.submittedAt) {
     return `${SUBMIT_WHO.none}, draft 임시저장 ${formatMoment(s.updatedAt)}`;
   }

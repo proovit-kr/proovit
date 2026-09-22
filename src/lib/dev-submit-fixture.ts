@@ -87,6 +87,16 @@ export const SPEC_S4_WEEK1: Prisma.InputJsonObject = {
   memo: "",
 };
 
+/** s5 작성 중 — 시안은 토글 둘이 켜진 채 회고·동의가 비어 있다 */
+export const SPEC_S5: Prisma.InputJsonObject = {
+  monetized: true,
+  paymentConnected: true,
+  retro: "",
+  guideChecks: [false, false, false],
+  archiveConsent: false,
+  memo: "",
+};
+
 /** 시안 s2 `.ro` — 방문자 471 · 사전 신청자 24(5.1%). 허브 h4와 같은 수 */
 export const SPEC_S2_VISITORS = 471;
 export const SPEC_S2_LEADS = 24;

@@ -7,7 +7,8 @@
   ⚠️ **상태가 데이터로 갈린다.** 시안은 `.st-tab`을 눌러 `.pane.on`을 바꾸지만
   우리는 라우트가 판이고 내용은 제출 행·판정·일정이 정한다. `submit-state.mts`가
   그 판을 만들고 세션 토큰을 준다 — s1·s2·s3·s5는 「s3」 상태(s1 제출됨·s2 통과·
-  s3 임시저장·s5 예정) 하나에서, s4는 「s4w2」 상태(1주차 제출됨 · 2주차 작성 중)에서 본다.
+  s3 임시저장·s5 예정) 하나에서, s4는 「s4w2」 상태(1주차 제출됨 · 2주차 작성 중), s5는
+  「s5」 상태(열림, 토글 켜진 초안)에서 본다.
 
   ⚠️ 시안과 일부러 다른 자리는 재지 않는다(StageForm.tsx 머리 주석):
     · 증빙 파일의 드롭 칸(`.drop`) — 열린 판에만 그린다. 시안은 잠긴 s1·s5에 있고 작성 중인
@@ -15,7 +16,6 @@
     · 파일 칩의 이름은 링크(`<a>`), ×는 버튼이다 — 시안은 글자와 `<i>`다.
     · 힌트는 절 단위로 접는다(Clauses) — 좁은 폭에서 시안보다 한 줄 길 수 있다(s1 ① 페르소나).
     · s1의 버튼 둘 — dev 일정상 s1은 마감이 지나 「마감됨」 하나다.
-    · s5의 토글 두 개의 켜짐과 버튼 색 — 아직 안 열린 판이라 꺼져 있고 잠겨 있다.
     · 시안 s1 ③의 빈 `.seg-p` 둘 — 그 칸(`.fld`)의 높이를 안 본다.
 
   헤더(`.db-top`)와 사이드바(`.db-side`)는 크롬이라 `header-states.mjs`가 본다.
@@ -296,12 +296,25 @@ const LIST = {
     ...pair("btn-ghost", "btn-primary"),
   ],
   s5: [
-    /* 잠긴 버튼의 테두리 1px만큼 발자국이 높다(아래 `sp final`) */
-    ...COMMON(true, ["height"]),
+    /*
+      시안의 탭 줄은 판과 무관하게 「s3 작성 중 · s5 예정」 하나다. s5가 열린 우리 상태에선
+      s3 탭이 제출됨(회색), s5 탭이 「작성 중」 배지(칩보다 1px 높다) — 상태가 다르다
+    */
+    ...COMMON(true)
+      .filter((row) => row[0] !== "tab 5 chip")
+      .map((row) =>
+        /* 머리 배지도 시안은 「예정」(회색), 우리는 「작성 중」(주황). s4 탭은 제출됨 배지(칩보다 1px) */
+        row[0] === "tab 3 badge" || row[0] === "hd badge"
+          ? [row[0], row[1], row[2], [], [...W, "color", "background-color", "border-top-color", "border-bottom-color"]]
+          : ["tabs", "tab 4", "tab 5", "tab on"].includes(row[0])
+            ? [row[0], row[1], row[2], [], [...(row[4] || []), "height"]]
+            /* 초안이라 「임시저장 …」 줄이 하나 더 있다 — 시안 목업은 저장 전 */
+            : row[0] === "meta"
+              ? [row[0], row[1], row[2], [], ["count"], row[5]]
+              : row),
     ["info", S + ".info-strip", H("infoStrip")],
-    /* 토글 두 개는 시안이 켜진 모양이고 우리는 아직 안 열린 판이라 꺼져 있다 — 손잡이(`i`)는 안 본다 */
-    ...fld(4, { hint: false }), ...rowSw(4, { sw: false }),
-    ...fld(5, { hint: false, small: true }), ...rowSw(5, { sw: false }),
+    ...fld(4, { hint: false }), ...rowSw(4),
+    ...fld(5, { hint: false, small: true }), ...rowSw(5),
     ["fld 5 hint", S + D(5) + "> .hint", ROOT + D(5) + `> ${HINT}`],
     ...fld(6, { hint: false, small: true }),
     ["snap", S + D(6) + ".snap", ROOT + D(6) + H("snap")],
@@ -311,19 +324,14 @@ const LIST = {
     ...fld(7), textarea(7),
     ...fld(8, { hint: false, small: true }), ...chkl(8),
     ...fld(9, { hint: false, small: true }), textarea(9),
-    /* 시안은 드롭 칸, 우리는 아직 안 열린 판이라 라벨뿐(머리 주석) — 높이를 안 본다 */
-    ...fld(10, { hint: false, small: true, skip: ["height"] }),
+    ...fld(10, { hint: false, small: true }), ...drop(10),
     ["consents", S + ".consents", I("consents")],
     ["consents label", S + ".consents label", `${I("consents")} label`],
     ["consents input", S + ".consents input", `${I("consents")} input`, [], CHECKBOX],
     ["consents req", S + ".consents .req", I("req"), [], W],
     ["consents span", S + ".consents label > span", `${I("consents")} label > span`],
-    ["sp", S + ".frm-ft .sp", I("sp"), [], ["margin-left", "width", "height"]],
-    /* 안 열린 판이라 우리 버튼은 잠겨 있다 — 색·그림자·테두리(그래서 크기)를 안 본다 */
-    ["sp final", S + ".frm-ft .sp .btn-primary", `${I("sp")} button[value="submit"]`, [],
-      [...W, "height", "color", "background-color", "background-image", "box-shadow",
-        "border-top-width", "border-top-style", "border-top-color",
-        "border-bottom-width", "border-bottom-style", "border-bottom-color"]],
+    ["sp", S + ".frm-ft .sp", I("sp"), [], ["margin-left"]],
+    ["sp final", S + ".frm-ft .sp .btn-primary", `${I("sp")} button[value="submit"]`, [], W],
   ],
 };
 
@@ -331,7 +339,8 @@ const LIST = {
 const HOVER_CSS = ["color", "background-color", "background-image", "box-shadow",
   "border-top-color", "filter"];
 const HOVER = {
-  s1: [], s2: [], s5: [],
+  s1: [], s2: [],
+  s5: [["final hover", S + ".frm-ft .sp .btn-primary", `${I("sp")} button[value="submit"]`]],
   s3: [
     ["ghost hover", S + ".frm-ft .sp .btn-ghost", `${I("sp")} button[value="draft"]`],
     ["primary hover", S + ".frm-ft .sp .btn-primary", `${I("sp")} button[value="submit"]`],
@@ -362,8 +371,8 @@ const IGNORE = {
   s3: [],
   /* s4 판의 s3 탭은 제출됨(시안은 작성 중). 드롭 칸은 우리에게만 */
   s4: [/^작성 중$/, /^파일을 끌어다 놓거나/],
-  /* s5는 아직 안 열려 드롭 칸이 없다 */
-  s5: [/^파일을 끌어다 놓거나/, /^이용자 개별 식별 항목/],
+  /* s5 판의 탭: s3 제출됨(시안 작성 중), s5 작성 중(시안 예정). 머리 배지도 draft(시안 예정) */
+  s5: [/^작성 중$/, /^예정$/, /^제출됨$/, /^draft$/],
 };
 
 const probe = () => `(() => {
@@ -449,7 +458,7 @@ const state = (...args) =>
   ], { cwd: REPO, encoding: "utf8" });
 
 /* s1·s2·s3·s5는 「s3」 상태에서, s4는 「s4」 상태에서 본다 */
-const DB_STATE = { s1: "s3", s2: "s3", s3: "s3", s4: "s4w2", s5: "s3" };
+const DB_STATE = { s1: "s3", s2: "s3", s3: "s3", s4: "s4w2", s5: "s5" };
 
 const STATES = process.env.STATE ? [process.env.STATE] : ["s1", "s2", "s3", "s5", "s4"];
 for (const st of STATES) {

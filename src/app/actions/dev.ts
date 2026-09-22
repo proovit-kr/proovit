@@ -207,7 +207,7 @@ export async function devSetSubmit(formData: FormData): Promise<void> {
 
   const entryId = String(formData.get("entryId") ?? "");
   const raw = String(formData.get("pane") ?? "");
-  if (!entryId || !["s3", "s4", "s4w2"].includes(raw)) {
+  if (!entryId || !["s3", "s4", "s4w2", "s5"].includes(raw)) {
     throw new Error("[dev] entryId·pane가 잘못됐습니다.");
   }
   await setSandboxSubmit({ entryId, pane: raw as SubmitPane });
