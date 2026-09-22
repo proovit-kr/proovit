@@ -1,5 +1,3 @@
-import { randomInt } from "node:crypto";
-
 import type { Prisma } from "@/generated/prisma/client";
 import {
   ConsentType,
@@ -27,7 +25,8 @@ import { setDevHubKey } from "@/lib/dev-hub";
 import { seoulDateOnly } from "@/lib/measure";
 import { accountConsentRows } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
-import { INVITE_ALPHABET, INVITE_CODE_LENGTH, INVITE_TTL_DAYS } from "@/lib/team";
+import { INVITE_TTL_DAYS } from "@/lib/team";
+import { generateCode } from "@/lib/team-store";
 
 /*
   개발용 상태 토글의 **판정과 쓰기**. 화면은 components/DevBar가 그린다.
@@ -572,21 +571,13 @@ export async function setSandboxTeamSize(args: {
   await prisma.teamInvitation.create({
     data: {
       teamId,
-      inviteCode: devInviteCode(),
+      inviteCode: generateCode(),
       status: InvitationStatus.accepted,
       expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 86_400_000),
     },
   });
 }
 
-/** 개발 바용 초대 코드. 사람이 읽는 값이라 문자표는 진짜 것과 같다 */
-function devInviteCode(): string {
-  let code = "";
-  for (let i = 0; i < INVITE_CODE_LENGTH; i += 1) {
-    code += INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)];
-  }
-  return code;
-}
 
 export async function hasSandboxTeam(args: {
   userId: string;

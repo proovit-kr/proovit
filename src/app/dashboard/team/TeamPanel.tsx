@@ -8,6 +8,7 @@ import { Field } from "@/components/Field";
 import { Modal } from "@/components/Modal";
 import { Card } from "@/components/Surface";
 import { Toast, useToast } from "@/components/Toast";
+import { formatInviteCode } from "@/lib/team";
 
 import hub from "../hub.module.css";
 import { manageTeam, type TeamState } from "./actions";
@@ -173,14 +174,14 @@ export function TeamPanel({
           hint={`코드로 합류하면 초대 메일 없이 바로 팀이 완성돼요. ${invite.expiresAt}까지 유효해요.`}
         >
           <div className={styles.keybox}>
-            {invite.code}
+            {formatInviteCode(invite.code)}
             <Badge tone="warn">수락 대기</Badge>
             <span className={styles.cp}>
               <Button
                 type="button"
                 variant="outline"
                 style={CP}
-                onClick={() => void copy(invite.code)}
+                onClick={() => void copy(formatInviteCode(invite.code))}
               >
                 복사
               </Button>
@@ -207,13 +208,13 @@ export function TeamPanel({
           hint="코드로 합류하면 초대 메일 없이 바로 팀이 완성돼요."
         >
           <div className={styles.keybox}>
-            {joinedWith}
+            {formatInviteCode(joinedWith)}
             <span className={styles.cp}>
               <Button
                 type="button"
                 variant="outline"
                 style={CP}
-                onClick={() => void copy(joinedWith)}
+                onClick={() => void copy(formatInviteCode(joinedWith))}
               >
                 복사
               </Button>

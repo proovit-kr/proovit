@@ -10,6 +10,7 @@ import { applyConsentRows, hashIp } from "@/lib/apply-store";
 import {
   INVITE_ALPHABET,
   INVITE_CODE_LENGTH,
+  INVITE_CODE_PREFIX,
   INVITE_TTL_DAYS,
   MAX_TEAM_SIZE,
   normalizeInviteCode,
@@ -136,8 +137,8 @@ export async function loadTeamPanel(teamId: string): Promise<TeamPanel | null> {
  * 팀에 들어가는 길이 생긴다. 코드 하나로 팀 소속이 결정되므로 인증 토큰과
  * 같은 급으로 다룬다.
  */
-function generateCode(): string {
-  let code = "";
+export function generateCode(): string {
+  let code = INVITE_CODE_PREFIX;
   for (let i = 0; i < INVITE_CODE_LENGTH; i += 1) {
     code += INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)];
   }
