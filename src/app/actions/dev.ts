@@ -15,6 +15,7 @@ import {
   setSandboxHub,
   setSandboxMeasurement,
   setSandboxPace,
+  setSandboxPayment,
   setSandboxPhase,
   setSandboxStage,
   setSandboxStatus,
@@ -24,6 +25,7 @@ import {
   type HubKey,
   type MetricsFixture,
 } from "@/lib/dev-sandbox";
+import type { PaymentPane } from "@/lib/payment";
 import { getSessionUser } from "@/lib/access";
 import { loginAsTestAccount, logout } from "@/lib/dev-session";
 import { prisma } from "@/lib/prisma";
@@ -182,6 +184,18 @@ export async function devSetMeasurement(formData: FormData): Promise<void> {
     throw new Error("[dev] entryId·state가 잘못됐습니다.");
   }
   await setSandboxMeasurement({ entryId, state: raw as "wait" | "ok" | "fail" });
+  refresh();
+}
+
+export async function devSetPayment(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const raw = String(formData.get("pane") ?? "");
+  if (!entryId || !["none", "pending", "ok", "inq"].includes(raw)) {
+    throw new Error("[dev] entryId·pane가 잘못됐습니다.");
+  }
+  await setSandboxPayment({ entryId, pane: raw as PaymentPane });
   refresh();
 }
 

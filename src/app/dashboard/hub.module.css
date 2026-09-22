@@ -41,6 +41,27 @@
   color: var(--danger);
 }
 
+/* ── 안내줄(`.info-strip`) ────────────────────────────── */
+
+/*
+  시안 `.info-strip` — 경고줄과 같은 자리의 파란 안내 한 줄(결제 연동·크레딧).
+  아이콘은 `Icon`의 `fixed`가 17px로 고정한다(시안 `.info-strip .ic`).
+    background var(--accent-dim) → var(--blue-dim), 테두리 라임 → 파랑(v2.x)
+    padding 11px 15px → 12px 16px, 글자 13px → 13.5px → 14px
+*/
+.infoStrip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--blue-dim);
+  border: 1px solid rgba(111, 179, 255, 0.4);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 22px;
+}
+
 /* ── 머리 ─────────────────────────────────────────────── */
 
 /*

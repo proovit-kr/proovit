@@ -10,6 +10,7 @@ import {
   devSetPhase,
   devSetHub,
   devSetMeasurement,
+  devSetPayment,
   devSetStatus,
   devSetTeam,
   devSetTeamSize,
@@ -59,6 +60,8 @@ type Team = {
   members: number;
   /** 측정 연동 화면의 판. 「측정 연동」 줄의 대기·검증됨·실패 */
   measurement: "none" | "wait" | "ok" | "fail";
+  /** 결제 연동 화면의 판. 「결제 연동」 줄의 미등록·확인 대기·확인됨·문의형 */
+  payment: "none" | "pending" | "ok" | "inq";
   teamId: string;
 };
 
@@ -495,6 +498,39 @@ export function DevBarClient({
                     action={devSetMeasurement}
                     fields={{ entryId: current.entryId, state: pick.state }}
                     active={current.measurement === pick.state}
+                  >
+                    {pick.label}
+                  </PickButton>
+                ))
+              ) : (
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
+              )}
+            </div>
+          </div>
+
+          {/*
+            ── 결제 연동 ─────────────────────────────────────
+            결제 연동 화면의 판(시안 ① 미등록 · ② 등록과 확인 완료 · ③ 문의형,
+            그리고 시안에 없는 「확인 대기」). 과금 유형(s1 제출값)도 같이 바꾼다.
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              결제 연동
+              <em className={styles.hint}>결제 연동 ①②③</em>
+            </span>
+            <div className={styles.picks}>
+              {current ? (
+                [
+                  { pane: "none", label: "미등록" },
+                  { pane: "pending", label: "확인 대기" },
+                  { pane: "ok", label: "확인됨" },
+                  { pane: "inq", label: "문의형" },
+                ].map((pick) => (
+                  <PickButton
+                    key={pick.pane}
+                    action={devSetPayment}
+                    fields={{ entryId: current.entryId, pane: pick.pane }}
+                    active={current.payment === pick.pane}
                   >
                     {pick.label}
                   </PickButton>

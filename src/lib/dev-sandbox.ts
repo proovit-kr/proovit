@@ -1,13 +1,16 @@
 import type { Prisma } from "@/generated/prisma/client";
 import {
+  ChargeType,
   ConsentType,
   DeployStatus,
   EntryStage,
   EntryStatus,
+  IntegrationStatus,
   InvitationStatus,
   JudgmentResult,
   MemberRole,
   MetricSource,
+  PaymentProvider,
   SanctionReason,
   SanctionStage,
   SeasonPhase,
@@ -24,6 +27,7 @@ import { devNow, setDevToday } from "@/lib/dev-clock";
 import { setDevHubKey } from "@/lib/dev-hub";
 import { seoulDateOnly } from "@/lib/measure";
 import { measurementState, type MeasurementState } from "@/lib/measurement";
+import { paymentPane, type PaymentPane } from "@/lib/payment";
 import { accountConsentRows } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
 import { INVITE_TTL_DAYS } from "@/lib/team";
@@ -116,6 +120,8 @@ export type SandboxTeam = {
   verified: boolean;
   /** 측정 연동 화면의 판(시안 ①②③). 행이 없으면 none — 「측정 연동」 줄이 되짚는다 */
   measurement: MeasurementState | "none";
+  /** 결제 연동 화면의 판(시안 ①②③ + 확인 대기). 「결제 연동」 줄이 되짚는다 */
+  payment: PaymentPane;
   /** 팀원 수. 「팀원」 줄이 1인·2인 중 어느 쪽이 눌렸는지 되짚는 데 쓴다 */
   members: number;
   /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
@@ -160,6 +166,8 @@ export async function loadSandboxState(): Promise<SandboxState> {
         ideaTitle: true,
         season: { select: { id: true, createdAt: true } },
         hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
+        chargeType: true,
+        integration: { select: { status: true } },
         team: {
           select: {
             id: true,
@@ -240,6 +248,10 @@ export async function loadSandboxState(): Promise<SandboxState> {
               verifiedAt: entry.hostname.ownershipVerifiedAt,
             })
           : "none",
+        payment: paymentPane({
+          chargeType: entry.chargeType,
+          status: entry.integration?.status ?? null,
+        }),
         teamId: entry.team.id,
         seasonId: entry.season.id,
         seasonCreatedAt: entry.season.createdAt,
@@ -2023,3 +2035,63 @@ export async function setSandboxMeasurement(args: {
   await setHostnameState(args.entryId, args.state);
 }
 
+/*
+  결제 연동 화면의 판을 앉힌다 — 시안 ① 미등록 · ② 등록과 확인 완료 · ③ 문의형,
+  그리고 시안에 없는 「확인 대기」(등록은 했는데 확인 전).
+
+  과금 유형은 s1 제출값이라 화면에서는 못 바꾸지만 여기서는 바꾼다 — 판을 보려고
+  누르는 줄이다. ③은 문의 수단 주소가 비어 있으면 팀 주소의 /contact를 채운다
+  (시안 목업 「https://little-potion.proovit.kr/contact」와 같아진다).
+*/
+export async function setSandboxPayment(args: {
+  entryId: string;
+  pane: PaymentPane;
+}): Promise<void> {
+  assertSandbox();
+  const { entryId, pane } = args;
+
+  if (pane === "inq") {
+    const entry = await prisma.entry.findUniqueOrThrow({
+      where: { id: entryId },
+      select: { inquiryUrl: true, hostname: { select: { hostname: true } } },
+    });
+    await prisma.entry.update({
+      where: { id: entryId },
+      data: {
+        chargeType: ChargeType.inquiry,
+        ...(entry.inquiryUrl
+          ? {}
+          : {
+              inquiryUrl: `https://${entry.hostname?.hostname ?? `dev-${entryId.slice(0, 8)}.proovit.kr`}/contact`,
+            }),
+      },
+    });
+    return;
+  }
+
+  await prisma.entry.update({
+    where: { id: entryId },
+    data: { chargeType: ChargeType.payment },
+  });
+  if (pane === "none") {
+    await prisma.paymentIntegration.deleteMany({ where: { entryId } });
+    return;
+  }
+
+  const now = devNow();
+  const data = {
+    status: pane === "ok" ? IntegrationStatus.verified : IntegrationStatus.pending,
+    verifiedAt: pane === "ok" ? now : null,
+    lastTestedAt: pane === "ok" ? now : null,
+  };
+  await prisma.paymentIntegration.upsert({
+    where: { entryId },
+    create: {
+      entryId,
+      provider: PaymentProvider.toss,
+      merchantId: "little-potion",
+      ...data,
+    },
+    update: data,
+  });
+}

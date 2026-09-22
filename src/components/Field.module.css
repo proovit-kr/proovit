@@ -48,6 +48,30 @@ textarea.inp {
   line-height: 1.55;
 }
 
+/* 시안 `select.inp` — 브라우저 기본 모양을 끄고 화살표를 직접 그린다. input과 같은 상자 */
+select.inp {
+  -webkit-appearance: none;
+  appearance: none;
+  background-repeat: no-repeat;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239AA6BE' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+  background-position: right 14px center;
+  background-color: rgba(8, 13, 24, 0.72);
+  padding: 13px 40px 13px 15px;
+  height: auto;
+  cursor: pointer;
+  line-height: 1.4;
+}
+select.inp option {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/*
+  ⚠️ 시안에서는 `.inp.mono`가 모노로 안 나온다 — `.mono`가 `.inp`보다 먼저 선언돼
+  `.inp{font-family:inherit}`에 덮인다(시안 캐스케이드 사고로 보인다, 2026-09-22
+  결제 연동에서 발견). 우리는 표시한 뜻(`class="inp mono"`)을 따른다. 대조에서
+  그 입력의 font-family·height는 뺀다.
+*/
 .mono {
   font-family: var(--mono);
 }
