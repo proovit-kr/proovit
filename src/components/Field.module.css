@@ -127,9 +127,14 @@ select.inp option {
   cursor: pointer;
   margin: 0;
 }
+/*
+  손잡이는 체크박스 뒤에 오는 형제라 그 위에 그려진다 — 클릭을 손잡이가 먹으면
+  체크박스까지 안 간다(시안은 목업이라 눌러 본 적이 없다). 클릭은 통과시킨다.
+*/
 .sw i {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background: var(--surface-2);
   border: 1px solid var(--line-strong);
   border-radius: 99px;
