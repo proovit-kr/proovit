@@ -485,24 +485,7 @@ async function createMate(): Promise<{ id: string }> {
   return user;
 }
 
-export type MockAccount = { id: string; nickname: string; email: string };
 
-/**
- * 「계정」 줄에 늘어놓는 목 계정 — 시드의 데모 계정(`@demo.proovit.local`)과
- * 「팀원」 줄이 만드는 「지민」 계정. 소셜로 들어온 진짜 계정은 여기 없다;
- * 그쪽은 「로그인」 줄이 빼 뒀다 돌려놓는다.
- */
-export async function listMockAccounts(): Promise<MockAccount[]> {
-  assertSandbox();
-  const users = await prisma.user.findMany({
-    where: {
-      OR: [{ email: { endsWith: "@demo.proovit.local" } }, { email: MATE_EMAIL }],
-    },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, nickname: true, email: true },
-  });
-  return users;
-}
 
 /**
  * 팀원 수를 1인·2인으로 맞춘다 — 팀 관리 화면의 두 판(개인 참가·2인 팀)을

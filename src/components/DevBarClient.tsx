@@ -10,7 +10,6 @@ import {
   devSetPhase,
   devSetHub,
   devSetStatus,
-  devLoginAs,
   devSetTeam,
   devSetTeamSize,
 } from "@/app/actions/dev";
@@ -64,11 +63,8 @@ type Option<T extends string> = { value: T; label: string };
 
 type Props = {
   blocked?: string;
-  me?: { id: string; nickname: string; onboarded: boolean } | null;
-  /** 비로그인으로 빼 둔 세션이 있는가. 없으면 「로그인」으로 돌아올 수 없다 */
-  parked?: boolean;
-  /** 「계정」 줄의 목 계정들. 소셜 없이 바로 들어간다 */
-  accounts?: { id: string; nickname: string; email: string }[];
+  me?: { nickname: string; onboarded: boolean } | null;
+
   /** 가정한 「오늘」(ISO). null이면 진짜 오늘 */
   today?: string | null;
   current?: Team | null;
@@ -250,8 +246,6 @@ function savePos(p: Pos) {
 export function DevBarClient({
   blocked,
   me,
-  accounts = [],
-  parked = false,
   today = null,
   current,
   hasTeam = null,
@@ -392,58 +386,23 @@ export function DevBarClient({
             공개 화면이 관전자에게 어떻게 보이는지 보는 줄이다. 아래 세 줄이
             전부 「로그인한 계정」 기준이라 그 위에 둔다.
 
-            세션을 **지어내지 않는다** — 쿠키를 빼 뒀다 돌려놓을 뿐이라
-            처음 한 번은 평소대로 로그인해야 한다(lib/dev-session.ts).
+            「로그인」은 테스트 계정(시드의 수연)으로 로그인했다 치는 것이고
+            「비로그인」은 지금 세션을 끝낸다(lib/dev-session.ts).
           */}
           <div className={styles.row}>
             <span className={styles.label}>
               로그인
-              <em className={styles.hint}>세션을 빼 뒀다 돌려놔요</em>
+              <em className={styles.hint}>테스트 계정 수연</em>
             </span>
             <div className={styles.picks}>
-              {me || parked ? (
-                [
-                  { on: true, label: "로그인" },
-                  { on: false, label: "비로그인" },
-                ].map((pick) => (
-                  <AuthPick key={pick.label} on={pick.on} active={!!me === pick.on}>
-                    {pick.label}
-                  </AuthPick>
-                ))
-              ) : (
-                <span className={styles.empty}>
-                  한 번 로그인하면 여기서 오갈 수 있어요
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/*
-            ── 계정 ─────────────────────────────────────────
-            소셜 로그인 없이 목 계정으로 들어가는 줄. 시드의 데모 계정과
-            「팀원」 줄이 만든 「지민」 계정이다(lib/dev-session.ts `loginAs`).
-            누르면 지금 세션은 빼 두므로, 위 「로그인」이 내 계정으로 돌아오는 길이다.
-          */}
-          <div className={styles.row}>
-            <span className={styles.label}>
-              계정
-              <em className={styles.hint}>목 계정으로 들어가요</em>
-            </span>
-            <div className={styles.picks}>
-              {accounts.length === 0 ? (
-                <span className={styles.empty}>목 계정이 없어요 — db:seed</span>
-              ) : (
-                accounts.map((account) => (
-                  <ReloadPick
-                    key={account.id}
-                    action={devLoginAs}
-                    fields={{ userId: account.id }}
-                    active={me?.id === account.id}
-                  >
-                    {account.nickname}
-                  </ReloadPick>
-                ))
-              )}
+              {[
+                { on: true, label: "로그인" },
+                { on: false, label: "비로그인" },
+              ].map((pick) => (
+                <AuthPick key={pick.label} on={pick.on} active={!!me === pick.on}>
+                  {pick.label}
+                </AuthPick>
+              ))}
             </div>
           </div>
 
