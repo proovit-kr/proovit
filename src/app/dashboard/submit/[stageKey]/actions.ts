@@ -46,6 +46,7 @@ export type SubmitState = {
   /** 되돌려 채울 입력값. 없으면 방금 쓴 것을 잃는다 */
   values?: Record<string, string>;
   channels?: string[];
+  files?: { evidence: string[]; problem: string[] };
 };
 
 const SCHEMAS = {
@@ -61,8 +62,8 @@ export async function saveStageAction(
   formData: FormData,
 ): Promise<SubmitState> {
   const stageKey = String(formData.get("stageKey") ?? "");
-  const { values, channels } = echoValues(formData);
-  const echo = { values, channels };
+  const { values, channels, files } = echoValues(formData);
+  const echo = { values, channels, files };
   if (!isStageKey(stageKey)) {
     return { message: SUBMISSION_FAILURE_MESSAGE.NOT_FOUND, ...echo };
   }
@@ -119,12 +120,21 @@ export async function saveStageAction(
         : ChargeType.payment
       : undefined;
 
+  /*
+    파일 키는 payload가 아니라 행의 `evidence_urls`에 붙는다 — 어느 칸의 파일인지는
+    키 안에 있다(evidence.ts). 화면이 칸별로 다시 가른다.
+  */
+  const { evidence, problemDocFiles, ...payload } = parsed.data as Record<string, unknown> & {
+    evidence: string[];
+    problemDocFiles?: string[];
+  };
   const saved = await saveStage({
     entryId: viewer.entry.id,
     seasonId: viewer.season.id,
     userId: viewer.user.id,
     stageKey,
-    payload: parsed.data as Prisma.InputJsonObject,
+    payload: payload as Prisma.InputJsonObject,
+    files: [...evidence, ...(problemDocFiles ?? [])],
     intent,
     chargeType,
   });

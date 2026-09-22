@@ -1,10 +1,19 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { Field, Input, Textarea } from "@/components/Field";
 import { Icon } from "@/components/Icon";
-import { READ_ONLY_LOCK } from "@/content/submission";
+import { EVIDENCE_FIELD, EVIDENCE_MESSAGE, READ_ONLY_LOCK } from "@/content/submission";
+import type { StageKey } from "@/generated/prisma/enums";
+import {
+  EVIDENCE_ACCEPT,
+  EVIDENCE_COUNT_MAX,
+  EVIDENCE_MAX_BYTES,
+  evidenceHref,
+  evidenceName,
+  type EvidenceSlot,
+} from "@/lib/evidence";
 
 import styles from "./submit.module.css";
 
@@ -73,16 +82,26 @@ export function Seg({
   name,
   options,
   defaultValue,
+  value,
+  onChange,
   disabled,
   className,
 }: {
-  name: string;
+  /** 있으면 고른 값을 hidden으로 실어 보낸다. 없으면 화면만 가른다(문제 정의 상세) */
+  name?: string;
   options: readonly { value: string; label: string }[];
-  defaultValue: string;
+  defaultValue?: string;
+  value?: string;
+  onChange?: (value: string) => void;
   disabled?: boolean;
   className?: string;
 }) {
-  const [picked, setPicked] = useState(defaultValue);
+  const [own, setOwn] = useState(defaultValue ?? options[0].value);
+  const picked = value ?? own;
+  const setPicked = (next: string) => {
+    setOwn(next);
+    onChange?.(next);
+  };
   return (
     <div className={[styles.seg, className].filter(Boolean).join(" ")}>
       {options.map((option) => (
@@ -97,7 +116,7 @@ export function Seg({
           {option.label}
         </button>
       ))}
-      <input type="hidden" name={name} value={picked} />
+      {name ? <input type="hidden" name={name} value={picked} /> : null}
     </div>
   );
 }
@@ -225,6 +244,154 @@ export function Check({
         {label}
       </span>
     </label>
+  );
+}
+
+type Uploaded = { key: string; name: string };
+
+/**
+ * 파일 칸 — 시안 `.drop`(끌어다 놓거나 클릭)과 `.file`(올린 파일 칩). 고르면 곧바로
+ * `/api/evidence`에 올리고 키를 hidden으로 쌓는다. 칩 하나가 hidden 하나라 서버는
+ * `getAll(name)`으로 받는다(태그와 같다). ×는 목록에서만 뺀다 — 저장소의 파일은
+ * 폼이 저장될 때 목록과 맞춰진다(submission-store.ts).
+ *
+ * 잠긴 판은 시안대로 칩만 그린다(s2). 열린 판은 드롭 칸을 그린다.
+ */
+export function Files({
+  name,
+  stageKey,
+  slot,
+  defaultValue,
+  sub,
+  locked,
+  error,
+}: {
+  name: string;
+  stageKey: StageKey;
+  slot: EvidenceSlot;
+  defaultValue: string[];
+  /** `.drop`의 둘째 줄 */
+  sub?: string;
+  locked: boolean;
+  error?: string;
+}) {
+  const [files, setFiles] = useState<Uploaded[]>(() =>
+    defaultValue.map((key) => ({ key, name: evidenceName(key) })),
+  );
+  const [pending, setPending] = useState<string[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const upload = async (list: FileList | File[]) => {
+    const picked = [...list];
+    if (picked.length === 0) return;
+    if (files.length + pending.length + picked.length > EVIDENCE_COUNT_MAX) {
+      setMessage(EVIDENCE_MESSAGE.tooMany);
+      return;
+    }
+    setMessage(null);
+    for (const file of picked) {
+      if (file.size > EVIDENCE_MAX_BYTES) {
+        setMessage(EVIDENCE_MESSAGE.tooBig);
+        continue;
+      }
+      setPending((p) => [...p, file.name]);
+      try {
+        const body = new FormData();
+        body.set("file", file);
+        body.set("stageKey", stageKey);
+        body.set("slot", slot);
+        const res = await fetch("/api/evidence", { method: "POST", body });
+        const json = (await res.json().catch(() => null)) as
+          | { ok: true; data: Uploaded }
+          | { ok: false; error: { message: string } }
+          | null;
+        if (json?.ok) setFiles((f) => [...f, json.data]);
+        else setMessage(json && !json.ok ? json.error.message : EVIDENCE_MESSAGE.failed);
+      } catch {
+        setMessage(EVIDENCE_MESSAGE.failed);
+      } finally {
+        setPending((p) => {
+          const at = p.indexOf(file.name);
+          return at < 0 ? p : [...p.slice(0, at), ...p.slice(at + 1)];
+        });
+      }
+    }
+  };
+
+  return (
+    <>
+      {!locked ? (
+        <div
+          className={over ? `${styles.drop} ${styles.dropOn}` : styles.drop}
+          role="button"
+          tabIndex={0}
+          onClick={() => inputRef.current?.click()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              inputRef.current?.click();
+            }
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setOver(true);
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setOver(false);
+            void upload(event.dataTransfer.files);
+          }}
+        >
+          <b>{EVIDENCE_FIELD.drop}</b>
+          {sub ? (
+            <>
+              <br />
+              {sub}
+            </>
+          ) : null}
+          <input
+            ref={inputRef}
+            type="file"
+            accept={EVIDENCE_ACCEPT}
+            multiple
+            onChange={(event) => {
+              if (event.target.files) void upload(event.target.files);
+              event.target.value = "";
+            }}
+            aria-label={EVIDENCE_FIELD.drop}
+          />
+        </div>
+      ) : null}
+      {files.map((file) => (
+        <span key={file.key} className={styles.file}>
+          {/* 시안의 📎는 인라인 SVG다(⚠️와 같은 처리) */}
+          <Icon name="clip" />{" "}
+          <a href={evidenceHref(file.key)} target="_blank" rel="noreferrer">
+            {file.name}
+          </a>{" "}
+          {/* 잠긴 판에도 ×는 그린다(시안 s2) — 누르지만 못한다 */}
+          <button
+            type="button"
+            className={styles.fileX}
+            disabled={locked}
+            onClick={() => setFiles(files.filter((item) => item.key !== file.key))}
+            aria-label={`${file.name} ${EVIDENCE_MESSAGE.remove}`}
+          >
+            ×
+          </button>
+          <input type="hidden" name={name} value={file.key} />
+        </span>
+      ))}
+      {pending.map((label, i) => (
+        <span key={`${label}${i}`} className={`${styles.file} ${styles.filePending}`}>
+          <Icon name="clip" /> {label} <i>{EVIDENCE_MESSAGE.uploading}</i>
+        </span>
+      ))}
+      {message || error ? <p className={styles.fieldError}>{message ?? error}</p> : null}
+    </>
   );
 }
 

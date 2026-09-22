@@ -12,6 +12,7 @@ import {
   AI_GATE,
   BUILDERS,
   CHARGE_TYPES,
+  EVIDENCE_FIELD,
   GUIDE_CHECKS,
   GUIDE_LABEL,
   LAUNCH_CHECKS,
@@ -59,7 +60,7 @@ import type { FormDefaults } from "@/lib/submission-fields";
 import fieldStyles from "@/components/Field.module.css";
 import hub from "../../hub.module.css";
 import { saveStageAction, type SubmitState } from "./actions";
-import { Check, Counted, GuideChecks, No, ReadOnly, Seg, Tags } from "./parts";
+import { Check, Counted, Files, GuideChecks, No, ReadOnly, Seg, Tags } from "./parts";
 
 import styles from "./submit.module.css";
 
@@ -71,8 +72,9 @@ import styles from "./submit.module.css";
   서버 액션이 `canSubmitStage`를 다시 부르는 것으로 한다(actions.ts 머리 주석).
 
   시안과 일부러 다른 것(내가 정함, 2026-09-22, 수연 확인 대기):
-    · 증빙 파일(`.drop`·`.file`)이 없다 — 증빙 저장소(R2)가 아직 안 붙었다.
-      s1 「문제 정의 상세」의 세그(직접 작성/파일 업로드)도 같은 이유로 본문만 받는다.
+    · 증빙 파일의 드롭 칸(`.drop`)은 열린 판에만 그린다. 시안은 잠긴 s2에 칩만 있고
+      작성 중인 s4에도 칩만 있는데, 올릴 수 있는 판에 올릴 자리가 없을 수 없다.
+    · 파일 이름이 곧 링크다(새 탭). 시안은 글자만이다.
     · 아직 안 열린 판(s5 「예정」)은 칸과 버튼을 잠근다. 시안은 눌리는 모양이다.
     · s3 「기타」 빌더를 고르면 이름 칸이 하나 더 열린다(시안에 없다).
     · 임시저장 표기에 이름이 없다(「임시저장 10.15 02:11」) — 저장한 사람을 남기는
@@ -124,6 +126,7 @@ export function StageForm(props: StageFormProps) {
   const text = (name: string) => v?.[name] ?? defaults.text[name] ?? "";
   const on = (name: string) => (v ? v[name] === "on" : (defaults.on[name] ?? false));
   const channels = state.channels ?? defaults.channels;
+  const files = state.files ?? defaults.files;
   const error = (name: string) => state.errors?.[name]?.[0];
   const off = !canWrite || pending;
 
@@ -171,19 +174,19 @@ export function StageForm(props: StageFormProps) {
       ) : null}
 
       {stageKey === "s1" && props.s1 ? (
-        <S1Fields text={text} error={error} off={off} {...props.s1} />
+        <S1Fields text={text} error={error} off={off} locked={!canWrite} files={files} {...props.s1} />
       ) : null}
       {stageKey === "s2" && props.s2 ? (
-        <S2Fields text={text} error={error} off={off} channels={channels} {...props.s2} />
+        <S2Fields text={text} error={error} off={off} locked={!canWrite} files={files} channels={channels} {...props.s2} />
       ) : null}
       {stageKey === "s3" ? (
-        <S3Fields text={text} on={on} error={error} off={off} />
+        <S3Fields text={text} on={on} error={error} off={off} locked={!canWrite} files={files} />
       ) : null}
       {stageKey === "s4" && props.s4 ? (
-        <S4Fields text={text} error={error} off={off} channels={channels} {...props.s4} />
+        <S4Fields text={text} error={error} off={off} locked={!canWrite} files={files} channels={channels} {...props.s4} />
       ) : null}
       {stageKey === "s5" && props.s5 ? (
-        <S5Fields text={text} on={on} error={error} off={off} {...props.s5} />
+        <S5Fields text={text} on={on} error={error} off={off} locked={!canWrite} files={files} {...props.s5} />
       ) : null}
 
       {stageKey !== "s5" ? (
@@ -200,6 +203,29 @@ export function StageForm(props: StageFormProps) {
             placeholder={MEMO_FIELD.placeholder[stageKey]}
             defaultValue={text("memo")}
             disabled={off}
+          />
+        </Field>
+      ) : null}
+      {stageKey !== "s5" ? (
+        <Field
+          label={EVIDENCE_FIELD.label}
+          note={
+            stageKey === "s2" ? (
+              <>
+                <Icon name="warn" /> {EVIDENCE_FIELD.note.s2}
+              </>
+            ) : (
+              EVIDENCE_FIELD.note[stageKey]
+            )
+          }
+        >
+          <Files
+            name="evidence"
+            stageKey={stageKey}
+            slot="evidence"
+            defaultValue={files.evidence}
+            locked={!canWrite}
+            error={error("evidence")}
           />
         </Field>
       ) : null}
@@ -277,6 +303,9 @@ type FieldTools = {
   text: (name: string) => string;
   error: (name: string) => string | undefined;
   off: boolean;
+  /** 잠긴 판 — 드롭 칸을 안 그린다. `off`는 저장 중에도 참이라 따로 둔다 */
+  locked: boolean;
+  files: FormDefaults["files"];
 };
 
 /** 시안 `.fgrp` — 대분류 머리 */
@@ -296,10 +325,17 @@ function S1Fields({
   text,
   error,
   off,
+  locked,
+  files,
   chargeType,
   chargeTypeLocked,
 }: FieldTools & { chargeType: string; chargeTypeLocked: boolean }) {
   const f = S1_FIELDS;
+  /* 본문 없이 파일만 있으면 파일 쪽을 연다. 감춘 쪽의 값도 폼에 실린다 */
+  const [docMode, setDocMode] = useState(
+    !text("problemDoc") && files.problem.length > 0 ? "file" : "text",
+  );
+  const docOptions = f.problemDoc.seg.map((label, i) => ({ value: i === 0 ? "text" : "file", label }));
   const surveyOptions = SURVEY_STRANGER.map((value, i) => ({
     value,
     label: f.survey.seg[i],
@@ -336,15 +372,30 @@ function S1Fields({
         disabled={off}
         error={error("problem")}
       />
-      {/* 시안은 직접 작성/파일 업로드 세그다 — 저장소가 붙기 전이라 본문만(머리 주석) */}
-      <Field label={f.problemDoc.label} note={f.problemDoc.note} htmlFor="problemDoc">
-        <Textarea
-          id="problemDoc"
-          name="problemDoc"
-          maxLength={PROBLEM_DOC_MAX}
-          defaultValue={text("problemDoc")}
-          disabled={off}
-        />
+      {/* 시안 `.seg` — 직접 작성/파일 업로드. 둘 중 하나 필수(스키마의 refine) */}
+      <Field label={f.problemDoc.label} note={f.problemDoc.note}>
+        <Seg options={docOptions} value={docMode} onChange={setDocMode} disabled={off} />
+        <div className={docMode === "text" ? undefined : styles.segPOff}>
+          <Textarea
+            id="problemDoc"
+            name="problemDoc"
+            maxLength={PROBLEM_DOC_MAX}
+            defaultValue={text("problemDoc")}
+            disabled={off}
+            aria-label={f.problemDoc.label}
+          />
+        </div>
+        <div className={docMode === "file" ? undefined : styles.segPOff}>
+          <Files
+            name="problemDocFile"
+            stageKey="s1"
+            slot="problem"
+            defaultValue={files.problem}
+            sub={f.problemDoc.dropSub}
+            locked={locked}
+            error={error("problemDocFiles")}
+          />
+        </div>
         {error("problemDoc") ? <p className={styles.fieldError}>{error("problemDoc")}</p> : null}
       </Field>
 
@@ -810,6 +861,8 @@ function S5Fields({
   on,
   error,
   off,
+  locked,
+  files,
   cards,
   paymentLabel,
 }: FieldTools & {
@@ -885,6 +938,17 @@ function S5Fields({
           placeholder={MEMO_FIELD.placeholder.s5}
           defaultValue={text("memo")}
           disabled={off}
+        />
+      </Field>
+      <Field label={EVIDENCE_FIELD.label} note={EVIDENCE_FIELD.note.s5}>
+        <Files
+          name="evidence"
+          stageKey="s5"
+          slot="evidence"
+          defaultValue={files.evidence}
+          sub={EVIDENCE_FIELD.dropSub.s5}
+          locked={locked}
+          error={error("evidence")}
         />
       </Field>
       <div className={styles.consents}>

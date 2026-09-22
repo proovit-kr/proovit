@@ -1,5 +1,6 @@
 import { StageKey } from "@/generated/prisma/enums";
 import { AI_CHECKS, GUIDE_CHECKS, LAUNCH_CHECKS } from "@/content/submission";
+import { splitEvidence } from "@/lib/evidence";
 import {
   ALTERNATIVE_COUNT,
   NOT_BUILDING_COUNT,
@@ -23,6 +24,8 @@ export type FormDefaults = {
   on: Record<string, boolean>;
   /** 태그 입력(홍보한 채널·새로 쓴 유입 채널) */
   channels: string[];
+  /** 올린 파일의 키 — 증빙 파일 칸, s1 「문제 정의 상세」의 파일 칸 */
+  files: { evidence: string[]; problem: string[] };
 };
 
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -41,8 +44,16 @@ const guideOn = (payload: Record<string, unknown>, stageKey: StageKey) =>
     ),
   );
 
-/** 저장된 payload(JSON이라 타입이 없다)를 폼 기본값으로 편다 */
-export function toForm(stageKey: StageKey, payload: unknown): FormDefaults {
+/** 저장된 payload(JSON이라 타입이 없다)와 파일 키를 폼 기본값으로 편다 */
+export function toForm(
+  stageKey: StageKey,
+  payload: unknown,
+  evidenceUrls: readonly string[] = [],
+): FormDefaults {
+  return { ...toFormText(stageKey, payload), files: splitEvidence(evidenceUrls) };
+}
+
+function toFormText(stageKey: StageKey, payload: unknown): Omit<FormDefaults, "files"> {
   const p = (payload && typeof payload === "object" ? payload : {}) as Record<
     string,
     unknown
@@ -146,6 +157,9 @@ export function readForm(stageKey: StageKey, formData: FormData): Record<string,
     .getAll("channels")
     .map((item) => String(item).trim())
     .filter(Boolean);
+  /* 파일 키도 칩 하나가 hidden 하나다 */
+  const files = (name: string) =>
+    formData.getAll(name).map((item) => String(item).trim()).filter(Boolean);
 
   switch (stageKey) {
     case StageKey.s1:
@@ -176,6 +190,8 @@ export function readForm(stageKey: StageKey, formData: FormData): Record<string,
         monetizationPlan: text("monetizationPlan"),
         riskiest: text("riskiest"),
         guideChecks,
+        evidence: files("evidence"),
+        problemDocFiles: files("problemDocFile"),
         memo: text("memo"),
       };
     case StageKey.s2:
@@ -184,6 +200,7 @@ export function readForm(stageKey: StageKey, formData: FormData): Record<string,
         channels,
         postUrl: text("postUrl"),
         guideChecks,
+        evidence: files("evidence"),
         memo: text("memo"),
       };
     case StageKey.s3:
@@ -197,6 +214,7 @@ export function readForm(stageKey: StageKey, formData: FormData): Record<string,
         aiFeature: on("aiFeature"),
         aiChecks: checks("ai", AI_CHECKS.length),
         guideChecks,
+        evidence: files("evidence"),
         memo: text("memo"),
       };
     case StageKey.s4:
@@ -205,6 +223,7 @@ export function readForm(stageKey: StageKey, formData: FormData): Record<string,
         channels,
         improved: text("improved"),
         guideChecks,
+        evidence: files("evidence"),
         memo: text("memo"),
       };
     case StageKey.s5:
@@ -213,6 +232,7 @@ export function readForm(stageKey: StageKey, formData: FormData): Record<string,
         paymentConnected: on("paymentConnected"),
         retro: text("retro"),
         guideChecks,
+        evidence: files("evidence"),
         archiveConsent: on("archiveConsent"),
         memo: text("memo"),
       };
@@ -226,16 +246,20 @@ export function readForm(stageKey: StageKey, formData: FormData): Record<string,
 export function echoValues(formData: FormData): {
   values: Record<string, string>;
   channels: string[];
+  files: { evidence: string[]; problem: string[] };
 } {
   const values: Record<string, string> = {};
   const channels: string[] = [];
+  const files = { evidence: [] as string[], problem: [] as string[] };
   for (const [key, value] of formData.entries()) {
     if (typeof value !== "string") continue;
     if (key === "channels") {
       if (value.trim()) channels.push(value.trim());
+    } else if (key === "evidence" || key === "problemDocFile") {
+      if (value.trim()) files[key === "evidence" ? "evidence" : "problem"].push(value.trim());
     } else if (key !== "intent" && key !== "stageKey") {
       values[key] = value;
     }
   }
-  return { values, channels };
+  return { values, channels, files };
 }

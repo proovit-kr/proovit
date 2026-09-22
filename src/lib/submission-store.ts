@@ -8,6 +8,8 @@ import {
 import type { Prisma } from "@/generated/prisma/client";
 import { stageAtLeast } from "@/lib/access-policy";
 import { devNow } from "@/lib/dev-clock";
+import { foreignEvidence } from "@/lib/evidence";
+import { evidenceStorage } from "@/lib/evidence-storage";
 import { prisma } from "@/lib/prisma";
 import { loadLeaderboard } from "@/lib/public-read";
 import {
@@ -35,6 +37,8 @@ export type StageRow = StageState & {
   submission: {
     status: SubmissionStatus;
     payload: unknown;
+    /** 올린 파일의 키(evidence.ts). 칸별로 가르는 건 화면이 한다 */
+    evidenceUrls: string[];
     submittedAt: Date | null;
     /** 제출을 누른 사람의 닉네임. 임시저장만 있으면 null */
     submitter: string | null;
@@ -94,6 +98,7 @@ export async function loadSubmitOverview(
         week: true,
         status: true,
         payload: true,
+        evidenceUrls: true,
         submittedAt: true,
         updatedAt: true,
         revisionDueAt: true,
@@ -150,6 +155,7 @@ export async function loadSubmitOverview(
         ? {
             status: current.status,
             payload: current.payload,
+            evidenceUrls: current.evidenceUrls,
             submittedAt: current.submittedAt,
             submitter: current.submitter?.nickname ?? null,
             updatedAt: current.updatedAt,
@@ -209,11 +215,13 @@ export async function saveStage(args: {
   userId: string;
   stageKey: StageKey;
   payload: Prisma.InputJsonObject;
+  /** 이 행이 가질 파일 키 전부(증빙 + s1 문제 정의 파일). 빠진 키의 파일은 지운다 */
+  files: string[];
   intent: SubmitIntent;
   /** s1만. 첫 제출과 함께 굳는다 */
   chargeType?: ChargeType;
 }): Promise<SaveResult> {
-  const { entryId, seasonId, userId, stageKey, payload, intent, chargeType } = args;
+  const { entryId, seasonId, userId, stageKey, payload, files, intent, chargeType } = args;
 
   const overview = await loadSubmitOverview(entryId, seasonId);
   const row = overview?.stages.find((s) => s.stageKey === stageKey);
@@ -226,6 +234,10 @@ export async function saveStage(args: {
     chargeType !== overview.chargeType
   ) {
     return { ok: false, code: "CHARGE_TYPE_LOCKED" };
+  }
+  /* 키의 접두사가 곧 소유다 — 남의 팀·다른 판의 키는 폼에 실려 와도 안 붙는다 */
+  if (foreignEvidence(files, entryId, stageKey).length > 0) {
+    return { ok: false, code: "EVIDENCE_INVALID" };
   }
 
   const submitting = intent === "submit";
@@ -246,6 +258,7 @@ export async function saveStage(args: {
         week: row.week,
         status,
         payload,
+        evidenceUrls: files,
         /* 제출을 누른 사람. 시즌 중 팀장이 바뀔 수 있어 그 시각의 주체를 남긴다 */
         submittedBy: submitting ? userId : null,
         submittedAt: submitting ? now : null,
@@ -253,6 +266,7 @@ export async function saveStage(args: {
       update: {
         status,
         payload,
+        evidenceUrls: files,
         /* 임시 저장은 제출 기록을 지우지 않는다 — 냈던 사실이 사라지면 안 된다 */
         ...(submitting ? { submittedBy: userId, submittedAt: now } : {}),
       },
@@ -282,6 +296,17 @@ export async function saveStage(args: {
       await tx.entry.update({ where: { id: entryId }, data: { stage: target } });
     }
   });
+
+  /*
+    목록에서 빠진 파일은 저장소에서도 뺀다 — 행이 먼저고 저장소는 따라간다.
+    실패해도 저장은 됐다. 남은 파일은 다음 저장이 또 맞춘다.
+  */
+  const dropped = (row.submission?.evidenceUrls ?? []).filter((key) => !files.includes(key));
+  if (dropped.length > 0) {
+    await evidenceStorage()?.remove(dropped).catch((error: unknown) => {
+      console.error("[evidence] 파일 삭제 실패", error);
+    });
+  }
 
   return { ok: true, status };
 }

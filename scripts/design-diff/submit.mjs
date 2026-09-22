@@ -10,7 +10,9 @@
   s3 임시저장·s5 예정) 하나에서, s4는 「s4」 상태(1주차 작성 중)에서 본다.
 
   ⚠️ 시안과 일부러 다른 자리는 재지 않는다(StageForm.tsx 머리 주석):
-    · 증빙 파일(`.drop`·`.file`) — 저장소가 없다. 그래서 `.frm`의 자식 수·높이를 안 본다.
+    · 증빙 파일의 드롭 칸(`.drop`) — 열린 판에만 그린다. 시안은 잠긴 s1·s5에 있고 작성 중인
+      s4에 없다. 그 칸(`.fld`)과 `.frm`의 높이를 안 보고, 드롭 칸 자체는 s3에서 본다.
+    · 파일 칩의 이름은 링크(`<a>`), ×는 버튼이다 — 시안은 글자와 `<i>`다.
     · s1의 버튼 둘 — dev 일정상 s1은 마감이 지나 「마감됨」 하나다.
     · s4의 「1주차 제출됨」 칩 — dev 일정은 s4가 한 주라 2주차가 없다.
     · s5의 토글 두 개의 켜짐과 버튼 색 — 아직 안 열린 판이라 꺼져 있고 잠겨 있다.
@@ -92,7 +94,7 @@ const COMMON = (badgeTone, ftSkip = []) => [
   tabBadge(1), tabBadge(2), tabBadge(3), tabChip(4), tabChip(5),
   ["tab on", HEAD + ".st-tab.on", I("on"), [], W],
   ["tab on k", HEAD + ".st-tab.on .k", `${I("on")} ${I("k")}`, [], W],
-  /* 증빙 파일이 없어 자식 수·높이를 안 본다(머리 주석) */
+  /* 증빙 파일 칸의 높이가 판마다 갈린다(머리 주석) — 높이를 안 본다 */
   ["frm", S.trim(), ROOT.trim(), [], ["height"]],
   ["hd", S + D(1).trim(), ROOT + D(1).trim()],
   ["hd h2", S + D(1) + "h2", ROOT + D(1) + "h2", [], W],
@@ -169,6 +171,15 @@ const rowSw = (k, { small = true, sw = true } = {}) => [
   [`rowsw ${k} sw`, S + D(k) + ".row-sw .sw", ROOT + D(k) + `${ROWSW} ${SW}`],
   ...(sw ? [[`rowsw ${k} sw i`, S + D(k) + ".row-sw .sw i", ROOT + D(k) + `${ROWSW} ${SW} i`]] : []),
 ];
+/* 올린 파일 칩과 드롭 칸 */
+const file = (k) => [
+  [`file ${k}`, S + D(k) + ".file", ROOT + D(k) + I("file"), [], W],
+  [`file ${k} x`, S + D(k) + ".file i", ROOT + D(k) + I("fileX"), [], W],
+];
+const drop = (k) => [
+  [`drop ${k}`, S + D(k) + ".drop", ROOT + D(k) + I("drop")],
+  [`drop ${k} b`, S + D(k) + ".drop b", ROOT + D(k) + `${I("drop")} b`, [], W],
+];
 const pair = (ghost, primary, { primarySkip = [] } = {}) => [
   ["sp", S + ".frm-ft .sp", I("sp"), [], ["margin-left"]],
   ["sp ghost", S + `.frm-ft .sp .${ghost}`, `${I("sp")} button[value="draft"]`, [], W],
@@ -183,11 +194,15 @@ const LIST = {
     ...fgrp(5),
     ...fld(6, { no: true, cnt: true }), textarea(6),
     ...fld(7, { no: true, cnt: true }), input(7),
-    /* 시안 ③·「문제 정의 상세」는 세그와 빈 `.seg-p`가 있어 높이를 안 본다(머리 주석) */
-    ...fld(8, { hint: false, small: true, skip: ["height"] }),
-    /* 시안은 textarea가 `.seg-p` 안(inline-block), 우리는 flex 칸 바로 아래(block) */
-    ["fld 8 textarea", S + D(8) + "textarea.inp", ROOT + D(8) + "textarea", [], ["display"]],
+    /* 「문제 정의 상세」 — 세그와 두 판(`.seg-p`). 파일 판은 감춰져 있다 */
+    ...fld(8, { hint: false, small: true }),
+    ["seg 8", S + D(8) + ".seg", ROOT + D(8) + I("seg")],
+    ["seg 8 on", S + D(8) + ".seg button.on", ROOT + D(8) + `${I("seg")} ${I("segOn")}`, [], W],
+    ["seg 8 off", S + D(8) + ".seg button:not(.on)", ROOT + D(8) + `${I("seg")} button:not(${I("segOn")})`, [], W],
+    ["seg-p 8", S + D(8) + "> div:nth-of-type(2)", ROOT + D(8) + "> div:nth-of-type(2)"],
+    ["fld 8 textarea", S + D(8) + "textarea.inp", ROOT + D(8) + "textarea"],
     ...fgrp(9),
+    /* 시안 ③은 빈 `.seg-p` 둘이 있어 높이를 안 본다(머리 주석) */
     ...fld(10, { no: true, small: true, skip: ["height"] }),
     /* 모노 입력이 든 줄은 그 줄 높이가 같이 늘어 옆 칸도 늘어난다(grid stretch) */
     ["fld2", S + D(10) + ".fld-2", ROOT + D(10) + I("fld2"), [], ["height"]],
@@ -218,6 +233,8 @@ const LIST = {
     ...fgrp(24, false),
     ...fld(25, { cnt: true }), textarea(25),
     ...guideMemo(26, 27),
+    /* 증빙 파일 — 시안은 드롭 칸 + 칩 둘, 우리 s1은 마감돼 칩 둘뿐(머리 주석) */
+    ...fld(28, { hint: false, small: true, skip: ["height"] }), ...file(28),
     ["cnt-note", S + ".cnt-note", I("cntNote")],
     /* 버튼 둘은 안 본다 — s1은 dev 일정상 마감이 지나 「마감됨」 하나다(머리 주석) */
   ],
@@ -232,6 +249,7 @@ const LIST = {
     ...fld(8, { small: true, narrow: ["height"] }), ...tags(8),
     ...fld(9, { hint: false, small: true, skip: ["height"] }), input(9, true),
     ...guideMemo(10, 11),
+    ...fld(12, { hint: false, small: true }), ...file(12),
     ["sp", S + ".frm-ft .sp", I("sp"), [], ["margin-left"]],
     ["sp locked", S + ".frm-ft .sp .btn", `${I("sp")} ${BTN}`, [], W],
   ],
@@ -254,6 +272,7 @@ const LIST = {
     ["chkl-b", S + D(7) + ".chkl-b", ROOT + D(7) + I("chklB")],
     ["chkl-b label", S + D(7) + ".chkl-b label", ROOT + D(7) + `${I("chklB")} label`],
     ...guideMemo(8, 9),
+    ...fld(10, { hint: false, small: true }), ...drop(10),
     ...pair("btn-ghost", "btn-primary"),
   ],
   s4: [
@@ -270,6 +289,8 @@ const LIST = {
     ...fld(6, { hint: false, small: true }), input(6),
     ...fld(7, { hint: false, small: true }), ...ro(7, 2),
     ...guideMemo(8, 9),
+    /* 시안은 칩만, 우리는 작성 중이라 드롭 칸도 있다(머리 주석) — 높이를 안 본다 */
+    ...fld(10, { hint: false, small: true, skip: ["height"] }), ...file(10),
     ...pair("btn-ghost", "btn-primary"),
   ],
   s5: [
@@ -288,6 +309,8 @@ const LIST = {
     ...fld(7), textarea(7),
     ...fld(8, { hint: false, small: true }), ...chkl(8),
     ...fld(9, { hint: false, small: true }), textarea(9),
+    /* 시안은 드롭 칸, 우리는 아직 안 열린 판이라 라벨뿐(머리 주석) — 높이를 안 본다 */
+    ...fld(10, { hint: false, small: true, skip: ["height"] }),
     ["consents", S + ".consents", I("consents")],
     ["consents label", S + ".consents label", `${I("consents")} label`],
     ["consents input", S + ".consents input", `${I("consents")} input`, [], CHECKBOX],
@@ -329,20 +352,16 @@ const IGNORE_ALL = [
   /^(마감|이번 주 마감|집계 확정|판정|제출|임시저장|submitted_by) /, /^\d+ \/ \d+$/,
   /^[\d,]+$/, /^[\d.]+%$/, /^₩[\d,]+$/, /^\d\d\.\d\d~/, /^(방문|가입) /, /^\d주차 /,
   /^—$/, /^결제 연동 상태:/, /^(연동 확인됨 ✓|확인 대기|등록 전|문의형)$/,
-  /* 증빙 파일 — 저장소가 없어 화면에 없다(머리 주석) */
-  /^증빙 파일$/, /^(인터뷰 기록, 포스팅 캡처|필수 여부 확정 대기, PLN6 6장|선택, 스테이지별 필수 여부 확정 대기|선택, 포스팅 캡처|수익화 시 결제사 정산 화면 원본)$/,
-  /^파일을 끌어다 놓거나/, /^PDF, 이미지/, /^이용자 개별 식별 항목/, /\.(pdf|png)$/, /^×$/,
-  /* s1 「문제 정의 상세」의 세그(직접 작성/파일 업로드)도 저장소가 붙기 전이라 없다 */
-  /^(직접 작성|파일 업로드)$/,
 ];
 const IGNORE = {
-  /* s1은 마감이 지나 버튼이 「마감됨」 하나다 */
-  s1: [/^(임시저장|재제출하기|마감됨)$/],
+  /* s1은 마감이 지나 버튼이 「마감됨」 하나고 드롭 칸이 없다(머리 주석) */
+  s1: [/^(임시저장|재제출하기|마감됨)$/, /^파일을 끌어다 놓거나/],
   s2: [],
   s3: [],
-  /* dev 일정은 s4가 한 주라 「1주차 제출됨」 칩이 없고, s3 탭은 제출됨이다 */
-  s4: [/^1주차 제출됨$/, /^작성 중$/],
-  s5: [],
+  /* dev 일정은 s4가 한 주라 「1주차 제출됨」 칩이 없고, s3 탭은 제출됨이다. 드롭 칸은 우리에게만 */
+  s4: [/^1주차 제출됨$/, /^작성 중$/, /^파일을 끌어다 놓거나/],
+  /* s5는 아직 안 열려 드롭 칸이 없다 */
+  s5: [/^파일을 끌어다 놓거나/, /^이용자 개별 식별 항목/],
 };
 
 const probe = () => `(() => {

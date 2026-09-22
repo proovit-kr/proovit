@@ -85,3 +85,28 @@ export const SPEC_S2_LEADS = 24;
 /** 시안 s4 `.ro` — 방문 214 · 가입 38 */
 export const SPEC_S4_VISITORS = 214;
 export const SPEC_S4_SIGNUPS = 38;
+
+/** 시안 칩의 파일 이름 — s1 둘, s2 하나, s4 하나. 개발 바가 실제 파일로 심는다 */
+export const SPEC_FILES = {
+  s1: ["problem-definition.pdf", "interview-notes.pdf"],
+  s2: ["signup-form-capture.png"],
+  s4: ["threads-week2.png"],
+} as const;
+
+/* 열리기만 하면 되는 최소 파일 — 한 쪽짜리 빈 PDF, 1×1 PNG */
+const TINY_PDF = [
+  "%PDF-1.4",
+  "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj",
+  "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj",
+  "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]>>endobj",
+  "trailer<</Root 1 0 R>>",
+  "%%EOF",
+  "",
+].join("\n");
+const TINY_PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+export const DEV_FILE_BYTES = {
+  pdf: Uint8Array.from(Buffer.from(TINY_PDF)),
+  png: Uint8Array.from(Buffer.from(TINY_PNG, "base64")),
+} as const;

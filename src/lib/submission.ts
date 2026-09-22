@@ -6,6 +6,7 @@ import {
   SubmissionStatus,
 } from "@/generated/prisma/enums";
 import { AI_CHECKS, BUILDERS, LAUNCH_CHECKS } from "@/content/submission";
+import { EVIDENCE_COUNT_MAX, EVIDENCE_KEY_MAX } from "@/lib/evidence";
 import { seoulDateOnly } from "@/lib/measure";
 
 /*
@@ -41,6 +42,7 @@ export type SubmissionFailureCode =
   | "BUILDER_NAME"
   | "LAUNCH_INCOMPLETE"
   | "AI_INCOMPLETE"
+  | "EVIDENCE_INVALID"
   | "NOT_FOUND";
 
 export const SUBMISSION_FAILURE_MESSAGE: Record<SubmissionFailureCode, string> = {
@@ -53,6 +55,7 @@ export const SUBMISSION_FAILURE_MESSAGE: Record<SubmissionFailureCode, string> =
   LAUNCH_INCOMPLETE:
     "출시 전 점검을 모두 확인해 주세요. 미충족 항목이 있으면 고친 뒤 배포하는 것이 규칙입니다(운영규칙 제22조).",
   AI_INCOMPLETE: "AI 표시 점검을 모두 확인해 주세요.",
+  EVIDENCE_INVALID: "첨부한 파일을 찾을 수 없어요. 다시 올려 주세요.",
   NOT_FOUND: "이 스테이지를 찾을 수 없어요.",
 };
 
@@ -87,6 +90,12 @@ const channelList = z
   .array(z.string().trim().max(CHANNEL_MAX))
   .max(CHANNEL_COUNT_MAX);
 
+/* 증빙 파일 — 키 목록. 키의 모양과 소유는 저장할 때 다시 본다(evidence.ts) */
+const fileList = z
+  .array(z.string().max(EVIDENCE_KEY_MAX))
+  .max(EVIDENCE_COUNT_MAX, `파일은 ${EVIDENCE_COUNT_MAX}개까지 올릴 수 있어요.`)
+  .default([]);
+
 // ── s1 — 아이디어 등록과 고도화 ───────────────────────────────
 
 /* 시안 `.cnt`가 적어 둔 상한. 적지 않은 칸은 형태(한 줄·문단)에 맞춰 뒀다 */
@@ -120,6 +129,8 @@ const alternative = z.object({
 });
 
 const s1Shared = {
+  /* 「문제 정의 상세」의 파일 쪽 — 본문과 둘 중 하나(아래 S1Schema) */
+  problemDocFiles: fileList,
   persona: bounded(PERSONA_MAX),
   problem: bounded(PROBLEM_MAX),
   surveyCount: bounded(SURVEY_SHORT_MAX),
@@ -135,26 +146,28 @@ const s1Shared = {
   monetizationPlan: bounded(MONETIZATION_MAX),
   /* 가이드 완료 체크 — 허브 골든패스와 1:1(content/hub.ts) */
   guideChecks: z.array(z.boolean()),
+  evidence: fileList,
   /** 심사에 반영하지 않는다 */
   memo: z.string().trim().max(MEMO_MAX).optional(),
 };
 
-export const S1Schema = z.object({
-  concept: required(CONCEPT_MAX, "한마디 컨셉을 적어 주세요."),
-  /*
-    「문제 정의 상세」는 시안이 **직접 작성 또는 파일, 둘 중 하나 필수**다.
-    ⚠️ 파일 쪽은 증빙 저장소(R2)가 붙기 전이라 지금은 본문만 받고 필수로 둔다.
-    R2가 붙으면 `evidence_urls`를 대안으로 열고 이 필수를 「둘 중 하나」로 푼다.
-  */
-  problemDoc: required(PROBLEM_DOC_MAX, "문제 정의 상세를 적어 주세요."),
-  coreFeature: required(CORE_FEATURE_MAX, "핵심 가치 루프 하나를 적어 주세요."),
-  /* 두 칸 모두 채워야 한다 — 「안 만들 것」을 하나만 적으면 범위가 안 좁혀진다 */
-  notBuilding: z
-    .array(required(NOT_BUILDING_MAX, "안 만들 것 두 개를 모두 적어 주세요."))
-    .length(NOT_BUILDING_COUNT),
-  riskiest: required(RISKIEST_MAX, "가장 위험한 가정을 적어 주세요."),
-  ...s1Shared,
-});
+export const S1Schema = z
+  .object({
+    concept: required(CONCEPT_MAX, "한마디 컨셉을 적어 주세요."),
+    /* 「문제 정의 상세」는 시안이 **직접 작성 또는 파일, 둘 중 하나 필수**다 — 아래 refine */
+    problemDoc: bounded(PROBLEM_DOC_MAX),
+    coreFeature: required(CORE_FEATURE_MAX, "핵심 가치 루프 하나를 적어 주세요."),
+    /* 두 칸 모두 채워야 한다 — 「안 만들 것」을 하나만 적으면 범위가 안 좁혀진다 */
+    notBuilding: z
+      .array(required(NOT_BUILDING_MAX, "안 만들 것 두 개를 모두 적어 주세요."))
+      .length(NOT_BUILDING_COUNT),
+    riskiest: required(RISKIEST_MAX, "가장 위험한 가정을 적어 주세요."),
+    ...s1Shared,
+  })
+  .refine((v) => v.problemDoc.length > 0 || v.problemDocFiles.length > 0, {
+    path: ["problemDoc"],
+    message: "문제 정의 상세를 적거나 파일을 올려 주세요.",
+  });
 
 export const S1DraftSchema = z.object({
   concept: bounded(CONCEPT_MAX),
@@ -183,6 +196,7 @@ export const S2Schema = z.object({
   ),
   postUrl: httpsUrl("포스팅 링크를 적어 주세요."),
   guideChecks: z.array(z.boolean()),
+  evidence: fileList,
   memo: z.string().trim().max(MEMO_MAX).optional(),
 });
 
@@ -191,6 +205,7 @@ export const S2DraftSchema = z.object({
   channels: channelList,
   postUrl: bounded(LINK_MAX),
   guideChecks: z.array(z.boolean()),
+  evidence: fileList,
   memo: z.string().trim().max(MEMO_MAX).optional(),
 });
 
@@ -223,6 +238,7 @@ export const S3Schema = z.object({
   aiFeature: z.boolean(),
   aiChecks: z.array(z.boolean()).length(AI_CHECK_COUNT),
   guideChecks: z.array(z.boolean()),
+  evidence: fileList,
   memo: z.string().trim().max(MEMO_MAX).optional(),
 });
 
@@ -236,6 +252,7 @@ export const S3DraftSchema = z.object({
   aiFeature: z.boolean(),
   aiChecks: z.array(z.boolean()),
   guideChecks: z.array(z.boolean()),
+  evidence: fileList,
   memo: z.string().trim().max(MEMO_MAX).optional(),
 });
 
@@ -279,6 +296,7 @@ export const S4Schema = z.object({
   channels: channelList,
   improved: z.string().trim().max(IMPROVED_MAX).optional(),
   guideChecks: z.array(z.boolean()),
+  evidence: fileList,
   memo: z.string().trim().max(MEMO_MAX).optional(),
 });
 
@@ -287,6 +305,7 @@ export const S4DraftSchema = z.object({
   channels: channelList,
   improved: z.string().trim().max(IMPROVED_MAX).optional(),
   guideChecks: z.array(z.boolean()),
+  evidence: fileList,
   memo: z.string().trim().max(MEMO_MAX).optional(),
 });
 
@@ -306,6 +325,7 @@ export const S5Schema = z.object({
   paymentConnected: z.boolean(),
   retro: required(RETRO_MAX, "회고를 적어 주세요."),
   guideChecks: z.array(z.boolean()),
+  evidence: fileList,
   /* 필수 동의다 — 아카이브 공개의 근거가 이 값뿐이다 */
   archiveConsent: z.boolean().refine((value) => value, "아카이브 공개 동의가 필요해요."),
   memo: z.string().trim().max(MEMO_MAX).optional(),
@@ -316,6 +336,7 @@ export const S5DraftSchema = z.object({
   paymentConnected: z.boolean(),
   retro: bounded(RETRO_MAX),
   guideChecks: z.array(z.boolean()),
+  evidence: fileList,
   archiveConsent: z.boolean(),
   memo: z.string().trim().max(MEMO_MAX).optional(),
 });

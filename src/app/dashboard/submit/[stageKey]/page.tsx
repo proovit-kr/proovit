@@ -118,7 +118,7 @@ export default async function Page({
     who: whoLine(row),
     actions: actionsOf(row, { leader, canWrite }),
     canWrite,
-    defaults: toForm(stageKey, row.submission?.payload),
+    defaults: toForm(stageKey, row.submission?.payload, row.submission?.evidenceUrls),
   };
 
   if (stageKey === StageKey.s1) {

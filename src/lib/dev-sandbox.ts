@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { Prisma } from "@/generated/prisma/client";
 import {
   ChargeType,
@@ -26,7 +28,11 @@ import {
 import { applyConsentRows } from "@/lib/apply-store";
 import { devNow, setDevToday } from "@/lib/dev-clock";
 import { setDevHubKey } from "@/lib/dev-hub";
+import { EVIDENCE_KINDS, buildEvidenceKey, kindOfName } from "@/lib/evidence";
+import { evidenceStorage } from "@/lib/evidence-storage";
 import {
+  DEV_FILE_BYTES,
+  SPEC_FILES,
   SPEC_S1,
   SPEC_S2_LEADS,
   SPEC_S2_VISITORS,
@@ -2189,16 +2195,43 @@ export async function setSandboxSubmit(args: {
     return closes ? new Date(closes.getTime() - 2 * 86_400_000) : devNow();
   };
 
+  /*
+    시안 칩의 파일을 실제로 심는다 — 칩이 열려야 화면 검토가 된다. 키의 id는
+    이름에서 정해지므로 몇 번을 눌러도 같은 파일 하나다. 되돌릴 때는
+    submit-state.mts가 스냅에 없는 키를 저장소에서 걷어낸다.
+  */
+  const storage = evidenceStorage();
+  const seedFiles = async (stageKey: StageKey, names: readonly string[]) => {
+    if (!storage) return [];
+    const keys: string[] = [];
+    for (const name of names) {
+      const kind = kindOfName(name);
+      if (!kind || !(kind in DEV_FILE_BYTES)) continue;
+      const key = buildEvidenceKey({
+        entryId,
+        stageKey,
+        slot: "evidence",
+        id: createHash("md5").update(`dev:${name}`).digest("hex"),
+        name,
+      });
+      await storage.put(key, DEV_FILE_BYTES[kind as keyof typeof DEV_FILE_BYTES], EVIDENCE_KINDS[kind]);
+      keys.push(key);
+    }
+    return keys;
+  };
+
   const put = async (
     stageKey: StageKey,
     week: number,
     status: SubmissionStatus,
     payload: Prisma.InputJsonObject,
+    evidenceUrls: string[] = [],
   ) => {
     const submitted = status !== SubmissionStatus.draft;
     const data = {
       status,
       payload,
+      evidenceUrls,
       submittedBy: submitted ? leader.userId : null,
       submittedAt: submitted ? submittedAt(stageKey) : null,
     };
@@ -2210,8 +2243,20 @@ export async function setSandboxSubmit(args: {
     });
   };
 
-  await put(StageKey.s1, 0, SubmissionStatus.submitted, SPEC_S1);
-  const s2 = await put(StageKey.s2, 0, SubmissionStatus.locked, specS2(host));
+  await put(
+    StageKey.s1,
+    0,
+    SubmissionStatus.submitted,
+    SPEC_S1,
+    await seedFiles(StageKey.s1, SPEC_FILES.s1),
+  );
+  const s2 = await put(
+    StageKey.s2,
+    0,
+    SubmissionStatus.locked,
+    specS2(host),
+    await seedFiles(StageKey.s2, SPEC_FILES.s2),
+  );
   /* 1차 통과 — 시안 s2의 「pass」. 되돌릴 때 `aiReport.dev`로 찾아 지운다 */
   await prisma.judgment.deleteMany({ where: { submissionId: s2.id } });
   await prisma.judgment.create({
@@ -2246,7 +2291,13 @@ export async function setSandboxSubmit(args: {
   }
 
   /* s4 1주차 작성 중. 「오늘」은 이번 주 마감 이틀 전 낮 — 시안 「D-2」 */
-  await put(StageKey.s4, 1, SubmissionStatus.draft, SPEC_S4);
+  await put(
+    StageKey.s4,
+    1,
+    SubmissionStatus.draft,
+    SPEC_S4,
+    await seedFiles(StageKey.s4, SPEC_FILES.s4),
+  );
   const closes = stageOf(StageKey.s4)?.closesAt;
   if (closes) {
     setDevToday(new Date(closes.getTime() - 2 * 86_400_000 - (11 * 60 + 59) * 60_000));

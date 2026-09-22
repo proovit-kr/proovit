@@ -31,6 +31,7 @@ import type {
   SubmissionStatus,
 } from "../../src/generated/prisma/enums";
 import type { Prisma } from "../../src/generated/prisma/client";
+import { evidenceStorage } from "../../src/lib/evidence-storage";
 import {
   checkDevSandbox,
   setMetricsFixture,
@@ -239,6 +240,13 @@ if (mode === "save") {
         },
       },
     });
+  }
+  /* 개발 바가 심은 파일 — 스냅에 없는 키는 저장소에서 걷어낸다 */
+  const storage = evidenceStorage();
+  if (storage) {
+    const keep = new Set(snap.submissions.flatMap((s) => s.evidenceUrls));
+    const stray = (await storage.list(`${snap.entry.id}/`)).filter((key) => !keep.has(key));
+    await storage.remove(stray);
   }
 
   await prisma.entry.update({
