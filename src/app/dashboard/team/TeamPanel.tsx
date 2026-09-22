@@ -1,13 +1,14 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
-import { Field } from "@/components/Field";
+import { Field, Input } from "@/components/Field";
 import { Modal } from "@/components/Modal";
 import { Card } from "@/components/Surface";
 import { Toast, useToast } from "@/components/Toast";
+import { INVITE_EMAIL_MAX } from "@/lib/apply";
 import { formatInviteCode } from "@/lib/team";
 
 import hub from "../hub.module.css";
@@ -31,10 +32,11 @@ import styles from "./team.module.css";
   `op`가 빈 채로 간다. 그래서 「물을 때의 액션 상태」를 함께 기억해 두고, 상태가
   바뀌면(성공이든 실패든) 열림이 저절로 풀리게 파생한다 — effect로 닫지 않는다.
 
-  시안의 「초대 메일 보내기」는 코드 발급으로 옮겼다. 메일 발송(Resend)이 아직
-  안 붙어 있어 어느 쪽이든 코드를 직접 전하는데(lib/team.ts `InviteEmailSchema`
-  주석), 시안 ①의 힌트가 그 길을 이미 적고 있다 — 「코드로 합류하면 초대 메일
-  없이 바로 팀이 완성돼요」.
+  「초대 메일 보내기」(시안 ②)는 주소를 받을 칸이 시안에 없어 모달로 묻는다 —
+  참가 신청의 초대 칸과 같은 라벨·힌트다. 이메일 칸 오류는 모달을 **열어 둔 채**
+  칸 아래에 붙인다(`state.emailError`). 다른 실패처럼 닫아 버리면 적던 주소가
+  사라진다. 「초대 대기」 상자에는 메일을 보낸 주소가 서고, 재발송·취소가 붙는다.
+  주소 없이 만든 옛 초대만 코드와 복사로 선다.
 */
 
 type MemberView = {
@@ -47,6 +49,8 @@ type MemberView = {
 type InviteView = {
   id: string;
   code: string;
+  /** 메일을 보낸 주소. 주소 없이 만든 옛 초대는 null */
+  email: string | null;
   expiresAt: string;
 };
 
@@ -59,6 +63,7 @@ const CP_SM = { padding: "6px 10px", fontSize: "12px" } as const;
 const DANGER = { color: "var(--danger)" } as const;
 
 type Ask = (
+  | { kind: "invite" }
   | { kind: "remove"; member: MemberView }
   | { kind: "transfer"; member: MemberView }
   | { kind: "leave" }
@@ -90,9 +95,26 @@ export function TeamPanel({
   const [state, formAction, pending] = useActionState(manageTeam, INITIAL);
   /* 되돌릴 수 없는 버튼은 모달로 한 번 더 묻는다. 무엇을 묻는 중인지만 기억한다 */
   const [asked, setAsk] = useState<Ask | null>(null);
-  /* 액션이 돌아오면(성공이든 실패든) 상태가 바뀌어 저절로 닫힌다. 실패 문구는 폼 위에 선다 */
-  const ask = asked && asked.at === state ? asked : null;
+  /*
+    액션이 돌아오면(성공이든 실패든) 상태가 바뀌어 저절로 닫힌다. 실패 문구는 폼
+    위에 선다. 초대 모달만 예외다 — 이메일 칸 오류는 칸 아래에 붙여야 하므로
+    그때는 열어 둔다.
+  */
+  const ask =
+    asked &&
+    (asked.at === state || (asked.kind === "invite" && state.emailError))
+      ? asked
+      : null;
+  /* 물은 뒤에 돌아온 오류만 보여 준다. 닫았다 다시 열면 옛 오류가 안 붙는다 */
+  const emailError =
+    ask?.kind === "invite" && state !== ask.at ? state.emailError : undefined;
   const { message: toast, show } = useToast();
+
+  /* 메일은 화면에 남는 흔적이 없어 토스트로 알린다(재발송은 아무것도 안 바뀐다) */
+  useEffect(() => {
+    if (state.done === "invited" && !state.message) show("초대 메일을 보냈어요");
+    if (state.done === "resent") show("초대 메일을 다시 보냈어요");
+  }, [state, show]);
 
   const leader = members.find((m) => m.isLeader);
   const others = members.filter((m) => !m.isLeader);
@@ -156,35 +178,46 @@ export function TeamPanel({
             <p>혼자여도 완주할 수 있게 설계했지만, 둘이면 더 빨라요.</p>
           </div>
           <Button
-            type="submit"
-            name="op"
-            value="invite"
+            type="button"
             variant="primary"
             className={hub.actBtn}
-            disabled={pending}
+            onClick={() => setAsk({ kind: "invite", at: state })}
           >
-            초대 코드 만들기
+            초대 메일 보내기
           </Button>
         </div>
       ) : null}
 
       {invite ? (
-        <Field
-          label="초대 대기"
-          hint={`코드로 합류하면 초대 메일 없이 바로 팀이 완성돼요. ${invite.expiresAt}까지 유효해요.`}
-        >
+        <Field label="초대 대기">
           <div className={styles.keybox}>
-            {formatInviteCode(invite.code)}
+            {invite.email ?? formatInviteCode(invite.code)}
             <Badge tone="warn">수락 대기</Badge>
             <span className={styles.cp}>
-              <Button
-                type="button"
-                variant="outline"
-                style={CP}
-                onClick={() => void copy(formatInviteCode(invite.code))}
-              >
-                복사
-              </Button>
+              {invite.email ? (
+                canManage ? (
+                  <Button
+                    type="submit"
+                    name="op"
+                    value={`resend:${invite.id}`}
+                    variant="ghost"
+                    style={CP_SM}
+                    disabled={pending}
+                    formNoValidate
+                  >
+                    재발송
+                  </Button>
+                ) : null
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  style={CP}
+                  onClick={() => void copy(formatInviteCode(invite.code))}
+                >
+                  복사
+                </Button>
+              )}
               {canManage ? (
                 <Button
                   type="submit"
@@ -278,6 +311,56 @@ export function TeamPanel({
           </Button>
         </div>
       ) : null}
+
+      {/* ── 초대 모달(시안 ②의 「초대 메일 보내기」. 주소 칸은 참가 신청 것) ── */}
+      <Modal
+        open={ask?.kind === "invite"}
+        onClose={() => setAsk(null)}
+        title="초대 메일 보내기"
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={() => setAsk(null)}>
+              취소
+            </Button>
+            <Button
+              type="submit"
+              name="op"
+              value="invite"
+              variant="primary"
+              disabled={pending}
+              formNoValidate
+            >
+              {pending ? "보내는 중…" : "보내기"}
+            </Button>
+          </>
+        }
+      >
+        <Field
+          className={styles.modalField}
+          label="팀원 초대 이메일"
+          note="본인 제외 1인"
+          htmlFor="inviteEmail"
+          hint="초대 메일이 발송되고, 수락하면 팀이 완성돼요."
+        >
+          <Input
+            id="inviteEmail"
+            name="email"
+            type="email"
+            autoComplete="off"
+            maxLength={INVITE_EMAIL_MAX}
+            placeholder="teammate@example.com"
+            /* 액션이 돌아오면 폼이 초기화된다. 오류 때는 적던 주소를 돌려놓는다 */
+            defaultValue={emailError ? (state.email ?? "") : ""}
+            aria-invalid={emailError ? true : undefined}
+            aria-describedby={emailError ? "inviteEmail-error" : undefined}
+          />
+          {emailError ? (
+            <p className={styles.fieldError} id="inviteEmail-error">
+              {emailError}
+            </p>
+          ) : null}
+        </Field>
+      </Modal>
 
       {/* ── 확인 모달(시안 mdl-kick · mdl-transfer) ─────────── */}
       <Modal

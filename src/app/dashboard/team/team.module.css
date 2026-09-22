@@ -78,6 +78,38 @@
   line-height: 1.6;
 }
 
+/*
+  초대 모달의 이메일 칸 오류. 참가 신청의 `.fieldError`와 같은 규칙 — 틀린 게
+  아니라 아직 안 채운 것이라 빨강이 아니라 주황이다.
+*/
+.fieldError {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--warn);
+}
+
+/*
+  모달 안의 입력 묶음. `.fld`의 아래 여백(22px)이 버튼 줄과 겹쳐 뺀다.
+  요소를 붙여 `.fld`(클래스 하나)보다 무겁게 — 번들 순서에 기대지 않는다.
+*/
+div.modalField {
+  margin-bottom: 0;
+}
+
+/*
+  모달의 `.mdl p`(14.5px·muted)가 힌트와 칸 오류를 덮는다 — 그쪽은 확인 문장용
+  규칙이다. 입력 묶음 안의 문단은 필드 규칙(13.5px)으로 되돌린다.
+*/
+div.modalField p {
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+div.modalField .fieldError {
+  color: var(--warn);
+}
+
 /* 시안 mdl-transfer의 `<b style="color:var(--danger)">` */
 .dangerText {
   color: var(--danger);

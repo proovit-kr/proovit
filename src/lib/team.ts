@@ -83,20 +83,6 @@ export const InviteCodeSchema = z
     );
   }, "초대 코드 형식이 아닙니다. 받은 코드를 다시 확인해 주세요.");
 
-/**
- * 초대에 적어두는 이메일. **선택값이다.**
- *
- * 넣으면 그 사람에게 안내 메일을 보내고, 비우면 코드만 발급해 팀장이 직접 전한다.
- * 메일 발송(Resend)이 아직 안 붙어 있어 지금은 어느 쪽이든 코드를 직접 전한다.
- */
-export const InviteEmailSchema = z
-  .string()
-  .trim()
-  .max(200)
-  .email("이메일 형식이 아닙니다.")
-  .optional()
-  .or(z.literal("").transform(() => undefined));
-
 /** 초대 링크. 초대받은 사람은 참가 기록이 없어 대시보드로 못 들어온다 */
 export function inviteUrl(code: string, origin?: string): string {
   const path = `/apply?invite=${encodeURIComponent(code)}`;

@@ -230,6 +230,52 @@ export async function createInvite(
   return prisma.$transaction((tx) => createInviteIn(tx, teamId, email));
 }
 
+export type PendingInvite = {
+  id: string;
+  code: string;
+  email: string | null;
+  expiresAt: Date;
+};
+
+/**
+ * 살아 있는 초대 하나를 집는다 — 재발송이 「무엇을 다시 보낼지」 알아야 해서다.
+ *
+ * 팀과 상태를 함께 본다. id만 믿으면 남의 팀 초대를 재발송할 수 있다.
+ */
+export async function findPendingInvite(
+  teamId: string,
+  invitationId: string,
+): Promise<PendingInvite | null> {
+  const found = await prisma.teamInvitation.findFirst({
+    where: {
+      id: invitationId,
+      teamId,
+      status: InvitationStatus.pending,
+      expiresAt: { gt: new Date() },
+    },
+    select: { id: true, inviteCode: true, email: true, expiresAt: true },
+  });
+  if (!found) return null;
+  return {
+    id: found.id,
+    code: found.inviteCode,
+    email: found.email,
+    expiresAt: found.expiresAt,
+  };
+}
+
+/**
+ * 초대 메일이 「무엇에 합류하는지」 적어야 해서 참가작 이름을 읽는다.
+ * 세션(`viewer.entry.id`)이 준 참가만 본다.
+ */
+export async function loadIdeaTitle(entryId: string): Promise<string | null> {
+  const entry = await prisma.entry.findUnique({
+    where: { id: entryId },
+    select: { ideaTitle: true },
+  });
+  return entry?.ideaTitle ?? null;
+}
+
 /** 초대 취소. 이미 수락된 초대는 되돌리지 않는다 — 그건 강퇴다 */
 export async function revokeInvite(
   teamId: string,

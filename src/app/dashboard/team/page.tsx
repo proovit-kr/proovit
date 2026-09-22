@@ -13,8 +13,8 @@ import { TeamPanel } from "./TeamPanel";
 
   시안의 판은 뷰어 토글이지만 여기서는 **팀원 수가 판을 정한다** — 둘이면
   ①(요약·강퇴·이양), 혼자면 ②(요약·초대). 초대코드 상자는 두 판 모두에 선다 —
-  ②는 살아 있는 초대(「초대 대기」), ①은 **팀을 완성한 코드**(마지막으로 수락된
-  초대)다. 찬 팀에는 살아 있는 초대가 없는데 시안 ①이 코드 상자를 그리므로,
+  ②는 살아 있는 초대(「초대 대기」 — 메일을 보낸 주소와 재발송·취소), ①은
+  **팀을 완성한 코드**(마지막으로 수락된 초대)다. 찬 팀에는 살아 있는 초대가 없는데 시안 ①이 코드 상자를 그리므로,
   그 자리에 실제로 있는 값을 둔다. 초대 없이 만들어진 팀(시드)에는 안 선다.
 
   두 판을 보려면 개발 바의 「팀원」 줄(1인·2인)을 누른다.
@@ -78,6 +78,7 @@ export default async function Page() {
             ? {
                 id: panel.invite.id,
                 code: panel.invite.code,
+                email: panel.invite.email,
                 expiresAt: DATE.format(panel.invite.expiresAt),
               }
             : null
