@@ -2491,7 +2491,7 @@ const CREDITS_HUB: Record<CreditsPane, HubKey> = {
 /* 시안 CR_CARDS — 본문·폴백·적용 안내. 스폰서가 붙으면 그쪽 값으로 바뀐다 */
 const SPEC_CREDITS = {
   c1: {
-    description: "AI 빌더 에이전트와 배포, 컴퓨트 크레딧. 표준 빌더로 만들고 그 자리에서 배포까지 해요.",
+    description: "AI 에이전트와 배포, 컴퓨트 크레딧. 표준 빌더로 만들고 그 자리에서 배포까지 해요.",
     sponsor: { name: "Replit", mark: "R" },
     value: "$75",
     redeemNote: "Replit 계정의 Billing에서 Redeem",
