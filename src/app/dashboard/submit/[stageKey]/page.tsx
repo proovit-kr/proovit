@@ -118,6 +118,7 @@ export default async function Page({
     who: whoLine(row),
     actions: actionsOf(row, { leader, canWrite }),
     canWrite,
+    notOpen: row.lockedReason === "STAGE_NOT_OPEN",
     defaults: toForm(stageKey, row.submission?.payload, row.submission?.evidenceUrls),
   };
 

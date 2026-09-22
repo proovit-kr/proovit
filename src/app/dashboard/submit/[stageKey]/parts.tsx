@@ -264,6 +264,7 @@ export function Files({
   defaultValue,
   sub,
   locked,
+  notOpen,
   error,
 }: {
   name: string;
@@ -273,6 +274,8 @@ export function Files({
   /** `.drop`의 둘째 줄 */
   sub?: string;
   locked: boolean;
+  /** 아직 안 열린 판 — 빈 칸에 아무 말도 안 적는다 */
+  notOpen?: boolean;
   error?: string;
 }) {
   const [files, setFiles] = useState<Uploaded[]>(() =>
@@ -385,7 +388,7 @@ export function Files({
           <input type="hidden" name={name} value={file.key} />
         </span>
       ))}
-      {locked && files.length === 0 ? (
+      {locked && !notOpen && files.length === 0 ? (
         <p className={styles.fileNone}>{EVIDENCE_MESSAGE.none}</p>
       ) : null}
       {pending.map((label, i) => (

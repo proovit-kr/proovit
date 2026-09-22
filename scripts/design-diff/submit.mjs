@@ -13,6 +13,7 @@
     · 증빙 파일의 드롭 칸(`.drop`) — 열린 판에만 그린다. 시안은 잠긴 s1·s5에 있고 작성 중인
       s4에 없다. 그 칸(`.fld`)과 `.frm`의 높이를 안 보고, 드롭 칸 자체는 s3에서 본다.
     · 파일 칩의 이름은 링크(`<a>`), ×는 버튼이다 — 시안은 글자와 `<i>`다.
+    · 힌트는 절 단위로 접는다(Clauses) — 좁은 폭에서 시안보다 한 줄 길 수 있다(s1 ① 페르소나).
     · s1의 버튼 둘 — dev 일정상 s1은 마감이 지나 「마감됨」 하나다.
     · s4의 「1주차 제출됨」 칩 — dev 일정은 s4가 한 주라 2주차가 없다.
     · s5의 토글 두 개의 켜짐과 버튼 색 — 아직 안 열린 판이라 꺼져 있고 잠겨 있다.
@@ -113,7 +114,7 @@ const fld = (k, { hint = true, small = false, no = false, cnt = false, skip = []
   ...(small ? [[`fld ${k} small`, S + D(k) + "> label small", ROOT + D(k) + `> ${LABEL} small`, [], W]] : []),
   ...(no ? [[`fld ${k} no`, S + D(k) + ".no", ROOT + D(k) + I("no"), [], W]] : []),
   ...(cnt ? [[`fld ${k} cnt`, S + D(k) + ".cnt", ROOT + D(k) + F("cnt"), [], W]] : []),
-  ...(hint ? [[`fld ${k} hint`, S + D(k) + "> .hint", ROOT + D(k) + `> ${HINT}`]] : []),
+  ...(hint ? [[`fld ${k} hint`, S + D(k) + "> .hint", ROOT + D(k) + `> ${HINT}`, [], [], narrow]] : []),
 ];
 const input = (k, mono = false) => [`fld ${k} input`, S + D(k) + "> input.inp", ROOT + D(k) + `> ${INP}`, [], mono ? MONO : []];
 const textarea = (k) => [`fld ${k} textarea`, S + D(k) + "textarea.inp", ROOT + D(k) + "textarea"];
@@ -192,7 +193,8 @@ const LIST = {
     ["info", S + ".info-strip", H("infoStrip")],
     ...fld(4, { cnt: true }), input(4),
     ...fgrp(5),
-    ...fld(6, { no: true, cnt: true }), textarea(6),
+    /* 힌트는 문장·쉼표 절 단위로만 접는다(Clauses) — 390에서 시안보다 한 줄 길다 */
+    ...fld(6, { no: true, cnt: true, narrow: ["height"] }), textarea(6),
     ...fld(7, { no: true, cnt: true }), input(7),
     /* 「문제 정의 상세」 — 세그와 두 판(`.seg-p`). 파일 판은 감춰져 있다 */
     ...fld(8, { hint: false, small: true }),

@@ -6,6 +6,8 @@ import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Field, Input, Select, SwitchRow, Textarea } from "@/components/Field";
 import { Icon } from "@/components/Icon";
+import { ClauseFit } from "@/components/ClauseFit";
+import { Clauses } from "@/components/Clauses";
 import { Card } from "@/components/Surface";
 import { Toast, useToast } from "@/components/Toast";
 import {
@@ -103,6 +105,8 @@ export type StageFormProps = {
   actions: StageActions;
   /** 칸을 열어 둘지. 팀장이 아니거나 잠긴 판이면 읽기만 */
   canWrite: boolean;
+  /** 아직 안 열린 판(예정)인가. 빈 파일 칸에 「없어요」를 안 적는다 — 없는 게 아니라 아직이다 */
+  notOpen: boolean;
   defaults: FormDefaults;
   s1?: { chargeType: string; chargeTypeLocked: boolean };
   s2?: { range: string; visitors: string; leads: string; conversion: string };
@@ -196,19 +200,19 @@ export function StageForm(props: StageFormProps) {
       ) : null}
 
       {stageKey === "s1" && props.s1 ? (
-        <S1Fields text={text} error={error} off={off} locked={!canWrite} files={files} {...props.s1} />
+        <S1Fields text={text} error={error} off={off} locked={!canWrite} notOpen={props.notOpen} files={files} {...props.s1} />
       ) : null}
       {stageKey === "s2" && props.s2 ? (
-        <S2Fields text={text} error={error} off={off} locked={!canWrite} files={files} channels={channels} {...props.s2} />
+        <S2Fields text={text} error={error} off={off} locked={!canWrite} notOpen={props.notOpen} files={files} channels={channels} {...props.s2} />
       ) : null}
       {stageKey === "s3" ? (
-        <S3Fields text={text} on={on} error={error} off={off} locked={!canWrite} files={files} />
+        <S3Fields text={text} on={on} error={error} off={off} locked={!canWrite} notOpen={props.notOpen} files={files} />
       ) : null}
       {stageKey === "s4" && props.s4 ? (
-        <S4Fields text={text} error={error} off={off} locked={!canWrite} files={files} channels={channels} {...props.s4} />
+        <S4Fields text={text} error={error} off={off} locked={!canWrite} notOpen={props.notOpen} files={files} channels={channels} {...props.s4} />
       ) : null}
       {stageKey === "s5" && props.s5 ? (
-        <S5Fields text={text} on={on} error={error} off={off} locked={!canWrite} files={files} {...props.s5} />
+        <S5Fields text={text} on={on} error={error} off={off} locked={!canWrite} notOpen={props.notOpen} files={files} {...props.s5} />
       ) : null}
 
       {stageKey !== "s5" ? (
@@ -247,6 +251,7 @@ export function StageForm(props: StageFormProps) {
             slot="evidence"
             defaultValue={files.evidence}
             locked={!canWrite}
+            notOpen={props.notOpen}
             error={error("evidence")}
           />
         </Field>
@@ -258,6 +263,8 @@ export function StageForm(props: StageFormProps) {
         <Actions actions={props.actions} pending={pending} />
       </div>
       <Toast message={toast.message} />
+      {/* 힌트는 문장·쉼표 절 단위로만 접는다(Clauses.tsx). 판정은 화면마다 한 번 */}
+      <ClauseFit />
     </form>
   );
 }
@@ -328,6 +335,7 @@ type FieldTools = {
   off: boolean;
   /** 잠긴 판 — 드롭 칸을 안 그린다. `off`는 저장 중에도 참이라 따로 둔다 */
   locked: boolean;
+  notOpen: boolean;
   files: FormDefaults["files"];
 };
 
@@ -349,6 +357,7 @@ function S1Fields({
   error,
   off,
   locked,
+  notOpen,
   files,
   chargeType,
   chargeTypeLocked,
@@ -367,7 +376,7 @@ function S1Fields({
     <>
       <Counted
         label={f.concept.label}
-        hint={f.concept.hint}
+        hint={<Clauses text={f.concept.hint} />}
         name="concept"
         max={CONCEPT_MAX}
         defaultValue={text("concept")}
@@ -378,7 +387,7 @@ function S1Fields({
       <Group {...S1_GROUPS.problem} />
       <Counted
         label={<><No>{f.persona.no}</No>{f.persona.label}</>}
-        hint={f.persona.hint}
+        hint={<Clauses text={f.persona.hint} />}
         name="persona"
         max={PERSONA_MAX}
         defaultValue={text("persona")}
@@ -388,7 +397,7 @@ function S1Fields({
       />
       <Counted
         label={<><No>{f.problem.no}</No>{f.problem.label}</>}
-        hint={f.problem.hint}
+        hint={<Clauses text={f.problem.hint} />}
         name="problem"
         max={PROBLEM_MAX}
         defaultValue={text("problem")}
@@ -417,6 +426,7 @@ function S1Fields({
             defaultValue={files.problem}
             sub={f.problemDoc.dropSub}
             locked={locked}
+            notOpen={notOpen}
             error={error("problemDocFiles")}
           />
         </div>
@@ -427,7 +437,7 @@ function S1Fields({
       <Field
         label={<><No>{f.survey.no}</No>{f.survey.label}</>}
         note={f.survey.note}
-        hint={f.survey.hint}
+        hint={<Clauses text={f.survey.hint} />}
       >
         <div className={styles.fld2}>
           <Input
@@ -466,7 +476,7 @@ function S1Fields({
       </Field>
       <Counted
         label={<><No>{f.hypothesisChange.no}</No>{f.hypothesisChange.label}</>}
-        hint={f.hypothesisChange.hint}
+        hint={<Clauses text={f.hypothesisChange.hint} />}
         name="hypothesisChange"
         max={HYPOTHESIS_MAX}
         defaultValue={text("hypothesisChange")}
@@ -479,7 +489,7 @@ function S1Fields({
       <Field
         label={<><No>{f.alternatives.no}</No>{f.alternatives.label}</>}
         note={f.alternatives.note}
-        hint={f.alternatives.hint}
+        hint={<Clauses text={f.alternatives.hint} />}
       >
         {Array.from({ length: ALTERNATIVE_COUNT }, (_, i) => (
           <div key={i} className={styles.pair}>
@@ -504,7 +514,7 @@ function S1Fields({
       </Field>
       <Counted
         label={<><No>{f.differentiation.no}</No>{f.differentiation.label}</>}
-        hint={f.differentiation.hint}
+        hint={<Clauses text={f.differentiation.hint} />}
         name="differentiation"
         max={DIFFERENTIATION_MAX}
         defaultValue={text("differentiation")}
@@ -516,7 +526,7 @@ function S1Fields({
       <Group {...S1_GROUPS.execution} />
       <Counted
         label={<><No>{f.coreFeature.no}</No>{f.coreFeature.label}</>}
-        hint={f.coreFeature.hint}
+        hint={<Clauses text={f.coreFeature.hint} />}
         name="coreFeature"
         max={CORE_FEATURE_MAX}
         defaultValue={text("coreFeature")}
@@ -555,7 +565,7 @@ function S1Fields({
       <Field
         label={<><No>{f.timeline.no}</No>{f.timeline.label}</>}
         note={f.timeline.note}
-        hint={f.timeline.hint}
+        hint={<Clauses text={f.timeline.hint} />}
         htmlFor="timeline"
       >
         <Textarea
@@ -571,7 +581,7 @@ function S1Fields({
       <Field
         label={<><No>{f.chargeType.no}</No>{f.chargeType.label}</>}
         note={f.chargeType.note}
-        hint={f.chargeType.hint}
+        hint={<Clauses text={f.chargeType.hint} />}
         htmlFor="chargeType"
       >
         <Select
@@ -603,7 +613,7 @@ function S1Fields({
       </Field>
       <Counted
         label={f.monetizationPlan.label}
-        hint={f.monetizationPlan.hint}
+        hint={<Clauses text={f.monetizationPlan.hint} />}
         name="monetizationPlan"
         max={MONETIZATION_MAX}
         defaultValue={text("monetizationPlan")}
@@ -615,7 +625,7 @@ function S1Fields({
       <Group {...S1_GROUPS.check} />
       <Counted
         label={f.riskiest.label}
-        hint={f.riskiest.hint}
+        hint={<Clauses text={f.riskiest.hint} />}
         name="riskiest"
         max={RISKIEST_MAX}
         defaultValue={text("riskiest")}
@@ -671,7 +681,7 @@ function S2Fields({
       <Field label={f.conversion.label} note={f.conversion.note}>
         <ReadOnly scores={[conversion]}>{f.conversion.text}</ReadOnly>
       </Field>
-      <Field label={f.channels.label} note={f.channels.note} hint={f.channels.hint}>
+      <Field label={f.channels.label} note={f.channels.note} hint={<Clauses text={f.channels.hint} />}>
         <Tags defaultValue={channels} placeholder={f.channels.placeholder} disabled={off} />
         {error("channels") ? <p className={styles.fieldError}>{error("channels")}</p> : null}
       </Field>
@@ -708,7 +718,7 @@ function S3Fields({
   );
   return (
     <>
-      <Field label={f.serviceUrl.label} hint={f.serviceUrl.hint} htmlFor="serviceUrl">
+      <Field label={f.serviceUrl.label} hint={<Clauses text={f.serviceUrl.hint} />} htmlFor="serviceUrl">
         <Input
           mono
           id="serviceUrl"
@@ -722,7 +732,7 @@ function S3Fields({
         />
         {error("serviceUrl") ? <p className={styles.fieldError}>{error("serviceUrl")}</p> : null}
       </Field>
-      <Field label={f.builder.label} note={f.builder.note} hint={f.builder.hint} htmlFor="builder">
+      <Field label={f.builder.label} note={f.builder.note} hint={<Clauses text={f.builder.hint} />} htmlFor="builder">
         <Select
           id="builder"
           name="builder"
@@ -886,6 +896,7 @@ function S5Fields({
   error,
   off,
   locked,
+  notOpen,
   files,
   cards,
   paymentLabel,
@@ -930,7 +941,7 @@ function S5Fields({
           ))}
         </div>
       </Field>
-      <Field label={f.retro.label} hint={f.retro.hint} htmlFor="retro">
+      <Field label={f.retro.label} hint={<Clauses text={f.retro.hint} />} htmlFor="retro">
         <Textarea
           id="retro"
           name="retro"
@@ -972,6 +983,7 @@ function S5Fields({
           defaultValue={files.evidence}
           sub={EVIDENCE_FIELD.dropSub.s5}
           locked={locked}
+          notOpen={notOpen}
           error={error("evidence")}
         />
       </Field>
