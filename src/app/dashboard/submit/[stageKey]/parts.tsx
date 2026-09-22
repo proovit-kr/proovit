@@ -385,6 +385,9 @@ export function Files({
           <input type="hidden" name={name} value={file.key} />
         </span>
       ))}
+      {locked && files.length === 0 ? (
+        <p className={styles.fileNone}>{EVIDENCE_MESSAGE.none}</p>
+      ) : null}
       {pending.map((label, i) => (
         <span key={`${label}${i}`} className={`${styles.file} ${styles.filePending}`}>
           <Icon name="clip" /> {label} <i>{EVIDENCE_MESSAGE.uploading}</i>

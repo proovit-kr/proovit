@@ -251,6 +251,11 @@
   opacity: 0.6;
 }
 
+.fileNone {
+  font-size: 13.5px;
+  color: var(--faint);
+}
+
 .filePending i {
   color: var(--faint);
   font-style: normal;

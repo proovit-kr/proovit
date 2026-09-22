@@ -374,7 +374,8 @@ function S1Fields({
       />
       {/* 시안 `.seg` — 직접 작성/파일 업로드. 둘 중 하나 필수(스키마의 refine) */}
       <Field label={f.problemDoc.label} note={f.problemDoc.note}>
-        <Seg options={docOptions} value={docMode} onChange={setDocMode} disabled={off} />
+        {/* 보기만 바꾸는 버튼이라 잠긴 판에서도 눌린다 — 올린 파일을 봐야 한다 */}
+        <Seg options={docOptions} value={docMode} onChange={setDocMode} />
         <div className={docMode === "text" ? undefined : styles.segPOff}>
           <Textarea
             id="problemDoc"
