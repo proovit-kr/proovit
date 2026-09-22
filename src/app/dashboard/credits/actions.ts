@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { CREDITS_TOAST } from "@/content/credits";
 import { canAccess, loadViewerState, toAccessContext } from "@/lib/access";
 import { CREDIT_FAILURE_MESSAGE } from "@/lib/credits";
 import {
@@ -60,7 +61,7 @@ export async function claimCreditAction(
   if (!result.ok) return { message: CREDIT_FAILURE_MESSAGE[result.code] };
 
   revalidatePath("/dashboard/credits");
-  return { done: "받았어요. 코드는 이메일로도 보내드려요." };
+  return { done: CREDITS_TOAST.claimed };
 }
 
 export async function setAppliedAction(
@@ -82,5 +83,5 @@ export async function setAppliedAction(
   if (!result.ok) return { message: CREDIT_FAILURE_MESSAGE[result.code] };
 
   revalidatePath("/dashboard/credits");
-  return { done: applied ? "적용 확인됐어요." : "적용 확인을 취소했어요." };
+  return { done: applied ? CREDITS_TOAST.confirmed : CREDITS_TOAST.unconfirmed };
 }

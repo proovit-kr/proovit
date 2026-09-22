@@ -4,6 +4,12 @@ import type { Prisma } from "@/generated/prisma/client";
 import {
   ChargeType,
   ConsentType,
+  CreditClaimStatus,
+  CreditDeliveredVia,
+  CreditDelivery,
+  CreditKind,
+  CreditOfferStatus,
+  CreditStatus,
   DeployStatus,
   EntryStage,
   EntryStatus,
@@ -25,7 +31,18 @@ import {
   ACCOUNT_TERMS_CONSENT_VERSION,
   APPLY_CONSENTS,
 } from "@/content/consent";
+import { stageAtLeast } from "@/lib/access-policy";
 import { applyConsentRows } from "@/lib/apply-store";
+import {
+  CREDIT_CARDS,
+  CREDIT_CARD_BY_KIND,
+  type CreditsPane,
+  type UnlockProgress,
+  creditCardState,
+  creditSeason,
+  creditsPane,
+  isUnlocked,
+} from "@/lib/credits";
 import { devNow, setDevToday } from "@/lib/dev-clock";
 import { setDevHubKey } from "@/lib/dev-hub";
 import { EVIDENCE_KINDS, buildEvidenceKey, kindOfName } from "@/lib/evidence";
@@ -144,6 +161,8 @@ export type SandboxTeam = {
   payment: PaymentPane;
   /** 스테이지 제출 화면의 판. 「제출」 줄이 되짚는다 — 시안 목업이 심긴 판만 */
   submit: SubmitPane | null;
+  /** 혜택과 크레딧 화면의 판(시안 ①~⑦). 「크레딧」 줄이 되짚는다 */
+  credits: CreditsPane | null;
   /** 팀원 수. 「팀원」 줄이 1인·2인 중 어느 쪽이 눌렸는지 되짚는 데 쓴다 */
   members: number;
   /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
@@ -186,11 +205,20 @@ export async function loadSandboxState(): Promise<SandboxState> {
         stage: true,
         status: true,
         ideaTitle: true,
-        season: { select: { id: true, createdAt: true } },
+        season: {
+          select: {
+            id: true,
+            createdAt: true,
+            phase: true,
+            creditOffers: { select: { kind: true, status: true } },
+          },
+        },
         hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
         chargeType: true,
         integration: { select: { status: true } },
         submissions: { select: { stageKey: true, week: true, status: true } },
+        creditClaims: { select: { status: true, offer: { select: { kind: true } } } },
+        awards: { where: { awardedAt: { not: null } }, take: 1, select: { id: true } },
         team: {
           select: {
             id: true,
@@ -276,6 +304,18 @@ export async function loadSandboxState(): Promise<SandboxState> {
           status: entry.integration?.status ?? null,
         }),
         submit: submitPane(entry.submissions),
+        credits: creditsPaneOf({
+          phase: entry.season.phase,
+          status: entry.status,
+          stage: entry.stage,
+          s1Submitted: entry.submissions.some(
+            (s) => s.stageKey === StageKey.s1 && s.status !== SubmissionStatus.draft,
+          ),
+          deployVerified: entry.hostname?.ownershipVerifiedAt != null,
+          awarded: entry.awards.length > 0,
+          offers: entry.season.creditOffers,
+          claims: entry.creditClaims,
+        }),
         teamId: entry.team.id,
         seasonId: entry.season.id,
         seasonCreatedAt: entry.season.createdAt,
@@ -2411,4 +2451,317 @@ export async function setSandboxInquiries(entryId: string, on: boolean): Promise
       sourceHost: "little-potion.proovit.kr",
     })),
   });
+}
+
+// ═════════════════════════════════════════════════════════════
+// 혜택과 크레딧 — 시안 `#scr-credits` 일곱 판
+// ═════════════════════════════════════════════════════════════
+
+/*
+  판은 카드 상태의 결과라(credits.ts `creditCardState`) 여기서는 그 재료를 심는다 —
+  허브 판(진도·페이즈·오늘) 위에 스폰서·카드·코드·발급 기록을 얹는다.
+
+    pend    h1  모집 중, 카드 넷 다 협의 중(스폰서 없음)
+    locked  h2  s1 제출 전. C1·C2·C4에 스폰서, C3은 협의 중
+    sched   h3  s1 제출됨, C1 발급 예정(빌드 시작일 전)
+    build   h5  s3, C1 발급 완료 · C2 발급 가능
+    race    h6  s4, C1 발급 확인 · C2 발급 완료 · C3 협의 중인데 배포 검증됨
+    tester  h12 게이트 1 미통과, C1만 받음
+    end     h8  시상 발표, C3 만료 · C4 시상 확정
+
+  ⚠️ **카드는 시즌의 것이다** — 이 줄을 누르면 그 시즌 참가팀 전부의 카드가
+  바뀐다. dev DB라 괜찮다. 되돌리는 것은 `credits-state.mts`.
+
+  ⚠️ 허브 h2~h5·h12는 측정 연동이 검증된 팀이라 C3(배포 URL 검증)가 열려
+  버린다. 시안 ②③④⑥은 C3이 잠금이라 그 판에서는 검증을 되돌린다 — 시안의
+  전제가 「배포 검증은 s3에서 한다」이기 때문이다.
+*/
+export type { CreditsPane } from "@/lib/credits";
+
+const CREDITS_HUB: Record<CreditsPane, HubKey> = {
+  pend: "h1",
+  locked: "h2",
+  sched: "h3",
+  build: "h5",
+  race: "h6",
+  tester: "h12",
+  end: "h8",
+};
+
+/* 시안 CR_CARDS — 본문·폴백·적용 안내. 스폰서가 붙으면 그쪽 값으로 바뀐다 */
+const SPEC_CREDITS = {
+  c1: {
+    description: "AI 에이전트와 배포, 컴퓨트 크레딧. 표준 빌더로 만들고 그 자리에서 배포까지 해요.",
+    sponsor: { name: "Replit", mark: "R" },
+    value: "$75",
+    redeemNote: "Replit 계정의 Billing에서 Redeem",
+    code: "RPL-PRV-7K2Q-M3XA",
+    fallback: [
+      { name: "Replit 무료 티어", note: "에이전트 월 한도" },
+      { name: "Vercel Hobby", note: "무료 배포" },
+      { name: "한국어 사용 가이드", note: "Ch.5" },
+    ],
+  },
+  c2: {
+    description: "배포 플랫폼 호스팅과 LLM API 크레딧. 자유 도구 트랙이나 외부 API 연동에 써요.",
+    sponsor: { name: "Vercel", mark: "▲" },
+    value: "$50",
+    redeemNote: "초대 링크에서 팀 계정으로 수락",
+    inviteUrl: "vercel.com/claim/prv-s1-4f8b",
+    fallback: [
+      { name: "Vercel Hobby", note: "호스팅" },
+      { name: "Supabase Free", note: "DB와 인증" },
+      { name: "Gemini 무료 티어", note: "API" },
+    ],
+  },
+  c3: {
+    description: "분석 도구 구독이나 광고 크레딧. 레이스 기간의 유입을 보고 키우는 데 써요.",
+    fallback: [
+      { name: "GA4", note: "측정 연동으로 자동" },
+      { name: "Search Console", note: "색인 등록" },
+      { name: "스레드 운영 가이드", note: "Ch.6" },
+    ],
+  },
+  c4: {
+    description: "상위 팀에게 주는 추가 크레딧이에요. 상금 규정이 적용되고, 2차 심사가 확정된 뒤에 안내돼요.",
+    sponsor: { name: "Vercel", mark: "▲" },
+    value: "상위 3팀",
+  },
+} as const;
+
+/* 가이드 링크 자리 — 노션 가이드 주소가 정해지면 운영 화면에서 바꾼다 */
+const DEV_GUIDE_URL = "https://proovit.kr/rules";
+
+export async function setSandboxCredits(args: {
+  entryId: string;
+  pane: CreditsPane;
+}): Promise<void> {
+  assertSandbox();
+  const { entryId, pane } = args;
+
+  await setSandboxHub({ key: CREDITS_HUB[pane], entryId });
+  /* 시안 ②③④⑥의 C3은 잠금 — 배포 검증을 되돌린다(머리 주석) */
+  await setHostname(entryId, pane === "race" || pane === "end");
+
+  const entry = await prisma.entry.findUniqueOrThrow({
+    where: { id: entryId },
+    select: {
+      seasonId: true,
+      season: {
+        select: {
+          endsAt: true,
+          stages: { select: { stageKey: true, opensAt: true, closesAt: true } },
+        },
+      },
+    },
+  });
+  const seasonId = entry.seasonId;
+  const stageOf = (key: StageKey) => entry.season.stages.find((s) => s.stageKey === key);
+  const endsAt = entry.season.endsAt ?? devNow();
+  const day = (base: Date, days: number) => new Date(base.getTime() + days * 86_400_000);
+  /* 빌드 시작일 — s3 개시. 발송은 그날 09:00(KST, 개시가 자정이므로 +9시간) */
+  const buildStart = stageOf(StageKey.s3)?.opensAt ?? day(devNow(), 7);
+  const sentAt = (d: Date) => new Date(d.getTime() + 9 * 3_600_000);
+
+  const sponsorId = async (spec: { name: string; mark: string }) => {
+    const found = await prisma.sponsor.findFirst({
+      where: { name: spec.name },
+      select: { id: true },
+    });
+    if (found) {
+      await prisma.sponsor.update({ where: { id: found.id }, data: { mark: spec.mark } });
+      return found.id;
+    }
+    return (await prisma.sponsor.create({ data: spec, select: { id: true } })).id;
+  };
+
+  const negotiating = (kind: CreditKind, spec: { description: string; fallback?: readonly { name: string; note: string }[] }) => ({
+    kind,
+    status: CreditOfferStatus.negotiating,
+    sponsorId: null,
+    unlockEvent: CREDIT_CARD_BY_KIND[kind].unlockEvent,
+    deliveryMethod: CreditDelivery.manual,
+    releaseDate: null,
+    validUntil: null,
+    inviteUrl: null,
+    howtoUrl: null,
+    redeemNote: null,
+    description: spec.description,
+    value: null,
+    fallbackUrl: DEV_GUIDE_URL,
+    fallbackItems: [...(spec.fallback ?? [])] as Prisma.InputJsonArray,
+  });
+
+  /* 지급 시점은 일정이라 협의 중에도 안다 — 시안 ①의 「빌드 시작일 10.12」·「11.03」 */
+  const offers =
+    pane === "pend"
+      ? [
+          { ...negotiating(CreditKind.c1, SPEC_CREDITS.c1), releaseDate: buildStart },
+          negotiating(CreditKind.c2, SPEC_CREDITS.c2),
+          negotiating(CreditKind.c3, SPEC_CREDITS.c3),
+          { ...negotiating(CreditKind.c4, SPEC_CREDITS.c4), releaseDate: endsAt },
+        ]
+      : [
+          {
+            ...negotiating(CreditKind.c1, SPEC_CREDITS.c1),
+            status: CreditOfferStatus.active,
+            sponsorId: await sponsorId(SPEC_CREDITS.c1.sponsor),
+            deliveryMethod: CreditDelivery.code_pool,
+            releaseDate: buildStart,
+            validUntil: day(endsAt, 14),
+            howtoUrl: DEV_GUIDE_URL,
+            redeemNote: SPEC_CREDITS.c1.redeemNote,
+            value: SPEC_CREDITS.c1.value,
+          },
+          {
+            ...negotiating(CreditKind.c2, SPEC_CREDITS.c2),
+            status: CreditOfferStatus.active,
+            sponsorId: await sponsorId(SPEC_CREDITS.c2.sponsor),
+            deliveryMethod: CreditDelivery.invite_link,
+            inviteUrl: SPEC_CREDITS.c2.inviteUrl,
+            validUntil: day(endsAt, 45),
+            howtoUrl: DEV_GUIDE_URL,
+            redeemNote: SPEC_CREDITS.c2.redeemNote,
+            value: SPEC_CREDITS.c2.value,
+          },
+          negotiating(CreditKind.c3, SPEC_CREDITS.c3),
+          {
+            ...negotiating(CreditKind.c4, SPEC_CREDITS.c4),
+            status: CreditOfferStatus.active,
+            sponsorId: await sponsorId(SPEC_CREDITS.c4.sponsor),
+            releaseDate: endsAt,
+            validUntil: day(endsAt, 45),
+            value: SPEC_CREDITS.c4.value,
+          },
+        ];
+
+  /* 발급 기록은 통째로 새로 심는다 — 코드는 되돌려 다시 issued로 */
+  await prisma.creditClaim.deleteMany({ where: { entryId } });
+  const offerIds: Partial<Record<CreditKind, string>> = {};
+  for (const { kind, ...data } of offers) {
+    const saved = await prisma.creditOffer.upsert({
+      where: { seasonId_kind: { seasonId, kind } },
+      create: { seasonId, kind, ...data },
+      update: data,
+      select: { id: true },
+    });
+    offerIds[kind] = saved.id;
+  }
+  const c1 = offerIds.c1!;
+  const c2 = offerIds.c2!;
+
+  const code = await prisma.creditCode.upsert({
+    where: { code: SPEC_CREDITS.c1.code },
+    create: { offerId: c1, code: SPEC_CREDITS.c1.code, status: CreditStatus.issued },
+    update: { offerId: c1, status: CreditStatus.issued },
+    select: { id: true },
+  });
+
+  /* s1 제출 시각 — 시안 조건 칩의 날짜. 진도 세터는 진짜 지금으로 적는다 */
+  const s1Closes = stageOf(StageKey.s1)?.closesAt;
+  if (s1Closes) {
+    await prisma.submission.updateMany({
+      where: { entryId, stageKey: StageKey.s1, status: { not: SubmissionStatus.draft } },
+      data: { submittedAt: day(s1Closes, -2) },
+    });
+  }
+  /* 게이트 1 통과 판정 — C2 조건 칩의 날짜. 빌드 시작일에 났다고 본다 */
+  if (pane === "build" || pane === "race" || pane === "end") {
+    const s2 = await prisma.submission.findFirst({
+      where: { entryId, stageKey: StageKey.s2 },
+      select: { id: true },
+    });
+    if (s2) {
+      await prisma.judgment.deleteMany({ where: { submissionId: s2.id } });
+      await prisma.judgment.create({
+        data: {
+          submissionId: s2.id,
+          result: JudgmentResult.pass,
+          judgedAt: buildStart,
+          feedback: "개발 바가 만든 판정입니다.",
+          aiReport: { dev: true },
+        },
+      });
+    }
+  }
+  /* 시상 기록은 ⑦(h8)만 — 다른 판에 남은 것은 걷는다 */
+  if (pane !== "end") await prisma.award.deleteMany({ where: { entryId } });
+
+  const delivered = (offerId: string, at: Date, codeId?: string) => ({
+    offerId,
+    entryId,
+    status: CreditClaimStatus.delivered,
+    unlockedAt: at,
+    claimedAt: at,
+    deliveredAt: at,
+    deliveredVia: CreditDeliveredVia.email,
+    ...(codeId ? { creditCodeId: codeId } : {}),
+  });
+  const c1Sent = sentAt(buildStart);
+  const c2Sent = sentAt(day(buildStart, 1));
+
+  const claims: Prisma.CreditClaimUncheckedCreateInput[] = [];
+  if (pane === "sched") {
+    const at = s1Closes ? day(s1Closes, -2) : devNow();
+    claims.push({
+      offerId: c1,
+      entryId,
+      status: CreditClaimStatus.scheduled,
+      unlockedAt: at,
+      claimedAt: at,
+    });
+  }
+  if (pane === "build" || pane === "tester") claims.push(delivered(c1, c1Sent, code.id));
+  if (pane === "race" || pane === "end") {
+    claims.push({
+      ...delivered(c1, c1Sent, code.id),
+      status: CreditClaimStatus.confirmed,
+      confirmedAt: day(c1Sent, 1),
+    });
+    claims.push(delivered(c2, c2Sent));
+  }
+  if (claims.some((c) => c.creditCodeId)) {
+    await prisma.creditCode.update({
+      where: { id: code.id },
+      data: { status: CreditStatus.claimed },
+    });
+  }
+  for (const claim of claims) await prisma.creditClaim.create({ data: claim });
+}
+
+/**
+ * 지금 dev DB가 그리는 크레딧 판 — 「크레딧」 줄이 되짚는다. 화면과 같은 규칙
+ * (`creditsPane`)에 같은 재료를 넣는다. 시안 목업 모양이 아니면 null.
+ */
+function creditsPaneOf(args: {
+  phase: SeasonPhase;
+  status: EntryStatus;
+  stage: EntryStage;
+  s1Submitted: boolean;
+  deployVerified: boolean;
+  awarded: boolean;
+  offers: { kind: CreditKind; status: CreditOfferStatus }[];
+  claims: { status: CreditClaimStatus; offer: { kind: CreditKind } }[];
+}): CreditsPane | null {
+  const season = creditSeason(args.phase);
+  /* 때는 여기서 안 쓴다 — 일어났다는 사실만 EPOCH로 표시한다 */
+  const when = (on: boolean) => (on ? new Date(0) : null);
+  const progress: UnlockProgress = {
+    s1Submitted: when(args.s1Submitted),
+    gate1Passed: when(stageAtLeast(args.stage, EntryStage.s3)),
+    deployVerified: when(args.deployVerified),
+    finalConfirmed: when(args.awarded),
+  };
+  const cards = CREDIT_CARDS.map((spec) => {
+    const unlocked = isUnlocked(spec.unlockEvent, progress);
+    const offerStatus =
+      args.offers.find((o) => o.kind === spec.kind)?.status ?? CreditOfferStatus.negotiating;
+    const claimStatus = args.claims.find((c) => c.offer.kind === spec.kind)?.status ?? null;
+    return {
+      kind: spec.kind,
+      unlocked,
+      state: creditCardState({ kind: spec.kind, offerStatus, claimStatus, unlocked, season }),
+    };
+  });
+  return creditsPane({ season, eliminated: args.status === EntryStatus.eliminated, cards });
 }

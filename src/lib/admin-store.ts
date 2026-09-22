@@ -234,6 +234,8 @@ export async function saveCreditOffer(args: {
   releaseDate: Date | null;
   validUntil: Date | null;
   inviteUrl: string | null;
+  howtoUrl: string | null;
+  redeemNote: string | null;
   description: string | null;
   value: string | null;
   fallbackUrl: string | null;

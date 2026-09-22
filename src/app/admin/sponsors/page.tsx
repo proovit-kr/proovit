@@ -251,6 +251,8 @@ export default async function Page() {
               releaseDate: toDateInput(offer?.releaseDate ?? null),
               validUntil: toDateInput(offer?.validUntil ?? null),
               inviteUrl: offer?.inviteUrl ?? "",
+              howtoUrl: offer?.howtoUrl ?? "",
+              redeemNote: offer?.redeemNote ?? "",
               description: offer?.description ?? "",
               value: offer?.value ?? "",
               fallbackUrl: offer?.fallbackUrl ?? "",

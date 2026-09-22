@@ -1233,6 +1233,8 @@ model Sponsor {
   logoUrl     String? @map("logo_url")
   benefitDesc String? @map("benefit_desc")
   websiteUrl  String? @map("website_url")
+  /// 카드의 워드마크 칸에 찍는 글자 하나(시안 「R」·「▲」). 없으면 이름 첫 글자
+  mark        String? @db.VarChar(4)
 
   offers CreditOffer[]
 
@@ -1269,6 +1271,10 @@ model CreditOffer {
 
   /// INVITE_LINK일 때 쓴다. CODE_POOL이면 credit_codes를 본다
   inviteUrl String? @map("invite_url")
+  /// 「적용 방법」 링크(시안 `.lnk`). 없으면 링크를 안 그린다
+  howtoUrl String? @map("howto_url")
+  /// 발송 줄에 붙는 적용 안내 한 토막(시안 「Replit 계정의 Billing에서 Redeem」)
+  redeemNote String? @map("redeem_note") @db.VarChar(120)
 
   /// 카드 본문과 예상 가치 표기("$75 상당"). 금액이 아니라 문자열인 이유는
   /// 통화·표기가 스폰서마다 다르고 계산에 쓰지 않기 때문이다

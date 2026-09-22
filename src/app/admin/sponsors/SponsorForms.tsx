@@ -66,6 +66,8 @@ export type OfferDefaults = {
   releaseDate: string;
   validUntil: string;
   inviteUrl: string;
+  howtoUrl: string;
+  redeemNote: string;
   description: string;
   value: string;
   fallbackUrl: string;
@@ -211,6 +213,31 @@ export function OfferForm({
             className={styles.input}
             defaultValue={defaults.fallbackUrl}
             placeholder="https://…"
+          />
+        </label>
+
+        <label className={styles.field}>
+          <span>
+            howtoUrl <small>참가자 화면의 「적용 방법」 링크</small>
+          </span>
+          <input
+            name="howtoUrl"
+            className={styles.input}
+            defaultValue={defaults.howtoUrl}
+            placeholder="https://…"
+          />
+        </label>
+
+        <label className={styles.field}>
+          <span>
+            redeemNote <small>발송 줄의 적용 안내 한 토막</small>
+          </span>
+          <input
+            name="redeemNote"
+            className={styles.input}
+            defaultValue={defaults.redeemNote}
+            maxLength={120}
+            placeholder="Replit 계정의 Billing에서 Redeem"
           />
         </label>
 
