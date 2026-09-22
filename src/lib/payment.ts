@@ -126,3 +126,19 @@ export function formatSeoulShort(date: Date): string {
   );
   return `${part.month}.${part.day} ${part.hour}:${part.minute}`;
 }
+
+/*
+  시안 ③ 요약의 「현재 단계」 — L1~L4 중 지금 어디까지 왔나.
+
+  L1은 문의 수단이 등록돼 문의 도달 이벤트를 기록할 수 있는 상태, L2부터는 유효
+  문의 건수다. L3·L4(상담 3건·구매의향·계약)는 s5 제출의 증빙을 심사가 보고 정하는
+  것이라 여기서는 못 올린다 — 그래서 이 함수의 최대는 L2다.
+*/
+export function inquiryStage(row: {
+  inquiryUrl: string | null;
+  validInquiries: number;
+}): string {
+  if (!row.inquiryUrl) return "문의 수단 등록 전";
+  if (row.validInquiries >= 1) return `L2, 유효 문의 ${row.validInquiries}건`;
+  return "L1, 문의 수단 등록됨";
+}

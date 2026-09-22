@@ -60,6 +60,7 @@ export function PaymentPanel({
   lastTestedAt,
   revenue,
   inquiryUrl,
+  inquiryStage,
   hostname,
   canWrite,
 }: {
@@ -71,6 +72,8 @@ export function PaymentPanel({
   lastTestedAt: string | null;
   revenue: { amount: number; count: number };
   inquiryUrl: string;
+  /** ③ 요약의 「현재 단계」(payment.ts `inquiryStage`) */
+  inquiryStage: string;
   /** 팀 주소. 없으면 ③에서 주소를 받을 수 없다 */
   hostname: string | null;
   canWrite: boolean;
@@ -165,9 +168,7 @@ export function PaymentPanel({
           <Card className={hub.sum}>
             <div>
               <span>현재 단계</span>
-              <b style={VIOLET}>
-                {inquiryUrl ? "판정 전, s5 제출 뒤" : "문의 수단 등록 전"}
-              </b>
+              <b style={VIOLET}>{inquiryStage}</b>
             </div>
             <div>
               <span>증빙</span>

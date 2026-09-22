@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 
 import { guardPage } from "@/lib/access";
 import { loadMeasurement } from "@/lib/measurement-store";
-import { paymentPane } from "@/lib/payment";
+import { inquiryStage, paymentPane } from "@/lib/payment";
 import {
   loadPaymentIntegration,
   loadPaymentRevenue,
+  loadValidInquiries,
 } from "@/lib/payment-store";
 import { prisma } from "@/lib/prisma";
 
@@ -43,7 +44,7 @@ export default async function Page() {
   if (!viewer.entry || !viewer.team) notFound();
 
   const entryId = viewer.entry.id;
-  const [view, entry, measurement, revenue] = await Promise.all([
+  const [view, entry, measurement, revenue, validInquiries] = await Promise.all([
     loadPaymentIntegration(entryId),
     prisma.entry.findUniqueOrThrow({
       where: { id: entryId },
@@ -51,6 +52,7 @@ export default async function Page() {
     }),
     loadMeasurement(entryId),
     loadPaymentRevenue(entryId),
+    loadValidInquiries(entryId),
   ]);
 
   const pane = paymentPane({ chargeType: entry.chargeType, status: view.status });
@@ -77,6 +79,7 @@ export default async function Page() {
         lastTestedAt={view.lastTestedAt?.toISOString() ?? null}
         revenue={revenue}
         inquiryUrl={entry.inquiryUrl ?? ""}
+        inquiryStage={inquiryStage({ inquiryUrl: entry.inquiryUrl, validInquiries })}
         hostname={measurement.hostname}
         canWrite={access.ok}
       />

@@ -177,3 +177,13 @@ export async function loadPaymentRevenue(
   });
   return { amount: Number(agg._sum.amount ?? 0), count: agg._count._all };
 }
+
+/**
+ * 시안 ③의 유효 문의 건수 — 인증된(verified_at 있음) 문의 리드 수.
+ * 문의 도달 이벤트가 리드 행을 만드는 경로는 아직 없다(측정 파이프라인 뒤).
+ */
+export async function loadValidInquiries(entryId: string): Promise<number> {
+  return prisma.entryLead.count({
+    where: { entryId, verifiedAt: { not: null } },
+  });
+}

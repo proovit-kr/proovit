@@ -2058,6 +2058,7 @@ export async function setSandboxPayment(args: {
       select: { inquiryUrl: true, hostname: { select: { hostname: true } } },
     });
     await setSandboxRevenue(entryId, false);
+    await setSandboxInquiries(entryId, true);
     await prisma.entry.update({
       where: { id: entryId },
       data: {
@@ -2077,6 +2078,7 @@ export async function setSandboxPayment(args: {
     data: { chargeType: ChargeType.payment },
   });
   await setSandboxRevenue(entryId, pane === "ok");
+  await setSandboxInquiries(entryId, false);
   if (pane === "none") {
     await prisma.paymentIntegration.deleteMany({ where: { entryId } });
     return;
@@ -2126,6 +2128,29 @@ export async function setSandboxRevenue(entryId: string, on: boolean): Promise<v
       paidAt: new Date(now - (7 - i) * 24 * 60 * 60 * 1000),
       rawPayload: { sandbox: true },
       payerHash: `sandbox-payer-${i + 1}`,
+    })),
+  });
+}
+
+/*
+  시안 ③의 「현재 단계 L2, 유효 문의 2건」을 **진짜 리드 행**으로 만든다
+  (2026-09-22 수연 지시, 매출 픽스처와 같은 방식). 인증된 리드 2건이면 L2다.
+*/
+export const SANDBOX_LEAD_PREFIX = "sandbox-lead:";
+
+export async function setSandboxInquiries(entryId: string, on: boolean): Promise<void> {
+  const prefix = `${SANDBOX_LEAD_PREFIX}${entryId.slice(0, 8)}:`;
+  await prisma.entryLead.deleteMany({
+    where: { entryId, contactHash: { startsWith: prefix } },
+  });
+  if (!on) return;
+  const now = devNow().getTime();
+  await prisma.entryLead.createMany({
+    data: [1, 2].map((i) => ({
+      entryId,
+      contactHash: `${prefix}${i}`,
+      verifiedAt: new Date(now - i * 24 * 60 * 60 * 1000),
+      sourceHost: "little-potion.proovit.kr",
     })),
   });
 }

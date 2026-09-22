@@ -21,7 +21,12 @@ import type {
   IntegrationStatus,
   PaymentProvider,
 } from "../../src/generated/prisma/enums";
-import { checkDevSandbox, setSandboxPayment, setSandboxRevenue } from "../../src/lib/dev-sandbox";
+import {
+  checkDevSandbox,
+  setSandboxInquiries,
+  setSandboxPayment,
+  setSandboxRevenue,
+} from "../../src/lib/dev-sandbox";
 import { prisma } from "../../src/lib/prisma";
 
 const check = checkDevSandbox();
@@ -122,8 +127,9 @@ if (mode === "save") {
   console.log(token);
 } else if (mode === "restore") {
   const snap = JSON.parse(readFileSync(SNAP, "utf8")) as Snap;
-  /* ②가 심은 거래 행은 모두 지운다 — 원래 dev DB에는 없던 것이다 */
+  /* ②가 심은 거래 행·③이 심은 리드 행은 모두 지운다 — 원래 dev DB에는 없던 것이다 */
   await setSandboxRevenue(snap.entryId, false);
+  await setSandboxInquiries(snap.entryId, false);
   await prisma.entry.update({
     where: { id: snap.entryId },
     data: { chargeType: snap.chargeType, inquiryUrl: snap.inquiryUrl },

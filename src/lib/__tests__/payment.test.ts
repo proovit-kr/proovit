@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ReadonlyKeySchema, maskKey, paymentPane } from "@/lib/payment";
+import { ReadonlyKeySchema, inquiryStage, maskKey, paymentPane } from "@/lib/payment";
 
 /*
   결제 연동 화면의 판은 과금 유형(s1 제출값)과 연동 행의 상태를 접은 것이다.
@@ -41,5 +41,13 @@ describe("조회키 검사", () => {
   });
   it("너무 짧으면 거부", () => {
     expect(ReadonlyKeySchema.safeParse("sk_live_1").success).toBe(false);
+  });
+});
+
+describe("문의형 현재 단계 — 시안 ③ 「L2, 유효 문의 2건」", () => {
+  it("주소 없으면 등록 전, 있으면 L1, 유효 문의가 있으면 L2와 건수", () => {
+    expect(inquiryStage({ inquiryUrl: null, validInquiries: 5 })).toBe("문의 수단 등록 전");
+    expect(inquiryStage({ inquiryUrl: "https://a.proovit.kr/c", validInquiries: 0 })).toBe("L1, 문의 수단 등록됨");
+    expect(inquiryStage({ inquiryUrl: "https://a.proovit.kr/c", validInquiries: 2 })).toBe("L2, 유효 문의 2건");
   });
 });
