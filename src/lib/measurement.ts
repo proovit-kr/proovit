@@ -126,7 +126,43 @@ export const OriginUrlSchema = z
   .refine(
     (value) => blockedOrigin(value) === null,
     "Vercel·GitHub Pages는 약관에서 상업적 사용을 금지해요. 결제를 붙이는 순간 위반이 되고, 계정이 막히면 그동안의 지표가 사라집니다. 다른 배포처를 써 주세요.",
-  );
+  )
+  .refine((value) => {
+    try {
+      return isPublicHost(new URL(value).hostname);
+    } catch {
+      return false;
+    }
+  }, "공개된 도메인 주소여야 해요. IP나 localhost는 등록할 수 없어요.")
+  /*
+    팀 주소(`팀명.proovit.kr`)는 배포 주소 **앞에** 서는 것이라 그 자체를 배포
+    주소로 적으면 워커가 제자리를 돈다. 시안 s3의 「서비스 주소」가 팀 주소를
+    적는 칸이라 여기에 그대로 옮겨 적기 쉽다.
+  */
+  .refine((value) => {
+    try {
+      const host = new URL(value).hostname.toLowerCase();
+      return host !== ROOT_DOMAIN && !host.endsWith(`.${ROOT_DOMAIN}`);
+    } catch {
+      return false;
+    }
+  }, `${ROOT_DOMAIN} 주소는 팀 주소예요. 빌더에서 발행한 배포 주소를 적어 주세요.`);
+
+/*
+  ⚠️ **서버가 이 주소를 직접 부른다**(검증 — measurement-store.ts `verifyHostname`).
+  IP 리터럴·localhost·내부 이름을 받으면 그 fetch가 우리 인프라 안쪽을 두드리는
+  구멍이 된다(SSRF). 배포 주소는 언제나 공개 도메인이므로 점이 있는 이름만 받는다.
+*/
+export function isPublicHost(host: string): boolean {
+  const h = host.toLowerCase();
+  if (!h.includes(".")) return false;
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local")) {
+    return false;
+  }
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return false;
+  if (h.startsWith("[")) return false;
+  return true;
+}
 
 export function fullHostname(label: string): string {
   return `${label}.${ROOT_DOMAIN}`;
@@ -147,3 +183,37 @@ export const MEASUREMENT_FAILURE_MESSAGE: Record<
   NOT_FOUND: "참가 기록을 찾을 수 없어요.",
   CUSTOM_BLOCKED: `시즌1은 ${ROOT_DOMAIN} 서브도메인만 등록할 수 있어요.`,
 };
+
+/*
+  ── 화면의 세 상태(시안 `#scr-measurement` ①②③) ─────────────────
+
+  시안의 단계는 「발급됨 → 검증 대기 → 검증됨」이고 셋째 칸이 실패로 갈린다.
+  DB의 `deploy_status`·`ownership_verified_at` 두 칸을 이 셋으로 접는다 —
+  화면·개발 바·대조 스크립트가 같은 판정을 써야 어느 판인지 말이 맞는다.
+
+    wait  행은 있는데 아직 확인 전(pending·verifying), 또는 확인이 풀린 상태
+    ok    active이고 검증 시각이 있다 — 워커 라우트 표(`/api/v1/measure/routes`)에
+          실리는 조건과 같다
+    fail  마지막 확인이 실패했다
+*/
+export type MeasurementState = "wait" | "ok" | "fail";
+
+export function measurementState(row: {
+  deployStatus: string;
+  verifiedAt: Date | null;
+}): MeasurementState {
+  if (row.deployStatus === "failed") return "fail";
+  if (row.deployStatus === "active" && row.verifiedAt !== null) return "ok";
+  return "wait";
+}
+
+/**
+ * 배포 주소가 「응답했다」고 볼 응답인가.
+ *
+ * 리다이렉트는 fetch가 따라간 뒤의 최종 응답이다. 4xx는 서비스가 살아 있어도
+ * 방문자가 그 화면을 못 보는 것이라(발행 안 됨·비밀번호 걸린 미리보기) 실패로
+ * 친다 — 시안 ③의 원인 문구 「등록한 배포 주소가 응답하지 않아요」가 이 경우다.
+ */
+export function originResponded(status: number): boolean {
+  return status >= 200 && status < 400;
+}

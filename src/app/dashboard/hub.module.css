@@ -144,6 +144,37 @@
   margin-left: auto;
 }
 
+/* ── 옮겨 적는 값 상자(`.keybox`) ─────────────────────── */
+
+/*
+  시안 `.keybox` — 코드·주소처럼 옮겨 적는 값이 서는 상자. 모노스페이스.
+  팀 관리(초대코드)와 측정 연동(발급된 팀 주소)이 같이 쓴다.
+    padding   14px 16px → 15px 18px(v1.8)
+    font-size 14px → 14.5px → 15px(v2.0)
+*/
+.keybox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface-2);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.026),
+    rgba(255, 255, 255, 0) 46%
+  );
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 15px 18px;
+  font-family: var(--mono);
+  font-size: 15px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 16px 40px -28px rgba(0, 0, 0, 0.45);
+  /* 시안에는 없다 — 코드·배지·버튼 둘이 390px에 한 줄로 못 서서 넘긴다(팀 관리 ②) */
+  flex-wrap: wrap;
+}
+
 /* ── 행동 상자(`.act`) ────────────────────────────────── */
 
 .act {
