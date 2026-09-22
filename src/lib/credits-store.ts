@@ -5,8 +5,11 @@ import {
   CreditKind,
   CreditOfferStatus,
   CreditStatus,
+  CreditUnlockEvent,
   ConsentType,
   EntryStage,
+  JudgmentResult,
+  SeasonPhase,
   StageKey,
   SubmissionStatus,
 } from "@/generated/prisma/enums";
@@ -15,13 +18,18 @@ import {
   CREDIT_CARDS,
   type CreditCardState,
   type CreditFailureCode,
+  type CreditSeason,
   type FallbackItem,
   type UnlockProgress,
   creditCardState,
+  creditSeason,
   isAwardCard,
+  isOpenedCard,
   isUnlocked,
   parseFallbackItems,
+  unlockedAt,
 } from "@/lib/credits";
+import { devNow } from "@/lib/dev-clock";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -42,31 +50,40 @@ import { prisma } from "@/lib/prisma";
 // ═════════════════════════════════════════════════════════════
 
 /**
- * 팀이 지금까지 일으킨 언락 이벤트 넷.
+ * 팀이 지금까지 일으킨 언락 이벤트 넷과 그 때.
  *
  * ⚠️ 넷을 각각 다른 곳에서 읽는다 — 진도 하나로 접으면 틀린다.
  *
- *   s1 제출     `submissions`의 s1이 draft를 벗어났는가. 진도(stage)는 게이트를
- *               통과해야 오르므로 "냈다"를 진도로 판정할 수 없다.
+ *   s1 제출     `submissions`의 s1이 draft를 벗어났는가(그 `submitted_at`). 진도
+ *               (stage)는 게이트를 통과해야 오르므로 "냈다"를 진도로 판정할 수 없다.
  *   게이트 1 통과 게이트는 s2다(access-policy GATE_STAGES). 통과하면 진도가 s3으로
- *               전진하므로 진도로 읽는다 — 전진 자체가 통과의 근거다.
+ *               전진하므로 진도로 읽는다 — 전진 자체가 통과의 근거다. 때는 s2의
+ *               통과 판정(`judged_at`)이고, 판정 행이 없으면 때를 모른 채 연다.
  *   배포 검증    `hostnames.ownership_verified_at`. 진도가 s3이어도 검증은 안 끝나
  *               있을 수 있다. 지표를 세는 근거가 이 값이라 여기서도 같은 값을 쓴다.
- *   최종 확정    시상 기록이 생겼는가. 상금 규정이 붙는 카드라 「심사가 끝났다」가
- *               아니라 「이 팀이 받는다」가 조건이다.
+ *   최종 확정    시상 기록이 생겼는가(`awarded_at`). 상금 규정이 붙는 카드라 「심사가
+ *               끝났다」가 아니라 「이 팀이 받는다」가 조건이다.
  */
 export async function loadUnlockProgress(
   entryId: string,
   stage: EntryStage,
 ): Promise<UnlockProgress> {
-  const [s1, hostname, award] = await Promise.all([
+  const [s1, gate, hostname, award] = await Promise.all([
     prisma.submission.findFirst({
       where: {
         entryId,
         stageKey: StageKey.s1,
         status: { in: [SubmissionStatus.submitted, SubmissionStatus.locked] },
       },
-      select: { id: true },
+      select: { submittedAt: true, updatedAt: true },
+    }),
+    prisma.judgment.findFirst({
+      where: {
+        submission: { entryId, stageKey: StageKey.s2 },
+        result: JudgmentResult.pass,
+      },
+      orderBy: { judgedAt: "desc" },
+      select: { judgedAt: true },
     }),
     prisma.hostname.findUnique({
       where: { entryId },
@@ -74,16 +91,29 @@ export async function loadUnlockProgress(
     }),
     prisma.award.findFirst({
       where: { entryId, awardedAt: { not: null } },
-      select: { id: true },
+      select: { awardedAt: true },
     }),
   ]);
 
+  /* 때를 모르는 사건은 EPOCH — 「열렸다」는 사실만 남기고 날짜는 안 그린다 */
+  const gate1Passed = stageAtLeast(stage, EntryStage.s3)
+    ? (gate?.judgedAt ?? UNKNOWN_AT)
+    : null;
+
   return {
-    s1Submitted: s1 !== null,
-    gate1Passed: stageAtLeast(stage, EntryStage.s3),
-    deployVerified: hostname?.ownershipVerifiedAt != null,
-    finalConfirmed: award !== null,
+    s1Submitted: s1 ? (s1.submittedAt ?? s1.updatedAt) : null,
+    gate1Passed,
+    deployVerified: hostname?.ownershipVerifiedAt ?? null,
+    finalConfirmed: award?.awardedAt ?? null,
   };
+}
+
+/** 일어났지만 언제인지 모르는 사건의 자리. 화면은 이 날짜를 안 그린다 */
+export const UNKNOWN_AT = new Date(0);
+
+/** 화면에 그릴 수 있는 때인가 */
+export function knownAt(at: Date | null): Date | null {
+  return at && at.getTime() > 0 ? at : null;
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -96,13 +126,19 @@ export type CreditCardView = {
   title: string;
   /** 참가자에게 보여줄 언락 조건 문구 */
   condition: string;
+  unlockEvent: CreditUnlockEvent;
   /** 조건을 채웠는가. 협의 중 카드도 이 값은 따로 보여 준다 */
   unlocked: boolean;
   state: CreditCardState;
 
+  /** 조건이 채워진 때. 모르면 null(연 것은 `unlocked`가 말한다) */
+  unlockedAt: Date | null;
+
   /** 카드가 아직 DB에 없으면 null. 그때는 협의 중으로 그린다 */
   offerId: string | null;
   sponsorName: string | null;
+  /** 워드마크 칸의 글자(시안 「R」·「▲」). 없으면 이름 첫 글자 */
+  sponsorMark: string | null;
   sponsorLogoUrl: string | null;
   description: string | null;
   /** "$75 상당" 같은 표기. 계산에 쓰지 않는다 */
@@ -114,20 +150,25 @@ export type CreditCardView = {
   /** 폴백, 0원 스타트 스택 */
   fallbackUrl: string | null;
   fallbackItems: FallbackItem[];
+  /** 「적용 방법」 링크와 발송 줄의 적용 안내(시안 `how`) */
+  howtoUrl: string | null;
+  redeemNote: string | null;
 
   /** 발급 완료 이후에만 채워진다 */
   code_: { value: string; masked: boolean } | null;
   deliveredAt: Date | null;
   confirmedAt: Date | null;
-  unlockedAt: Date | null;
 };
 
 export type CreditCenterView = {
+  season: CreditSeason;
   cards: CreditCardView[];
   /** 열린 혜택 수. 「n/4」의 n */
   opened: number;
   /** 카드 총수. 4장 고정이지만 화면이 상수를 다시 쓰지 않게 같이 준다 */
   total: number;
+  /** 시상 기록. 시안 ⑦의 「🏆 우수상 이상 3팀 · 확정 11.03」 */
+  award: { label: string; at: Date | null } | null;
 };
 
 /**
@@ -141,10 +182,12 @@ export async function loadCreditCenter(args: {
   entryId: string;
   seasonId: string;
   stage: EntryStage;
+  phase: SeasonPhase;
 }): Promise<CreditCenterView> {
-  const { entryId, seasonId, stage } = args;
+  const { entryId, seasonId, stage, phase } = args;
+  const season = creditSeason(phase);
 
-  const [offers, claims, progress] = await Promise.all([
+  const [offers, claims, progress, award] = await Promise.all([
     prisma.creditOffer.findMany({
       where: { seasonId },
       select: {
@@ -157,9 +200,11 @@ export async function loadCreditCenter(args: {
         validUntil: true,
         deliveryMethod: true,
         inviteUrl: true,
+        howtoUrl: true,
+        redeemNote: true,
         fallbackUrl: true,
         fallbackItems: true,
-        sponsor: { select: { name: true, logoUrl: true } },
+        sponsor: { select: { name: true, mark: true, logoUrl: true } },
       },
     }),
     prisma.creditClaim.findMany({
@@ -167,13 +212,16 @@ export async function loadCreditCenter(args: {
       select: {
         offerId: true,
         status: true,
-        unlockedAt: true,
         deliveredAt: true,
         confirmedAt: true,
         creditCode: { select: { code: true } },
       },
     }),
     loadUnlockProgress(entryId, stage),
+    prisma.award.findFirst({
+      where: { entryId, awardedAt: { not: null } },
+      select: { rank: true, prizeDesc: true, awardedAt: true },
+    }),
   ]);
 
   const offerByKind = new Map(offers.map((o) => [o.kind, o]));
@@ -183,6 +231,7 @@ export async function loadCreditCenter(args: {
     const offer = offerByKind.get(spec.kind) ?? null;
     const claim = offer ? (claimByOffer.get(offer.id) ?? null) : null;
     const unlocked = isUnlocked(spec.unlockEvent, progress);
+    const at = knownAt(unlockedAt(spec.unlockEvent, progress));
 
     /*
       카드가 DB에 없으면 협의 중으로 본다. 운영자가 아직 안 만든 것과 만들었는데
@@ -194,6 +243,7 @@ export async function loadCreditCenter(args: {
       offerStatus,
       claimStatus: claim?.status ?? null,
       unlocked,
+      season,
     });
 
     /*
@@ -208,10 +258,13 @@ export async function loadCreditCenter(args: {
       code: spec.code,
       title: spec.title,
       condition: spec.condition,
+      unlockEvent: spec.unlockEvent,
       unlocked,
+      unlockedAt: at,
       state,
       offerId: offer?.id ?? null,
       sponsorName: offer?.sponsor?.name ?? null,
+      sponsorMark: offer?.sponsor?.mark ?? null,
       sponsorLogoUrl: offer?.sponsor?.logoUrl ?? null,
       description: offer?.description ?? null,
       value: offer?.value ?? null,
@@ -220,31 +273,32 @@ export async function loadCreditCenter(args: {
       deliveryMethod: offer?.deliveryMethod ?? null,
       fallbackUrl: offer?.fallbackUrl ?? null,
       fallbackItems: parseFallbackItems(offer?.fallbackItems),
+      howtoUrl: offer?.howtoUrl ?? null,
+      redeemNote: offer?.redeemNote ?? null,
       code_:
         delivered && codeValue
           ? { value: codeValue, masked: state === "confirmed" }
           : null,
       deliveredAt: claim?.deliveredAt ?? null,
       confirmedAt: claim?.confirmedAt ?? null,
-      unlockedAt: claim?.unlockedAt ?? null,
     };
   });
 
   return {
+    season,
     cards,
-    opened: cards.filter((c) => isOpened(c.state)).length,
+    opened: cards.filter((c) => isOpenedCard(c.state, c.unlocked)).length,
     total: cards.length,
+    award: award
+      ? {
+          /* 라벨은 리더보드와 같은 규칙(public-read `awardOf`) — 운영이 적은 것이 먼저다 */
+          label:
+            award.prizeDesc ??
+            (award.rank === null ? "수상" : award.rank === 1 ? "🏆 대상" : `${award.rank}위`),
+          at: award.awardedAt,
+        }
+      : null,
   };
-}
-
-function isOpened(state: CreditCardState): boolean {
-  return (
-    state === "available" ||
-    state === "scheduled" ||
-    state === "delivered" ||
-    state === "confirmed" ||
-    state === "awarded"
-  );
 }
 
 export type CreditResult = { ok: true } | { ok: false; code: CreditFailureCode };
@@ -307,8 +361,9 @@ export async function claimCredit(args: {
     유효기간이 지급 시점부터 도는 탓이다 — 미리 주면 참가자가 손해를 본다
     (설계서 2장 「빌드 시작 시점 지급」).
   */
+  /* 예정일 판정은 가정한 「오늘」로, 기록하는 시각은 진짜 지금으로(dev-clock 규칙) */
   const now = new Date();
-  const scheduled = offer.releaseDate != null && offer.releaseDate > now;
+  const scheduled = offer.releaseDate != null && offer.releaseDate > devNow();
 
   const usesPool = offer.deliveryMethod === CreditDelivery.code_pool;
 
@@ -418,6 +473,8 @@ export type AdminOfferRow = {
   description: string | null;
   value: string | null;
   inviteUrl: string | null;
+  howtoUrl: string | null;
+  redeemNote: string | null;
   fallbackUrl: string | null;
   fallbackItems: FallbackItem[];
   /** 코드 풀. 링크형·수동형이면 total 0이다 */
@@ -480,6 +537,8 @@ export async function loadAdminCreditConsole(
         description: true,
         value: true,
         inviteUrl: true,
+        howtoUrl: true,
+        redeemNote: true,
         fallbackUrl: true,
         fallbackItems: true,
         sponsorId: true,
@@ -533,6 +592,8 @@ export async function loadAdminCreditConsole(
         description: offer.description,
         value: offer.value,
         inviteUrl: offer.inviteUrl,
+        howtoUrl: offer.howtoUrl,
+        redeemNote: offer.redeemNote,
         fallbackUrl: offer.fallbackUrl,
         fallbackItems: parseFallbackItems(offer.fallbackItems),
         pool: { remaining, total },

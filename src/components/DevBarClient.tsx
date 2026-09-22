@@ -12,6 +12,7 @@ import {
   devSetMeasurement,
   devSetPayment,
   devSetStatus,
+  devSetCredits,
   devSetSubmit,
   devSetTeam,
   devSetTeamSize,
@@ -65,6 +66,8 @@ type Team = {
   payment: "none" | "pending" | "ok" | "inq";
   /** 스테이지 제출 화면의 판. 「제출」 줄의 s3 작성 중·s4 1주차. 시안 목업이 아니면 null */
   submit: "s3" | "s4" | "s4w2" | "s5" | null;
+  /** 혜택과 크레딧 화면의 판(시안 ①~⑦). 「크레딧」 줄이 되짚는다 */
+  credits: "pend" | "locked" | "sched" | "build" | "race" | "tester" | "end" | null;
   teamId: string;
 };
 
@@ -543,6 +546,43 @@ export function DevBarClient({
               )}
             </div>
           </div>
+          {/*
+            ── 크레딧 ────────────────────────────────────────
+            혜택과 크레딧 화면의 일곱 판(시안 ①~⑦). 허브 판(h1·h2·h3·h5·h6·h12·h8)
+            위에 스폰서·카드·발급 기록을 얹는다 — 카드는 시즌의 것이라 시즌 참가팀
+            전부에 걸린다. ②③④⑥은 측정 연동 검증을 되돌린다(C3 잠금).
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              크레딧
+              <em className={styles.hint}>혜택과 크레딧 ①~⑦</em>
+            </span>
+            <div className={styles.picks}>
+              {current ? (
+                [
+                  { pane: "pend", label: "① 협의 중" },
+                  { pane: "locked", label: "② s1 제출 전" },
+                  { pane: "sched", label: "③ 발급 예정" },
+                  { pane: "build", label: "④ 발급 완료" },
+                  { pane: "race", label: "⑤ 발급 확인" },
+                  { pane: "tester", label: "⑥ 테스터" },
+                  { pane: "end", label: "⑦ 시즌 종료" },
+                ].map((pick) => (
+                  <PickButton
+                    key={pick.pane}
+                    action={devSetCredits}
+                    fields={{ entryId: current.entryId, pane: pick.pane }}
+                    active={current.credits === pick.pane}
+                  >
+                    {pick.label}
+                  </PickButton>
+                ))
+              ) : (
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
+              )}
+            </div>
+          </div>
+
 
           {/*
             ── 제출 ──────────────────────────────────────────

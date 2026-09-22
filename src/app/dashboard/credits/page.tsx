@@ -1,81 +1,118 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 
 import { Badge } from "@/components/Badge";
-import { EntryStatus } from "@/generated/prisma/enums";
-import { guardPage } from "@/lib/access";
+import { AnchorButton, Button, LinkButton } from "@/components/Button";
+import { Clauses } from "@/components/Clauses";
+import { Icon } from "@/components/Icon";
+import { Card } from "@/components/Surface";
 import {
-  creditBadge,
-  isDeliveredCard,
-  maskCreditCode,
+  CREDITS_FOOT,
+  CREDITS_HEAD,
+  CREDITS_NEXT,
+  CREDITS_NOTE,
+  CREDITS_SUM,
+  CREDITS_UNLOCK,
+  CREDIT_CARD_TEXT as T,
+} from "@/content/credits";
+import { CreditKind, EntryStage, EntryStatus } from "@/generated/prisma/enums";
+import { guardPage } from "@/lib/access";
+import { stageAtLeast } from "@/lib/access-policy";
+import {
   type CreditCardState,
+  creditBadge,
+  creditValueTotal,
+  creditsPane,
+  isDeliveredCard,
+  isOpenedCard,
+  maskCreditCode,
+  nextUnlock,
 } from "@/lib/credits";
 import { loadCreditCenter, type CreditCardView } from "@/lib/credits-store";
-import { isArchived } from "@/lib/season-phase";
+import { devNow } from "@/lib/dev-clock";
 
-import { AppliedToggle, ClaimButton, CopyButton } from "./CreditActions";
+import hub from "../hub.module.css";
+import { ClauseFit } from "@/components/ClauseFit";
+
+import { AppliedCheck, ClaimForm, CopyButton } from "./CreditActions";
+import { CreditsToast } from "./CreditsToast";
+import { Rail } from "./Rail";
 
 import styles from "./credits.module.css";
 
 /*
-  혜택과 크레딧 — 13 크레딧 센터 설계서 v0.1 7장 「참가자 대시보드 ③ 혜택 탭」.
+  혜택과 크레딧 — 시안 ver4 `#scr-credits` 일곱 판(`.sb[data-cr]`).
 
-  카드 4장이 세로 레일에 걸린다. 순서가 곧 시즌의 진행이라 그리드가 아니라
-  레일이다 — C1이 열리고 C2가 열리는 흐름이 화면에 보여야 "스테이지를 통과하면
-  열린다"는 규칙이 설명 없이 읽힌다.
+    ① pend    협의 중, 폴백      모집 중, 카드 넷 다 「협의 중」
+    ② locked  s1 제출 전         카드 넷 다 「잠금」
+    ③ sched   s1 제출, 발급 예정  C1이 빌드 시작일을 기다린다
+    ④ build   빌드 시작, 발급 완료 C1 발급 완료 · C2 발급 가능
+    ⑤ race    레이스, 발급 확인   C1 확인 · C2 완료 · C3 협의 중인데 열림
+    ⑥ tester  테스터 전환         경고줄, C1만 받은 채 나머지는 잠금
+    ⑦ end     시즌 종료           안내줄, C3 만료 · C4 시상 확정
 
-  ⚠️ **예상 가치를 합산하지 않는다.** `credit_offers.value`는 "$75 상당" 같은
-  표기 문자열이고 통화도 스폰서마다 다르다. 시안은 합계("$125")를 보여주지만
-  그 숫자를 만들려면 우리가 환산을 지어내야 한다 — 받은 카드의 표기를 그대로
-  나열한다(CLAUDE.md 규칙 1).
+  판은 데이터의 결과다 — 카드 상태(`credits.ts` `creditCardState`)·시즌 구간·
+  참가 상태가 정하고, 화면은 그 결과를 그릴 뿐이다. 개발 바의 「크레딧」 줄이
+  일곱 판을 심는다(`dev-sandbox.ts` `setSandboxCredits`).
 
-  ⚠️ 문체는 해요체다. 중간점과 줄표를 쓰지 않는다(설계서 7장).
+  값은 `node scripts/design-diff/fold-spec.mjs --media '^\.cr'`의 최종 승자를
+  `credits.module.css`가 그대로 든다. 대조는 `scripts/design-diff/credits.mjs`.
+
+  시안과 일부러 다른 것(내가 정함, 2026-09-23, 수연 확인 대기):
+    · 시안의 `.lnk`는 토스트만 띄우는 자리표다. 우리는 실제 링크다 — 「조건
+      자세히」→ 규칙, 「받을 이메일 확인」→ 계정 설정, 「협의 현황 보기」→ 알림센터,
+      「적용 방법」→ 카드의 `howto_url`(없으면 안 그린다), 「시상 안내 보기」→ 심사 결과.
+    · 「폴백 가이드 열기」는 `fallback_url`이 있을 때만 선다.
+    · 시안 ⑦ 「받은 코드는 11.30까지」는 받은 코드 중 가장 이른 유효기간이다.
+    · 게이트 1 통과의 「다음 언락」 문장은 시안에 없어 같은 꼴로 맞췄다(content).
+    · 카드 본문(`.ds`)은 카드에 설명이 있을 때만 그린다.
+  `data-probe`·`data-state`는 대조 스크립트가 지금 어느 판인지 읽는 표식이다.
 */
 
 export const metadata: Metadata = {
-  title: "혜택·크레딧",
+  title: "혜택과 크레딧",
   robots: { index: false, follow: false },
 };
 
-const DATE = new Intl.DateTimeFormat("ko-KR", {
+const DAY = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul",
   month: "2-digit",
   day: "2-digit",
 });
+const MINUTE = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+/** 「10.12」 — ko-KR은 「10. 12.」로 찍으므로 다듬는다 */
+const day = (d: Date) => DAY.format(d).replace(/\s/g, "").replace(/\.$/, "");
+const minute = (d: Date) => {
+  const [date, time] = MINUTE.format(d).split(/\s+(?=\d{2}:\d{2})/);
+  return `${date.replace(/\s/g, "").replace(/\.$/, "")} ${time}`;
+};
+const dDay = (to: Date, from: Date) =>
+  Math.max(0, Math.ceil((to.getTime() - from.getTime()) / 86_400_000));
 
-/** 카드 상태별 바깥 테두리·노드 모양. CSS Module 클래스 이름이 곧 상태다 */
+/** 시안 `st-*` 클래스 */
 const STATE_CLASS: Record<CreditCardState, string> = {
-  negotiating: styles.stPending,
-  locked: styles.stLocked,
+  negotiating: styles.stPend,
+  locked: styles.stLock,
   available: styles.stReady,
-  scheduled: styles.stScheduled,
-  delivered: styles.stDelivered,
-  confirmed: styles.stConfirmed,
-  expired: styles.stExpired,
-  award: styles.stLocked,
-  awarded: styles.stAwarded,
+  scheduled: styles.stSched,
+  delivered: styles.stSent,
+  confirmed: styles.stOk,
+  expired: styles.stExp,
+  award: `${styles.stLock} ${styles.stAward}`,
+  awarded: `${styles.stAward} ${styles.fin}`,
 };
 
-/** 레일 노드에 찍는 것. 열리기 전에는 자물쇠, 열리면 카드 코드 */
-function nodeMark(card: CreditCardView): string {
-  switch (card.state) {
-    case "locked":
-    case "award":
-      return "🔒";
-    case "scheduled":
-      return "⏰";
-    case "delivered":
-    case "confirmed":
-      return "✓";
-    case "expired":
-      return "—";
-    case "awarded":
-      return "🏆";
-    default:
-      return card.code;
-  }
-}
+const Mono = ({ children }: { children: ReactNode }) => (
+  <span className="mono">{children}</span>
+);
 
 export default async function Page() {
   const { viewer, access } = await guardPage(
@@ -84,334 +121,570 @@ export default async function Page() {
   );
   if (!viewer.entry || !viewer.season) notFound();
 
-  /*
-    진도 미달(409)이면 카드를 읽지 않는다. 잠긴 화면에 카드 넉 장을 다 그려두면
-    "지금 받을 수 있는 것"과 "언젠가 받을 것"이 구분되지 않는다.
-  */
   const view = access.ok
     ? await loadCreditCenter({
         entryId: viewer.entry.id,
         seasonId: viewer.season.id,
         stage: viewer.entry.stage,
+        phase: viewer.season.phase,
       })
     : null;
 
-  const seasonOver = isArchived(viewer.season.phase);
   const eliminated = viewer.entry.status === EntryStatus.eliminated;
-
-  const received =
-    view?.cards.filter((c) => isDeliveredCard(c.state) && c.value) ?? [];
-  /* 다음에 열릴 것 하나. 시상 카드는 여기 세지 않는다 — 받는 것이 아니다 */
-  const nextCard = view?.cards.find(
-    (c) =>
-      (c.state === "locked" || c.state === "negotiating") && c.kind !== "c4",
-  );
+  /* 못 넘은 게이트 — 진도가 s5에 닿았으면 2차, 아니면 1차 */
+  const failedGate = stageAtLeast(viewer.entry.stage, EntryStage.s5) ? 2 : 1;
+  const pane = view
+    ? creditsPane({ season: view.season, eliminated, cards: view.cards })
+    : null;
+  const next = view
+    ? nextUnlock({
+        season: view.season,
+        eliminated,
+        failedGate,
+        cards: view.cards,
+      })
+    : null;
+  const now = devNow();
 
   return (
-    <section className={styles.root}>
-      <header className={styles.head}>
-        <h1 className={styles.title}>혜택과 크레딧</h1>
-        <p className={styles.lead}>
-          혜택은 스테이지를 통과할 때 열려요. 크레딧은 빌드 시작일에 보내드려요.
+    <CreditsToast>
+      <div data-probe="credits" data-state={pane ?? "none"}>
+        {!access.ok ? (
+          <div className={`${hub.wbar} ${hub.wbarWarn}`} role="status">
+            <Icon name="warn" fixed />
+            <span>
+              <Clauses text={access.message} />
+            </span>
+          </div>
+        ) : null}
+
+        <h2 className={hub.h1}>{CREDITS_HEAD.title}</h2>
+        <p className={hub.sub}>
+          <Clauses text={CREDITS_HEAD.sub} />
         </p>
 
-        {!access.ok ? (
-          <p className={styles.locked}>
-            {access.message} s1을 제출하면 첫 카드가 열려요.
-          </p>
-        ) : null}
+        {view && next ? (
+          <>
+            <Note view={view} eliminated={eliminated} failedGate={failedGate} />
 
-        {access.ok && eliminated ? (
-          <p className={styles.noteWarn} role="status">
-            게이트를 통과하지 못해 다음 카드는 열리지 않아요. 이미 받은 크레딧은
-            유효기간까지 그대로 쓸 수 있어요.
-          </p>
-        ) : null}
-
-        {access.ok && seasonOver ? (
-          <p className={styles.noteInfo} role="status">
-            시즌이 끝났어요. 받은 코드는 유효기간까지 그대로 쓰고, 열리지 않은
-            카드는 만료됐어요.
-          </p>
-        ) : null}
-      </header>
-
-      {view ? (
-        <>
-          <div className={styles.summary}>
-            <div className={`${styles.tile} ${styles.tileLime}`}>
-              <p className={styles.tileLabel}>열린 혜택</p>
-              <p className={styles.tileValue}>
-                {view.opened}
-                <span className={styles.tileOf}>/{view.total}</span>
-              </p>
-            </div>
-
-            <div className={`${styles.tile} ${styles.tileBlue}`}>
-              <p className={styles.tileLabel}>받은 크레딧</p>
-              {/*
-                합계가 아니라 나열이다. 표기 통화가 섞여 있어 더할 수 없다 —
-                머리 주석 참조.
-              */}
-              <p className={styles.tileValue}>
-                {received.length ? (
-                  received.map((c) => c.value).join("  ")
-                ) : (
-                  <span className={styles.tileNone}>아직 없어요</span>
-                )}
-              </p>
-            </div>
-
-            <div className={`${styles.tile} ${styles.tileViolet}`}>
-              <p className={styles.tileLabel}>다음 언락</p>
-              <p className={styles.tileNext}>
-                {nextCard ? (
-                  nextCard.state === "negotiating" ? (
-                    <>
-                      {nextCard.code} {nextCard.title}은 스폰서 협의 중이라
-                      폴백으로 열려 있어요
-                    </>
-                  ) : (
-                    <>
-                      <strong className={styles.nextCond}>
-                        {nextCard.condition}
-                      </strong>
-                      을 마치면 {nextCard.code} {nextCard.title}이 열려요
-                    </>
-                  )
-                ) : (
-                  "열 수 있는 카드를 다 열었어요"
-                )}
-              </p>
-            </div>
-          </div>
-
-          <ol className={styles.rail}>
-            {view.cards.map((card) => (
-              <li key={card.kind} className={styles.railItem}>
-                <span className={styles.node} aria-hidden>
-                  {nodeMark(card)}
+            {/* 요약 셋 — 시안 `#crSum` */}
+            <div className={styles.sum}>
+              <Card>
+                <small>{CREDITS_SUM.opened}</small>
+                <span className="score">
+                  {view.opened}
+                  <i>/{view.total}</i>
                 </span>
-                <Card card={card} />
-              </li>
-            ))}
-          </ol>
+              </Card>
+              <Card>
+                <small>{CREDITS_SUM.value}</small>
+                <span className="score" style={{ color: "var(--blue)" }}>
+                  {creditValueTotal(view.cards)}
+                </span>
+              </Card>
+              <Card>
+                <small>{CREDITS_SUM.next}</small>
+                <div className={styles.nx}>
+                  <Next next={next} />
+                </div>
+              </Card>
+            </div>
 
-          <div className={styles.foot}>
-            <p>
-              <strong>팀당 1회 발급.</strong> 코드는 스폰서가 만들고 프루빗은
-              전달과 확인만 해요. 코드 발급을 위해 스폰서에 이름과 이메일을
-              넘기는 건 참가 신청 때 따로 동의한 팀만이에요.
+            {/* 레일 — 시안 `#crRail`. 라임 선은 마지막으로 열린 카드까지 */}
+            <Rail
+              className={styles.rail}
+              last={view.cards
+                .map((c) => isOpenedCard(c.state, c.unlocked))
+                .lastIndexOf(true)}
+            >
+              {view.cards.map((card, i) => (
+                <CreditCard
+                  key={card.kind}
+                  card={card}
+                  index={i}
+                  award={view.award}
+                  now={now}
+                />
+              ))}
+            </Rail>
+
+            <p className={styles.foot}>
+              {CREDITS_FOOT.map((line, i) => (
+                <span key={line.b}>
+                  {i > 0 ? <br /> : null}
+                  <b>{line.b}</b>
+                  <Clauses text={line.text} />
+                </span>
+              ))}
             </p>
-            <p>
-              <strong>상금과는 별개.</strong> C1부터 C3까지는 참가를 돕는
-              자원이고, 시상 크레딧만 상금 규정이 적용돼요. 자세한 건{" "}
-              <Link href="/rules" className={styles.footLink}>
-                시즌 운영 규칙
-              </Link>
-              에 있어요.
-            </p>
-          </div>
-        </>
-      ) : null}
-    </section>
+          </>
+        ) : null}
+        <ClauseFit />
+      </div>
+    </CreditsToast>
   );
 }
 
-function Card({ card }: { card: CreditCardView }) {
+/**
+ * 제목 아래 한 줄 — ⑥ 경고줄, ⑦ 안내줄. 나머지 판은 비어 있다.
+ * ⚠️ 줄은 flex라 절(Clauses)을 `<span>` 하나에 담는다 — 안 담으면 절마다 flex
+ * 항목이 되어 나란히 선다.
+ */
+function Note({
+  view,
+  eliminated,
+  failedGate,
+}: {
+  view: NonNullable<Awaited<ReturnType<typeof loadCreditCenter>>>;
+  eliminated: boolean;
+  failedGate: 1 | 2;
+}) {
+  if (view.season === "over") {
+    return (
+      <div className={`${hub.infoStrip} ${styles.strip}`} role="status">
+        <Icon name="info" fixed />
+        <span>
+          <Clauses text={CREDITS_NOTE.over} />
+        </span>
+      </div>
+    );
+  }
+  if (eliminated) {
+    const received = view.cards
+      .filter((c) => isDeliveredCard(c.state))
+      .map((c) => c.code);
+    const text = (
+      received.length ? CREDITS_NOTE.tester : CREDITS_NOTE.testerNone
+    )
+      .replace("{gate}", String(failedGate))
+      .replace("{cards}", received.join(", "));
+    return (
+      <div
+        className={`${hub.wbar} ${hub.wbarWarn} ${styles.strip}`}
+        role="status"
+      >
+        <Icon name="warn" fixed />
+        <span>
+          <Clauses text={text} />
+        </span>
+      </div>
+    );
+  }
+  return null;
+}
+
+/** 「다음 언락」 칸 — 시안 `nx` */
+function Next({ next }: { next: ReturnType<typeof nextUnlock> }) {
+  switch (next.kind) {
+    case "pre":
+      return (
+        <>
+          {CREDITS_NEXT.pre[0]}
+          <Mono>{CREDITS_NEXT.pre[1]}</Mono>
+          {CREDITS_NEXT.pre[2]}
+        </>
+      );
+    case "scheduled":
+      return (
+        <>
+          {CREDITS_NEXT.scheduled[0].replace("{code}", next.card.code)}
+          {next.at ? <Mono>{day(next.at)}</Mono> : null}
+          {CREDITS_NEXT.scheduled[1]}
+        </>
+      );
+    case "unlock": {
+      const line = CREDITS_UNLOCK[next.card.unlockEvent];
+      return (
+        <>
+          {next.via
+            ? CREDITS_NEXT.negotiatingOpen.replace("{code}", next.via.code)
+            : null}
+          <b>{line.key}</b>
+          {line.rest
+            .replace("{code}", next.card.code)
+            .replace("{title}", next.card.title)}
+        </>
+      );
+    }
+    case "tester": {
+      const line = next.next ? CREDITS_NEXT.tester : CREDITS_NEXT.testerNone;
+      return (
+        <>
+          <b>{line[0].replace("{gate}", String(next.gate))}</b>
+          {line[1].replace("{code}", next.next?.code ?? "")}
+        </>
+      );
+    }
+    case "over":
+      return next.until ? (
+        <>
+          {CREDITS_NEXT.over[0]}
+          <Mono>{day(next.until)}</Mono>
+          {CREDITS_NEXT.over[1]}
+        </>
+      ) : (
+        CREDITS_NEXT.overNone
+      );
+    case "done":
+      return CREDITS_NEXT.done;
+  }
+}
+
+/** 레일의 노드 — 시안 `crNode` */
+function Node({ card }: { card: CreditCardView }) {
+  switch (card.state) {
+    case "locked":
+    case "award":
+      return <Icon name="lock" />;
+    case "scheduled":
+      return <Icon name="clock" />;
+    case "delivered":
+    case "confirmed":
+      return <Icon name="check" />;
+    case "expired":
+      return <Icon name="ban" />;
+    case "awarded":
+      return "🏆";
+    default:
+      return card.code;
+  }
+}
+
+function CreditCard({
+  card,
+  index,
+  award,
+  now,
+}: {
+  card: CreditCardView;
+  index: number;
+  award: { label: string; at: Date | null } | null;
+  now: Date;
+}) {
   const badge = creditBadge(card.state, card.unlocked);
+  const pend = card.state === "negotiating";
+  const awardCard = card.kind === CreditKind.c4;
 
   return (
-    <article className={`${styles.card} ${STATE_CLASS[card.state]}`}>
-      <div className={styles.cardHead}>
-        <span className={styles.kind}>{card.code}</span>
-        <h2 className={styles.cardTitle}>{card.title}</h2>
+    <Card className={`${styles.cr} ${STATE_CLASS[card.state]}`} data-i={index}>
+      <span className={styles.nd}>
+        <Node card={card} />
+      </span>
+
+      <div className={styles.hd}>
+        <span className={styles.kd}>{card.code}</span>
+        <h3>{card.title}</h3>
         <Badge tone={badge.tone} dashed={badge.dashed}>
           {badge.label}
         </Badge>
-        <span className={styles.sponsor}>
-          {card.sponsorName ? (
-            <>
-              <span className={styles.sponsorMark} aria-hidden>
-                {card.sponsorName.slice(0, 1)}
-              </span>
+        <span className={styles.sp}>
+          {card.sponsorName && !pend ? (
+            <span className={styles.wmk}>
+              <i>{card.sponsorMark ?? card.sponsorName.slice(0, 1)}</i>
               {card.sponsorName}
-            </>
+            </span>
           ) : (
-            <>
-              <span className={styles.sponsorMarkNone} aria-hidden>
-                ?
-              </span>
-              스폰서 미정
-            </>
+            <span className={styles.wmk}>
+              <i>?</i>
+              {T.sponsorNone}
+            </span>
           )}
         </span>
       </div>
 
       {card.description ? (
-        <p className={styles.desc}>{card.description}</p>
+        <p className={styles.ds}>
+          <Clauses text={card.description} />
+        </p>
       ) : null}
 
-      <p className={card.unlocked ? styles.condMet : styles.cond}>
-        <span aria-hidden>{card.unlocked ? "✓" : "🔒"}</span>
-        {card.unlocked ? card.condition : `열리는 조건, ${card.condition}`}
-      </p>
+      {card.unlocked ? (
+        <span className={`${styles.cond} ${styles.ok}`}>
+          <Icon name="check" />
+          {card.condition}
+          {card.unlockedAt ? <Mono>{day(card.unlockedAt)}</Mono> : null}
+        </span>
+      ) : (
+        <span className={styles.cond}>
+          <Icon name="lock" />
+          {T.condLocked}
+          {card.condition}
+        </span>
+      )}
 
-      <dl className={styles.meta}>
+      <div className={styles.meta}>
         <div>
-          <dt>예상 가치</dt>
-          <dd className={card.value ? styles.metaLime : undefined}>
-            {card.value ?? "협의 중"}
-          </dd>
+          <small>{T.meta.value}</small>
+          {pend || !card.value ? (
+            <span className={styles.k}>{T.negotiating}</span>
+          ) : awardCard ? (
+            <span className={styles.k}>{card.value}</span>
+          ) : (
+            <>
+              <b className={styles.lime}>{card.value}</b>{" "}
+              <span
+                className={styles.k}
+                style={{ fontSize: "12px", color: "var(--muted)" }}
+              >
+                {T.worth}
+              </span>
+            </>
+          )}
         </div>
         <div>
-          <dt>지급 시점</dt>
-          <dd>{card.releaseDate ? DATE.format(card.releaseDate) : "조건 충족 즉시"}</dd>
+          <small>{T.meta.release}</small>
+          {card.releaseDate && card.kind === CreditKind.c1 ? (
+            <>
+              <span className={styles.k}>{T.releaseLabel}</span>{" "}
+              <b>{day(card.releaseDate)}</b>
+            </>
+          ) : (
+            <span className={styles.k}>
+              {card.releaseDate
+                ? day(card.releaseDate)
+                : T.releaseImmediate[card.unlockEvent]}
+            </span>
+          )}
         </div>
         <div>
-          <dt>유효기간</dt>
-          <dd>{card.validUntil ? `~ ${DATE.format(card.validUntil)}` : "협의 중"}</dd>
+          <small>{T.meta.valid}</small>
+          {pend || !card.validUntil ? (
+            <span className={styles.k}>{T.none}</span>
+          ) : (
+            <b>~ {day(card.validUntil)}</b>
+          )}
         </div>
-      </dl>
+      </div>
 
-      <CardBody card={card} />
-    </article>
+      <Body card={card} award={award} now={now} />
+    </Card>
   );
 }
 
-function CardBody({ card }: { card: CreditCardView }) {
+/** 상태별 행동 줄 — 시안 `crCard`의 `body` */
+function Body({
+  card,
+  award,
+  now,
+}: {
+  card: CreditCardView;
+  award: { label: string; at: Date | null } | null;
+  now: Date;
+}) {
+  const how = card.howtoUrl ? (
+    <a
+      className={styles.lnk}
+      href={card.howtoUrl}
+      target="_blank"
+      rel="noreferrer"
+    >
+      {T.ready.how}
+    </a>
+  ) : null;
+
   switch (card.state) {
     case "negotiating":
+      if (card.kind === CreditKind.c4) {
+        return (
+          <div className={styles.act}>
+            <span className={styles.when} style={{ marginLeft: 0 }}>
+              <Clauses text={T.pendAward} />
+            </span>
+          </div>
+        );
+      }
       return (
         <>
           <Fallback card={card} />
-          <p className={styles.hint}>
-            {card.unlocked
-              ? "조건은 채웠어요. 스폰서가 확정되면 바로 열려요."
-              : "스폰서가 확정되면 여기에 코드가 들어와요."}
-          </p>
+          <div className={styles.act}>
+            {card.fallbackUrl ? (
+              <AnchorButton
+                variant="outline"
+                href={card.fallbackUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {T.pend.guide}
+              </AnchorButton>
+            ) : null}
+            <a className={styles.lnk} href="/notifications">
+              {T.pend.status}
+            </a>
+            {card.unlocked ? (
+              <span className={styles.when}>
+                <Clauses text={T.pend.open} />
+              </span>
+            ) : null}
+          </div>
         </>
       );
 
     case "locked":
       return (
-        <p className={styles.hint}>
-          {card.condition}을 마치면 열려요. 조건은{" "}
-          <Link href="/rules" className={styles.footLink}>
-            시즌 운영 규칙
-          </Link>
-          의 혜택 항목에 있어요.
-        </p>
-      );
-
-    case "available":
-      return card.offerId ? (
-        <ClaimButton offerId={card.offerId} />
-      ) : (
-        <p className={styles.hint}>곧 열려요.</p>
+        <div className={styles.act}>
+          <Button variant="ghost" disabled>
+            <Icon name="lock" /> {T.lock.claim}
+          </Button>
+          <a className={styles.lnk} href="/rules">
+            {T.lock.cond}
+          </a>
+        </div>
       );
 
     case "scheduled":
       return (
-        <p className={styles.scheduled}>
-          <span aria-hidden>⏰</span>
-          빌드 시작일{" "}
-          <strong>
-            {card.releaseDate ? DATE.format(card.releaseDate) : "개시일"}
-          </strong>
-          에 이메일로 보내드려요. 크레딧 유효기간이 받는 순간부터 도는 탓에 미리
-          드리지 않아요.
-        </p>
+        <>
+          <div className={styles.sched}>
+            <Icon name="clock" />
+            {T.sched.line[0]}
+            {card.releaseDate ? (
+              <b className="mono">{day(card.releaseDate)}</b>
+            ) : null}
+            {T.sched.line[1]}
+            {card.releaseDate ? (
+              <span className={styles.dd}>D-{dDay(card.releaseDate, now)}</span>
+            ) : null}
+          </div>
+          <div className={styles.act}>
+            <a className={styles.lnk} href="/settings">
+              {T.sched.mail}
+            </a>
+            <span className={styles.when}>
+              <Clauses text={T.sched.when} />
+            </span>
+          </div>
+        </>
+      );
+
+    case "available":
+      return (
+        <ClaimForm offerId={card.offerId} className={styles.act}>
+          {how}
+          <span className={styles.when}>
+            <Clauses text={T.ready.when} />
+          </span>
+        </ClaimForm>
       );
 
     case "delivered":
-    case "confirmed":
+    case "confirmed": {
+      const confirmed = card.state === "confirmed";
       return (
         <>
           {card.code_ ? (
-            <div className={styles.codeBox}>
-              <code className={styles.codeValue}>
+            <div className={styles.code}>
+              <span className={styles.v}>
                 {card.code_.masked
                   ? maskCreditCode(card.code_.value)
                   : card.code_.value}
-              </code>
-              {card.code_.masked ? null : (
+              </span>
+              <span className={styles.cp}>
                 <CopyButton value={card.code_.value} />
-              )}
+                {card.howtoUrl ? (
+                  <a
+                    className={styles.lnk}
+                    href={card.howtoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      fontSize: "12.5px",
+                      color: "var(--muted)",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "3px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {T.sent.how}
+                  </a>
+                ) : null}
+              </span>
               {card.deliveredAt ? (
-                <span className={styles.codeSent}>
-                  {DATE.format(card.deliveredAt)} 발송
+                <span className={styles.sent}>
+                  {T.sent.line}
+                  <Mono>{minute(card.deliveredAt)}</Mono>
+                  {card.redeemNote ? `, ${card.redeemNote}` : null}
                 </span>
               ) : null}
             </div>
           ) : null}
           {card.offerId ? (
-            <AppliedToggle
+            <AppliedCheck
               offerId={card.offerId}
-              applied={card.state === "confirmed"}
-            />
+              applied={confirmed}
+              className={`${styles.okrow} ${confirmed ? styles.on : ""}`}
+              boxClassName={`${styles.chk} ${confirmed ? styles.on : ""}`}
+            >
+              {confirmed ? T.sent.confirmed : T.sent.applied}
+            </AppliedCheck>
           ) : null}
         </>
       );
+    }
 
     case "expired":
       return (
-        <p className={styles.hint}>
-          {card.sponsorName
-            ? "유효기간이 끝났어요."
-            : "스폰서 협의가 안 돼 폴백으로 운영됐어요. 시즌 종료로 닫혔어요."}
-        </p>
+        <div className={styles.act}>
+          <span className={styles.when} style={{ marginLeft: 0 }}>
+            <Clauses
+              text={
+                !card.sponsorName
+                  ? T.exp.noSponsor
+                  : card.unlocked
+                    ? T.exp.opened
+                    : T.exp.never
+              }
+            />
+          </span>
+        </div>
       );
 
     case "award":
       return (
-        <p className={styles.hint}>
-          2차 심사가 확정된 뒤에 안내돼요. 여기서 받는 게 아니라 시상 절차로
-          가요.
-        </p>
+        <div className={styles.act}>
+          <span className={styles.when} style={{ marginLeft: 0 }}>
+            <Clauses text={T.award} />
+          </span>
+        </div>
       );
 
     case "awarded":
       return (
-        <p className={styles.hint}>
-          시상이 확정됐어요. 상금 규정과 세금 안내가 함께 가요.
-        </p>
+        <div className={styles.act}>
+          {award ? <Badge tone="lime">{award.label}</Badge> : null}
+          <LinkButton variant="outline" href="/dashboard/judgments">
+            {T.awarded.guide}
+          </LinkButton>
+          <span className={styles.when}>
+            {T.awarded.when[0]}
+            {award?.at ? <Mono>{day(award.at)}</Mono> : null}
+            {T.awarded.when[1]}
+          </span>
+        </div>
       );
   }
 }
 
-/** 0원 스타트 스택. 스폰서가 없어도 같은 루트를 갈 수 있다는 안내다 */
+/** 0원 스타트 스택 — 시안 `.fb`. 스폰서가 없어도 같은 루트를 갈 수 있다는 안내 */
 function Fallback({ card }: { card: CreditCardView }) {
-  if (!card.fallbackItems.length && !card.fallbackUrl) return null;
-
+  if (!card.fallbackItems.length) return null;
   return (
-    <div className={styles.fallback}>
-      <p className={styles.fallbackTitle}>
-        폴백, <span className={styles.mono}>₩0</span> 스타트 스택
-        <span className={styles.fallbackSub}>같은 루트를 무료 티어로 가요</span>
-      </p>
-      {card.fallbackItems.length ? (
-        <ul className={styles.fallbackList}>
-          {card.fallbackItems.map((item) => (
-            <li key={item.name}>
-              {item.name}
-              {item.note ? (
-                <span className={styles.fallbackNote}>{item.note}</span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {card.fallbackUrl ? (
-        <a
-          className={styles.footLink}
-          href={card.fallbackUrl}
-          target="_blank"
-          rel="noreferrer"
-        >
-          폴백 가이드 열기
-        </a>
-      ) : null}
+    <div className={styles.fb}>
+      <div className={styles.t}>
+        {T.fallback.title}
+        <Mono>{T.fallback.zero}</Mono>
+        {T.fallback.stack}
+        <span style={{ fontWeight: 400, color: "var(--faint)" }}>
+          {T.fallback.sub}
+        </span>
+      </div>
+      <ul>
+        {card.fallbackItems.map((item) => (
+          <li key={item.name}>
+            {item.name}
+            {item.note ? <small>{item.note}</small> : null}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

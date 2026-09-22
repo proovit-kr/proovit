@@ -91,6 +91,8 @@ export async function saveOffer(
     releaseDate: toDate(formData.get("releaseDate")),
     validUntil: toDate(formData.get("validUntil")),
     inviteUrl: orNull(formData.get("inviteUrl")),
+    howtoUrl: orNull(formData.get("howtoUrl")),
+    redeemNote: orNull(formData.get("redeemNote")),
     description: orNull(formData.get("description")),
     value: orNull(formData.get("value")),
     fallbackUrl: orNull(formData.get("fallbackUrl")),

@@ -23,6 +23,8 @@ import {
   setSandboxTeam,
   setSandboxTeamSize,
   setMetricsFixture,
+  setSandboxCredits,
+  type CreditsPane,
   type HubKey,
   type MetricsFixture,
   type SubmitPane,
@@ -198,6 +200,19 @@ export async function devSetPayment(formData: FormData): Promise<void> {
     throw new Error("[dev] entryId·pane가 잘못됐습니다.");
   }
   await setSandboxPayment({ entryId, pane: raw as PaymentPane });
+  refresh();
+}
+
+/** 혜택과 크레딧 화면의 판 — 스폰서·카드·발급 기록을 심는다(`setSandboxCredits`) */
+export async function devSetCredits(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const raw = String(formData.get("pane") ?? "");
+  if (!entryId || !["pend", "locked", "sched", "build", "race", "tester", "end"].includes(raw)) {
+    throw new Error("[dev] entryId·pane가 잘못됐습니다.");
+  }
+  await setSandboxCredits({ entryId, pane: raw as CreditsPane });
   refresh();
 }
 

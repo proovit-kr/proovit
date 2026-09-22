@@ -244,12 +244,11 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
     leaderOnly: true,
     allowInactive: true,
   },
-  dashboardCredits: {
-    auth: "user",
-    entry: true,
-    flag: "credits",
-    minStage: EntryStage.s1,
-  },
+  /*
+    혜택. 진도 조건이 없다 — 시안 ①(협의 중, 폴백)이 모집 중에 그려진다.
+    제휴 0건이어도 혜택 탭은 연다는 13 설계서 2장의 전제와 같다(2026-09-23).
+  */
+  dashboardCredits: { auth: "user", entry: true, flag: "credits" },
   notifications: { auth: "user", flag: "notifications" },
   /** 계정 설정. 참가하지 않은 회원도 쓴다 */
   settings: { auth: "user" },

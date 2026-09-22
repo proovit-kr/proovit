@@ -4,14 +4,17 @@ import {
   CreditKind,
   CreditOfferStatus,
   CreditUnlockEvent,
+  SeasonPhase,
 } from "@/generated/prisma/enums";
+import { phaseAtLeast } from "@/lib/season-phase";
 
 /*
   혜택·크레딧의 **순수** 절반. 클라이언트도 읽는다(§8 · payment.ts와 같은 분리).
 
   근거는 13 크레딧 센터 설계서 v0.1(2026.08.22)이다. 그 문서가 고정한 것 넷 중
   둘이 여기 있다 — 카드가 무엇인지(3장)와 상태가 어떻게 바뀌는지(4장). 나머지
-  둘(지급 흐름·폴백)은 credits-store.ts와 화면이 맡는다.
+  둘(지급 흐름·폴백)은 credits-store.ts와 화면이 맡는다. 화면의 모양은 시안 ver4
+  `#scr-credits` 일곱 판이 정본이다(2026-09-23).
 
   ⚠️ **카드 4장은 코드에 박고, 값은 DB에서 읽는다.** 종류·언락 조건·순서는
   설계서가 고정한 구조라 시즌마다 바뀌지 않는다. 반대로 스폰서·금액·유효기간·
@@ -91,22 +94,23 @@ export function isAwardCard(kind: CreditKind): boolean {
 // ═════════════════════════════════════════════════════════════
 
 /**
- * 팀이 지금까지 일으킨 사건들.
+ * 팀이 지금까지 일으킨 사건들과 **그 때**. 안 일어났으면 null.
  *
  * `entry.stage` 하나로 넷을 다 판정하지 않는 이유는 배포 검증이다 — 그건 진도가
  * 아니라 hostnames의 검증 상태라서 s3에 와 있어도 아직 안 끝나 있을 수 있다.
+ * 때를 함께 드는 것은 시안 카드의 조건 칩(「✓ s1 제출 완료 10.03」) 때문이다.
  */
 export type UnlockProgress = {
-  s1Submitted: boolean;
-  gate1Passed: boolean;
-  deployVerified: boolean;
-  finalConfirmed: boolean;
+  s1Submitted: Date | null;
+  gate1Passed: Date | null;
+  deployVerified: Date | null;
+  finalConfirmed: Date | null;
 };
 
-export function isUnlocked(
+export function unlockedAt(
   event: CreditUnlockEvent,
   progress: UnlockProgress,
-): boolean {
+): Date | null {
   switch (event) {
     case CreditUnlockEvent.s1_submitted:
       return progress.s1Submitted;
@@ -119,6 +123,30 @@ export function isUnlocked(
   }
 }
 
+export function isUnlocked(
+  event: CreditUnlockEvent,
+  progress: UnlockProgress,
+): boolean {
+  return unlockedAt(event, progress) !== null;
+}
+
+// ═════════════════════════════════════════════════════════════
+// 시즌 구간 — 카드 상태를 가르는 셋째 축
+// ═════════════════════════════════════════════════════════════
+
+/**
+ * 시안 일곱 판이 시즌을 셋으로 본다 — ① 모집 중(`pre`), ②~⑥ 레이스(`racing`),
+ * ⑦ 시상 발표 뒤(`over`). 「협의 중」 카드가 언제 「잠금」으로 읽히는지, 안 열린
+ * 카드가 언제 「만료」가 되는지를 이 값이 가른다.
+ */
+export type CreditSeason = "pre" | "racing" | "over";
+
+export function creditSeason(phase: SeasonPhase): CreditSeason {
+  if (phaseAtLeast(phase, SeasonPhase.awarded)) return "over";
+  if (phase === SeasonPhase.racing) return "racing";
+  return "pre";
+}
+
 // ═════════════════════════════════════════════════════════════
 // 카드 표시 상태 — 13 설계서 4장 두 표를 하나로 합친 값
 // ═════════════════════════════════════════════════════════════
@@ -126,26 +154,27 @@ export function isUnlocked(
 /*
   DB에는 표가 둘이다 — 카드 상태(credit_offers.status)와 발급 상태
   (credit_claims.status). 화면이 그리는 것은 그 둘의 **곱**이라, 화면마다
-  곱셈을 다시 하면 반드시 어긋난다. 여기서 한 번 접어 여덟 값으로 만든다.
+  곱셈을 다시 하면 반드시 어긋난다. 여기서 한 번 접어 아홉 값으로 만든다.
+  시안의 `st`(pend·lock·sched·ready·sent·ok·exp·award)와 하나씩 짝이 있다.
 */
 export type CreditCardState =
-  /** 스폰서 미확정. 언락과 무관하게 폴백 가이드만 보여준다 */
+  /** 스폰서 미확정(시안 pend). 폴백 가이드만 보여준다 */
   | "negotiating"
-  /** 언락 이벤트가 아직 안 일어났다 */
+  /** 언락 이벤트가 아직 안 일어났다(lock) */
   | "locked"
-  /** 언락됨, 받을 수 있다 */
+  /** 언락됨, 받을 수 있다(ready) */
   | "available"
-  /** 클레임했지만 배포 예정일 전이다(C1 전용) */
+  /** 클레임했지만 배포 예정일 전이다(sched, C1 전용) */
   | "scheduled"
-  /** 코드·링크가 전달됐다 */
+  /** 코드·링크가 전달됐다(sent) */
   | "delivered"
-  /** 참가자가 「적용했어요」를 눌렀거나 스폰서가 확인해 줬다 */
+  /** 참가자가 「적용했어요」를 눌렀거나 스폰서가 확인해 줬다(ok) */
   | "confirmed"
-  /** 유효기간이 지났거나 안 열린 채 시즌이 끝났다 */
+  /** 유효기간이 지났거나 안 열린 채 시즌이 끝났다(exp) */
   | "expired"
-  /** 시상 카드. 2차 심사 전 */
+  /** 시상 카드. 2차 심사 전(award) */
   | "award"
-  /** 시상 카드. 2차 심사 확정 */
+  /** 시상 카드. 2차 심사 확정(award fin) */
   | "awarded";
 
 export type CreditCardStateInput = {
@@ -153,65 +182,249 @@ export type CreditCardStateInput = {
   offerStatus: CreditOfferStatus;
   claimStatus: CreditClaimStatus | null;
   unlocked: boolean;
+  season: CreditSeason;
 };
 
 /**
  * 카드 한 장이 지금 어떤 얼굴인가.
  *
- * **순서가 규약이다**(canAccess와 같은 이유). 협의 중을 맨 앞에 두는 것은
- * 설계서 4장의 전이 규칙 마지막 줄 때문이다 — "카드가 협의 중이면 언락이
- * 발생해도 클레임 버튼 대신 폴백 가이드를 보여줌". 이 줄을 뒤로 미루면
- * 스폰서가 없는데 「크레딧 받기」 버튼이 서고, 누르면 줄 것이 없다.
+ * **순서가 규약이다**(canAccess와 같은 이유).
+ *
+ *   1. 시상 카드는 클레임 흐름 밖이다.
+ *   2. 손에 들어온 발급 기록(예정·완료·확인·만료)은 카드가 어떻게 되든 남는다 —
+ *      운영자가 카드를 협의 중으로 되돌려도 받은 코드는 받은 것이다.
+ *   3. 협의 중은 **조건이 채워졌을 때만** 협의 중으로 읽힌다(시안 ⑤ 「협의 중,
+ *      열림」). 레이스 중에 아직 안 열린 카드는 스폰서가 있든 없든 「잠금」이다
+ *      (시안 ②③④의 C3) — 조건이 먼저다. 모집 중에는 아무것도 안 열리므로 전부
+ *      「협의 중」이고(시안 ①), 시즌이 끝나면 못 연 채 「만료」다(⑦의 C3).
+ *   4. 나머지는 조건과 카드가 닫혔는지로 가른다.
  */
 export function creditCardState(input: CreditCardStateInput): CreditCardState {
-  const { kind, offerStatus, claimStatus, unlocked } = input;
+  const { kind, offerStatus, claimStatus, unlocked, season } = input;
+  const ended = offerStatus === CreditOfferStatus.ended || season === "over";
 
-  /* 1) 시상 카드는 클레임 흐름 밖이다 */
-  if (isAwardCard(kind)) return unlocked ? "awarded" : "award";
-
-  /* 2) 협의 중 — 언락되어도 폴백이 먼저다 */
-  if (offerStatus === CreditOfferStatus.negotiating) return "negotiating";
-
-  /* 3) 발급 기록이 있으면 그 상태가 곧 카드 상태다 */
-  if (claimStatus) {
-    switch (claimStatus) {
-      case CreditClaimStatus.available:
-        /* 카드가 닫힌 뒤에는 받을 수 없다. 열려 있던 흔적만 남는다 */
-        return offerStatus === CreditOfferStatus.ended
-          ? "expired"
-          : "available";
-      case CreditClaimStatus.scheduled:
-        return "scheduled";
-      case CreditClaimStatus.delivered:
-        return "delivered";
-      case CreditClaimStatus.confirmed:
-        return "confirmed";
-      case CreditClaimStatus.expired:
-        return "expired";
+  /* 1) 시상 카드 */
+  if (isAwardCard(kind)) {
+    if (unlocked) return "awarded";
+    if (offerStatus === CreditOfferStatus.negotiating && season === "pre") {
+      return "negotiating";
     }
+    return ended ? "expired" : "award";
   }
 
-  /* 4) 기록이 없다 — 안 열렸거나(잠금), 열리기 전에 카드가 닫혔거나(만료) */
-  if (!unlocked) {
-    return offerStatus === CreditOfferStatus.ended ? "expired" : "locked";
+  /* 2) 발급 기록이 있으면 그 상태가 곧 카드 상태다 */
+  switch (claimStatus) {
+    case CreditClaimStatus.scheduled:
+      return "scheduled";
+    case CreditClaimStatus.delivered:
+      return "delivered";
+    case CreditClaimStatus.confirmed:
+      return "confirmed";
+    case CreditClaimStatus.expired:
+      return "expired";
+    default:
+      break;
   }
-  return offerStatus === CreditOfferStatus.ended ? "expired" : "available";
+
+  /* 3) 협의 중 — 열렸을 때만 협의 중이다 */
+  if (offerStatus === CreditOfferStatus.negotiating) {
+    if (season === "over") return "expired";
+    return season === "pre" || unlocked ? "negotiating" : "locked";
+  }
+
+  /* 4) 기록이 없거나 받을 수 있는 채다 */
+  if (!unlocked) return ended ? "expired" : "locked";
+  return ended ? "expired" : "available";
 }
 
-/** 「열린 혜택 n/4」에 세는 것. 잠금·시상 대기는 열린 것이 아니다 */
-export function isOpenedCard(state: CreditCardState): boolean {
-  return (
-    state === "available" ||
-    state === "scheduled" ||
-    state === "delivered" ||
-    state === "confirmed" ||
-    state === "awarded"
-  );
+/**
+ * 「열린 혜택 n/4」에 세는 것 — 조건이 채워진 카드. 시안 `crRender`의 `last`와
+ * 같은 규칙이다: 잠금·시상 대기는 아니고, 협의 중·만료는 조건이 채워졌을 때만.
+ * 레일의 라임 선도 여기까지 내려온다.
+ */
+export function isOpenedCard(state: CreditCardState, unlocked: boolean): boolean {
+  switch (state) {
+    case "locked":
+    case "award":
+      return false;
+    case "negotiating":
+    case "expired":
+      return unlocked;
+    default:
+      return true;
+  }
 }
 
-/** 코드가 실제로 손에 들어온 카드. 예상 가치 합계는 이것만 센다 */
+/** 코드가 실제로 손에 들어온 카드 */
 export function isDeliveredCard(state: CreditCardState): boolean {
   return state === "delivered" || state === "confirmed";
+}
+
+// ═════════════════════════════════════════════════════════════
+// 시안의 일곱 판 — 지금 데이터가 그중 어느 것인가
+// ═════════════════════════════════════════════════════════════
+
+/** 시안 `.sb[data-cr]` 일곱 판 */
+export type CreditsPane =
+  | "pend"
+  | "locked"
+  | "sched"
+  | "build"
+  | "race"
+  | "tester"
+  | "end";
+
+/**
+ * 대조 스크립트와 개발 바가 「지금 어느 판인가」를 되짚는 데 쓴다. 화면은 이
+ * 값으로 아무것도 안 바꾼다 — 판은 카드 상태의 결과이지 원인이 아니다.
+ * 시안 목업 모양이 아니면 null이다.
+ */
+export function creditsPane(args: {
+  season: CreditSeason;
+  eliminated: boolean;
+  cards: { kind: CreditKind; state: CreditCardState; unlocked: boolean }[];
+}): CreditsPane | null {
+  const { season, eliminated, cards } = args;
+  if (season === "over") return "end";
+  if (eliminated) return "tester";
+  if (season === "pre") {
+    return cards.every((c) => c.state === "negotiating") ? "pend" : null;
+  }
+  const of = (kind: CreditKind) => cards.find((c) => c.kind === kind);
+  const c1 = of(CreditKind.c1);
+  const c3 = of(CreditKind.c3);
+  if (!c1 || !c3) return null;
+  if (c1.state === "locked") return "locked";
+  if (c1.state === "scheduled") return "sched";
+  if (c3.state === "negotiating" && c3.unlocked) return "race";
+  if (isDeliveredCard(c1.state) && c3.state === "locked") return "build";
+  return null;
+}
+
+// ═════════════════════════════════════════════════════════════
+// 예상 가치 합계 — 시안 「받은 크레딧 예상 가치 $125」
+// ═════════════════════════════════════════════════════════════
+
+/*
+  `credit_offers.value`는 「$75」 같은 표기다. 시안은 열린 카드의 값을 더해
+  보여준다. 통화가 섞이면 환산을 지어내야 하므로 **통화별로만** 더하고 나란히
+  적는다(「$125 + ₩10,000」). 숫자로 못 읽는 표기는 합계에서 뺀다.
+*/
+const VALUE_RE = /^([^\d\s]+)\s?(\d[\d,]*)$/;
+
+export function parseCreditValue(
+  value: string | null,
+): { currency: string; amount: number } | null {
+  const m = value?.trim().match(VALUE_RE);
+  if (!m) return null;
+  const amount = Number(m[2].replace(/,/g, ""));
+  return Number.isFinite(amount) ? { currency: m[1], amount } : null;
+}
+
+/** 합계 표기. 더할 수 있는 값이 하나도 없으면 null */
+export function sumCreditValues(values: readonly (string | null)[]): string | null {
+  const sums = new Map<string, number>();
+  for (const value of values) {
+    const parsed = parseCreditValue(value);
+    if (!parsed) continue;
+    sums.set(parsed.currency, (sums.get(parsed.currency) ?? 0) + parsed.amount);
+  }
+  if (sums.size === 0) return null;
+  return [...sums]
+    .map(([currency, amount]) => `${currency}${amount.toLocaleString("en-US")}`)
+    .join(" + ");
+}
+
+/**
+ * 「받은 크레딧 예상 가치」 칸. 열린 카드(시상 제외)의 값을 더한다.
+ * 열린 것이 없어도 값이 정해진 카드가 있으면 「$0」(시안 ②), 아무것도 없으면
+ * 「-」(시안 ①)이다.
+ */
+export function creditValueTotal(
+  cards: readonly {
+    kind: CreditKind;
+    state: CreditCardState;
+    unlocked: boolean;
+    value: string | null;
+  }[],
+): string {
+  const eligible = cards.filter((c) => !isAwardCard(c.kind));
+  const opened = eligible
+    .filter((c) => isOpenedCard(c.state, c.unlocked))
+    .map((c) => c.value);
+  const sum = sumCreditValues(opened);
+  if (sum) return sum;
+  const any = eligible.map((c) => parseCreditValue(c.value)).find((v) => v);
+  return any ? `${any.currency}0` : "-";
+}
+
+// ═════════════════════════════════════════════════════════════
+// 다음 언락 — 시안 `nx`
+// ═════════════════════════════════════════════════════════════
+
+export type NextUnlockCard = {
+  kind: CreditKind;
+  code: string;
+  title: string;
+  unlockEvent: CreditUnlockEvent;
+};
+
+/** 「다음 언락」 칸이 그릴 것. 문구는 content/credits.ts, 조립은 화면 */
+export type NextUnlock =
+  /** ① 전부 협의 중 */
+  | { kind: "pre" }
+  /** ③ 발급 예정 — 배포 예정일에 보낸다 */
+  | { kind: "scheduled"; card: NextUnlockCard; at: Date | null }
+  /**
+   * ②④⑤ 다음에 열릴 카드. `via`는 그 앞에 「협의 중이라 폴백으로 열렸어요」로
+   * 한 번 언급하는 카드(⑤의 C3)
+   */
+  | { kind: "unlock"; card: NextUnlockCard; via: NextUnlockCard | null }
+  /** ⑥ 테스터 전환 — `next`는 처음으로 잠긴 카드 */
+  | { kind: "tester"; gate: 1 | 2; next: NextUnlockCard | null }
+  /** ⑦ — `until`은 받은 코드 중 가장 이른 유효기간 */
+  | { kind: "over"; until: Date | null }
+  | { kind: "done" };
+
+export function nextUnlock(args: {
+  season: CreditSeason;
+  eliminated: boolean;
+  /** 못 넘은 게이트. 탈락일 때만 뜻이 있다 */
+  failedGate: 1 | 2;
+  cards: readonly (NextUnlockCard & {
+    state: CreditCardState;
+    unlocked: boolean;
+    releaseDate: Date | null;
+    validUntil: Date | null;
+  })[];
+}): NextUnlock {
+  const { season, eliminated, failedGate, cards } = args;
+
+  if (season === "over") {
+    const until = cards
+      .filter((c) => isDeliveredCard(c.state) && c.validUntil)
+      .map((c) => c.validUntil as Date)
+      .sort((a, b) => a.getTime() - b.getTime())[0];
+    return { kind: "over", until: until ?? null };
+  }
+  if (eliminated) {
+    return {
+      kind: "tester",
+      gate: failedGate,
+      next: cards.find((c) => c.state === "locked") ?? null,
+    };
+  }
+  if (season === "pre" && cards.every((c) => c.state === "negotiating")) {
+    return { kind: "pre" };
+  }
+
+  const scheduled = cards.find((c) => c.state === "scheduled");
+  if (scheduled) return { kind: "scheduled", card: scheduled, at: scheduled.releaseDate };
+
+  const via = cards.find((c) => c.state === "negotiating" && c.unlocked) ?? null;
+  const next = cards.find((c) => c.state === "locked" || c.state === "award");
+  if (next) return { kind: "unlock", card: next, via };
+  return { kind: "done" };
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -220,11 +433,12 @@ export function isDeliveredCard(state: CreditCardState): boolean {
 
 export type CreditBadge = {
   label: string;
-  tone: "lime" | "teal" | "neutral";
+  tone: "lime" | "teal" | "gray";
   /** 점선 = 아직 확정 아님 */
   dashed?: boolean;
 };
 
+/** 시안 `CR_BADGE` */
 export function creditBadge(
   state: CreditCardState,
   unlocked: boolean,
@@ -234,11 +448,12 @@ export function creditBadge(
       /* 조건은 채웠는데 스폰서가 없다 — 참가자 잘못이 아니라는 표시가 필요하다 */
       return {
         label: unlocked ? "협의 중, 열림" : "협의 중",
-        tone: "neutral",
+        tone: "gray",
         dashed: true,
       };
     case "locked":
-      return { label: "잠금", tone: "neutral" };
+    case "award":
+      return { label: "잠금", tone: "gray" };
     case "available":
       return { label: "발급 가능", tone: "lime" };
     case "scheduled":
@@ -248,9 +463,7 @@ export function creditBadge(
     case "confirmed":
       return { label: "발급 확인", tone: "teal" };
     case "expired":
-      return { label: "만료", tone: "neutral" };
-    case "award":
-      return { label: "잠금", tone: "neutral" };
+      return { label: "만료", tone: "gray" };
     case "awarded":
       return { label: "시상 확정", tone: "lime" };
   }
@@ -322,14 +535,17 @@ export function parseFallbackItems(raw: unknown): FallbackItem[] {
  * 발급 확인까지 끝난 코드는 가린다.
  *
  * 이미 쓴 코드라 화면에 통째로 띄워 둘 이유가 없다. 어깨 너머로 보이는 것도
- * 스크린샷에 남는 것도 스폰서 자산이 새는 경로다. 마지막 마디만 남겨
- * "그 코드가 맞다"를 확인할 수 있게 한다.
+ * 스크린샷에 남는 것도 스폰서 자산이 새는 경로다. 시안처럼 **마지막 앞 마디**를
+ * 가려 「RPL-PRV-••••-M3XA」로 남긴다 — 앞뒤가 남아야 자기 코드인지 알아본다.
+ * 마디가 없는 코드(링크 등)는 뒤 넷만 남기고 가린다.
  */
 export function maskCreditCode(code: string): string {
+  const spec = code.replace(/[A-Z0-9]{4}(?=-[A-Z0-9]{4}$)/, "••••");
+  if (spec !== code) return spec;
   if (code.length <= 4) return code;
   const tail = code.slice(-4);
   /* 구분자는 살린다 — 모양이 남아야 자기 코드인지 알아본다 */
-  const head = code.slice(0, -4).replace(/[^\s-]/g, "•");
+  const head = code.slice(0, -4).replace(/[^\s\-/.:]/g, "•");
   return head + tail;
 }
 

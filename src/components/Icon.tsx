@@ -56,6 +56,8 @@ const PATHS = {
   ),
   /* 햄버거 — 헤더 상태별 시안 5장의 모바일 공개 헤더(`.hbg`) */
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  /* 체크 — 크레딧 레일의 발급 완료·확인 노드와 조건 충족(시안 `CR_CHECK`) */
+  check: <path d="M5 12.5 10 17.5 19 7" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;
