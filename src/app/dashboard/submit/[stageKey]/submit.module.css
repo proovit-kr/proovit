@@ -589,13 +589,6 @@
 }
 
 /* 저장 결과 한 줄 */
-.notice {
-  margin-bottom: 16px;
-  color: var(--muted);
-  font-size: 14.5px;
-  line-height: 1.6;
-}
-
 /* 칸 오류. 참가 신청의 `.fieldError`와 같은 규칙 — 아직 안 채운 것이라 주황 */
 .fieldError {
   margin: 0;

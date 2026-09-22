@@ -7,6 +7,7 @@ import { Button } from "@/components/Button";
 import { Field, Input, Select, SwitchRow, Textarea } from "@/components/Field";
 import { Icon } from "@/components/Icon";
 import { Card } from "@/components/Surface";
+import { Toast, useToast } from "@/components/Toast";
 import {
   AI_CHECKS,
   AI_GATE,
@@ -115,24 +116,38 @@ export type StageFormProps = {
 
 const INITIAL: SubmitState = {};
 
+/** 저장·제출 토스트 */
+const SAVED = {
+  draft: "임시 저장했어요. 아직 제출되지 않았어요.",
+  submitted: "제출했어요. 마감 전까지 다시 고쳐 낼 수 있어요.",
+} as const;
+
 const ACCENT = { color: "var(--accent)" } as const;
 
 export function StageForm(props: StageFormProps) {
   const { stageKey, defaults, canWrite } = props;
   const [state, formAction, pending] = useActionState(saveStageAction, INITIAL);
   /*
-    결과 배너는 폼 맨 위에 있고 버튼은 맨 아래다 — 긴 s1에서 검증에 걸리면 버튼만
-    보는 사람에겐 아무 일도 없어 보인다. 응답이 오면 걸린 첫 칸으로, 칸이 없으면
-    배너로 옮겨 준다.
+    버튼은 폼 맨 아래고 긴 s1에서는 위가 안 보인다 — 결과는 토스트로 알린다(수연,
+    2026-09-23). 저장·제출은 토스트뿐이고, 거부는 위 배너에 이유를 남긴 채 걸린 첫
+    칸(없으면 배너)으로 옮겨 준다.
   */
+  const toast = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const bannerRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
-    if (!state.message && !state.done) return;
+    if (state.done) {
+      toast.show(state.done === "draft" ? SAVED.draft : SAVED.submitted);
+      return;
+    }
+    if (!state.message) return;
+    toast.show(state.message);
     const target =
       (state.errors && formRef.current?.querySelector(`.${styles.fieldError}`)) ||
       bannerRef.current;
     target?.scrollIntoView({ block: "center", behavior: "smooth" });
+    /* toast.show는 안정된 참조다 — 응답이 바뀔 때만 돈다 */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
   const v = state.values;
 
@@ -171,14 +186,6 @@ export function StageForm(props: StageFormProps) {
       {state.message ? (
         <p className={styles.error} role="alert" ref={bannerRef}>
           {state.message}
-        </p>
-      ) : state.done === "draft" ? (
-        <p className={styles.notice} role="status" ref={bannerRef}>
-          임시 저장했어요. 아직 제출되지 않았어요.
-        </p>
-      ) : state.done === "submitted" ? (
-        <p className={styles.notice} role="status" ref={bannerRef}>
-          제출했어요. 마감 전까지 다시 고쳐 낼 수 있어요.
         </p>
       ) : null}
 
@@ -250,6 +257,7 @@ export function StageForm(props: StageFormProps) {
         <span className={styles.who}>{props.who}</span>
         <Actions actions={props.actions} pending={pending} />
       </div>
+      <Toast message={toast.message} />
     </form>
   );
 }
