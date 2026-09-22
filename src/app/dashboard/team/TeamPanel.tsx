@@ -70,6 +70,7 @@ export function TeamPanel({
   teamName,
   members,
   invite,
+  joinedWith,
   full,
   canManage,
   viewerId,
@@ -78,6 +79,8 @@ export function TeamPanel({
   teamName: string;
   members: MemberView[];
   invite: InviteView | null;
+  /** 팀을 완성한 코드. 시안 ①의 초대코드 상자 */
+  joinedWith: string | null;
   full: boolean;
   canManage: boolean;
   viewerId: string;
@@ -94,10 +97,9 @@ export function TeamPanel({
   const others = members.filter((m) => !m.isLeader);
   const solo = members.length < 2;
 
-  const copy = async () => {
-    if (!invite) return;
+  const copy = async (code: string) => {
     try {
-      await navigator.clipboard.writeText(invite.code);
+      await navigator.clipboard.writeText(code);
       show("초대 코드를 복사했어요");
     } catch {
       /* 클립보드를 막아둔 브라우저도 있다. 코드는 화면에 그대로 있다 */
@@ -178,7 +180,7 @@ export function TeamPanel({
                 type="button"
                 variant="outline"
                 style={CP}
-                onClick={() => void copy()}
+                onClick={() => void copy(invite.code)}
               >
                 복사
               </Button>
@@ -195,6 +197,26 @@ export function TeamPanel({
                   취소
                 </Button>
               ) : null}
+            </span>
+          </div>
+        </Field>
+      ) : !solo && joinedWith ? (
+        /* 시안 ①의 초대코드 상자 — 이 팀을 완성한 코드다 */
+        <Field
+          label="초대코드"
+          hint="코드로 합류하면 초대 메일 없이 바로 팀이 완성돼요."
+        >
+          <div className={styles.keybox}>
+            {joinedWith}
+            <span className={styles.cp}>
+              <Button
+                type="button"
+                variant="outline"
+                style={CP}
+                onClick={() => void copy(joinedWith)}
+              >
+                복사
+              </Button>
             </span>
           </div>
         </Field>

@@ -49,6 +49,11 @@ export type TeamPanel = {
   members: TeamMemberView[];
   /** 살아 있는 초대 하나. 만료·취소된 것은 화면에 올리지 않는다 */
   invite: TeamInviteView | null;
+  /**
+   * 팀을 완성한 코드 — 마지막으로 수락된 초대. 시안 ①(2인 팀)이 초대코드 상자를
+   * 그리는 자리에 이것을 둔다. 찬 팀에는 살아 있는 초대가 없어서다.
+   */
+  joinedWith: string | null;
   full: boolean;
 };
 
@@ -75,10 +80,20 @@ export async function loadTeamPanel(teamId: string): Promise<TeamPanel | null> {
         },
       },
       invitations: {
-        where: { status: InvitationStatus.pending, expiresAt: { gt: now } },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { id: true, inviteCode: true, email: true, expiresAt: true },
+        where: {
+          OR: [
+            { status: InvitationStatus.pending, expiresAt: { gt: now } },
+            { status: InvitationStatus.accepted },
+          ],
+        },
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          inviteCode: true,
+          email: true,
+          expiresAt: true,
+          status: true,
+        },
       },
     },
   });
@@ -90,7 +105,12 @@ export async function loadTeamPanel(teamId: string): Promise<TeamPanel | null> {
     isLeader: m.role === MemberRole.leader,
     joinedAt: m.createdAt,
   }));
-  const pending = team.invitations[0];
+  const pending = team.invitations.find(
+    (i) => i.status === InvitationStatus.pending,
+  );
+  const accepted = team.invitations.find(
+    (i) => i.status === InvitationStatus.accepted,
+  );
 
   return {
     name: team.name,
@@ -104,6 +124,7 @@ export async function loadTeamPanel(teamId: string): Promise<TeamPanel | null> {
           expiresAt: pending.expiresAt,
         }
       : null,
+    joinedWith: accepted?.inviteCode ?? null,
     full: members.length >= MAX_TEAM_SIZE,
   };
 }

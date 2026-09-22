@@ -1,9 +1,12 @@
+import { randomInt } from "node:crypto";
+
 import type { Prisma } from "@/generated/prisma/client";
 import {
   ConsentType,
   DeployStatus,
   EntryStage,
   EntryStatus,
+  InvitationStatus,
   JudgmentResult,
   MemberRole,
   MetricSource,
@@ -24,6 +27,7 @@ import { setDevHubKey } from "@/lib/dev-hub";
 import { seoulDateOnly } from "@/lib/measure";
 import { accountConsentRows } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
+import { INVITE_ALPHABET, INVITE_CODE_LENGTH, INVITE_TTL_DAYS } from "@/lib/team";
 
 /*
   개발용 상태 토글의 **판정과 쓰기**. 화면은 components/DevBar가 그린다.
@@ -561,6 +565,27 @@ export async function setSandboxTeamSize(args: {
     data: [{ teamId, userId: mate.id, role: MemberRole.member }],
     skipDuplicates: true,
   });
+  /*
+    코드로 합류한 모양을 남긴다 — 팀 관리 ①이 「팀을 완성한 코드」 상자를
+    그리는데, 초대 행이 없으면 그 상자가 비어 시안과 다르게 보인다.
+  */
+  await prisma.teamInvitation.create({
+    data: {
+      teamId,
+      inviteCode: devInviteCode(),
+      status: InvitationStatus.accepted,
+      expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 86_400_000),
+    },
+  });
+}
+
+/** 개발 바용 초대 코드. 사람이 읽는 값이라 문자표는 진짜 것과 같다 */
+function devInviteCode(): string {
+  let code = "";
+  for (let i = 0; i < INVITE_CODE_LENGTH; i += 1) {
+    code += INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)];
+  }
+  return code;
 }
 
 export async function hasSandboxTeam(args: {
