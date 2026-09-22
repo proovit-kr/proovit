@@ -117,3 +117,14 @@
   line-height: 1.6;
   color: var(--warn);
 }
+
+/* 좁은 폭에서만 문장 사이에서 넘기는 줄바꿈(③ 안내줄). 시안의 760 분기와 같다 */
+.narrowBreak {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .narrowBreak {
+    display: inline;
+  }
+}

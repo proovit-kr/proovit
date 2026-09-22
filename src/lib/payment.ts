@@ -78,7 +78,8 @@ export function paymentPane(row: {
 export const INQUIRY_LEVELS = [
   { k: "L1", text: "가격(안) 공개 + 문의 수단 작동, 문의 도달 이벤트 기록", pt: 25 },
   { k: "L2", text: "유효 문의 1건 이상", pt: 50 },
-  { k: "L3", text: "유효 상담 3건 이상 또는 서면 구매의향 1건", pt: 75 },
+  /* 390에서 「서면 | 구매의향」으로 갈려 묶는다 */
+  { k: "L3", text: "유효 상담 3건 이상 또는 서면\u00a0구매의향\u00a01건", pt: 75 },
   { k: "L4", text: "계약 체결 또는 유료 파일럿 1건", pt: 100 },
 ] as const;
 

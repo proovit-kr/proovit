@@ -209,8 +209,9 @@ const probe = () => `(() => {
       out[name + " ▸가로 넘침"] = String(el.scrollWidth > el.clientWidth + 1);
     }
     if (["py-type", "fld", "fld 1", "fld 2", "keybox", "cp", "levels", "lv", "sum", "sum div", "info-strip"].includes(name)) {
+      /* 좁은 폭에서만 켜는 <br>(문장 줄바꿈)은 구조가 아니라 세지 않는다 */
       out[name + " ▸자식 수"] = String(
-        [...el.children].filter((c) => getComputedStyle(c).display !== "none").length,
+        [...el.children].filter((c) => c.tagName !== "BR" && getComputedStyle(c).display !== "none").length,
       );
     }
   }

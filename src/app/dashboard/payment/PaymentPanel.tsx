@@ -114,10 +114,14 @@ export function PaymentPanel({
         /* ── ③ 문의형 ──────────────────────────────────── */
         <>
           {typeChip("문의형")}
+          {/*
+            768에서 「판정받아요.」가 홀로 남고 390에서 「유효 | 문의」가 갈린다 —
+            마지막 절을 묶고, 좁은 폭에서만 문장 사이에서 넘긴다.
+          */}
           <div className={hub.infoStrip}>
-            <Icon name="info" fixed /> 문의형은 결제 키를 등록하지 않아요. 매출
-            대신 유효 문의, 상담, 서면 구매의향, 계약으로 수익화 단계를
-            판정받아요.
+            <Icon name="info" fixed /> 문의형은 결제 키를 등록하지 않아요.
+            <br className={styles.narrowBreak} /> 매출 대신 유효 문의, 상담, 서면
+            구매의향, {"계약으로\u00a0수익화\u00a0단계를\u00a0판정받아요."}
           </div>
           <Card className={styles.levels}>
             {INQUIRY_LEVELS.map((level) => (
@@ -177,8 +181,8 @@ export function PaymentPanel({
           </Card>
           {/* 셋째 문장이 「축은」 뒤에서 잘려 문장 첫머리에서 줄을 넘긴다 */}
           <p className={styles.note}>
-            유효 문의는 유효 결제자와 같은 원칙이에요. 팀 구성원과 직계 관련인의
-            문의는 제외돼요.
+            유효 문의는 유효 결제자와 같은 원칙이에요.{" "}
+            {"팀\u00a0구성원과\u00a0직계\u00a0관련인의\u00a0문의는\u00a0제외돼요."}
             <br />
             유효 매출과 유료 전환율 축은 문의형도 대체되지 않아요.
           </p>
@@ -188,8 +192,8 @@ export function PaymentPanel({
         <>
           {typeChip("결제형")}
           <div className={hub.infoStrip}>
-            <Icon name="info" fixed /> 조회 전용 키만 받아요, 결제를 대신 일으킬 수
-            없는 키예요.
+            <Icon name="info" fixed /> 조회 전용 키만 받아요,{" "}
+            {"결제를\u00a0대신\u00a0일으킬\u00a0수\u00a0없는\u00a0키예요."}
           </div>
           <Field label="결제사" htmlFor="provider">
             <Select
@@ -244,8 +248,8 @@ export function PaymentPanel({
         <>
           {typeChip("결제형")}
           <div className={hub.infoStrip}>
-            <Icon name="info" fixed /> 조회 전용 키만 받아요, 결제를 대신 일으킬 수
-            없는 키예요.
+            <Icon name="info" fixed /> 조회 전용 키만 받아요,{" "}
+            {"결제를\u00a0대신\u00a0일으킬\u00a0수\u00a0없는\u00a0키예요."}
           </div>
           <Field
             label="등록된 키"

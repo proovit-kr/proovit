@@ -67,9 +67,10 @@ export default async function Page() {
       ) : null}
 
       <h2 className={hub.h1}>결제 연동</h2>
+      {/* 390에서 둘째 문장이 「s1에서 | 고른」으로 잘려 문장째 묶는다 */}
       <p className={hub.sub}>
-        수익화를 시도할 팀만 하면 되는 선택 단계예요. 화면은 s1에서 고른 과금
-        유형을 따라가요.
+        수익화를 시도할 팀만 하면 되는 선택 단계예요.{" "}
+        {"화면은\u00a0s1에서\u00a0고른\u00a0과금\u00a0유형을\u00a0따라가요."}
       </p>
 
       <PaymentPanel
