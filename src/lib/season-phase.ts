@@ -4,7 +4,7 @@
   거기서 가져오면 DB 클라이언트가 따라온다 — access-policy.ts 머리 주석과 같은 이유다.
 */
 
-import { SeasonPhase } from "@/generated/prisma/client";
+import { SeasonPhase } from "@/generated/prisma/enums";
 
 const PHASE_RANK: Record<SeasonPhase, number> = {
   draft: 0,
