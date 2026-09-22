@@ -7,8 +7,10 @@ import { prisma } from "@/lib/prisma";
 /*
   개발 바의 「로그인」 줄 — 테스트 계정 하나로 로그인했다 치는 것.
 
-  소셜 로그인 없이 시드의 「수연」(`sy@demo.proovit.local`, 수연팀 팀장)으로
-  들어간다. 여러 사람을 오가는 줄이 아니다(2026-09-21 수연 결정 — 「계정 줄 따로
+  소셜 로그인 없이 시드의 「민재」(`minjae@demo.proovit.local`, 오늘의루틴
+  팀장)로 들어간다. 시드의 수연팀은 make-demo-account.ts가 진짜 계정에 넘겨서
+  (리틀포션) 데모 수연에게는 팀이 없다 — 시즌 1에서 가장 멀리 간(s4) 데모 팀의
+  팀장이 민재다. 여러 사람을 오가는 줄이 아니다(2026-09-21 수연 결정 — 「계정 줄 따로
   둘 필요 없어. 목 계정 하나만 두고 로그인 칩 누르면 그 계정으로 로그인 됐다
   치고 싶은 거야」).
 
@@ -25,8 +27,8 @@ import { prisma } from "@/lib/prisma";
   막혀 여기까지 오지 않는다(DevBar.tsx).
 */
 
-/** 테스트 계정. 시드가 만드는 데모 계정 중 제출물이 가장 많은 팀의 팀장이다 */
-export const TEST_ACCOUNT_EMAIL = "sy@demo.proovit.local";
+/** 테스트 계정. 시드의 데모 팀 중 시즌 1에서 가장 멀리 간 팀(오늘의루틴, s4)의 팀장 */
+export const TEST_ACCOUNT_EMAIL = "minjae@demo.proovit.local";
 
 /*
   Auth.js v5의 기본 이름. https는 `__Secure-` 접두사가 붙고 **그 이름만 읽는다** —

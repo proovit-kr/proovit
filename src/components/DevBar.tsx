@@ -165,6 +165,7 @@ export async function DevBar() {
           raceStage: state.season.stage,
           parked: parkedEntryId !== null,
           pressed: devHubKey(),
+          nextPhase: state.season.nextPhase,
         })
       : null;
 

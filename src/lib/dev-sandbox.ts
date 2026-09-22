@@ -128,6 +128,11 @@ export type SandboxState = {
     metrics: MetricsFixture;
     /** 지금 스테이지 — 창이 열린 것 중 마지막(`currentStage`와 같은 정의). 하나도 안 열렸으면 null */
     stage: StageKey | null;
+    /**
+     * 다음 시즌이 깨어 있으면 그 페이즈, 아니면 null. h17(다음 시즌 참가)만
+     * 깨운다 — 바의 시즌은 늘 시즌 1이므로 h17을 되짚는 데 이 값이 필요하다.
+     */
+    nextPhase: SeasonPhase | null;
   } | null;
 };
 
@@ -164,9 +169,16 @@ export async function loadSandboxState(): Promise<SandboxState> {
         },
       },
     }),
+    /*
+      ⚠️ **바의 시즌은 늘 시즌 1이다** — 가장 먼저 만들어진, 잠들지 않은 시즌.
+      목 데이터는 시즌 1이 정본이고 시즌 2는 h17이 잠깐 깨우는 「다음 시즌」이다.
+      최신 시즌을 집으면 h17을 누른 뒤 페이즈·참가팀 줄이 전부 시즌 2를 건드려
+      dev DB가 시즌 2 기준으로 흘러간다(2026-09-21에 실제로 그랬다 — 「dev DB는
+      시즌 1 기준으로 짜여져야 돼」).
+    */
     prisma.season.findFirst({
       where: { phase: { not: SeasonPhase.draft } },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "asc" },
       select: {
         id: true,
         slug: true,
@@ -188,6 +200,16 @@ export async function loadSandboxState(): Promise<SandboxState> {
       },
     }),
   ]);
+  const next = season
+    ? await prisma.season.findFirst({
+        where: {
+          id: { not: season.id },
+          phase: { not: SeasonPhase.draft },
+        },
+        orderBy: { createdAt: "asc" },
+        select: { phase: true },
+      })
+    : null;
   const now = devNow().getTime();
 
   const teams: SandboxTeam[] = entries.flatMap((entry) => {
@@ -229,6 +251,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
             season.stages
               .filter((s) => s.opensAt && s.opensAt.getTime() <= now)
               .at(-1)?.stageKey ?? null,
+          nextPhase: next?.phase ?? null,
         }
       : null,
   };
@@ -400,6 +423,8 @@ export async function setSandboxPhase(args: {
     where: { id: args.seasonId },
     data: { phase: args.phase },
   });
+  /* h17이 깨운 다음 시즌을 재운다 — 이 줄이 h17에서 나오는 길이기도 하다 */
+  await sleepNextSeason(args.seasonId);
 
   /*
     **레이스를 벗어나면 가정한 오늘을 푼다**(2026-09-21 수연 지적).
@@ -1565,12 +1590,16 @@ export function matchHubKey(now: {
   parked: boolean;
   /** 마지막으로 누른 판. DB로 못 가르는 짝(h9·h16)을 이것으로 가른다 */
   pressed: string | null;
+  /** 다음 시즌이 깨어 있으면 그 페이즈. h17만 그렇다 */
+  nextPhase: SeasonPhase | null;
 }): HubKey | null {
   const keys = Object.keys(HUB_PLANS) as HubKey[];
   const hits = keys.filter((key) => {
     const plan = HUB_PLANS[key];
     if ((plan.parked ?? false) !== now.parked) return false;
-    if (plan.phase !== now.phase) return false;
+    /* h17은 「지난 시즌은 아카이브, 다음 시즌은 모집 중」 — 페이즈는 다음 시즌 것을 본다 */
+    if ((plan.nextSeason ?? false) !== (now.nextPhase !== null)) return false;
+    if (plan.phase !== (plan.nextSeason ? now.nextPhase : now.phase)) return false;
     if (plan.stage !== now.stage) return false;
     if ((plan.status ?? EntryStatus.active) !== now.status) return false;
     if (plan.solo !== now.solo || plan.verified !== now.verified) return false;

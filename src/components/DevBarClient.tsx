@@ -386,13 +386,13 @@ export function DevBarClient({
             공개 화면이 관전자에게 어떻게 보이는지 보는 줄이다. 아래 세 줄이
             전부 「로그인한 계정」 기준이라 그 위에 둔다.
 
-            「로그인」은 테스트 계정(시드의 수연)으로 로그인했다 치는 것이고
+            「로그인」은 테스트 계정(시드의 민재)으로 로그인했다 치는 것이고
             「비로그인」은 지금 세션을 끝낸다(lib/dev-session.ts).
           */}
           <div className={styles.row}>
             <span className={styles.label}>
               로그인
-              <em className={styles.hint}>테스트 계정 수연</em>
+              <em className={styles.hint}>테스트 계정 민재</em>
             </span>
             <div className={styles.picks}>
               {[
