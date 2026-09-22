@@ -10,6 +10,7 @@ import { applyConsentRows, hashIp } from "@/lib/apply-store";
 import {
   INVITE_ALPHABET,
   INVITE_CODE_LENGTH,
+  INVITE_CODE_PREFIX,
   INVITE_TTL_DAYS,
   MAX_TEAM_SIZE,
   normalizeInviteCode,
@@ -49,6 +50,11 @@ export type TeamPanel = {
   members: TeamMemberView[];
   /** 살아 있는 초대 하나. 만료·취소된 것은 화면에 올리지 않는다 */
   invite: TeamInviteView | null;
+  /**
+   * 팀을 완성한 코드 — 마지막으로 수락된 초대. 시안 ①(2인 팀)이 초대코드 상자를
+   * 그리는 자리에 이것을 둔다. 찬 팀에는 살아 있는 초대가 없어서다.
+   */
+  joinedWith: string | null;
   full: boolean;
 };
 
@@ -75,10 +81,20 @@ export async function loadTeamPanel(teamId: string): Promise<TeamPanel | null> {
         },
       },
       invitations: {
-        where: { status: InvitationStatus.pending, expiresAt: { gt: now } },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { id: true, inviteCode: true, email: true, expiresAt: true },
+        where: {
+          OR: [
+            { status: InvitationStatus.pending, expiresAt: { gt: now } },
+            { status: InvitationStatus.accepted },
+          ],
+        },
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          inviteCode: true,
+          email: true,
+          expiresAt: true,
+          status: true,
+        },
       },
     },
   });
@@ -90,7 +106,12 @@ export async function loadTeamPanel(teamId: string): Promise<TeamPanel | null> {
     isLeader: m.role === MemberRole.leader,
     joinedAt: m.createdAt,
   }));
-  const pending = team.invitations[0];
+  const pending = team.invitations.find(
+    (i) => i.status === InvitationStatus.pending,
+  );
+  const accepted = team.invitations.find(
+    (i) => i.status === InvitationStatus.accepted,
+  );
 
   return {
     name: team.name,
@@ -104,6 +125,7 @@ export async function loadTeamPanel(teamId: string): Promise<TeamPanel | null> {
           expiresAt: pending.expiresAt,
         }
       : null,
+    joinedWith: accepted?.inviteCode ?? null,
     full: members.length >= MAX_TEAM_SIZE,
   };
 }
@@ -115,8 +137,8 @@ export async function loadTeamPanel(teamId: string): Promise<TeamPanel | null> {
  * 팀에 들어가는 길이 생긴다. 코드 하나로 팀 소속이 결정되므로 인증 토큰과
  * 같은 급으로 다룬다.
  */
-function generateCode(): string {
-  let code = "";
+export function generateCode(): string {
+  let code = INVITE_CODE_PREFIX;
   for (let i = 0; i < INVITE_CODE_LENGTH; i += 1) {
     code += INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)];
   }
@@ -206,6 +228,52 @@ export async function createInvite(
   email?: string,
 ): Promise<CreateInviteResult> {
   return prisma.$transaction((tx) => createInviteIn(tx, teamId, email));
+}
+
+export type PendingInvite = {
+  id: string;
+  code: string;
+  email: string | null;
+  expiresAt: Date;
+};
+
+/**
+ * 살아 있는 초대 하나를 집는다 — 재발송이 「무엇을 다시 보낼지」 알아야 해서다.
+ *
+ * 팀과 상태를 함께 본다. id만 믿으면 남의 팀 초대를 재발송할 수 있다.
+ */
+export async function findPendingInvite(
+  teamId: string,
+  invitationId: string,
+): Promise<PendingInvite | null> {
+  const found = await prisma.teamInvitation.findFirst({
+    where: {
+      id: invitationId,
+      teamId,
+      status: InvitationStatus.pending,
+      expiresAt: { gt: new Date() },
+    },
+    select: { id: true, inviteCode: true, email: true, expiresAt: true },
+  });
+  if (!found) return null;
+  return {
+    id: found.id,
+    code: found.inviteCode,
+    email: found.email,
+    expiresAt: found.expiresAt,
+  };
+}
+
+/**
+ * 초대 메일이 「무엇에 합류하는지」 적어야 해서 참가작 이름을 읽는다.
+ * 세션(`viewer.entry.id`)이 준 참가만 본다.
+ */
+export async function loadIdeaTitle(entryId: string): Promise<string | null> {
+  const entry = await prisma.entry.findUnique({
+    where: { id: entryId },
+    select: { ideaTitle: true },
+  });
+  return entry?.ideaTitle ?? null;
 }
 
 /** 초대 취소. 이미 수락된 초대는 되돌리지 않는다 — 그건 강퇴다 */

@@ -15,7 +15,6 @@ import {
 } from "@/lib/dev-sandbox";
 import { devToday } from "@/lib/dev-clock";
 import { devHubKey } from "@/lib/dev-hub";
-import { hasParkedSession } from "@/lib/dev-session";
 
 import { DevBarClient } from "./DevBarClient";
 
@@ -103,34 +102,37 @@ export async function DevBar() {
     );
   }
 
-  const user = await getSessionUser();
-  /* 비로그인으로 둔 세션이 있는가 — 있으면 「로그인」 줄로 돌아올 수 있다 */
-  const parked = await hasParkedSession();
-  const state = await loadSandboxState();
+  /*
+    ⚠️ **서로 기대지 않는 조회는 한꺼번에 띄운다.** dev DB(Neon 싱가포르)는
+    왕복이 ~80ms라 `await`를 한 줄씩 늘어놓으면 그 수만큼 곱해진다 — 이 바가
+    칩 하나에 여섯 단을 순서대로 기다려 0.5초를 먹고 있었다(2026-09-21).
+    아래는 두 단이다: ① 세션·샌드박스 상태·화면 상태, ② 그 셋이 있어야 하는 둘.
+
+    `loadViewerState`는 React cache라 레이아웃과 겹쳐도 왕복이 늘지 않는다.
+    화면이 보는 그 참가 기록을 고르는 데 쓴다 — 한 사람이 여러 팀의 팀장일 수
+    있어서(dev DB가 실제로 그렇다) 바가 제 순서로 고르면 화면과 다른 팀을
+    집는다(2026-09-21에 s1 주차를 눌러도 화면이 s4였던 원인).
+  */
+  const [user, state, viewer] = await Promise.all([
+    getSessionUser(),
+    loadSandboxState(),
+    loadViewerState(),
+  ]);
   /* 가정한 오늘. 스테이지 줄이 정하고, 안 정했으면 진짜 오늘이다 */
   const today = devToday();
-  /* 팀원으로 들어간 팀도 친다 — 아래 `current`는 팀장인 팀만 찾는다 */
-  const hasTeam =
-    user && state.season
-      ? await hasSandboxTeam({ userId: user.id, seasonId: state.season.id })
-      : null;
-  /*
-    ⚠️ **화면이 보는 그 참가 기록을 고른다.** 한 사람이 여러 팀의 팀장일 수
-    있는데(dev DB에서 실제로 그렇다), 바가 제 순서로 고르면 화면과 다른 팀을
-    집는다 — 2026-09-21에 s1 주차를 눌러도 화면이 s4였던 원인이다.
-    `loadViewerState`는 React cache라 여기서 불러도 왕복이 늘지 않는다.
-  */
-  const viewer = await loadViewerState();
-  /*
-    화면에는 참가 기록이 없어도 **자리만 비워 둔 것**이면 그 팀을 잡는다 —
-    지각 참가(h10)와 「참가팀 없음」이 그 상태다. 안 잡으면 진도 줄이 통째로
-    「참가 기록이 없어요」가 되어 다음 판으로 못 넘어간다(2026-09-21 수연 지시
-    — 「예외에 지각 참가 칩은 보여야지」).
-  */
-  const parkedEntryId =
-    !viewer.entry && user && state.season
-      ? await findParkedEntry({ userId: user.id, seasonId: state.season.id })
-      : null;
+  const scope =
+    user && state.season ? { userId: user.id, seasonId: state.season.id } : null;
+  const [hasTeam, parkedEntryId] = await Promise.all([
+    /* 팀원으로 들어간 팀도 친다 — 아래 `current`는 팀장인 팀만 찾는다 */
+    scope ? hasSandboxTeam(scope) : null,
+    /*
+      화면에는 참가 기록이 없어도 **자리만 비워 둔 것**이면 그 팀을 잡는다 —
+      지각 참가(h10)와 「참가팀 없음」이 그 상태다. 안 잡으면 진도 줄이 통째로
+      「참가 기록이 없어요」가 되어 다음 판으로 못 넘어간다(2026-09-21 수연 지시
+      — 「예외에 지각 참가 칩은 보여야지」).
+    */
+    scope && !viewer.entry ? findParkedEntry(scope) : null,
+  ]);
   /*
     판을 앉힐 기록은 **그 팀의 가장 앞 시즌 기록**이다 — 목 데이터는 시즌 1이
     정본이고 시즌 2는 h17이 깨우는 「다음 시즌」이다. 화면이 보는 기록(지금
@@ -163,13 +165,14 @@ export async function DevBar() {
           raceStage: state.season.stage,
           parked: parkedEntryId !== null,
           pressed: devHubKey(),
+          nextPhase: state.season.nextPhase,
         })
       : null;
 
   return (
     <DevBarClient
       me={user ? { nickname: user.nickname, onboarded: !!user.onboardedAt } : null}
-      parked={parked}
+
       today={today ? today.toISOString() : null}
       current={current}
       hasTeam={hasTeam}

@@ -35,6 +35,8 @@
  * 메일을 쏘는 길을 남기지 않기 위해서다.
  */
 
+import { formatInviteCode } from "@/lib/team";
+
 const ENDPOINT = "https://api.resend.com/emails";
 
 /**
@@ -327,8 +329,10 @@ export async function sendTeamInvite(params: {
   code: string;
   expiresAt: Date;
 }): Promise<MailResult> {
-  const { email, inviterNickname, teamName, ideaTitle, seasonTitle, code } =
+  const { email, inviterNickname, teamName, ideaTitle, seasonTitle, code: rawCode } =
     params;
+  /* 사람이 읽는 모양으로(PRV-LP-7F3K). 주소에 넣어도 normalize가 하이픈을 뗀다 */
+  const code = formatInviteCode(rawCode);
   const until = kstDate(params.expiresAt);
   const url = `${siteUrl()}/apply?invite=${encodeURIComponent(code)}`;
 

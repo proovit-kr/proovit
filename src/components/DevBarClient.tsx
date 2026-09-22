@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 
 import {
   devSetAuth,
@@ -10,6 +11,7 @@ import {
   devSetHub,
   devSetStatus,
   devSetTeam,
+  devSetTeamSize,
 } from "@/app/actions/dev";
 
 import styles from "./DevBar.module.css";
@@ -52,6 +54,9 @@ type Team = {
   ideaTitle: string;
   stage: string;
   status: string;
+  /** 팀원 수. 「팀원」 줄의 1인·2인 */
+  members: number;
+  teamId: string;
 };
 
 type Option<T extends string> = { value: T; label: string };
@@ -59,8 +64,7 @@ type Option<T extends string> = { value: T; label: string };
 type Props = {
   blocked?: string;
   me?: { nickname: string; onboarded: boolean } | null;
-  /** 비로그인으로 빼 둔 세션이 있는가. 없으면 「로그인」으로 돌아올 수 없다 */
-  parked?: boolean;
+
   /** 가정한 「오늘」(ISO). null이면 진짜 오늘 */
   today?: string | null;
   current?: Team | null;
@@ -106,14 +110,34 @@ function PickButton({
       {Object.entries(fields).map(([name, value]) => (
         <input key={name} type="hidden" name={name} value={value} />
       ))}
-      <button
-        type="submit"
-        className={active ? styles.pickOn : styles.pick}
-        aria-pressed={active}
-      >
-        {children}
-      </button>
+      <PickSubmit active={active}>{children}</PickSubmit>
     </form>
+  );
+}
+
+/*
+  누른 칩은 서버가 돌아올 때까지 「…」을 단다. dev DB 왕복이 느려 한 번 누르면
+  1초 남짓 아무 일도 없어 보이는데, 그 사이 다시 누르면 두 번 실행된다.
+*/
+function PickSubmit({
+  active,
+  children,
+}: {
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      className={active ? styles.pickOn : styles.pick}
+      aria-pressed={active}
+      aria-busy={pending || undefined}
+      disabled={pending}
+    >
+      {children}
+      {pending ? " …" : null}
+    </button>
   );
 }
 
@@ -125,6 +149,36 @@ function PickButton({
   그리는 렌더는 바꾸기 전의 쿠키를 읽는다 — 그대로 두면 바가 한 단계 옛 상태를
   보여준다(actions/dev.ts의 `devSetAuth` 주석). 새로 부르면 새 쿠키로 읽는다.
 */
+function ReloadPick({
+  action,
+  fields,
+  active,
+  children,
+}: {
+  action: (formData: FormData) => Promise<void>;
+  fields: Record<string, string>;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <form
+      action={async (formData: FormData) => {
+        await action(formData);
+        /*
+          `router.refresh()`로는 바가 안 갱신된다(2026-09-21 확인) — 문서를
+          통째로 다시 받아야 새 쿠키로 그린다.
+        */
+        window.location.reload();
+      }}
+    >
+      {Object.entries(fields).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
+      ))}
+      <PickSubmit active={active}>{children}</PickSubmit>
+    </form>
+  );
+}
+
 function AuthPick({
   on,
   active,
@@ -135,25 +189,9 @@ function AuthPick({
   children: React.ReactNode;
 }) {
   return (
-    <form
-      action={async (formData: FormData) => {
-        await devSetAuth(formData);
-        /*
-          `router.refresh()`로는 바가 안 갱신된다(2026-09-21 확인) — 문서를
-          통째로 다시 받아야 새 쿠키로 그린다.
-        */
-        window.location.reload();
-      }}
-    >
-      <input type="hidden" name="on" value={on ? "1" : "0"} />
-      <button
-        type="submit"
-        className={active ? styles.pickOn : styles.pick}
-        aria-pressed={active}
-      >
-        {children}
-      </button>
-    </form>
+    <ReloadPick action={devSetAuth} fields={{ on: on ? "1" : "0" }} active={active}>
+      {children}
+    </ReloadPick>
   );
 }
 
@@ -208,7 +246,6 @@ function savePos(p: Pos) {
 export function DevBarClient({
   blocked,
   me,
-  parked = false,
   today = null,
   current,
   hasTeam = null,
@@ -349,29 +386,23 @@ export function DevBarClient({
             공개 화면이 관전자에게 어떻게 보이는지 보는 줄이다. 아래 세 줄이
             전부 「로그인한 계정」 기준이라 그 위에 둔다.
 
-            세션을 **지어내지 않는다** — 쿠키를 빼 뒀다 돌려놓을 뿐이라
-            처음 한 번은 평소대로 로그인해야 한다(lib/dev-session.ts).
+            「로그인」은 테스트 계정(시드의 민재)으로 로그인했다 치는 것이고
+            「비로그인」은 지금 세션을 끝낸다(lib/dev-session.ts).
           */}
           <div className={styles.row}>
             <span className={styles.label}>
               로그인
-              <em className={styles.hint}>세션을 빼 뒀다 돌려놔요</em>
+              <em className={styles.hint}>테스트 계정 민재</em>
             </span>
             <div className={styles.picks}>
-              {me || parked ? (
-                [
-                  { on: true, label: "로그인" },
-                  { on: false, label: "비로그인" },
-                ].map((pick) => (
-                  <AuthPick key={pick.label} on={pick.on} active={!!me === pick.on}>
-                    {pick.label}
-                  </AuthPick>
-                ))
-              ) : (
-                <span className={styles.empty}>
-                  한 번 로그인하면 여기서 오갈 수 있어요
-                </span>
-              )}
+              {[
+                { on: true, label: "로그인" },
+                { on: false, label: "비로그인" },
+              ].map((pick) => (
+                <AuthPick key={pick.label} on={pick.on} active={!!me === pick.on}>
+                  {pick.label}
+                </AuthPick>
+              ))}
             </div>
           </div>
 
@@ -400,6 +431,41 @@ export function DevBarClient({
                     {pick.label}
                   </PickButton>
                 ))
+              )}
+            </div>
+          </div>
+
+          {/*
+            ── 팀원 ──────────────────────────────────────────
+            팀 관리 화면의 두 판(시안 ① 2인 팀 · ② 개인 참가)을 보는 줄.
+            2인은 「지민」 계정을 앉히고, 1인은 팀장 아닌 팀원을 뺀다.
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              팀원
+              <em className={styles.hint}>팀 관리 ①②</em>
+            </span>
+            <div className={styles.picks}>
+              {current ? (
+                [
+                  { size: 1, label: "1인" },
+                  { size: 2, label: "2인" },
+                ].map((pick) => (
+                  <PickButton
+                    key={pick.size}
+                    action={devSetTeamSize}
+                    fields={{ teamId: current.teamId, size: String(pick.size) }}
+                    active={
+                      pick.size === 1
+                        ? current.members < 2
+                        : current.members >= 2
+                    }
+                  >
+                    {pick.label}
+                  </PickButton>
+                ))
+              ) : (
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
               )}
             </div>
           </div>
@@ -499,7 +565,7 @@ export function DevBarClient({
           ) : null}
 
           <p className={styles.foot}>
-            dev DB에만 붙습니다. 여기서 만든 제출물은 「[개발용]」으로, 지표는
+            dev DB에만 붙습니다. 여기서 만든 제출물은 「개발 바가 만든」으로, 지표는
             「운영자 보정」으로 표시돼요. 리더보드는 페이즈가 레이스 이상이고
             스테이지가 s4부터일 때 열려요 — 스테이지 줄이 함께 켜요.
           </p>

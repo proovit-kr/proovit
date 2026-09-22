@@ -52,7 +52,7 @@ export const TEAM_NAME_MAX = 60;
 export const IDEA_TITLE_MAX = 120;
 /** 한 줄 소개. DB는 Text지만 "한 줄"이 요건이라 화면에서 끊는다. */
 export const IDEA_SUMMARY_MAX = 200;
-/** team_invitations.email과 같은 한도. team.ts의 InviteEmailSchema와 맞춰 둔다. */
+/** team_invitations.email과 같은 한도. 참가 신청과 팀 관리의 초대 칸이 함께 쓴다. */
 export const INVITE_EMAIL_MAX = 200;
 
 const NO_CONTROL_CHARS = /^[^\p{Cc}\p{Cf}]+$/u;

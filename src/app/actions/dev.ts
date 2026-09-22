@@ -18,12 +18,13 @@ import {
   setSandboxStage,
   setSandboxStatus,
   setSandboxTeam,
+  setSandboxTeamSize,
   setMetricsFixture,
   type HubKey,
   type MetricsFixture,
 } from "@/lib/dev-sandbox";
 import { getSessionUser } from "@/lib/access";
-import { parkSession, restoreSession } from "@/lib/dev-session";
+import { loginAsTestAccount, logout } from "@/lib/dev-session";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -157,6 +158,19 @@ export async function devSetTeam(formData: FormData): Promise<void> {
   refresh();
 }
 
+/** 팀원 수 1인·2인 — 팀 관리 화면의 두 판을 보는 줄 */
+export async function devSetTeamSize(formData: FormData): Promise<void> {
+  guard();
+
+  const teamId = String(formData.get("teamId") ?? "");
+  const raw = String(formData.get("size") ?? "");
+  if (!teamId || (raw !== "1" && raw !== "2")) {
+    throw new Error("[dev] teamId·size가 잘못됐습니다.");
+  }
+  await setSandboxTeamSize({ teamId, size: raw === "1" ? 1 : 2 });
+  refresh();
+}
+
 /*
   레이스 중 지금 스테이지를 고른다 — 가정한 「오늘」을 그 주차로 옮기고,
   **내 팀 진도도 그 주차에 맞춘다**(2026-09-21 수연 지시).
@@ -224,8 +238,8 @@ export async function devSetAuth(formData: FormData): Promise<void> {
   const raw = String(formData.get("on") ?? "");
   if (raw !== "1" && raw !== "0") throw new Error("[dev] on이 잘못됐습니다.");
 
-  if (raw === "1") await restoreSession();
-  else await parkSession();
+  if (raw === "1") await loginAsTestAccount();
+  else await logout();
   /*
     ⚠️ **이 액션만 화면을 다시 부른다**(DevBarClient의 `AuthPick`).
     서버 액션이 같은 요청 안에서 다시 그리는데 그 렌더가 읽는 `cookies()`는
