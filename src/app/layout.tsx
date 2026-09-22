@@ -3,6 +3,7 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 
 import { ConsentGate } from "@/components/ConsentGate";
 import { DevBar } from "@/components/DevBar";
+import { ScrollReset } from "@/components/ScrollReset";
 
 import "./globals.css";
 
@@ -171,6 +172,8 @@ export default function RootLayout({
       </head>
       <body className="flex flex-col">
         {children}
+        {/* 화면이 바뀌면 창을 맨 위로 — children 뒤에 서야 라우터의 스크롤을 이긴다 */}
+        <ScrollReset />
         {/*
           계정 동의 모달. 로그인했는데 동의 기록이 없거나 문안이 개정됐으면
           보던 화면 위에 덮는다(시안 ver4 `#scr-auth` ②). 여기 두는 이유는
