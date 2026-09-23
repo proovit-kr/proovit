@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import type { Prisma } from "@/generated/prisma/client";
 import {
+  AbuseStatus,
   ChargeType,
   ConsentType,
   CreditClaimStatus,
@@ -21,6 +22,7 @@ import {
   PaymentProvider,
   SanctionReason,
   SanctionStage,
+  SanctionStatus,
   SeasonPhase,
   StageKey,
   SubmissionStatus,
@@ -62,6 +64,8 @@ import {
   specS3,
 } from "@/lib/dev-submit-fixture";
 import { seoulDateOnly } from "@/lib/measure";
+import { endOfSeoulDay } from "@/lib/appeal";
+import { type AppealPane, responseDeadline } from "@/lib/appeal-view";
 import { type JudgmentsPane, paneOf as judgmentsPane } from "@/lib/judgments-view";
 import { type MetricsPane as MyMetricsPane, metricsWindow } from "@/lib/metrics-view";
 import { measurementState, type MeasurementState } from "@/lib/measurement";
@@ -169,6 +173,8 @@ export type SandboxTeam = {
   myMetrics: MyMetricsPane | null;
   /** 심사 결과 화면의 판(시안 ①~④). 「심사 결과」 줄이 되짚는다 — s2 전이면 null */
   judgments: JudgmentsPane | null;
+  /** 소명 화면의 판(시안 ①②). 「소명」 줄이 되짚는다 — 소명할 것도 접수도 없으면 null */
+  appeal: AppealPane | null;
   /** 팀원 수. 「팀원」 줄이 1인·2인 중 어느 쪽이 눌렸는지 되짚는 데 쓴다 */
   members: number;
   /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
@@ -234,6 +240,13 @@ export async function loadSandboxState(): Promise<SandboxState> {
         },
         creditClaims: { select: { status: true, offer: { select: { kind: true } } } },
         awards: { where: { awardedAt: { not: null } }, take: 1, select: { id: true } },
+        /* 소명 ①②를 가르는 것 — 접수 기록, 없으면 소명할 제재가 있는가 */
+        appeals: { take: 1, select: { id: true } },
+        sanctions: {
+          where: { status: { not: SanctionStatus.withdrawn } },
+          take: 1,
+          select: { id: true },
+        },
         /* 내 지표 ①②를 가르는 것 — 어제까지 14일에 집계 행이 있는가 */
         metricDaily: {
           where: { metricDate: { gte: metricsWin.chartFrom, lt: metricsWin.to } },
@@ -335,6 +348,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
           gate1: entry.submissions.find((x) => x.stageKey === StageKey.s2)?.judgments[0] ?? null,
           gate2: entry.submissions.find((x) => x.stageKey === StageKey.s5)?.judgments[0] ?? null,
         }),
+        appeal: entry.appeals.length ? "sent" : entry.sanctions.length ? "write" : null,
         credits: creditsPaneOf({
           phase: entry.season.phase,
           status: entry.status,
@@ -1653,7 +1667,8 @@ export async function setSandboxHub(args: {
         stage: SanctionStage.disqualified,
         reason: SanctionReason.bot_traffic,
         detail: "봇 트래픽이 감지됐습니다. 개발 바가 만든 제재입니다.",
-        appealDeadlineAt: new Date(devNow().getTime() + 4 * 86_400_000),
+        /* 「소명 D-4」 — 기한은 그날의 끝(소명 화면이 「23:59」로 적는다) */
+        appealDeadlineAt: endOfSeoulDay(new Date(devNow().getTime() + 4 * 86_400_000)),
       },
     });
   }
@@ -3011,6 +3026,93 @@ export async function setSandboxJudgments(args: {
       scoreBreakdown: SPEC_JUDGMENTS.score,
       formulaVersion: SPEC_JUDGMENTS.formulaVersion,
     },
+  });
+}
+
+/* ── 소명 ─────────────────────────────────────────────────────────────── */
+
+export type { AppealPane } from "@/lib/appeal-view";
+
+/*
+  소명 화면의 두 판 — 시안 `#scr-appeal`의 목업을 허브 h14(레이스 중 실격) 위에 얹는다.
+
+    write  실격 제재(h14가 만든 것, 통지는 「오늘」 3일 전)와 방문 -214 보정 플래그
+           (「오늘」 4일 전)가 소명 대상이고 접수는 없다
+    sent   실격 제재에 소명이 접수됐고(「오늘」 2일 전 09:12) 운영진 회신이 왔다
+           (어제 16:40, 시안 ②의 문구 — `**…**`가 청록 강조)
+
+  날짜는 「오늘」 기준이라 시안의 10.22·10.23·10.24와 다르다 — 헤더의 「소명 D-4」가
+  h14의 기한(오늘 + 4일)에서 나오고 그것을 따른다. 대조는 날짜를 뺀다.
+*/
+const SPEC_APPEAL = {
+  reason:
+    "10.21 새벽 트래픽 급증은 커뮤니티 글이 밤 사이 상단에 노출된 결과예요. 해당 글 링크와 시간대별 유입 캡처를 첨부해요.",
+  reply:
+    "근거 지표, 10.21 03:12~04:40 유입 214건, 유입원 IP 다양성 187, 체류 중앙값 41초. 봇 패턴에 해당하지 않아 **제재를 해제**하고 지표를 원복했습니다. 리더보드에는 다음 롤업에 반영됩니다.",
+  adjusted: -214,
+  flagReason: "개발 바가 만든 플래그",
+} as const;
+
+/** 「오늘」에서 n일 전의 서울 hh:mm */
+function seoulDaysAgo(days: number, hh: number, mm: number): Date {
+  const day = seoulDateOnly(devNow());
+  return new Date(day.getTime() - days * 86_400_000 + ((hh - 9) * 60 + mm) * 60_000);
+}
+
+export async function setSandboxAppeal(args: {
+  entryId: string;
+  pane: AppealPane;
+}): Promise<void> {
+  assertSandbox();
+  const { entryId, pane } = args;
+
+  await setSandboxHub({ key: "h14", entryId });
+
+  /* 접수 기록은 늘 걷는다 — ①은 없어야 하고 ②는 새로 심는다 */
+  await prisma.appeal.deleteMany({ where: { entryId } });
+  await prisma.abuseFlag.deleteMany({ where: { entryId, reason: SPEC_APPEAL.flagReason } });
+
+  const sanction = await prisma.sanction.findFirst({
+    where: { entryId, stage: SanctionStage.disqualified },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (!sanction) throw new Error("[dev] 실격 제재가 없다 — 허브 h14가 만들었어야 한다");
+
+  /* 통지는 「오늘」 3일 전 — 시안 「실격 처분 (10.22 통지)」의 자리 */
+  const noticedAt = seoulDaysAgo(3, 11, 0);
+  await prisma.sanction.update({
+    where: { id: sanction.id },
+    data: { createdAt: noticedAt, appliedAt: noticedAt, appealText: null, appealedAt: null },
+  });
+  await prisma.abuseFlag.create({
+    data: {
+      entryId,
+      reason: SPEC_APPEAL.flagReason,
+      status: AbuseStatus.upheld,
+      adjustedVisitors: SPEC_APPEAL.adjusted,
+      createdAt: seoulDaysAgo(4, 9, 30),
+    },
+  });
+  if (pane === "write") return;
+
+  const submittedAt = seoulDaysAgo(2, 9, 12);
+  await prisma.appeal.create({
+    data: {
+      entryId,
+      targetType: "sanction",
+      targetId: sanction.id,
+      reasonText: SPEC_APPEAL.reason,
+      submittedAt,
+      responseDueAt: responseDeadline(submittedAt),
+      responseText: SPEC_APPEAL.reply,
+      respondedAt: seoulDaysAgo(1, 16, 40),
+      corrected: true,
+    },
+  });
+  await prisma.sanction.update({
+    where: { id: sanction.id },
+    data: { appealText: SPEC_APPEAL.reason, appealedAt: submittedAt },
   });
 }
 

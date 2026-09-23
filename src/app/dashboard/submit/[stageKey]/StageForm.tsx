@@ -247,7 +247,7 @@ export function StageForm(props: StageFormProps) {
         >
           <Files
             name="evidence"
-            stageKey={stageKey}
+            scope={stageKey}
             slot="evidence"
             defaultValue={files.evidence}
             locked={!canWrite}
@@ -421,7 +421,7 @@ function S1Fields({
         <div className={docMode === "file" ? undefined : styles.segPOff}>
           <Files
             name="problemDocFile"
-            stageKey="s1"
+            scope="s1"
             slot="problem"
             defaultValue={files.problem}
             sub={f.problemDoc.dropSub}
@@ -978,7 +978,7 @@ function S5Fields({
       <Field label={EVIDENCE_FIELD.label} note={EVIDENCE_FIELD.note.s5}>
         <Files
           name="evidence"
-          stageKey="s5"
+          scope="s5"
           slot="evidence"
           defaultValue={files.evidence}
           sub={EVIDENCE_FIELD.dropSub.s5}

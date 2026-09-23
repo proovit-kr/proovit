@@ -4,9 +4,10 @@ import type { StageKey } from "@/generated/prisma/enums";
   증빙 파일의 **순수** 규칙 — 키의 모양, 받는 종류와 크기, 이름 다듬기. 화면
   (클라이언트)과 서버가 함께 읽는다. 저장·읽기는 evidence-storage.ts에 있다.
 
-  파일 하나가 키 하나다: `{entryId}/{stageKey}/{slot}/{id}-{name}`.
-    · 누구 것인지(entryId)·어느 판(stageKey)·어느 칸(slot)이 키에 박혀 있어
-      표가 따로 없다. 제출 행의 `evidence_urls`가 그 행이 가진 키의 전부다.
+  파일 하나가 키 하나다: `{entryId}/{scope}/{slot}/{id}-{name}`.
+    · 누구 것인지(entryId)·어느 판(scope — 스테이지 s1~s5, 또는 소명 `appeal`)·
+      어느 칸(slot)이 키에 박혀 있어 표가 따로 없다. 제출 행(또는 소명 행)의
+      `evidence_urls`가 그 행이 가진 키의 전부다.
     · 올릴 때 서버가 키를 만들고, 저장할 때 서버가 접두사를 다시 본다 — 남의
       팀 키나 다른 판의 키는 폼에 실어 보내도 저장되지 않는다(submission-store.ts).
     · 화면은 키로 `/api/evidence/{key}`를 연다. 공개 주소가 없다 — 증빙은 팀과
@@ -22,6 +23,15 @@ export const EVIDENCE_MAX_BYTES = 10 * 1024 * 1024;
 export const EVIDENCE_COUNT_MAX = 5;
 export const EVIDENCE_NAME_MAX = 80;
 export const EVIDENCE_KEY_MAX = 300;
+
+/**
+ * 판 — 스테이지 다섯과 소명. 소명 증빙(시안 `#scr-appeal`의 「증빙 첨부」)은
+ * 스테이지가 없어 제 이름으로 접두사를 갖는다.
+ */
+export type EvidenceScope = StageKey | "appeal";
+export function isEvidenceScope(value: string): value is EvidenceScope {
+  return /^(s[1-5]|appeal)$/.test(value);
+}
 
 /** 칸 — 증빙 파일(모든 판), 문제 정의 상세의 파일(s1) */
 export const EVIDENCE_SLOTS = ["evidence", "problem"] as const;
@@ -82,13 +92,13 @@ export function safeFileName(name: string, kind: EvidenceKind): string {
 
 export type EvidenceKeyParts = {
   entryId: string;
-  stageKey: StageKey;
+  stageKey: EvidenceScope;
   slot: EvidenceSlot;
   id: string;
   name: string;
 };
 
-export function evidencePrefix(entryId: string, stageKey: StageKey, slot?: EvidenceSlot) {
+export function evidencePrefix(entryId: string, stageKey: EvidenceScope, slot?: EvidenceSlot) {
   return slot ? `${entryId}/${stageKey}/${slot}/` : `${entryId}/${stageKey}/`;
 }
 
@@ -97,7 +107,7 @@ export function buildEvidenceKey(parts: EvidenceKeyParts): string {
 }
 
 const KEY_RE =
-  /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(s[1-5])\/(evidence|problem)\/([0-9a-f]{32})-([^/]+)$/;
+  /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(s[1-5]|appeal)\/(evidence|problem)\/([0-9a-f]{32})-([^/]+)$/;
 
 /** 키를 조각으로. 모양이 다르면 null — 위조된 키는 여기서 걸린다 */
 export function parseEvidenceKey(key: string): EvidenceKeyParts | null {
@@ -106,7 +116,7 @@ export function parseEvidenceKey(key: string): EvidenceKeyParts | null {
   if (!m) return null;
   return {
     entryId: m[1],
-    stageKey: m[2] as StageKey,
+    stageKey: m[2] as EvidenceScope,
     slot: m[3] as EvidenceSlot,
     id: m[4],
     name: m[5],
@@ -137,7 +147,7 @@ export function splitEvidence(keys: readonly string[]): Record<EvidenceSlot, str
 export function foreignEvidence(
   keys: readonly string[],
   entryId: string,
-  stageKey: StageKey,
+  stageKey: EvidenceScope,
 ): string[] {
   const prefix = evidencePrefix(entryId, stageKey);
   return keys.filter((key) => !parseEvidenceKey(key) || !key.startsWith(prefix));

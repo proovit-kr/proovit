@@ -14,6 +14,7 @@ import {
   devSetStatus,
   devSetCredits,
   devSetJudgments,
+  devSetAppeal,
   devSetMyMetrics,
   devSetSubmit,
   devSetTeam,
@@ -74,6 +75,8 @@ type Team = {
   myMetrics: "data" | "empty" | null;
   /** 심사 결과 화면의 판(시안 ①~④). 「심사 결과」 줄이 되짚는다 — s2 전이면 null */
   judgments: "none" | "pass" | "fail" | "final" | null;
+  /** 소명 화면의 판(시안 ①②). 「소명」 줄이 되짚는다 — 소명할 것이 없으면 null */
+  appeal: "write" | "sent" | null;
   teamId: string;
 };
 
@@ -613,6 +616,37 @@ export function DevBarClient({
                     action={devSetJudgments}
                     fields={{ entryId: current.entryId, pane: pick.pane }}
                     active={current.judgments === pick.pane}
+                  >
+                    {pick.label}
+                  </PickButton>
+                ))
+              ) : (
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
+              )}
+            </div>
+          </div>
+
+          {/*
+            ── 소명 ──────────────────────────────────────────
+            소명 화면의 두 판(시안 ①②). 허브 h14(레이스 중 실격) 위에 실격 제재의
+            통지일·방문 보정 플래그를 심고(①), ②는 접수 기록과 운영진 회신까지.
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              소명
+              <em className={styles.hint}>소명 ①②</em>
+            </span>
+            <div className={styles.picks}>
+              {current ? (
+                [
+                  { pane: "write", label: "① 작성" },
+                  { pane: "sent", label: "② 접수됨" },
+                ].map((pick) => (
+                  <PickButton
+                    key={pick.pane}
+                    action={devSetAppeal}
+                    fields={{ entryId: current.entryId, pane: pick.pane }}
+                    active={current.appeal === pick.pane}
                   >
                     {pick.label}
                   </PickButton>

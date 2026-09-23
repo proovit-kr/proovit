@@ -2,13 +2,20 @@ import { randomUUID } from "node:crypto";
 
 import { EVIDENCE_MESSAGE } from "@/content/submission";
 import type { EntryStage } from "@/generated/prisma/enums";
-import { accessFailure, canSubmitStage, loadViewerState, toAccessContext } from "@/lib/access";
+import {
+  accessFailure,
+  canAccess,
+  canSubmitStage,
+  loadViewerState,
+  toAccessContext,
+} from "@/lib/access";
 import { apiFail, apiOk } from "@/lib/api";
 import {
   EVIDENCE_KINDS,
   EVIDENCE_MAX_BYTES,
   buildEvidenceKey,
   evidenceName,
+  isEvidenceScope,
   isEvidenceSlot,
   safeFileName,
   sniffKind,
@@ -19,6 +26,8 @@ import { loadSubmitOverview } from "@/lib/submission-store";
 
 /*
   POST /api/evidence — 증빙 파일 하나를 올린다(multipart: file · stageKey · slot).
+  `stageKey`는 스테이지(s1~s5) 또는 소명(`appeal`)이다 — 소명 증빙은 소명 화면의
+  권한(`dashboardAppeal`, 실격 팀도 열린다)으로 본다.
 
   폼과 따로 올리는 이유: 서버 액션은 본문 1MB가 기본이고, 파일을 폼에 실으면
   칩 하나 빼려 해도 폼을 다시 보내야 한다. 여기서 올리고 키만 받아 폼의 hidden에
@@ -51,25 +60,30 @@ export async function POST(request: Request) {
   const stageKey = String(form.get("stageKey") ?? "");
   const slot = String(form.get("slot") ?? "");
   if (
-    !isStageKey(stageKey) ||
+    !isEvidenceScope(stageKey) ||
     !isEvidenceSlot(slot) ||
     (slot === "problem" && stageKey !== "s1")
   ) {
     return apiFail("VALIDATION_FAILED", SUBMISSION_FAILURE_MESSAGE.NOT_FOUND);
   }
 
-  /* EntryStage와 StageKey는 s1~s5에서 값이 같다 */
-  const permission = canSubmitStage(stageKey as unknown as EntryStage, toAccessContext(viewer));
-  const denied = accessFailure(permission);
-  if (denied) return denied;
-  const overview = await loadSubmitOverview(viewer.entry.id, viewer.season.id);
-  const row = overview?.stages.find((s) => s.stageKey === stageKey);
-  if (!row) return apiFail("NOT_FOUND", SUBMISSION_FAILURE_MESSAGE.NOT_FOUND);
-  if (!row.editable) {
-    return apiFail(
-      "STAGE_LOCKED",
-      SUBMISSION_FAILURE_MESSAGE[row.lockedReason ?? "STAGE_LOCKED"],
-    );
+  if (stageKey === "appeal") {
+    const denied = accessFailure(canAccess("dashboardAppeal", toAccessContext(viewer)));
+    if (denied) return denied;
+  } else if (isStageKey(stageKey)) {
+    /* EntryStage와 StageKey는 s1~s5에서 값이 같다 */
+    const permission = canSubmitStage(stageKey as unknown as EntryStage, toAccessContext(viewer));
+    const denied = accessFailure(permission);
+    if (denied) return denied;
+    const overview = await loadSubmitOverview(viewer.entry.id, viewer.season.id);
+    const row = overview?.stages.find((s) => s.stageKey === stageKey);
+    if (!row) return apiFail("NOT_FOUND", SUBMISSION_FAILURE_MESSAGE.NOT_FOUND);
+    if (!row.editable) {
+      return apiFail(
+        "STAGE_LOCKED",
+        SUBMISSION_FAILURE_MESSAGE[row.lockedReason ?? "STAGE_LOCKED"],
+      );
+    }
   }
 
   const file = form.get("file");

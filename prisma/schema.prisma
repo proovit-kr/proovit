@@ -951,10 +951,12 @@ model Judgment {
 model Appeal {
   id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   entryId    String @map("entry_id") @db.Uuid
-  /// judgment / sanction
+  /// judgment / sanction / abuse_flag
   targetType String @map("target_type") @db.VarChar(20)
   targetId   String @map("target_id") @db.Uuid
   reasonText String @map("reason_text")
+  /// 증빙 파일의 키 — 시안 「증빙 첨부」. submissions.evidence_urls와 같은 꼴
+  evidenceUrls String[] @default([]) @map("evidence_urls")
 
   submittedAt   DateTime  @default(now()) @map("submitted_at") @db.Timestamptz(6)
   /// 접수 시각 + 5영업일. 영업일 계산은 애플리케이션이 한다.
