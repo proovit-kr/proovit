@@ -34,6 +34,7 @@ import {
   ACCOUNT_TERMS_CONSENT_VERSION,
   APPLY_CONSENTS,
 } from "@/content/consent";
+import { NOTI_WELCOME } from "@/content/notifications";
 import { stageAtLeast } from "@/lib/access-policy";
 import { applyConsentRows } from "@/lib/apply-store";
 import {
@@ -176,7 +177,7 @@ export type SandboxTeam = {
   judgments: JudgmentsPane | null;
   /** 소명 화면의 판(시안 ①②). 「소명」 줄이 되짚는다 — 소명할 것도 접수도 없으면 null */
   appeal: AppealPane | null;
-  /** 알림센터 화면의 판(시안 ①). 「알림센터」 줄이 되짚는다 — 시안 목업이 없으면 null */
+  /** 알림센터 화면의 판(시안 ①②). 「알림센터」 줄이 되짚는다 — 목업도 환영 한 줄도 아니면 null */
   noti: NotiPane | null;
   /** 팀원 수. 「팀원」 줄이 1인·2인 중 어느 쪽이 눌렸는지 되짚는 데 쓴다 */
   members: number;
@@ -313,18 +314,17 @@ export async function loadSandboxState(): Promise<SandboxState> {
       })
     : null;
   const now = devNow().getTime();
-  /* 알림센터 판 — 팀장에게 시안 목업의 첫 알림이 있으면 ① */
-  const notiSeeded = new Set(
-    (
-      await prisma.notification.findMany({
-        where: {
-          userId: { in: entries.flatMap((e) => e.team.members.map((m) => m.userId)) },
-          title: SPEC_NOTI[0].title,
-        },
-        select: { userId: true },
-      })
-    ).map((n) => n.userId),
-  );
+  /* 알림센터 판 — 시안 목업의 첫 알림이 있으면 ①, 환영 알림뿐이면 ② */
+  const notiRows = await prisma.notification.findMany({
+    where: { userId: { in: entries.flatMap((e) => e.team.members.map((m) => m.userId)) } },
+    select: { userId: true, type: true, title: true },
+  });
+  const notiPaneOf = (userId: string): NotiPane | null => {
+    const mine = notiRows.filter((n) => n.userId === userId);
+    if (mine.some((n) => n.title === SPEC_NOTI[0].title)) return "list";
+    if (mine.length > 0 && mine.every((n) => n.type === NOTI_WELCOME.type)) return "empty";
+    return null;
+  };
 
   const teams: SandboxTeam[] = entries.flatMap((entry) => {
     const leader = entry.team.members[0];
@@ -364,7 +364,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
           gate2: entry.submissions.find((x) => x.stageKey === StageKey.s5)?.judgments[0] ?? null,
         }),
         appeal: entry.appeals.length ? "sent" : entry.sanctions.length ? "write" : null,
-        noti: notiSeeded.has(leader.userId) ? "list" : null,
+        noti: notiPaneOf(leader.userId),
         credits: creditsPaneOf({
           phase: entry.season.phase,
           status: entry.status,
@@ -3146,7 +3146,7 @@ function judgmentsPaneOf(args: {
 // 알림센터
 // ─────────────────────────────────────────────────────────────
 
-export type NotiPane = "list";
+export type NotiPane = "list" | "empty";
 
 /*
   시안 `#scr-noti` ① 목업 여덟 줄. 날짜는 「오늘」에서 며칠 전인가로 적는다 —
@@ -3166,7 +3166,9 @@ const SPEC_NOTI = [
 
 /**
  * 알림센터 판. 허브 h6(s4 레이스, 시안 헤더와 같은 판) 위에 **이 팀 팀원 전부**의
- * 알림을 걷고 시안 목업 여덟 줄을 심는다 — 알림은 사람마다 한 행이다.
+ * 알림을 걷고 다시 심는다 — 알림은 사람마다 한 행이다.
+ *   list   시안 목업 여덟 줄
+ *   empty  막 가입한 사람 — 가입 어댑터가 만드는 환영 알림 한 줄, 「지금」 시각
  */
 export async function setSandboxNotifications(args: {
   entryId: string;
@@ -3184,6 +3186,20 @@ export async function setSandboxNotifications(args: {
   const users = entry.team.members.map((m) => m.userId);
 
   await prisma.notification.deleteMany({ where: { userId: { in: users } } });
+  if (args.pane === "empty") {
+    /* 「방금」은 화면이 개발 시계로 판정한다 — 심는 시각도 그 시계다 */
+    const at = devNow();
+    await prisma.notification.createMany({
+      data: users.map((userId) => ({
+        userId,
+        ...NOTI_WELCOME,
+        channel: NotifChannel.inapp,
+        sentAt: at,
+        createdAt: at,
+      })),
+    });
+    return;
+  }
   await prisma.notification.createMany({
     data: users.flatMap((userId) =>
       SPEC_NOTI.map((n, i) => {

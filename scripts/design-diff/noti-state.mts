@@ -1,8 +1,8 @@
 /*
-  알림센터 대조용 dev DB 상태 스위치 — 시안 ① 목록(list).
+  알림센터 대조용 dev DB 상태 스위치 — 시안 ① 목록(list)·② 빈 상태(empty).
 
     node --env-file=.env.development.local --import tsx scripts/design-diff/noti-state.mts save
-    node --env-file=.env.development.local --import tsx scripts/design-diff/noti-state.mts list
+    node --env-file=.env.development.local --import tsx scripts/design-diff/noti-state.mts list|empty
     node --env-file=.env.development.local --import tsx scripts/design-diff/noti-state.mts restore
 
   판 이름은 상태를 만든 뒤 **세션 토큰 한 줄**을 찍는다 — `noti.mjs`가 그것을
@@ -110,7 +110,7 @@ type Snap = {
   notifications: Record<string, unknown>[];
 };
 
-const PANES: NotiPane[] = ["list"];
+const PANES: NotiPane[] = ["list", "empty"];
 
 const users = (
   await prisma.teamMember.findMany({ where: { teamId: entry.teamId }, select: { userId: true } })

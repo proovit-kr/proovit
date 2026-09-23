@@ -80,17 +80,21 @@ const LIST = {
     ["last", `${P}.nt:last-of-type`, `${ROOT}> div:last-child > :last-child`, [], ["height", "width"]],
   ],
 };
+/* ② 머리는 ①과 같고, 행은 환영 한 줄(안 읽음) */
+LIST.empty = [...LIST.list.slice(0, 5), ...row("info un", "info", false)];
 
 const HOVER_CSS = ["color", "background-color", "background-image", "box-shadow",
   "border-top-color", "filter"];
 const HOVER = {
   list: [["btn hover", `${S}.db-body > div:first-child .btn`, `${ROOT}> div:first-child button`]],
 };
+HOVER.empty = HOVER.list;
 
 /* 글자는 통째로 — 머리부터 목록 끝까지 */
 const TEXT = {
   list: [["화면", `${S}.db-body`, ROOT.trim()]],
 };
+TEXT.empty = TEXT.list;
 
 /* 데이터 — 날짜는 「오늘」 기준으로 심는다(dev 일정의 h6 「오늘」은 시안의 10.23이 아니다) */
 const IGNORE = [/^\d{2}\.\d{2}$/];
@@ -176,9 +180,9 @@ const state = (...args) =>
     "scripts/design-diff/noti-state.mts", ...args,
   ], { cwd: REPO, encoding: "utf8" });
 
-const STATES = process.env.STATE ? [process.env.STATE] : ["list"];
+const STATES = process.env.STATE ? [process.env.STATE] : ["list", "empty"];
 for (const st of STATES) {
-  if (!LIST[st]) throw new Error(`STATE는 list: ${st}`);
+  if (!LIST[st]) throw new Error(`STATE는 list·empty: ${st}`);
 }
 
 console.log(state("save").trim());

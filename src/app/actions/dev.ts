@@ -262,16 +262,16 @@ export async function devSetAppeal(formData: FormData): Promise<void> {
   refresh();
 }
 
-/** 알림센터 화면의 판 — 허브 h6 위에 팀원 전부의 알림을 시안 목업으로 심는다(`setSandboxNotifications`) */
+/** 알림센터 화면의 판 — 허브 h6 위에 팀원 전부의 알림을 시안 ①목업·②환영 한 줄로 심는다(`setSandboxNotifications`) */
 export async function devSetNotifications(formData: FormData): Promise<void> {
   guard();
 
   const entryId = String(formData.get("entryId") ?? "");
   const raw = String(formData.get("pane") ?? "");
-  if (!entryId || raw !== "list") {
+  if (!entryId || (raw !== "list" && raw !== "empty")) {
     throw new Error("[dev] entryId·pane가 잘못됐습니다.");
   }
-  await setSandboxNotifications({ entryId, pane: "list" });
+  await setSandboxNotifications({ entryId, pane: raw });
   refresh();
 }
 

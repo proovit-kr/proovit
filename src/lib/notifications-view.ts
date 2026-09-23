@@ -6,6 +6,8 @@
   세 갈래로 접는다 — 모르는 값은 안내다.
 */
 
+import { fmtMD } from "@/lib/header-state";
+
 export type NotiTone = "judge" | "due" | "info";
 
 /** 심사·제출·소명 — 보라 점 */
@@ -29,4 +31,20 @@ export function notiHref(linkUrl: string | null): string | null {
     return null;
   }
   return linkUrl;
+}
+
+/** 이보다 가까우면 날짜 대신 「방금」 — 시안 ② 막 가입한 사람의 환영 알림 */
+const JUST_NOW_MS = 60 * 60_000;
+
+/** 「방금」 또는 「10.12」 (내가 정함: 한 시간 안이면 방금, 수연 확인 대기) */
+export function notiTime(at: Date, now: Date): string {
+  return now.getTime() - at.getTime() < JUST_NOW_MS ? "방금" : fmtMD(at);
+}
+
+/**
+ * 판 이름. 환영 알림밖에 없으면 ② 빈 상태다 — 시안의 「빈 상태」는 알림이 0개가
+ * 아니라 가입하며 받은 환영 한 줄만 있는 화면이다.
+ */
+export function notiState(types: readonly string[]): "list" | "empty" {
+  return types.every((t) => t === "welcome") ? "empty" : "list";
 }
