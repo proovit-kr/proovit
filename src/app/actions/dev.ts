@@ -28,6 +28,7 @@ import {
   setSandboxJudgments,
   setSandboxAppeal,
   type AppealPane,
+  setSandboxNotifications,
   type CreditsPane,
   type MyMetricsPane,
   type JudgmentsPane,
@@ -258,6 +259,19 @@ export async function devSetAppeal(formData: FormData): Promise<void> {
     throw new Error("[dev] entryId·pane가 잘못됐습니다.");
   }
   await setSandboxAppeal({ entryId, pane: raw as AppealPane });
+  refresh();
+}
+
+/** 알림센터 화면의 판 — 허브 h6 위에 팀원 전부의 알림을 시안 목업으로 심는다(`setSandboxNotifications`) */
+export async function devSetNotifications(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const raw = String(formData.get("pane") ?? "");
+  if (!entryId || raw !== "list") {
+    throw new Error("[dev] entryId·pane가 잘못됐습니다.");
+  }
+  await setSandboxNotifications({ entryId, pane: "list" });
   refresh();
 }
 
