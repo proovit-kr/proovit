@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { devToolsEnabled } from "@/lib/dev-env";
+
 /*
   개발용 시계 — 「오늘」을 옮긴다.
 
@@ -25,7 +27,7 @@ import { join } from "node:path";
 
 const FILE = join(tmpdir(), "proovit-design-diff", "dev-now.json");
 
-const dev = process.env.NODE_ENV !== "production";
+const dev = devToolsEnabled;
 
 /** 가정한 오늘. 안 정했으면 null */
 export function devToday(): Date | null {

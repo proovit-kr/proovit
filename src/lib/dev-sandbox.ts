@@ -73,6 +73,7 @@ import { type MetricsPane as MyMetricsPane, metricsWindow } from "@/lib/metrics-
 import { measurementState, type MeasurementState } from "@/lib/measurement";
 import { paymentPane, type PaymentPane } from "@/lib/payment";
 import { encryptSecret } from "@/lib/payment-crypto";
+import { devToolsEnabled } from "@/lib/dev-env";
 import { accountConsentRows } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
 import { INVITE_TTL_DAYS } from "@/lib/team";
@@ -90,7 +91,7 @@ import { generateCode } from "@/lib/team-store";
   ⚠️ 안전장치가 **둘**이고, 둘 다 통과해야 동작한다.
   ══════════════════════════════════════════════════════════════
 
-    ① NODE_ENV가 production이 아닐 것
+    ① 운영 배포가 아닐 것 — 로컬 개발 서버와 Vercel 프리뷰(스테이징)만 (`dev-env.ts`)
     ② 붙어 있는 DB가 **dev 브랜치**일 것
 
   ②를 따로 두는 이유가 이 파일이 존재하는 계기다. 2026-08-27에 `prisma migrate
@@ -116,8 +117,8 @@ export type SandboxDenial =
 
 /** 개발 도구를 열어도 되는가. 화면과 서버 액션이 **각각** 부른다 */
 export function checkDevSandbox(): SandboxDenial {
-  if (process.env.NODE_ENV === "production") {
-    return { ok: false, reason: "production 빌드에서는 열지 않습니다." };
+  if (!devToolsEnabled) {
+    return { ok: false, reason: "운영 배포에서는 열지 않습니다." };
   }
 
   const url = process.env.DATABASE_URL;
