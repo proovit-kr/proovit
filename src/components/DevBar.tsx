@@ -171,7 +171,15 @@ export async function DevBar() {
 
   return (
     <DevBarClient
-      me={user ? { nickname: user.nickname, onboarded: !!user.onboardedAt } : null}
+      me={
+        user
+          ? {
+              nickname: user.nickname,
+              onboarded: !!user.onboardedAt,
+              admin: viewer.user?.roles.includes("admin") ?? false,
+            }
+          : null
+      }
 
       today={today ? today.toISOString() : null}
       current={current}

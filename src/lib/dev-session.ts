@@ -39,16 +39,29 @@ const SECURE_SESSION_COOKIE = "__Secure-authjs.session-token";
 
 const MONTH = 30 * 24 * 60 * 60;
 
+/**
+ * 운영자 테스트 계정 — 시드의 「운영」(admin 역할). 개발 바 「운영자」 칩이 이 계정으로
+ * 들어가 운영 콘솔을 본다(2026-09-23 수연 — 「개발 바에 운영자 칩은 없는데 어케 봐?」).
+ */
+export const TEST_ADMIN_EMAIL = "admin@demo.proovit.local";
+
 /** 테스트 계정으로 로그인 */
 export async function loginAsTestAccount(): Promise<void> {
+  await loginAs(TEST_ACCOUNT_EMAIL);
+}
+
+/** 운영자 테스트 계정으로 로그인 */
+export async function loginAsTestAdmin(): Promise<void> {
+  await loginAs(TEST_ADMIN_EMAIL);
+}
+
+async function loginAs(email: string): Promise<void> {
   const user = await prisma.user.findUnique({
-    where: { email: TEST_ACCOUNT_EMAIL },
+    where: { email },
     select: { id: true },
   });
   if (!user) {
-    throw new Error(
-      `[dev] 테스트 계정(${TEST_ACCOUNT_EMAIL})이 없다 — npm run db:seed`,
-    );
+    throw new Error(`[dev] 테스트 계정(${email})이 없다 — npm run db:seed`);
   }
 
   await logout();
