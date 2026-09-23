@@ -456,3 +456,72 @@ export async function sendNoticeMail(params: {
           </p>`);
   return send({ to: email, subject: `[PROOVIT] ${title}`, text, html });
 }
+
+/**
+ * 크레딧 발급 메일 — 스폰서 크레딧 「발급 가능 팀에 일괄 발송」(시안 `#mdl-crbatch` 「채널 이메일」).
+ *
+ * ⚠️ **이행 메일이다.** 참가하면서 열린 혜택을 전달하는 것이라 코드·링크·기한·적용
+ * 방법만 싣는다. 새 혜택을 알리는 홍보 문구를 섞으면 광고성이 된다(머리 주석 규칙 9).
+ * 같은 코드가 대시보드 「혜택과 크레딧」에도 선다.
+ */
+export async function sendCreditMail(params: {
+  email: string;
+  card: string;
+  sponsor: string | null;
+  code: string | null;
+  link: string | null;
+  validUntil: Date | null;
+  howto: string | null;
+}): Promise<MailResult> {
+  const { email, card, sponsor, code, link, validUntil, howto } = params;
+  const title = `${card}${sponsor ? `(${sponsor})` : ""}가 발급됐어요`;
+  const until = validUntil ? kstDate(validUntil) : null;
+  const center = `${siteUrl()}/dashboard/credits`;
+  const text = [
+    title,
+    "",
+    code ? `코드: ${code}` : null,
+    link ? `링크: ${link}` : null,
+    until ? `유효기간: ${until}까지` : null,
+    howto ? `적용 방법: ${howto}` : null,
+    "",
+    `혜택과 크레딧: ${center}`,
+    "",
+    "PROOVIT | 문의: help@proovit.kr",
+  ]
+    .filter((l) => l !== null)
+    .join("\n");
+  const html = shell(`
+          <div style="font-size:17px;font-weight:800;letter-spacing:.06em;color:${INK}">
+            PROO<span style="color:#8fc400">✓</span>IT
+          </div>
+          <h1 style="margin:26px 0 0;font-size:21px;line-height:1.45;font-weight:800;color:${INK}">
+            ${escapeHtml(title)}
+          </h1>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                 style="margin:24px 0 0;border-top:1px solid ${LINE};border-bottom:1px solid ${LINE}">
+            <tr><td style="padding:10px 0">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${code ? row("코드", `<span style="font-family:monospace">${escapeHtml(code)}</span>`) : ""}
+                ${link ? row("링크", `<a href="${escapeHtml(link)}" style="color:${INK}">${escapeHtml(link)}</a>`) : ""}
+                ${until ? row("유효기간", `${until}까지`) : ""}
+                ${howto ? row("적용 방법", escapeHtml(howto)) : ""}
+              </table>
+            </td></tr>
+          </table>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 0">
+            <tr><td style="border-radius:10px;background:${INK}">
+              <a href="${center}"
+                 style="display:inline-block;padding:13px 22px;font-size:14px;font-weight:700;
+                        color:#ffffff;text-decoration:none;border-radius:10px;border:1px solid ${INK}">
+                혜택과 크레딧에서 보기
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:30px 0 0;padding-top:18px;border-top:1px solid ${LINE};
+                    font-size:12px;line-height:1.8;color:${MUTED}">
+            PROOVIT &nbsp;|&nbsp;
+            문의: <a href="mailto:help@proovit.kr" style="color:${MUTED}">help@proovit.kr</a>
+          </p>`);
+  return send({ to: email, subject: `[PROOVIT] ${title}`, text, html });
+}

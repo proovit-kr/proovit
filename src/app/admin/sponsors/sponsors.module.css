@@ -1,424 +1,153 @@
 /*
-  스폰서 크레딧 콘솔.
-
-  참가자 화면(credits.module.css)과 같은 사실을 다른 밀도로 그린다. 저쪽은
-  카드 넉 장을 레일에 걸어 흐름을 보여주고, 여기는 표로 눌러 담아 한눈에
-  비교하게 한다 — 운영자가 하는 일이 「어느 팀이 안 받았나」를 훑는 것이다.
+  스폰서 크레딧 — 시안 `#scr-adm-sponsors`.
+  값은 ver4 승자(`fold-spec.mjs --media '^(\.sp-|#scr-adm-sponsors|\.atbl td \.(ev|dm))'`).
 */
 
-.root {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-8);
-  padding-block: var(--s-8) var(--s-14);
+/*
+  이 화면의 표 — 배지·숫자·버튼·칩·이벤트·끝 칸은 줄을 안 바꾼다
+  (시안 `#scr-adm-sponsors .atbl …{white-space:nowrap}` — 표 안에만).
+*/
+.root table td {
+  line-height: 1.5;
 }
 
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-
-.title {
-  margin: 0;
-  color: var(--c-text-strong);
-  font-size: var(--fs-2xl);
-  font-weight: 700;
-}
-
-.sub {
-  max-width: 40em;
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-}
-
-/* 플래그가 꺼져 있다는 사실은 경고다 — 등록해도 아무에게도 안 보인다 */
-.warnStrip {
-  max-width: 44em;
-  margin: var(--s-1) 0 0;
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--c-warn-35);
-  border-radius: var(--r-lg);
-  background: var(--c-warn-10);
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-}
-
-/* ── KPI ───────────────────────────────────────────────────── */
-
-.kpi {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--s-3);
-}
-
-.kpi > div {
-  padding: var(--s-4);
-  border: 1px solid var(--c-line-2);
-  border-radius: var(--r-lg);
-  background: var(--c-surface);
-}
-
-.kpiLabel {
-  margin: 0 0 var(--s-1);
-  color: var(--c-text-dim);
-  font-size: var(--fs-2xs);
-  font-weight: 600;
-}
-
-.kpiValue {
-  margin: 0;
-  color: var(--c-text-strong);
-  font-family: var(--font-mono);
-  font-size: var(--fs-4xl);
-  font-weight: 800;
-  line-height: 1.1;
-}
-
-.kpiValue span {
-  color: var(--c-text-faint);
-  font-size: var(--fs-sm);
-}
-
-/* ── 단 ────────────────────────────────────────────────────── */
-
-.block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  padding-top: var(--s-6);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.blockTitle {
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-lg);
-  font-weight: 700;
-}
-
-.note {
-  max-width: 52em;
-  margin: 0;
-  color: var(--c-text-faint);
-  font-size: var(--fs-xs);
-  line-height: 1.8;
-}
-
-.hint {
-  margin: 0;
-  color: var(--c-text-faint);
-  font-size: var(--fs-2xs);
-  line-height: 1.6;
-}
-
-/* ── 표 ────────────────────────────────────────────────────── */
-
-/* 표는 자기 안에서 가로 스크롤한다 — 페이지가 옆으로 흐르면 안 된다 */
-.scroller {
-  overflow-x: auto;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-sm);
-}
-
-.table th,
-.table td {
-  padding: var(--s-3) var(--s-3);
-  border-bottom: 1px solid var(--c-line-2);
-  text-align: left;
-  vertical-align: top;
+.root table [class*="Badge-module__"],
+.root table .num,
+.root table [class*="Button-module__"],
+.root table [class*="Surface-module__"][class*="__chip"],
+.root table .ev,
+.root table td:last-child {
   white-space: nowrap;
 }
 
-.table thead th {
-  color: var(--c-text-faint);
-  font-size: var(--fs-2xs);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.rowEmpty td {
-  opacity: 0.6;
-}
-
-.rowEmpty td:first-child {
-  opacity: 1;
-}
-
-.mono {
-  color: var(--c-text);
-  font-family: var(--font-mono);
+.num {
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
-.cellSub {
-  display: block;
-  margin-top: 2px;
-  color: var(--c-text-faint);
-  font-family: var(--font-sans);
-  font-size: var(--fs-xs);
-  font-weight: 400;
+.sub {
+  font-size: 12px;
+  color: var(--faint);
+  font-family: var(--font);
 }
 
-.teamCell {
-  color: var(--c-text-strong);
-  font-weight: 700;
-}
-
-.dim {
-  color: var(--c-text-faint);
-}
-
-.consentOk {
-  color: var(--c-teal);
-  font-weight: 700;
-}
-
-/* 언락 이벤트는 내부 값 그대로 — 운영자는 DB 값으로 대조한다 */
-.event {
-  display: inline-block;
+/* 시안 `.atbl td .ev` — 언락 이벤트 */
+.ev {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--violet);
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  border-radius: 6px;
   padding: 2px 7px;
-  border: 1px solid var(--c-violet-40);
-  border-radius: var(--r-xs);
-  color: var(--c-violet);
-  font-family: var(--font-mono);
-  font-size: var(--fs-2xs);
 }
 
-/* ── 폼 ────────────────────────────────────────────────────── */
-
-.editors {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-  gap: var(--s-4);
+/* 시안 `.atbl td .dm` — 지급 방식 */
+.dm {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
 }
 
-.editor {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  padding: var(--s-5);
-  border: 1px solid var(--c-line-2);
-  border-radius: var(--r-lg);
-  background: var(--c-surface);
+/* 시안 `.sp-pend` — 협의 중 카드 줄. 카드 이름 칸만 또렷하게 */
+.pend td {
+  opacity: 0.7;
 }
 
-.form,
-.poolForm {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
+.pend td:first-child {
+  opacity: 1;
 }
 
-.formHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-3);
-  color: var(--c-text-strong);
-  font-size: var(--fs-base);
-}
-
-.formHint {
-  color: var(--c-text-faint);
-  font-size: var(--fs-2xs);
-}
-
-.grid {
+/* 시안 `.sp-form` — 편집 칸 두 줄 격자 */
+.form {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--s-3);
+  gap: 0 18px;
 }
 
-.full {
+.form > * {
+  margin-bottom: 14px;
+}
+
+.form .full {
   grid-column: 1 / -1;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  min-width: 0;
+.form .inp {
+  padding: 10px 13px;
+  font-size: 13.5px;
 }
 
-.field > span {
-  color: var(--c-text-dim);
-  font-size: var(--fs-2xs);
-  font-weight: 600;
+/* 시안 `#scr-adm-sponsors textarea.inp{min-height:64px;height:64px}` */
+.form textarea.inp {
+  min-height: 64px;
+  height: 64px;
 }
 
-.field small {
-  margin-left: var(--s-1);
-  color: var(--c-text-faint);
-  font-weight: 400;
-}
-
-.input {
-  width: 100%;
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--c-line-3);
-  border-radius: var(--r-sm);
-  background: var(--c-field);
-  color: var(--c-text);
-  font-size: var(--fs-sm);
-}
-
-.input:focus-visible {
-  outline: 2px solid var(--c-lime);
-  outline-offset: 1px;
-}
-
-.formFoot {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: var(--s-3);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.warn {
-  margin: 0;
-  color: var(--c-warn);
-  font-size: var(--fs-xs);
-  line-height: 1.6;
-}
-
-.error {
-  margin: 0;
-  color: var(--c-danger);
-  font-size: var(--fs-sm);
-}
-
-.ok {
-  margin: 0;
-  color: var(--c-teal);
-  font-size: var(--fs-sm);
-}
-
-/* ── 코드 풀 ───────────────────────────────────────────────── */
-
+/* 시안 `.sp-pool` — 코드 풀 한 줄: 잔여 · 막대 · 소비 · 업로드 */
 .pool {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
-  padding: var(--s-3);
-  border: 1px solid var(--c-line-2);
-  border-radius: var(--r-lg);
-  background: var(--c-surface-2);
+  gap: 14px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
 }
 
-.poolCount {
-  color: var(--c-lime);
-  font-family: var(--font-mono);
-  font-size: var(--fs-2xl);
-  font-weight: 800;
+.pool :global(.score) {
+  font-size: 21px;
+  color: var(--accent);
 }
 
-.poolCount i {
-  color: var(--c-text-faint);
-  font-size: var(--fs-xs);
+.pool :global(.score) i {
   font-style: normal;
+  font-size: 12.5px;
+  color: var(--faint);
+  margin-left: 3px;
 }
 
-.poolBar {
+.bar {
   flex: 1;
-  overflow: hidden;
   height: 8px;
-  border: 1px solid var(--c-line-2);
-  border-radius: var(--r-pill);
-  background: rgba(255, 255, 255, 0.06);
+  border-radius: 99px;
+  background: rgba(232, 236, 244, 0.06);
+  border: 1px solid var(--line);
+  overflow: hidden;
 }
 
-.poolBar i {
+.bar i {
   display: block;
   height: 100%;
-  border-radius: var(--r-pill);
-  background: var(--c-lime);
+  background: var(--accent);
+  border-radius: 99px;
 }
 
-.poolNote {
-  color: var(--c-text-dim);
-  font-size: var(--fs-xs);
+.pool .poolBtn {
+  padding: 7px 13px;
+  font-size: 12.5px;
 }
 
-/* ── 행 안의 작은 동작 ─────────────────────────────────────── */
-
-.rowAction {
-  padding: 4px 8px;
-  border: 1px solid var(--c-line-3);
-  border-radius: var(--r-xs);
-  background: none;
-  color: var(--c-text-muted);
-  font-size: var(--fs-2xs);
-  cursor: pointer;
-}
-
-.rowAction:hover {
-  color: var(--c-text-strong);
-}
-
-.rowForm {
+/* 시안 `.sp-ft` — 편집 카드 발 */
+.ft {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2);
-  min-width: 18em;
-  white-space: normal;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
 }
 
-/* ── 발송 이력 ─────────────────────────────────────────────── */
-
-.log {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/*
+  시안은 세 판을 뷰어 상태 바로 갈아 끼우는데 제품에는 그 바가 없다. 운영자가 하는
+  일이 「카드를 고치고, 누가 받았는지 보고, 안 받은 팀에 보내는」 한 흐름이라 세 판을
+  위아래로 쌓고 판 이름을 머리로 단다(내가 정함, 수연 확인 대기).
+*/
+.pane + .pane {
+  margin-top: 36px;
 }
 
-.log li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2) var(--s-3);
-  padding-block: var(--s-3);
-  border-top: 1px solid var(--c-line-2);
-  font-size: var(--fs-sm);
-}
-
-.logWhen {
-  color: var(--c-text-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-}
-
-.logAction {
-  color: var(--c-violet);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-}
-
-.logActor {
-  color: var(--c-text-muted);
+.paneHead {
+  font-size: 15px;
   font-weight: 700;
-}
-
-.logReason {
-  flex-basis: 100%;
-  color: var(--c-text-dim);
-  line-height: 1.6;
-}
-
-@media (max-width: 720px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-  .editors {
-    grid-template-columns: 1fr;
-  }
+  margin-bottom: 12px;
 }

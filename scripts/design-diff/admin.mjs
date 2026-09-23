@@ -167,7 +167,13 @@ try {
     const scr = SCREENS[key];
     const S = `#scr-${scr.hash} `;
     const sub = st ? scr.states[st] : {};
-    const list = [...chrome(S), ...(scr.list(S, st) ?? [])];
+    /* 화면이 크롬 탐침의 뺄 속성을 더할 수 있다 — `chromeSkip: { 이름: [속성] }` */
+    const list = [
+      ...chrome(S).map((r) =>
+        scr.chromeSkip?.[r[0]] ? [r[0], r[1], r[2], r[3], [...(r[4] ?? []), ...scr.chromeSkip[r[0]]], r[5]] : r,
+      ),
+      ...(scr.list(S, st) ?? []),
+    ];
     const texts = [...CHROME_TEXT(S), ...(scr.text?.(S, st) ?? [])];
     const hovers = [...CHROME_HOVER(S), ...(scr.hover?.(S, st) ?? [])];
     const token = state(key + (st ? `:${st}` : "")).trim().split("\n").pop();

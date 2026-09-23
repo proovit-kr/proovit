@@ -451,4 +451,128 @@ export const SCREENS = {
       ["확정 hover", S + ".ad-body > div[style*=flex] .btn", `[data-probe="awards-bar"] ${BTN}`],
     ],
   },
+
+  /* ── 스폰서 크레딧 ①②③ — 시안은 판을 갈아 끼우고 우리는 세 판을 쌓는다 ── */
+  sponsors: {
+    hash: "adm-sponsors",
+    route: "/admin/sponsors",
+    mod: "sponsors",
+    states: { offers: { pane: "sp-offers" }, claims: { pane: "sp-claims" }, log: { pane: "sp-log" } },
+    /*
+      세 판을 쌓아서 이력 판을 재는 동안에도 발급 현황 표가 같이 있다 — 그 표가 768에서
+      본문을 넘친다(시안도 발급 현황 판에서는 넘친다). 본문 넘침은 판마다 못 가른다.
+    */
+    chromeSkip: { body: ["overflow"] },
+    list: (S, st) => {
+      const P = S + ".pane.on ";
+      const K = '[data-probe="sp-kpi"]';
+      const common = [
+        ...head(S),
+        ["kpi", S + ".kpi", K, [], ["height"], ["height"], { kids: true }],
+        ["kpi 카드", S + ".kpi .card:nth-child(1)", `${K} > ${CARD}:nth-child(1)`, [], ["width", "height"]],
+        ["kpi small", S + ".kpi .card:nth-child(2) small", `${K} > ${CARD}:nth-child(2) small`, [], ["width"]],
+        ["kpi score", S + ".kpi .card:nth-child(1) .score", `${K} > ${CARD}:nth-child(1) .score`, [], ["width"]],
+        ["kpi score i", S + ".kpi .card:nth-child(1) .score i", `${K} > ${CARD}:nth-child(1) .score i`, [], ["width"]],
+      ];
+      if (st === "offers") {
+        const O = '[data-probe="sp-offers"] ';
+        const T = O + '[data-probe="sp-offers-table"]';
+        const E = O + '[data-probe="sp-edit"]';
+        const R = (k) => `${T} tbody tr:nth-child(${k})`;
+        const SR = (k) => P + `.atbl tbody tr:nth-child(${k})`;
+        return [
+          ...common,
+          ["머리 줄", P + "> div:first-child", O + '[data-probe="sp-offers-bar"]', [], ["height"], [], { kids: true }],
+          ["머리 chip", P + "> div:first-child .chip", O + '[data-probe="sp-offers-bar"] [class*="Surface-module__"][class*="__chip"]', [], ["width"]],
+          ["혜택 등록", P + "> div:first-child .btn", O + `[data-probe="sp-offers-bar"] ${BTN}`, [], ["width", "margin-left"]],
+          /* 표 폭은 칸 글자(데이터)가 정한다 — 768에서도 넘친다 */
+          ...table(P, T, { cols: 7 }).map((r) => (r[0] === "atbl" ? [r[0], r[1], r[2], [], ["width", "height"]] : r)),
+          ["td KIND", SR(1) + " td:nth-child(1)", R(1) + " td:nth-child(1)", [], ["width", "height"]],
+          ["td 스폰서 b", SR(1) + " td:nth-child(2) b", R(1) + " td:nth-child(2) b", [], ["width"]],
+          ["td sub", SR(1) + " td:nth-child(2) .sub", R(1) + " td:nth-child(2) {{p:sub}}", [], ["width"]],
+          ["td 배지", SR(1) + " td:nth-child(3) .badge", `${R(1)} td:nth-child(3) ${BADGE}`, [], ["width"]],
+          ["td ev", SR(1) + " .ev", R(1) + " {{p:ev}}", [], ["width"]],
+          ["td dm", SR(1) + " .dm", R(1) + " {{p:dm}}", [], ["width"]],
+          ["td 코드 잔여", SR(1) + " td:nth-child(6)", R(1) + " td:nth-child(6)", [], ["width", "height"]],
+          ["td 버튼", SR(1) + " td:last-child .btn", `${R(1)} td:last-child ${BTN}`],
+          ["협의 중 줄 td", SR(3) + " td:nth-child(2)", R(3) + " td:nth-child(2)", [], ["width", "height"]],
+          ["협의 중 줄 첫 칸", SR(3) + " td:nth-child(1)", R(3) + " td:nth-child(1)", [], ["width", "height"]],
+          ["시상 절차 chip", SR(4) + " td:last-child .chip", R(4) + ' td:last-child [class*="Surface-module__"][class*="__chip"]', [], ["width"]],
+          ["편집 카드", P + "> .card", E, [], ["height"]],
+          ["편집 머리 b", P + "> .card > div:first-child b", E + " > div:first-child b", [], ["width"]],
+          ["편집 머리 chip", P + "> .card > div:first-child .chip", E + ' > div:first-child [class*="Surface-module__"][class*="__chip"]', [], ["width", "margin-left"]],
+          ["sp-form", P + ".sp-form", E + " {{p:form}}", [], ["height"]],
+          ["sp-form fld", P + ".sp-form .fld:nth-child(1)", E + ` {{p:form}} > ${FLD}:nth-child(1)`, [], ["width"]],
+          ["sp-form select", P + ".sp-form .fld:nth-child(2) select", E + ` {{p:form}} > ${FLD}:nth-child(2) select`, [], ["width"]],
+          ["sp-form input", P + ".sp-form .fld:nth-child(3) input", E + ` {{p:form}} > ${FLD}:nth-child(3) input`, [], ["width"]],
+          /* 파일 이름 길이(데이터)가 390에서 줄 수를 정한다 */
+          ["logo keybox", P + ".sp-form .keybox", E + " {{p:form}} {{hub:keybox}}", [], ["width"], ["height"]],
+          ["logo 교체", P + ".sp-form .keybox .btn", `${E} {{p:form}} {{hub:keybox}} ${BTN}`, [], ["width", "margin-left"]],
+          ["textarea", P + ".sp-form textarea", E + " {{p:form}} textarea", [], ["width"]],
+          ["sp-pool", P + ".sp-pool", E + " {{p:pool}}", [], ["width"]],
+          ["pool score", P + ".sp-pool .score", E + " {{p:pool}} .score", [], ["width"]],
+          ["pool bar", P + ".sp-pool .bar", E + " {{p:pool}} {{p:bar}}", [], ["width"]],
+          ["pool 버튼", P + ".sp-pool .btn", `${E} {{p:pool}} ${BTN}`, [], ["width"]],
+          ["hint", P + ".sp-form .hint", E + ' {{p:form}} [class*="Field-module__"][class*="__hint"]', [], ["width", "height"]],
+          ["sp-ft", P + ".sp-ft", E + " {{p:ft}}", [], ["width"]],
+          ["저장", P + ".sp-ft .btn-primary", `${E} {{p:ft}} ${BTN}:last-child`, [], ["width"]],
+        ];
+      }
+      if (st === "claims") {
+        const T = '[data-probe="sp-claims"] [data-probe="sp-claims-table"]';
+        return [
+          ...common,
+          ["fbar", P + ".fbar", '[data-probe="sp-claims"] [data-probe="fbar"]', [], ["height"], [], { kids: true }],
+          ["fbar select", P + ".fbar select", '[data-probe="sp-claims"] [data-probe="fbar"] select', [], ["width"]],
+          ["fbar 검색", P + ".fbar input", '[data-probe="sp-claims"] [data-probe="fbar"] input', [], ["width"]],
+          ["fbar 버튼", P + ".fbar .btn", `[data-probe="sp-claims"] [data-probe="fbar"] ${BTN}`, [], ["width"]],
+          ["atbl", P + ".atbl", T, [], ["height", "width"]],
+          ["th", P + ".atbl th", `${T} th`, [], ["width", "height"]],
+          ["thead tr", P + ".atbl thead tr", `${T} thead tr`, [], ["width", "height"], [], { kids: true }],
+          ["td 첫칸", P + ".atbl tbody tr:first-child td", `${T} tbody tr:first-child td`, [], ["width", "height"]],
+          ["td b", P + ".atbl tbody tr:first-child b", `${T} tbody tr:first-child b`, [], ["width"]],
+          ["td stage", P + ".atbl tbody tr:first-child td:nth-child(2)", `${T} tbody tr:first-child td:nth-child(2)`, [], ["width", "height"]],
+          /* 배지 색은 그 팀의 발급 상태(데이터)다 — 크기·글꼴만 본다 */
+          ["td 카드 배지", P + ".atbl tbody tr:first-child td:nth-child(3) .badge", `${T} tbody tr:first-child td:nth-child(3) ${BADGE}`, [],
+            ["width", "color", "background-color", "border-top-color", "border-bottom-color", "border-left-color"]],
+          ["안내", P + "> p", '[data-probe="sp-claims"] > p', [], ["width", "height"]],
+        ];
+      }
+      return [
+        ...common,
+        ["log card", P + "> .card", `[data-probe="sp-log"] > ${CARD}`, [], ["height"]],
+        /* 줄 높이·태그 자리는 이력 문장 길이(데이터)가 정한다 */
+        ["minlog 줄", P + ".minlog > div:first-child", '[data-probe="sp-log"] {{c:minlog}} > div:first-child', [], ["height"]],
+        ["minlog t", P + ".minlog .t", '[data-probe="sp-log"] {{c:minlog}} {{c:t}}', [], ["width", "height"]],
+        ["minlog who", P + ".minlog .who", '[data-probe="sp-log"] {{c:minlog}} {{c:who}}', [], ["width"]],
+        ["minlog tg", P + ".minlog .tg", '[data-probe="sp-log"] {{c:minlog}} {{c:tg}}', [], ["width", "height", "margin-left"]],
+      ];
+    },
+    text: (S, st) => [
+      ["제목", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}'],
+      ["부제", S + ".hb-sub", '[data-probe="ad-body"] {{hub:sub}}'],
+      ["KPI 라벨", S + ".kpi", '[data-probe="sp-kpi"]', [/^\d+$/, /^\/\d+$/]],
+      ...(st === "offers"
+        ? [
+            ["머리 줄", S + ".pane.on > div:first-child", '[data-probe="sp-offers"] [data-probe="sp-offers-bar"]'],
+            ["머리글", S + ".pane.on .atbl thead", '[data-probe="sp-offers-table"] thead'],
+            /* 편집 칸 라벨 — 값은 데이터, 시안에 없는 세 칸은 머리 주석 */
+            /* C1 설명의 「AI 빌더 에이전트와」는 09-23 수연 지시로 「AI 에이전트와」(credits.mjs와 같은 결정) */
+            ["편집 라벨", S + ".pane.on .sp-form", '[data-probe="sp-edit"] {{p:form}}', [/^(inviteUrl|howtoUrl|redeemNote|초대 링크형|적용 방법 링크|발송 줄의 적용 안내)$/, /^[\d/]+$/, /^소비 \d+, 만료 \d+$/, /.+\.(svg|png)$/, /^없음$/, /^AI (빌더 )?에이전트와 배포/]],
+          ]
+        : st === "claims"
+          ? [
+              ["필터", S + ".pane.on .fbar", '[data-probe="sp-claims"] [data-probe="fbar"]', [/^C\d$/]],
+              ["머리글", S + ".pane.on .atbl thead", '[data-probe="sp-claims-table"] thead'],
+              ["안내", S + ".pane.on > p", '[data-probe="sp-claims"] > p'],
+            ]
+          : []),
+    ],
+    hover: (S, st) =>
+      st === "offers"
+        ? [["혜택 등록 hover", S + ".pane.on > div:first-child .btn", `[data-probe="sp-offers-bar"] ${BTN}`]]
+        : st === "claims"
+          ? [["일괄 발송 hover", S + ".pane.on .fbar .btn", `[data-probe="sp-claims"] [data-probe="fbar"] ${BTN}`]]
+          : [],
+  },
 };

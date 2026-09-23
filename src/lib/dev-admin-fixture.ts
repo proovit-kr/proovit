@@ -371,6 +371,43 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
       created.sanction = [sanction.id];
       return { screen, created, entryBefore: [{ id: doit.id, status: doit.status, stage: doit.stage }] };
     }
+    case "sponsors:offers":
+    case "sponsors:claims":
+    case "sponsors:log": {
+      /*
+        시안 발송 이력(3299행)의 모양 — 시스템 일괄 발송(자동)과 운영자 쓰기(수기).
+        혜택 카드 넷은 dev에 이미 시안과 같은 상태로 있다(크레딧 화면 작업 때 심음).
+      */
+      const actor = await adminId();
+      const c1 = await prisma.creditOffer.findFirst({ where: { seasonId: season.id, kind: "c1" }, select: { id: true } });
+      const c2 = await prisma.creditOffer.findFirst({ where: { seasonId: season.id, kind: "c2" }, select: { id: true } });
+      const c3 = await prisma.creditOffer.findFirst({ where: { seasonId: season.id, kind: "c3" }, select: { id: true } });
+      const rows = [
+        { at: "09.14 20:00", actor, action: "credit.offer_update", offer: c3, reason: "폴백 콘텐츠 확정, go/no-go 결과 반영", meta: { kind: "c3", from: "negotiating", to: "negotiating" } },
+        { at: "10.05 11:30", actor, action: "credit.status", offer: c2, reason: "Vercel Meetup SDK 승인 메일", meta: { kind: "c2", from: "negotiating", to: "active" } },
+        { at: "10.11 22:10", actor, action: "credit.codes_upload", offer: c1, reason: "스폰서 1차 전달분", meta: { kind: "c1", submitted: 80, added: 80 } },
+        { at: "10.12 09:00", actor: null, action: "credit.batch", offer: c1, reason: "발급 가능 팀 일괄 발송", meta: { kind: "c1", teams: 31 } },
+        { at: "10.13 09:00", actor: null, action: "credit.batch", offer: c2, reason: "발급 가능 팀 일괄 발송", meta: { kind: "c2", teams: 9 } },
+      ];
+      created.auditLog = [];
+      for (const r of rows) {
+        if (!r.offer) continue;
+        const row = await prisma.auditLog.create({
+          data: {
+            actorId: r.actor,
+            action: r.action,
+            targetType: "credit_offer",
+            targetId: r.offer.id,
+            reason: r.reason,
+            meta: r.meta,
+            createdAt: at(r.at),
+          },
+          select: { id: true },
+        });
+        created.auditLog.push(String(row.id));
+      }
+      break;
+    }
     case "leads":
       created.lead = await seedLeads(season.id);
       break;

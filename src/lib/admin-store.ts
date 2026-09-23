@@ -5,6 +5,7 @@ import {
   CreditDeliveredVia,
   CreditKind,
   CreditOfferStatus,
+  CreditStatus,
   CreditUnlockEvent,
   EntryStatus,
   NotifChannel,
@@ -421,7 +422,8 @@ export async function saveCreditOffer(args: {
   seasonId: string;
   kind: CreditKind;
   status: CreditOfferStatus;
-  sponsorId: string | null;
+  /** 스폰서 이름 — 같은 이름이 있으면 그 스폰서에 잇고, 없으면 만든다(시안 `sponsorName` 칸) */
+  sponsorName: string | null;
   unlockEvent: CreditUnlockEvent;
   deliveryMethod: CreditDelivery;
   releaseDate: Date | null;
@@ -435,20 +437,20 @@ export async function saveCreditOffer(args: {
   reason: string;
   actorId: string;
 }): Promise<AdminActionResult> {
-  const { seasonId, kind, reason, actorId, ...rest } = args;
+  const { seasonId, kind, reason, actorId, sponsorName, ...rest } = args;
   if (reason.trim().length < REASON_MIN) {
     return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+  if (sponsorName && sponsorName.length > 80) {
+    return { ok: false, message: "스폰서 이름은 80자까지입니다." };
   }
 
   /*
     활성으로 올리면서 스폰서를 안 붙이면 참가자 화면에 「스폰서 미정」인 채로
     클레임 버튼이 선다. 누르면 줄 것이 없다.
   */
-  if (rest.status === CreditOfferStatus.active && !rest.sponsorId) {
-    return {
-      ok: false,
-      message: "활성으로 바꾸려면 스폰서를 먼저 지정해 주세요.",
-    };
+  if (rest.status === CreditOfferStatus.active && !sponsorName) {
+    return { ok: false, message: "활성으로 바꾸려면 스폰서를 먼저 적어 주세요." };
   }
   if (
     rest.status === CreditOfferStatus.active &&
@@ -464,15 +466,24 @@ export async function saveCreditOffer(args: {
   });
 
   await prisma.$transaction(async (tx) => {
+    const sponsorId = sponsorName
+      ? ((
+          await tx.sponsor.findFirst({
+            where: { name: { equals: sponsorName, mode: "insensitive" } },
+            select: { id: true },
+          })
+        )?.id ??
+        (await tx.sponsor.create({ data: { name: sponsorName }, select: { id: true } })).id)
+      : null;
     const saved = await tx.creditOffer.upsert({
       where: { seasonId_kind: { seasonId, kind } },
-      create: { seasonId, kind, ...rest },
-      update: rest,
+      create: { seasonId, kind, sponsorId, ...rest },
+      update: { sponsorId, ...rest },
       select: { id: true },
     });
     await writeAudit(tx, {
       actorId,
-      action: before ? "credit_offer:update" : "credit_offer:create",
+      action: before ? "credit.offer_update" : "credit.offer_create",
       targetType: "credit_offer",
       targetId: saved.id,
       reason: reason.trim(),
@@ -482,6 +493,80 @@ export async function saveCreditOffer(args: {
 
   return { ok: true };
 }
+
+/**
+ * 혜택 상태 전환 — 시안 혜택 표의 「상태 전환」(→ `#mdl-reason`).
+ * 활성으로 올릴 때의 조건은 `saveCreditOffer`와 같다.
+ */
+export async function setCreditOfferStatus(args: {
+  offerId: string;
+  status: CreditOfferStatus;
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { offerId, status, reason, actorId } = args;
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+  const offer = await prisma.creditOffer.findUnique({
+    where: { id: offerId },
+    select: { kind: true, status: true, sponsorId: true, deliveryMethod: true, inviteUrl: true },
+  });
+  if (!offer) return { ok: false, message: "혜택을 찾을 수 없습니다." };
+  if (offer.status === status) return { ok: false, message: "이미 그 상태입니다." };
+  if (status === CreditOfferStatus.active && !offer.sponsorId) {
+    return { ok: false, message: "활성으로 바꾸려면 스폰서를 먼저 적어 주세요." };
+  }
+  if (
+    status === CreditOfferStatus.active &&
+    offer.deliveryMethod === CreditDelivery.invite_link &&
+    !offer.inviteUrl
+  ) {
+    return { ok: false, message: "초대 링크 방식은 링크가 있어야 합니다." };
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.creditOffer.update({ where: { id: offerId }, data: { status } });
+    await writeAudit(tx, {
+      actorId,
+      action: "credit.status",
+      targetType: "credit_offer",
+      targetId: offerId,
+      reason: reason.trim(),
+      meta: { kind: offer.kind, from: offer.status, to: status },
+    });
+  });
+  return { ok: true };
+}
+
+/**
+ * 스폰서 로고 교체 — 시안 편집 카드의 `sponsorLogo` 「교체」.
+ * 증빙 저장소(R2, 없으면 dev 로컬)에 올리고 키를 `sponsors.logo_url`에 적는다.
+ */
+export async function setSponsorLogo(args: {
+  offerId: string;
+  key: string;
+  filename: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const offer = await prisma.creditOffer.findUnique({
+    where: { id: args.offerId },
+    select: { kind: true, sponsorId: true },
+  });
+  if (!offer?.sponsorId) return { ok: false, message: "스폰서를 먼저 저장해 주세요." };
+  await prisma.$transaction(async (tx) => {
+    await tx.sponsor.update({ where: { id: offer.sponsorId! }, data: { logoUrl: args.key } });
+    await writeAudit(tx, {
+      actorId: args.actorId,
+      action: "credit.logo",
+      targetType: "credit_offer",
+      targetId: args.offerId,
+      reason: `스폰서 로고 교체, ${args.filename}`,
+      meta: { kind: offer.kind, key: args.key },
+    });
+  });
+  return { ok: true };
+}
+
 
 /**
  * 코드 풀 업로드.
@@ -511,7 +596,7 @@ export async function uploadCreditCodes(args: {
 
   const offer = await prisma.creditOffer.findUnique({
     where: { id: offerId },
-    select: { id: true },
+    select: { id: true, kind: true },
   });
   if (!offer) return { ok: false, message: "혜택을 찾을 수 없습니다." };
 
@@ -522,11 +607,11 @@ export async function uploadCreditCodes(args: {
     });
     await writeAudit(tx, {
       actorId,
-      action: "credit_codes:upload",
+      action: "credit.codes_upload",
       targetType: "credit_offer",
       targetId: offerId,
       reason: reason.trim(),
-      meta: { submitted: clean.length, added: created.count },
+      meta: { kind: offer.kind, submitted: clean.length, added: created.count },
     });
     return created.count;
   });
@@ -541,6 +626,57 @@ export async function uploadCreditCodes(args: {
  * 옮긴다(설계서 5장 「시즌 1 수동 대체 경로」). 참가자 화면은 자동일 때와
  * 똑같이 보인다 — 그게 이 경로가 성립하는 조건이다.
  */
+type DeliverTx = Prisma.TransactionClient;
+
+/**
+ * 한 팀에 카드 하나를 발급한다(트랜잭션 안에서만). 코드 풀이면 코드 하나를 붙인다 —
+ * 참가자 「받기」(credits-store `claimCredit`)와 같은 조건부 갱신으로 이중 소비를 막는다.
+ * 지급 예정일이 남았으면 코드를 태우지 않고 「발급 예정」으로 둔다.
+ */
+async function deliverOne(
+  tx: DeliverTx,
+  offer: { id: string; deliveryMethod: CreditDelivery; releaseDate: Date | null },
+  entryId: string,
+  via: CreditDeliveredVia,
+  now: Date,
+  today: Date,
+): Promise<{ ok: true; code: string | null; scheduled: boolean } | { ok: false; soldOut: true }> {
+  const scheduled = offer.releaseDate != null && offer.releaseDate > today;
+  let creditCodeId: string | null = null;
+  let code: string | null = null;
+  if (!scheduled && offer.deliveryMethod === CreditDelivery.code_pool) {
+    const candidate = await tx.creditCode.findFirst({
+      where: { offerId: offer.id, status: CreditStatus.issued },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, code: true },
+    });
+    if (!candidate) return { ok: false, soldOut: true };
+    const taken = await tx.creditCode.updateMany({
+      where: { id: candidate.id, status: CreditStatus.issued },
+      data: { status: CreditStatus.claimed },
+    });
+    if (taken.count === 0) return { ok: false, soldOut: true };
+    creditCodeId = candidate.id;
+    code = candidate.code;
+  }
+  const status = scheduled ? CreditClaimStatus.scheduled : CreditClaimStatus.delivered;
+  const data = {
+    status,
+    claimedAt: now,
+    ...(scheduled ? {} : { deliveredAt: now, deliveredVia: via }),
+    ...(creditCodeId ? { creditCodeId } : {}),
+  };
+  await tx.creditClaim.upsert({
+    where: { offerId_entryId: { offerId: offer.id, entryId } },
+    create: { offerId: offer.id, entryId, ...data },
+    update: data,
+  });
+  return { ok: true, code, scheduled };
+}
+
+/**
+ * 수동 발급 — 시안 발급 현황의 「수동 발급」(→ `#mdl-reason`).
+ */
 export async function deliverCreditManually(args: {
   offerId: string;
   entryId: string;
@@ -552,10 +688,17 @@ export async function deliverCreditManually(args: {
     return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
   }
 
-  const claim = await prisma.creditClaim.findUnique({
-    where: { offerId_entryId: { offerId, entryId } },
-    select: { status: true },
-  });
+  const [offer, claim] = await Promise.all([
+    prisma.creditOffer.findUnique({
+      where: { id: offerId },
+      select: { id: true, kind: true, deliveryMethod: true, releaseDate: true },
+    }),
+    prisma.creditClaim.findUnique({
+      where: { offerId_entryId: { offerId, entryId } },
+      select: { status: true },
+    }),
+  ]);
+  if (!offer) return { ok: false, message: "혜택을 찾을 수 없습니다." };
   if (
     claim &&
     claim.status !== CreditClaimStatus.available &&
@@ -564,33 +707,77 @@ export async function deliverCreditManually(args: {
     return { ok: false, message: "이미 발급된 팀입니다." };
   }
 
+  const { devNow } = await import("@/lib/dev-clock");
   const now = new Date();
-  await prisma.$transaction(async (tx) => {
-    await tx.creditClaim.upsert({
-      where: { offerId_entryId: { offerId, entryId } },
-      create: {
-        offerId,
-        entryId,
-        status: CreditClaimStatus.delivered,
-        claimedAt: now,
-        deliveredAt: now,
-        deliveredVia: CreditDeliveredVia.manual,
-      },
-      update: {
-        status: CreditClaimStatus.delivered,
-        deliveredAt: now,
-        deliveredVia: CreditDeliveredVia.manual,
-      },
-    });
+  const out = await prisma.$transaction(async (tx) => {
+    const r = await deliverOne(tx, offer, entryId, CreditDeliveredVia.manual, now, devNow());
+    if (!r.ok) return r;
     await writeAudit(tx, {
       actorId,
-      action: "credit_claim:deliver_manual",
-      targetType: "credit_claim",
-      targetId: `${offerId}:${entryId}`,
+      action: "credit.deliver_manual",
+      targetType: "entry",
+      targetId: entryId,
       reason: reason.trim(),
-      meta: { offerId, entryId, from: claim?.status ?? null },
+      meta: { offerId, kind: offer.kind, from: claim?.status ?? null },
     });
+    return r;
   });
-
+  if (!out.ok) return { ok: false, message: "코드 풀이 비었습니다. CSV로 코드를 먼저 올려 주세요." };
   return { ok: true };
 }
+
+/**
+ * 발급 가능 팀에 일괄 발송 — 시안 「발급 가능 팀에 일괄 발송」 → `#mdl-crbatch`.
+ *
+ * 줄마다 코드 하나를 붙이고(코드 풀) 한 트랜잭션에 감사 로그 한 줄을 남긴다.
+ * 코드가 모자라면 붙인 데까지만 하고 멈춘다 — 받은 팀과 못 받은 팀이 갈려 남는다.
+ * 메일은 부르는 쪽이 트랜잭션 밖에서 보낸다(돌려주는 `delivered`로).
+ */
+export async function batchDeliverCredits(args: {
+  offerId: string;
+  entryIds: string[];
+  actorId: string;
+}): Promise<
+  | { ok: true; delivered: { entryId: string; code: string | null; scheduled: boolean }[]; soldOut: boolean }
+  | { ok: false; message: string }
+> {
+  const offer = await prisma.creditOffer.findUnique({
+    where: { id: args.offerId },
+    select: { id: true, kind: true, status: true, deliveryMethod: true, releaseDate: true },
+  });
+  if (!offer) return { ok: false, message: "혜택을 찾을 수 없습니다." };
+  if (offer.status !== CreditOfferStatus.active) {
+    return { ok: false, message: "활성 혜택만 보낼 수 있습니다." };
+  }
+  if (args.entryIds.length === 0) return { ok: false, message: "보낼 팀이 없습니다." };
+
+  const { devNow } = await import("@/lib/dev-clock");
+  const now = new Date();
+  return prisma.$transaction(async (tx) => {
+    const delivered: { entryId: string; code: string | null; scheduled: boolean }[] = [];
+    let soldOut = false;
+    for (const entryId of args.entryIds) {
+      const had = await tx.creditClaim.findUnique({
+        where: { offerId_entryId: { offerId: offer.id, entryId } },
+        select: { status: true },
+      });
+      if (had && had.status !== CreditClaimStatus.available) continue;
+      const r = await deliverOne(tx, offer, entryId, CreditDeliveredVia.email, now, devNow());
+      if (!r.ok) {
+        soldOut = true;
+        break;
+      }
+      delivered.push({ entryId, code: r.code, scheduled: r.scheduled });
+    }
+    await writeAudit(tx, {
+      actorId: args.actorId,
+      action: "credit.batch",
+      targetType: "credit_offer",
+      targetId: offer.id,
+      reason: "발급 가능 팀 일괄 발송",
+      meta: { kind: offer.kind, teams: delivered.length, entryIds: delivered.map((d) => d.entryId), soldOut },
+    });
+    return { ok: true as const, delivered, soldOut };
+  });
+}
+
