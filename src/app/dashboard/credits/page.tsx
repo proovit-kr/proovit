@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -507,9 +508,9 @@ function Body({
                 {T.pend.guide}
               </AnchorButton>
             ) : null}
-            <a className={styles.lnk} href="/notifications">
+            <Link className={styles.lnk} href="/notifications">
               {T.pend.status}
-            </a>
+            </Link>
             {card.unlocked ? (
               <span className={styles.when}>
                 <Clauses text={T.pend.open} />

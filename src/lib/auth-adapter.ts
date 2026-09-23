@@ -1,6 +1,7 @@
 import type { Adapter, AdapterAccount, AdapterUser } from "next-auth/adapters";
 
-import { OauthProvider } from "@/generated/prisma/client";
+import { NOTI_WELCOME } from "@/content/notifications";
+import { NotifChannel, OauthProvider } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -100,6 +101,10 @@ export function ProovitAdapter(): Adapter {
           nickname: name,
           avatarUrl: user.image ?? null,
           emailVerifiedAt: user.emailVerified ?? null,
+          /* 첫 알림 — 알림센터가 가입 직후에도 비지 않는다(시안 ② nt-empty) */
+          notifications: {
+            create: { ...NOTI_WELCOME, channel: NotifChannel.inapp, sentAt: new Date() },
+          },
         },
         select: USER_SELECT,
       });

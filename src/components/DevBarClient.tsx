@@ -15,6 +15,7 @@ import {
   devSetCredits,
   devSetJudgments,
   devSetAppeal,
+  devSetNotifications,
   devSetMyMetrics,
   devSetSubmit,
   devSetTeam,
@@ -77,6 +78,8 @@ type Team = {
   judgments: "none" | "pass" | "fail" | "final" | null;
   /** 소명 화면의 판(시안 ①②). 「소명」 줄이 되짚는다 — 소명할 것이 없으면 null */
   appeal: "write" | "sent" | null;
+  /** 알림센터 화면의 판(시안 ①). 「알림센터」 줄이 되짚는다 — 시안 목업이 없으면 null */
+  noti: "list" | "empty" | null;
   teamId: string;
 };
 
@@ -651,6 +654,41 @@ export function DevBarClient({
                     {pick.label}
                   </PickButton>
                 ))
+              ) : (
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
+              )}
+            </div>
+          </div>
+
+          {/*
+            ── 알림센터 ──────────────────────────────────────
+            알림센터 ①(목록)·②(빈 상태). 허브 h6(s4 레이스, 시안 헤더와 같은 판) 위에
+            팀원 전부의 알림을 걷고 ①은 시안 목업 여덟 줄(안 읽음 둘), ②는 가입 때
+            받는 환영 알림 한 줄을 「지금」으로 심는다.
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              알림센터
+              <em className={styles.hint}>알림센터 ①②</em>
+            </span>
+            <div className={styles.picks}>
+              {current ? (
+                <>
+                  <PickButton
+                    action={devSetNotifications}
+                    fields={{ entryId: current.entryId, pane: "list" }}
+                    active={current.noti === "list"}
+                  >
+                    ① 목록
+                  </PickButton>
+                  <PickButton
+                    action={devSetNotifications}
+                    fields={{ entryId: current.entryId, pane: "empty" }}
+                    active={current.noti === "empty"}
+                  >
+                    ② 빈 상태
+                  </PickButton>
+                </>
               ) : (
                 <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
               )}

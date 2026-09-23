@@ -19,6 +19,7 @@ import {
   JudgmentResult,
   MemberRole,
   MetricSource,
+  NotifChannel,
   PaymentProvider,
   SanctionReason,
   SanctionStage,
@@ -33,6 +34,7 @@ import {
   ACCOUNT_TERMS_CONSENT_VERSION,
   APPLY_CONSENTS,
 } from "@/content/consent";
+import { NOTI_WELCOME } from "@/content/notifications";
 import { stageAtLeast } from "@/lib/access-policy";
 import { applyConsentRows } from "@/lib/apply-store";
 import {
@@ -175,6 +177,8 @@ export type SandboxTeam = {
   judgments: JudgmentsPane | null;
   /** 소명 화면의 판(시안 ①②). 「소명」 줄이 되짚는다 — 소명할 것도 접수도 없으면 null */
   appeal: AppealPane | null;
+  /** 알림센터 화면의 판(시안 ①②). 「알림센터」 줄이 되짚는다 — 목업도 환영 한 줄도 아니면 null */
+  noti: NotiPane | null;
   /** 팀원 수. 「팀원」 줄이 1인·2인 중 어느 쪽이 눌렸는지 되짚는 데 쓴다 */
   members: number;
   /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
@@ -310,6 +314,17 @@ export async function loadSandboxState(): Promise<SandboxState> {
       })
     : null;
   const now = devNow().getTime();
+  /* 알림센터 판 — 시안 목업의 첫 알림이 있으면 ①, 환영 알림뿐이면 ② */
+  const notiRows = await prisma.notification.findMany({
+    where: { userId: { in: entries.flatMap((e) => e.team.members.map((m) => m.userId)) } },
+    select: { userId: true, type: true, title: true },
+  });
+  const notiPaneOf = (userId: string): NotiPane | null => {
+    const mine = notiRows.filter((n) => n.userId === userId);
+    if (mine.some((n) => n.title === SPEC_NOTI[0].title)) return "list";
+    if (mine.length > 0 && mine.every((n) => n.type === NOTI_WELCOME.type)) return "empty";
+    return null;
+  };
 
   const teams: SandboxTeam[] = entries.flatMap((entry) => {
     const leader = entry.team.members[0];
@@ -349,6 +364,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
           gate2: entry.submissions.find((x) => x.stageKey === StageKey.s5)?.judgments[0] ?? null,
         }),
         appeal: entry.appeals.length ? "sent" : entry.sanctions.length ? "write" : null,
+        noti: notiPaneOf(leader.userId),
         credits: creditsPaneOf({
           phase: entry.season.phase,
           status: entry.status,
@@ -3124,4 +3140,83 @@ function judgmentsPaneOf(args: {
 }): JudgmentsPane | null {
   if (!stageAtLeast(args.stage, EntryStage.s2)) return null;
   return judgmentsPane({ gate1: args.gate1, gate2: args.gate2 });
+}
+
+// ─────────────────────────────────────────────────────────────
+// 알림센터
+// ─────────────────────────────────────────────────────────────
+
+export type NotiPane = "list" | "empty";
+
+/*
+  시안 `#scr-noti` ① 목업 여덟 줄. 날짜는 「오늘」에서 며칠 전인가로 적는다 —
+  h6의 「오늘」이 시안 헤더 「주간 제출 D-2」의 자리라 시안의 10.23이 오늘이다.
+  (시안 목업의 순서는 날짜와 안 맞는다. 화면은 최신 순이다.)
+*/
+const SPEC_NOTI = [
+  { type: "gate_result", title: "1차 심사 통과!", body: "s3 빌드와 배포가 열렸어요. 배포 가이드를 확인해요.", daysAgo: 11, read: false, link: "/dashboard/submit/s3" },
+  { type: "deadline", title: "이번 주 활동 제출 D-2", body: "s4 주간 제출 마감이 다가와요.", daysAgo: 0, read: false, link: "/dashboard/submit/s4" },
+  { type: "notice", title: "롤업 주기 안내", body: "리더보드는 15분마다 갱신돼요.", daysAgo: 4, read: true, link: null },
+  { type: "submission", title: "s2 제출 접수", body: "48시간 내 판정 결과를 알려드려요.", daysAgo: 13, read: true, link: null },
+  { type: "notice", title: "측정 연동 확인됨", body: "little-potion.proovit.kr 집계가 시작됐어요.", daysAgo: 15, read: true, link: "/dashboard/measurement" },
+  { type: "deadline", title: "s2 마감 D-1", body: "랜딩, 수요조사 제출을 잊지 마세요.", daysAgo: 13, read: true, link: null },
+  { type: "notice", title: "시즌 1 킥오프", body: "5주 뒤, 지표로 만나요.", daysAgo: 25, read: true, link: null },
+  { type: "notice", title: "환영해요 👋", body: "온보딩 체크리스트에서 시작해요, 팀 구성 → 측정 연동.", daysAgo: 27, read: true, link: "/dashboard" },
+] as const;
+
+/**
+ * 알림센터 판. 허브 h6(s4 레이스, 시안 헤더와 같은 판) 위에 **이 팀 팀원 전부**의
+ * 알림을 걷고 다시 심는다 — 알림은 사람마다 한 행이다.
+ *   list   시안 목업 여덟 줄
+ *   empty  막 가입한 사람 — 가입 어댑터가 만드는 환영 알림 한 줄, 「지금」 시각
+ */
+export async function setSandboxNotifications(args: {
+  entryId: string;
+  pane: NotiPane;
+}): Promise<void> {
+  assertSandbox();
+  const { entryId } = args;
+
+  await setSandboxHub({ key: "h6", entryId });
+
+  const entry = await prisma.entry.findUniqueOrThrow({
+    where: { id: entryId },
+    select: { team: { select: { members: { select: { userId: true } } } } },
+  });
+  const users = entry.team.members.map((m) => m.userId);
+
+  await prisma.notification.deleteMany({ where: { userId: { in: users } } });
+  if (args.pane === "empty") {
+    /* 「방금」은 화면이 개발 시계로 판정한다 — 심는 시각도 그 시계다 */
+    const at = devNow();
+    await prisma.notification.createMany({
+      data: users.map((userId) => ({
+        userId,
+        ...NOTI_WELCOME,
+        channel: NotifChannel.inapp,
+        sentAt: at,
+        createdAt: at,
+      })),
+    });
+    return;
+  }
+  await prisma.notification.createMany({
+    data: users.flatMap((userId) =>
+      SPEC_NOTI.map((n, i) => {
+        /* 같은 날은 목업 순서대로 — 분으로 벌린다 */
+        const at = seoulDaysAgo(n.daysAgo, 10, 59 - i);
+        return {
+          userId,
+          type: n.type,
+          title: n.title,
+          body: n.body,
+          linkUrl: n.link,
+          channel: NotifChannel.inapp,
+          sentAt: at,
+          createdAt: at,
+          readAt: n.read ? at : null,
+        };
+      }),
+    ),
+  });
 }
