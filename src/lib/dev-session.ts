@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { cookies, headers } from "next/headers";
 
+import { accountConsentRows, loadAccountConsentNeed } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -65,6 +66,18 @@ async function loginAs(email: string): Promise<void> {
   }
 
   await logout();
+
+  /*
+    계정 동의가 없거나 낡았으면 여기서 채운다 — 개발 바로 계정을 오갈 때마다 약관
+    동의 모달이 뜨지 않게(2026-09-23 수연 지시). 모달이 쓰는 것과 같은 행을 쌓으므로
+    판정(`loadAccountConsentNeed`)은 평소대로 돈다. 동의 모달 자체를 볼 때는 소셜로
+    새로 들어오거나 대조 전용 계정(`consent-session.mts`)을 쓴다.
+  */
+  if ((await loadAccountConsentNeed(user.id)).needed) {
+    await prisma.consent.createMany({
+      data: accountConsentRows({ userId: user.id, marketing: false, ipHash: null, userAgent: "dev-bar" }),
+    });
+  }
 
   const token = randomBytes(32).toString("hex");
   await prisma.session.create({
