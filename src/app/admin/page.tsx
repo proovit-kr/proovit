@@ -219,6 +219,11 @@ function Kpi({
     <Card>
       <small>{label}</small>
       <span className="score">{NUM.format(value)}</span>
+      {/*
+        숫자와 추세 사이를 띄운다 — 시안은 붙어 있어 「14목표」처럼 한 낱말로 읽힌다
+        (2026-09-23 수연 지시). 여백이 아니라 공백 문자인 것은 좁은 폭에서 추세가
+        다음 줄로 넘어갈 때 공백은 사라지고 여백은 들여쓰기로 남기 때문이다.
+      */}{" "}
       <span className={`${c.trend}${trend.up ? ` ${c.up}` : ""}`}>{trend.text}</span>
     </Card>
   );
