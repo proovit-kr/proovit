@@ -17,9 +17,16 @@ export type AdminFixture = {
   created: {
     auditLog?: string[];
     lead?: string[];
+    submission?: string[];
+    judgment?: string[];
+    notification?: string[];
   };
   /** 덮어쓴 시즌 칸의 원래 값 — 걷을 때 되돌린다 */
   seasonBefore?: { scoringConfig: unknown; featureFlags: unknown };
+  /** 덮어쓴 제출의 원래 값(없던 제출은 created.submission) */
+  submissionBefore?: { id: string; status: string; submittedAt: string | null }[];
+  /** 덮어쓴 참가 기록의 원래 값 */
+  entryBefore?: { id: string; status: string; stage: string }[];
 };
 
 const SLUG = "season-1";
@@ -187,6 +194,77 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
       });
       return { screen, created, seasonBefore: before };
     }
+    case "judging": {
+      /*
+        시안 심사 표(3074행) — GATE 1에 낸 네 팀과 판정, 그리고 내지 않고 탈락한 모카브루.
+        있던 s2 제출은 상태·시각만 덮고 떠 둔다. 모카브루의 s2 제출은 임시저장으로
+        돌려 「미제출」로 만든다.
+      */
+      const actor = await adminId();
+      const rows = [
+        { team: "리틀포션", at: "10.10 18:40", result: "pass", why: "수요 검증 충실, 위험 가정과 조사 설계 연결" },
+        { team: "새벽창고", at: "10.11 21:02", result: "pass", why: "문제 정의 명확, 기존 대안 분석 구체적" },
+        { team: "시들지마", at: "10.11 23:40", result: "fail", why: "유효 신청 존재 확인 미달, 대안 분석 일반론" },
+        { team: "북클럽라이트", at: "10.11 22:15", result: "fail", why: "수요 신호 부족, 직접 조사 기록 없음" },
+      ] as const;
+      const submissionBefore: NonNullable<AdminFixture["submissionBefore"]> = [];
+      /* 판정을 저장해 보면(흐름 검증) 진도·상태가 움직인다 — 네 팀도 떠 둔다 */
+      const entryBefore: NonNullable<AdminFixture["entryBefore"]> = [];
+      created.submission = [];
+      created.judgment = [];
+      for (const r of rows) {
+        const entryId = await entryOf(season.id, r.team);
+        const e = await prisma.entry.findUniqueOrThrow({ where: { id: entryId }, select: { status: true, stage: true } });
+        entryBefore.push({ id: entryId, status: e.status, stage: e.stage });
+        const had = await prisma.submission.findUnique({
+          where: { entryId_stageKey_week: { entryId, stageKey: "s2", week: 0 } },
+          select: { id: true, status: true, submittedAt: true },
+        });
+        let submissionId: string;
+        if (had) {
+          submissionBefore.push({ id: had.id, status: had.status, submittedAt: had.submittedAt?.toISOString() ?? null });
+          await prisma.submission.update({
+            where: { id: had.id },
+            data: { status: "locked", submittedAt: at(r.at) },
+          });
+          submissionId = had.id;
+        } else {
+          const row = await prisma.submission.create({
+            data: {
+              entryId, stageKey: "s2", week: 0, status: "locked", submittedAt: at(r.at),
+              payload: { landingUrl: "https://example.com", channels: ["스레드"], postUrl: "https://example.com" },
+            },
+            select: { id: true },
+          });
+          created.submission.push(row.id);
+          submissionId = row.id;
+        }
+        const j = await prisma.judgment.create({
+          data: { submissionId, result: r.result, feedback: r.why, judgedBy: actor, judgedAt: new Date(Date.now() - 86_400_000) },
+          select: { id: true },
+        });
+        created.judgment.push(j.id);
+      }
+      const mocha = await prisma.entry.findFirstOrThrow({
+        where: { seasonId: season.id, team: { name: "모카브루" } },
+        select: { id: true, status: true, stage: true },
+      });
+      const mochaS2 = await prisma.submission.findUnique({
+        where: { entryId_stageKey_week: { entryId: mocha.id, stageKey: "s2", week: 0 } },
+        select: { id: true, status: true, submittedAt: true },
+      });
+      if (mochaS2) {
+        submissionBefore.push({ id: mochaS2.id, status: mochaS2.status, submittedAt: mochaS2.submittedAt?.toISOString() ?? null });
+        await prisma.submission.update({ where: { id: mochaS2.id }, data: { status: "draft" } });
+      }
+      await prisma.entry.update({ where: { id: mocha.id }, data: { status: "eliminated", stage: "s1" } });
+      return {
+        screen,
+        created,
+        submissionBefore,
+        entryBefore: [...entryBefore, { id: mocha.id, status: mocha.status, stage: mocha.stage }],
+      };
+    }
     case "audit":
       created.auditLog = await seedAudit(season.id);
       break;
@@ -198,6 +276,28 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
 
 export async function clearSandboxAdmin(f: AdminFixture): Promise<void> {
   assertSandbox();
+  if (f.created.notification?.length) {
+    await prisma.notification.deleteMany({ where: { id: { in: f.created.notification } } });
+  }
+  if (f.created.judgment?.length) {
+    await prisma.judgment.deleteMany({ where: { id: { in: f.created.judgment } } });
+  }
+  if (f.created.submission?.length) {
+    await prisma.judgment.deleteMany({ where: { submissionId: { in: f.created.submission } } });
+    await prisma.submission.deleteMany({ where: { id: { in: f.created.submission } } });
+  }
+  for (const b of f.submissionBefore ?? []) {
+    await prisma.submission.update({
+      where: { id: b.id },
+      data: { status: b.status as never, submittedAt: b.submittedAt ? new Date(b.submittedAt) : null },
+    });
+  }
+  for (const b of f.entryBefore ?? []) {
+    await prisma.entry.update({
+      where: { id: b.id },
+      data: { status: b.status as never, stage: b.stage as never },
+    });
+  }
   if (f.seasonBefore) {
     await prisma.season.update({
       where: { slug: SLUG },

@@ -189,4 +189,47 @@ export const SCREENS = {
       ["버튼 hover", S + ".atbl tbody tr:first-child .btn", `[data-probe="entries"] tbody tr:first-child ${BTN}`],
     ],
   },
+
+  /* ── 심사 ── */
+  judging: {
+    hash: "adm-judging",
+    route: "/admin/judging",
+    mod: "judging",
+    list: (S) => {
+      const T = '[data-probe="judging"]';
+      const R = (k) => `${T} tbody tr:nth-child(${k})`;
+      return [
+        ...head(S),
+        ...fbar(S),
+        ["fbar chip", S + ".fbar .chip", '[data-probe="fbar"] [class*="Surface-module__"][class*="__chip"]', [], ["width", "margin-left"]],
+        ["fbar chip b", S + ".fbar .chip b", '[data-probe="fbar"] [class*="Surface-module__"][class*="__chip"] b', [], ["width"]],
+        ["fbar 버튼", S + ".fbar .btn", `[data-probe="fbar"] ${BTN}`, [], ["width"]],
+        ...table(S, T, { cols: 5 }),
+        ["td b", S + ".atbl tbody tr:nth-child(1) b", R(1) + " b", [], ["width"]],
+        ["td 제출", S + ".atbl tbody tr:nth-child(1) td:nth-child(2)", R(1) + " td:nth-child(2)", [], ["width", "height"]],
+        /* 줄 순서는 제출 시각(데이터)이라 판정 값으로 집는다 */
+        ["판정 pass", S + ".atbl select.pass", `${T} select{{p:pass}}`, [], ["width"]],
+        ["판정 fail", S + ".atbl select.fail", `${T} select{{p:fail}}`, [], ["width"]],
+        /* 사유 글자가 칸보다 긴지는 데이터다 */
+        ["사유", S + ".atbl tbody tr:nth-child(1) input", R(1) + " input", [], ["width", "overflow"]],
+        ["미제출 행", S + ".atbl tr.strike td:first-child", `${T} tr{{c:strike}} td:first-child`, [], ["width", "height"]],
+        ["미제출 시각", S + ".atbl tr.strike td:nth-child(2)", `${T} tr{{c:strike}} td:nth-child(2)`, [], ["width", "height"]],
+        ["미제출 배지", S + ".atbl tr.strike .badge", `${T} tr{{c:strike}} ${BADGE}`, [], ["width"]],
+        ["미제출 사유", S + ".atbl tr.strike td:last-child", `${T} tr{{c:strike}} td:last-child`, [], ["width", "height"]],
+        ["안내", S + ".ad-body > p:last-child", '[data-probe="ad-body"] > p:last-child', [], ["width", "height"]],
+      ];
+    },
+    text: (S) => [
+      ["제목", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}'],
+      ["부제", S + ".hb-sub", '[data-probe="ad-body"] {{hub:sub}}'],
+      /* 게이트 마감·SLA·잔여 수는 일정·데이터다 */
+      ["필터", S + ".fbar", '[data-probe="fbar"]', [/^GATE \d, s\d \d차 심사\((사업성|최종)\), 마감 \d\d\.\d\d \d\d:\d\d$/, /^\d\d\.\d\d \d\d:\d\d$/, /^, 잔여 \d+팀$/, /^\d+$/]],
+      ["머리글", S + ".atbl thead", '[data-probe="judging"] thead'],
+      ["미제출 행", S + ".atbl tr.strike", '[data-probe="judging"] tr{{c:strike}}', [/^.+$/].slice(0, 0).concat([/^모카브루$/])],
+      ["안내", S + ".ad-body > p:last-child", '[data-probe="ad-body"] > p:last-child'],
+    ],
+    hover: (S) => [
+      ["버튼 hover", S + ".fbar .btn", `[data-probe="fbar"] ${BTN}`],
+    ],
+  },
 };

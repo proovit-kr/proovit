@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 
 import { Input, Select } from "@/components/Field";
 
@@ -21,18 +21,23 @@ export type FilterSelect = {
   name: string;
   label: string;
   options: { value: string; label: string }[];
+  /** 쿼리가 비었을 때 서버가 고른 값(심사의 「지금 심사할 게이트」 같은 것) */
+  value?: string;
 };
 
 export function FilterBar({
   selects,
   search,
   children,
+  style,
 }: {
   selects: FilterSelect[];
   /** 팀명 검색 칸. 쿼리 이름 */
   search?: { name: string; placeholder: string };
   /** 줄 끝에 붙는 것(칩·버튼) */
   children?: ReactNode;
+  /** 시안 인라인 style(심사 `.fbar{align-items:center}`) */
+  style?: CSSProperties;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -48,13 +53,13 @@ export function FilterBar({
   };
 
   return (
-    <div className={c.fbar} data-probe="fbar">
+    <div className={c.fbar} style={style} data-probe="fbar">
       {selects.map((s) => (
         <Select
           key={s.name}
           className={c.fbarSel}
           aria-label={s.label}
-          value={params.get(s.name) ?? ""}
+          value={params.get(s.name) ?? s.value ?? ""}
           onChange={(e) => push(s.name, e.target.value)}
         >
           {s.options.map((o) => (

@@ -50,13 +50,13 @@ export const RESULT_EFFECT: Record<string, string> = {
 
 export type JudgingFailureCode =
   | "NOT_FOUND"
-  | "ALREADY_JUDGED"
+  | "UNCHANGED"
   | "FEEDBACK_TOO_SHORT"
   | "NOT_SUBMITTED";
 
 export const JUDGING_FAILURE_MESSAGE: Record<JudgingFailureCode, string> = {
   NOT_FOUND: "제출을 찾을 수 없습니다.",
-  ALREADY_JUDGED: "이미 판정한 제출입니다. 정정은 이의신청 절차로 합니다.",
+  UNCHANGED: "바뀐 판정이 없습니다.",
   FEEDBACK_TOO_SHORT: `사유를 ${FEEDBACK_MIN}자 이상 적어 주세요. 미통과·보완은 사유 요지를 함께 통지해야 합니다(제9조 ③).`,
   NOT_SUBMITTED: "아직 제출되지 않았습니다. 임시 저장 상태는 판정할 수 없습니다.",
 };

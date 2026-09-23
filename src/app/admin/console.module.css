@@ -291,19 +291,34 @@
   }
 }
 
-/* ── 작은 셀렉트(`.sel-mini`) ── */
+/*
+  ── 작은 셀렉트(`select.sel-mini`) ──
+  시안 `.sel-mini`(6px 10px)는 셀렉트에서 `select.sel-mini`(1238행, 특정도가 높다)에
+  덮여 5px 28px 5px 9px가 된다. 셀렉트로만 쓰므로 이긴 값을 적는다.
+*/
 .selMini {
-  background: var(--surface-2);
+  background-color: var(--surface-2);
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   color: var(--text);
-  padding: 6px 10px;
+  padding: 5px 28px 5px 9px;
   font-size: 13.5px;
   font-family: inherit;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
-  /* preflight가 폼 요소에 body 글줄을 물린다 — UA 기본값으로 되돌린다 */
-  line-height: normal;
+  -webkit-appearance: none;
+  appearance: none;
+  background-repeat: no-repeat;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239AA6BE' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+  background-position: right 8px center;
+  cursor: pointer;
+  line-height: 1.4;
+  /* preflight가 폼 요소에 body 자간을 물린다 — UA 기본값으로 되돌린다 */
   letter-spacing: normal;
+}
+
+.selMini option {
+  background: var(--surface);
+  color: var(--text);
 }
 
 @media (max-width: 1024px) {
