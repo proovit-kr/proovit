@@ -1,205 +1,26 @@
 /*
-  심사 콘솔.
-
-  제출 내용과 판정 폼이 한 줄에 나란히 선다 — 심사는 「보고 정한다」라서
-  둘이 떨어지면 다른 탭을 열게 되고, 그러면 어느 팀 것을 보고 판정했는지 흐려진다.
-  결과 색은 쓰지 않는다. 통과가 초록이면 그 색이 판단을 유도한다.
+  심사 — 시안 `#scr-adm-judging`의 판정 셀렉트와 사유 칸.
+  값은 ver4 승자(`.atbl select.sel-mini.jv`·`.atbl input.inp.rs`).
 */
 
-.root {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-5);
-  padding-block: var(--s-8) var(--s-14);
-}
-
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-
-.title {
-  margin: 0;
-  color: var(--c-text-strong);
-  font-size: var(--fs-2xl);
+/* 판정 셀렉트 — 값에 따라 라임·레드 */
+.jv {
   font-weight: 700;
 }
 
-.sub {
-  /* 읽기 폭은 텍스트에만(§6) */
-  max-width: 46em;
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
+.jv.pass {
+  color: var(--accent);
+  border-color: rgba(200, 255, 61, 0.5);
 }
 
-.list {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.jv.fail {
+  color: var(--danger);
+  border-color: rgba(255, 93, 93, 0.5);
 }
 
-.item {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s-5);
-  padding-block: var(--s-5);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.main {
-  display: flex;
-  flex: 1 1 28em;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-
-.team {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-3);
-  margin: 0;
-  color: var(--c-text-strong);
-  font-size: var(--fs-base);
-  font-weight: 600;
-}
-
-.stage {
-  padding: 1px var(--s-2);
-  border: 1px solid var(--c-line-3);
-  border-radius: 4px;
-  color: var(--c-text-dim);
-  font-family: var(--font-mono);
-  font-size: var(--fs-2xs);
-  font-weight: 400;
-}
-
-.judged {
-  color: var(--c-text-muted);
-  font-size: var(--fs-xs);
-  font-weight: 400;
-}
-
-.idea {
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-}
-
-.when {
-  margin: 0;
-  color: var(--c-text-faint);
-  font-size: var(--fs-2xs);
-}
-
-/* 제출 내용 — 키는 좁게, 값이 남는 폭을 먹는다(§7 균등 분할 금지) */
-.payload {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  max-width: 44em;
-  margin: var(--s-2) 0 0;
-  padding-top: var(--s-3);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.payload > div {
-  display: flex;
-  gap: var(--s-4);
-}
-
-.payload dt {
-  flex: 0 0 9em;
-  color: var(--c-text-faint);
-  font-family: var(--font-mono);
-  font-size: var(--fs-2xs);
-}
-
-.payload dd {
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.evidence,
-.feedbackDone {
-  max-width: 44em;
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
-}
-
-/* ── 판정 폼 ───────────────────────────────────────────────── */
-
-.form {
-  display: flex;
-  flex: 0 1 24em;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-
-.results {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-4);
-}
-
-.result {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-  cursor: pointer;
-}
-
-.result input {
-  accent-color: var(--c-lime);
-}
-
-/* 고른 결과가 무엇을 바꾸는지 — 누르기 전에 읽혀야 한다 */
-.effect {
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-2xs);
-  line-height: 1.6;
-}
-
-.label {
-  color: var(--c-text-dim);
-  font-size: var(--fs-2xs);
-}
-
-.feedback {
-  width: 100%;
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--c-line-3);
-  border-radius: var(--r-md);
-  background: var(--c-field);
-  color: var(--c-text-strong);
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-  outline: none;
-  resize: vertical;
-}
-
-.feedback:focus {
-  border-color: var(--c-line-strong);
-}
-
-.error {
-  margin: 0;
-  color: var(--c-danger);
-  font-size: var(--fs-2xs);
+/* 사유 칸 — `.atbl input.inp.rs`. Field `.inp`를 특정도로 이긴다 */
+.cell .rs {
+  padding: 7px 10px;
+  font-size: 13px;
+  min-width: 220px;
 }

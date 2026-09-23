@@ -1,4 +1,4 @@
-import { EntryStage, JudgmentResult, StageKey } from "@/generated/prisma/enums";
+import { EntryStage, StageKey } from "@/generated/prisma/enums";
 
 /*
   심사의 **순수** 절반 — 판정이 무엇을 바꾸는가. 화면(클라이언트)도 읽는다.
@@ -34,29 +34,15 @@ export const PASS_ADVANCES_TO: Partial<Record<StageKey, EntryStage>> = {
  */
 export const FAIL_MEANS_ELIMINATED = true;
 
-export const RESULT_LABEL: Record<string, string> = {
-  [JudgmentResult.pass]: "통과",
-  [JudgmentResult.revision]: "보완 요청",
-  [JudgmentResult.fail]: "미통과",
-};
-
-export const RESULT_EFFECT: Record<string, string> = {
-  [JudgmentResult.pass]: "진도가 다음 단계로 넘어갑니다.",
-  [JudgmentResult.revision]:
-    `재제출 기한이 ${REVISION_HOURS}시간 열립니다. 진도와 상태는 그대로입니다.`,
-  [JudgmentResult.fail]:
-    "탈락 처리되고 리더보드에서 빠집니다. 실격이 아니라 테스터·평가자로 전환됩니다(제9조 ④).",
-};
-
 export type JudgingFailureCode =
   | "NOT_FOUND"
-  | "ALREADY_JUDGED"
+  | "UNCHANGED"
   | "FEEDBACK_TOO_SHORT"
   | "NOT_SUBMITTED";
 
 export const JUDGING_FAILURE_MESSAGE: Record<JudgingFailureCode, string> = {
   NOT_FOUND: "제출을 찾을 수 없습니다.",
-  ALREADY_JUDGED: "이미 판정한 제출입니다. 정정은 이의신청 절차로 합니다.",
+  UNCHANGED: "바뀐 판정이 없습니다.",
   FEEDBACK_TOO_SHORT: `사유를 ${FEEDBACK_MIN}자 이상 적어 주세요. 미통과·보완은 사유 요지를 함께 통지해야 합니다(제9조 ③).`,
   NOT_SUBMITTED: "아직 제출되지 않았습니다. 임시 저장 상태는 판정할 수 없습니다.",
 };

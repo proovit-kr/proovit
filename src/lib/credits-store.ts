@@ -7,7 +7,9 @@ import {
   CreditStatus,
   CreditUnlockEvent,
   ConsentType,
+  DeployStatus,
   EntryStage,
+  EntryStatus,
   JudgmentResult,
   SeasonPhase,
   StageKey,
@@ -15,6 +17,7 @@ import {
 } from "@/generated/prisma/enums";
 import { stageAtLeast } from "@/lib/access-policy";
 import {
+  CLAIM_STATUS_LABEL,
   CREDIT_CARDS,
   type CreditCardState,
   type CreditFailureCode,
@@ -477,15 +480,22 @@ export type AdminOfferRow = {
   redeemNote: string | null;
   fallbackUrl: string | null;
   fallbackItems: FallbackItem[];
-  /** 코드 풀. 링크형·수동형이면 total 0이다 */
-  pool: { remaining: number; total: number };
+  sponsorLogoUrl: string | null;
+  /** 코드 풀. 링크형·수동형이면 total 0이다. consumed는 발급된 코드, expired는 만료 */
+  pool: { remaining: number; total: number; consumed: number; expired: number };
 };
 
+/**
+ * 발급 현황 한 칸 — 시안 `.bd-mini` 배지 하나. 클레임 행이 있으면 그 상태, 없으면
+ * 팀의 진행(언락 사건)과 카드 상태로 센다 — 행은 「받기」·발급이 일어나야 생긴다.
+ */
 export type AdminClaimCell = {
   kind: CreditKind;
-  status: CreditClaimStatus | null;
-  /** 카드가 협의 중인가. 「협의 중, 열림」을 가르는 값 */
-  negotiating: boolean;
+  label: string;
+  tone: "lime" | "teal" | "gray";
+  dashed: boolean;
+  /** 지금 보낼 수 있다 — 수동 발급·일괄 발송의 대상 */
+  available: boolean;
 };
 
 export type AdminClaimRow = {
@@ -494,16 +504,23 @@ export type AdminClaimRow = {
   ideaTitle: string;
   stage: EntryStage;
   status: string;
+  /** s3 이후인데 배포 확인이 안 됐다 — 시안 「미배포」 */
+  undeployed: boolean;
   cells: AdminClaimCell[];
   lastDeliveredAt: Date | null;
   /** 스폰서 정보 제공 선택 동의. 없으면 이메일 명단에 넣지 않는다 */
   sponsorConsent: boolean;
 };
 
+/** 발송 이력의 「확인」 줄 — 참가자가 적용했다고 표시한 때 */
+export type AdminClaimConfirm = { at: Date; teamName: string; kind: CreditKind };
+
 export type AdminCreditSummary = {
   activeOffers: number;
   totalOffers: number;
   codesRemaining: number;
+  /** C1 코드 잔여 — 시안 KPI 둘째 */
+  c1Remaining: number;
   deliveredTeams: number;
   confirmedTeams: number;
 };
@@ -512,6 +529,7 @@ export type AdminCreditConsole = {
   summary: AdminCreditSummary;
   offers: AdminOfferRow[];
   claims: AdminClaimRow[];
+  confirms: AdminClaimConfirm[];
 };
 
 /**
@@ -542,7 +560,7 @@ export async function loadAdminCreditConsole(
         fallbackUrl: true,
         fallbackItems: true,
         sponsorId: true,
-        sponsor: { select: { name: true } },
+        sponsor: { select: { name: true, logoUrl: true } },
         codes: { select: { status: true } },
       },
     }),
@@ -555,17 +573,25 @@ export async function loadAdminCreditConsole(
         status: true,
         ideaTitle: true,
         team: { select: { name: true } },
+        hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
         creditClaims: {
           select: {
             offerId: true,
             status: true,
             deliveredAt: true,
+            confirmedAt: true,
           },
         },
         consents: { select: { type: true, granted: true } },
       },
     }),
   ]);
+  /* 팀마다 언락 사건 — 클레임 행이 없는 칸을 「발급 가능」·「잠금」으로 가른다 */
+  const progress = new Map(
+    await Promise.all(
+      entries.map(async (e) => [e.id, await loadUnlockProgress(e.id, e.stage)] as const),
+    ),
+  );
 
   const byId = new Map(offers.map((o) => [o.id, o]));
 
@@ -596,7 +622,13 @@ export async function loadAdminCreditConsole(
         redeemNote: offer.redeemNote,
         fallbackUrl: offer.fallbackUrl,
         fallbackItems: parseFallbackItems(offer.fallbackItems),
-        pool: { remaining, total },
+        sponsorLogoUrl: offer.sponsor?.logoUrl ?? null,
+        pool: {
+          remaining,
+          total,
+          consumed: offer.codes.filter((c) => c.status === CreditStatus.claimed).length,
+          expired: offer.codes.filter((c) => c.status === CreditStatus.expired).length,
+        },
       },
     ];
   });
@@ -619,15 +651,43 @@ export async function loadAdminCreditConsole(
       ideaTitle: entry.ideaTitle,
       stage: entry.stage,
       status: entry.status,
-      cells: claimKinds.map((spec) => {
+      undeployed:
+        stageAtLeast(entry.stage, EntryStage.s3) &&
+        !(entry.hostname?.deployStatus === DeployStatus.active && entry.hostname?.ownershipVerifiedAt),
+      cells: claimKinds.map((spec): AdminClaimCell => {
         const offer = offers.find((o) => o.kind === spec.kind);
         const claim = offer ? claimByOffer.get(offer.id) : undefined;
+        if (claim) {
+          return {
+            kind: spec.kind,
+            label: CLAIM_STATUS_LABEL[claim.status],
+            tone:
+              claim.status === CreditClaimStatus.confirmed
+                ? "teal"
+                : claim.status === CreditClaimStatus.expired
+                  ? "gray"
+                  : "lime",
+            dashed: claim.status === CreditClaimStatus.scheduled,
+            available: claim.status === CreditClaimStatus.available,
+          };
+        }
+        const unlocked = isUnlocked(spec.unlockEvent, progress.get(entry.id)!);
+        const negotiating = !offer || offer.status === CreditOfferStatus.negotiating;
+        if (negotiating) {
+          /* 협의 중 카드는 열려도 폴백만 보인다(설계서) — 열렸는지는 같이 적는다 */
+          return { kind: spec.kind, label: unlocked ? "협의 중, 열림" : "잠금", tone: "gray", dashed: unlocked, available: false };
+        }
+        if (offer.status === CreditOfferStatus.ended) {
+          return { kind: spec.kind, label: "만료", tone: "gray", dashed: false, available: false };
+        }
+        /* 실격 팀은 추가 발급을 멈춘다 */
+        const open = unlocked && entry.status !== EntryStatus.disqualified;
         return {
           kind: spec.kind,
-          status: claim?.status ?? null,
-          negotiating:
-            (offer?.status ?? CreditOfferStatus.negotiating) ===
-            CreditOfferStatus.negotiating,
+          label: open ? "발급 가능" : "잠금",
+          tone: open ? "lime" : "gray",
+          dashed: false,
+          available: open,
         };
       }),
       lastDeliveredAt: delivered[0] ?? null,
@@ -656,13 +716,21 @@ export async function loadAdminCreditConsole(
     }
   }
 
+  const confirms: AdminClaimConfirm[] = entries.flatMap((entry) =>
+    entry.creditClaims
+      .filter((c) => c.confirmedAt && byId.has(c.offerId))
+      .map((c) => ({ at: c.confirmedAt!, teamName: entry.team.name, kind: byId.get(c.offerId)!.kind })),
+  );
+
   return {
+    confirms,
     summary: {
       activeOffers: offerRows.filter(
         (o) => o.status === CreditOfferStatus.active,
       ).length,
       totalOffers: CREDIT_CARDS.length,
       codesRemaining: offerRows.reduce((sum, o) => sum + o.pool.remaining, 0),
+      c1Remaining: offerRows.find((o) => o.kind === CreditKind.c1)?.pool.remaining ?? 0,
       deliveredTeams: deliveredTeams.size,
       confirmedTeams: confirmedTeams.size,
     },

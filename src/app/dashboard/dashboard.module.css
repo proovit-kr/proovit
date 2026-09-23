@@ -10,35 +10,13 @@
 }
 
 /*
-  상단 바(`.db-top`)는 DashboardTop.module.css에 있다. 여기는 그 아래
-  네비게이션 줄과, 참가 기록이 없을 때의 워드마크 자리뿐이다.
-*/
-/*
-  ⚠️ 배경이 여기와 `.top`(DashboardTop) 두 군데에 있다. `--c-nav`가 ver4의
-  글래스와 같은 값이라 두 겹이 되는데, 실제로 칠해지는 색 차이는 RGB 1포인트다
-  (단일 12,18,33 / 이중 12,19,34). 여기 배경은 **네비 줄**을 전폭으로 덮는
-  일을 한다 — `<nav>`는 `container`라 폭이 좁아 제 배경으로는 못 덮는다.
-  네비가 사이드바로 빠지면 이 줄을 지우고 `.top` 하나만 남긴다.
+  상단 바(시안 `.db-top`)는 DashboardTop.module.css에 있다 — 배경·괘선도 거기 하나다.
+  이 `<header>`는 sticky만 맡는다. 네비가 사이드바로 빠져 헤더에 바만 남았다.
+
+  ⚠️ **바가 아니라 이 `<header>`에 sticky를 건다.** sticky는 부모 상자 안에서만
+  버틴다. z-index 30은 공개 헤더와 같은 층이다(모달·토스트는 100).
 */
 .head {
-  border-bottom: 1px solid var(--c-line-2);
-  background: var(--c-nav);
-  backdrop-filter: blur(12px);
-  /*
-    ver4의 `.db-top`은 `position:sticky`다. 마감과 제출 버튼을 담은 배너 필이
-    어느 위치에서든 닿아야 하기 때문이다.
-
-    ⚠️ **바(`.top`)가 아니라 이 `<header>`에 건다.** sticky는 부모 상자 안에서만
-    버티는데, 바는 이 헤더의 첫 줄이라 네비 줄 높이(약 47px)만큼만 붙어 있다가
-    같이 올라간다 — 시안 셀렉터를 글자 그대로 옮기면 한 번 움찔하고 끝난다.
-
-    시안이 60px 바 하나만 붙이는 이유는 네비가 좌측 사이드바에 있어서다. 우리는
-    아직 네비가 이 헤더 안에 있어서 약 107px(모바일 140px 안팎)이 붙는다.
-    **네비를 시안대로 사이드바로 옮기면 이 헤더에 바만 남아 저절로 시안과 같아진다**
-    — 그래서 지금 이 줄이 목표 상태다(2026-09-16 수연 결정).
-
-    z-index 30은 공개 헤더와 같은 층이다. 모달·토스트는 100이라 위로 지나간다.
-  */
   position: sticky;
   top: 0;
   z-index: 30;
@@ -66,44 +44,20 @@
   background: var(--surface-2);
 }
 
-.nav {
-  display: flex;
-  gap: var(--s-5);
-  /* 항목이 늘면 가로로 넘긴다. 줄바꿈되면 머리가 두 줄이 되어 화면이 밀린다 */
-  overflow-x: auto;
-  padding-block: var(--s-3);
-  scrollbar-width: none;
-}
-
-.nav::-webkit-scrollbar {
-  display: none;
-}
-
-.navLink {
-  color: var(--c-text-dim);
-  font-size: var(--fs-base);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.15s ease;
-}
-
-.navLink:hover {
-  color: var(--c-text);
-}
 
 /*
   시안 `.db` — 사이드바와 본문을 가로로 둔다. 사이드바가 sticky라 형제 높이가
   필요해서 `align-items: stretch`(기본)를 그대로 쓴다.
 
   `--side-top`은 사이드바가 피해야 할 상단 바 높이다. 바(`.top`)만 sticky로
-  남았으므로 그 높이 하나다 — 시안의 56px에 맞춘다.
+  남았으므로 그 높이 하나다 — 시안의 60px(≤760은 56px부터)에 맞춘다.
 */
 .db {
   display: flex;
   align-items: stretch;
   flex: 1;
   min-height: 0;
-  --side-top: 56px;
+  --side-top: 60px;
 }
 
 /* 시안 `.db-body` — 본문은 860 상한을 둔다(읽는 폭). 값은 ver4 승자 */
@@ -120,18 +74,18 @@
   }
 }
 
-/*
-  ⚠️ 시안은 `.db`도 1024에서 세로로 눕힌다(사이드바가 가로줄이 된다).
-  여기가 860인 것은 사이드바가 아직 그 가로줄 모양을 안 갖췄기 때문이다 —
-  크롬(`.db-side`)을 옮길 때 이 폭도 1024로 맞춘다.
-*/
-@media (max-width: 860px) {
+/* 시안은 1024에서 `.db`를 세로로 눕힌다 — 사이드바가 가로줄이 된다(SideNav) */
+@media (max-width: 1024px) {
   .db {
     flex-direction: column;
   }
 }
 
 @media (max-width: 760px) {
+  .db {
+    --side-top: 56px;
+  }
+
   .body {
     padding: 20px 16px 60px;
   }

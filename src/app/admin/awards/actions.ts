@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 
 import { AwardType, EntryStatus } from "@/generated/prisma/enums";
 import { canAccess, getSessionUser, loadAccessContext } from "@/lib/access";
-import { REASON_MIN } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 
 import { AWARD_LABEL } from "./awards-read";
@@ -34,12 +33,10 @@ export async function finalizeRanking(
   if (!permission.ok) return { message: permission.message };
 
   const seasonId = String(formData.get("seasonId") ?? "");
-  const reason = String(formData.get("reason") ?? "").trim();
+  /* 시안 `#mdl-final`에는 사유 칸이 없다 — 무엇을 했는지가 곧 사유다 */
+  const reason = "최종 순위 확정";
 
   if (!seasonId) return { message: "잘못된 요청입니다." };
-  if (reason.length < REASON_MIN) {
-    return { message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
-  }
 
   /* 확정 대상은 가장 최근 집계일 하나다 */
   const latest = await prisma.leaderboardSnapshot.findFirst({
@@ -103,7 +100,7 @@ export async function finalizeRanking(
     await tx.auditLog.create({
       data: {
         actorId: user.id,
-        action: "award_finalize",
+        action: "award.finalize",
         targetType: "season",
         targetId: seasonId,
         reason,

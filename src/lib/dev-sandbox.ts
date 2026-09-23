@@ -144,7 +144,7 @@ export function checkDevSandbox(): SandboxDenial {
 }
 
 /** 열려 있지 않은데 쓰기를 시도하면 던진다. 조용히 넘어가면 그게 제일 위험하다 */
-function assertSandbox(): void {
+export function assertSandbox(): void {
   const check = checkDevSandbox();
   if (!check.ok) throw new Error(`[dev-sandbox] 거부: ${check.reason}`);
 }

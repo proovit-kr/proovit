@@ -1,4 +1,5 @@
 import {
+  AbuseStatus,
   AwardType,
   EntryStatus,
   SanctionStage,
@@ -32,7 +33,10 @@ export type AwardRow = {
   ideaTitle: string;
   /** 확정 전에는 스냅샷의 순위. 시상에서 빠진 팀은 null */
   rank: number | null;
-  score: string;
+  /** 최종 지표 — 유효 이용자 누적(잠정 순위의 기준, 롤업 머리 주석) */
+  visitors: number;
+  /** 확정된 어뷰징 플래그가 뺀 방문(음수). 없으면 null — 시안 「512 → 298」·「−214」 */
+  adjusted: number | null;
   /** 제재로 순위에서 빠졌는가 — 시안 `.strike` 행 */
   struck: boolean;
   /** 제재 반영 칸. 없으면 null */
@@ -80,6 +84,7 @@ export async function loadAwardBoard(seasonId: string): Promise<AwardBoard> {
       score: true,
       isAwardEligible: true,
       isFinal: true,
+      validVisitorsTotal: true,
       entry: {
         select: {
           status: true,
@@ -104,6 +109,14 @@ export async function loadAwardBoard(seasonId: string): Promise<AwardBoard> {
     select: { entryId: true, stage: true, detail: true },
   });
   const sanctionByEntry = new Map(sanctions.map((s) => [s.entryId, s]));
+
+  /* 확정된 플래그가 뺀 방문 — 팀마다 합 */
+  const flags = await prisma.abuseFlag.groupBy({
+    by: ["entryId"],
+    where: { status: AbuseStatus.upheld, adjustedVisitors: { not: null }, entry: { seasonId } },
+    _sum: { adjustedVisitors: true },
+  });
+  const adjustedByEntry = new Map(flags.map((f) => [f.entryId, f._sum.adjustedVisitors ?? null]));
 
   /* 확정된 시상. 있으면 제안값 대신 이 값을 그린다 */
   const awards = await prisma.award.findMany({
@@ -140,7 +153,8 @@ export async function loadAwardBoard(seasonId: string): Promise<AwardBoard> {
       teamName: snapshot.entry.team.name,
       ideaTitle: snapshot.entry.ideaTitle,
       rank: struck ? null : snapshot.rank,
-      score: snapshot.score.toString(),
+      visitors: snapshot.validVisitorsTotal,
+      adjusted: adjustedByEntry.get(snapshot.entryId) ?? null,
       struck,
       sanction: sanction
         ? {

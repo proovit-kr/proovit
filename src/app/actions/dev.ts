@@ -38,7 +38,7 @@ import {
 } from "@/lib/dev-sandbox";
 import type { PaymentPane } from "@/lib/payment";
 import { getSessionUser } from "@/lib/access";
-import { loginAsTestAccount, logout } from "@/lib/dev-session";
+import { loginAsTestAccount, loginAsTestAdmin, logout } from "@/lib/dev-session";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -353,9 +353,10 @@ export async function devSetAuth(formData: FormData): Promise<void> {
   guard();
 
   const raw = String(formData.get("on") ?? "");
-  if (raw !== "1" && raw !== "0") throw new Error("[dev] on이 잘못됐습니다.");
+  if (raw !== "1" && raw !== "0" && raw !== "admin") throw new Error("[dev] on이 잘못됐습니다.");
 
   if (raw === "1") await loginAsTestAccount();
+  else if (raw === "admin") await loginAsTestAdmin();
   else await logout();
   /*
     ⚠️ **이 액션만 화면을 다시 부른다**(DevBarClient의 `AuthPick`).

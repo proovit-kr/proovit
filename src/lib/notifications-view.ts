@@ -10,8 +10,8 @@ import { fmtMD } from "@/lib/header-state";
 
 export type NotiTone = "judge" | "due" | "info";
 
-/** 심사·제출·소명 — 보라 점 */
-const JUDGE = new Set(["gate_result", "judgment", "submission", "appeal"]);
+/** 심사·제출·소명·제재 — 보라 점 */
+const JUDGE = new Set(["gate_result", "judgment", "submission", "appeal", "sanction"]);
 /** 마감 — 경고색 점 */
 const DUE = new Set(["deadline"]);
 

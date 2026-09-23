@@ -39,17 +39,21 @@ import styles from "./admin.module.css";
   꺼진 기능은 링크를 아예 만들지 않는다(06 §4.4). 직접 주소를 치면
   `canAccess("adminSponsors")`가 404를 낸다.
 */
+/*
+  이름과 순서는 시안 `AMENU`(3644행) 그대로다. 스폰서 크레딧은 맨 끝이라
+  플래그로 뺄 때 순서가 안 흐트러진다.
+*/
 const ITEMS = [
-  { href: "/admin", label: "홈" },
-  { href: "/admin/seasons", label: "시즌" },
-  { href: "/admin/entries", label: "참가" },
+  { href: "/admin", label: "대시보드" },
+  { href: "/admin/seasons", label: "시즌 관리" },
+  { href: "/admin/entries", label: "참가 관리" },
   { href: "/admin/judging", label: "심사" },
-  { href: "/admin/metrics", label: "지표" },
+  { href: "/admin/metrics", label: "지표 검토" },
+  { href: "/admin/leads", label: "사전신청 리드" },
   { href: "/admin/abuse", label: "어뷰징" },
-  { href: "/admin/leads", label: "리드" },
-  { href: "/admin/notifications", label: "공지" },
-  { href: "/admin/awards", label: "시상" },
+  { href: "/admin/notifications", label: "공지 발송" },
   { href: "/admin/audit-logs", label: "감사 로그" },
+  { href: "/admin/awards", label: "시상" },
 ];
 
 export default async function AdminLayout({
@@ -84,7 +88,9 @@ export default async function AdminLayout({
           label="운영자 콘솔"
           roots={["/admin"]}
         />
-        <main className={`${styles.body} grow`}>{children}</main>
+        <main className={`${styles.body} grow`} data-probe="ad-body">
+          {children}
+        </main>
       </div>
     </div>
   );

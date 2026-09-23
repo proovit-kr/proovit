@@ -74,6 +74,8 @@ select.inp option {
 */
 .mono {
   font-family: var(--mono);
+  /* 시안 `.score,.mono,…{font-variant-numeric:tabular-nums}` — 전역 `.mono`와 같은 몫 */
+  font-variant-numeric: tabular-nums;
 }
 
 /* 라벨 + 입력 + 힌트 한 묶음 */

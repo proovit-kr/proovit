@@ -89,6 +89,15 @@ export function fmtYMD(date: Date): string {
   return `${y}-${pad(m)}-${pad(d)}`;
 }
 
+/**
+ * 「10.24 16:40」. 기록의 시각이다 — 마감이 아니라서 자정도 그대로 00:00으로 적는다
+ * (`fmtMDHM`은 마감을 전날 24:00으로 옮긴다).
+ */
+export function fmtStamp(date: Date): string {
+  const { hh, mm } = kst(date);
+  return `${fmtMD(date)} ${pad(hh)}:${pad(mm)}`;
+}
+
 /** 「23:59」 */
 export function fmtHM(date: Date): string {
   const { hh, mm } = kst(date);

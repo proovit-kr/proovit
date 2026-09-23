@@ -1,133 +1,147 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
-import { EmptyState } from "@/components/EmptyState";
+import { Badge, type BadgeTone } from "@/components/Badge";
+import { Card } from "@/components/Surface";
+import { ABUSE_KIND_LABEL, SEVERITY_LABEL } from "@/content/abuse";
 import { AbuseStatus } from "@/generated/prisma/enums";
 import { guardPage } from "@/lib/access";
+import { fmtMD } from "@/lib/header-state";
 import { prisma } from "@/lib/prisma";
 
-import { FlagActions } from "./FlagActions";
-
-import styles from "./abuse.module.css";
+import hub from "../../dashboard/hub.module.css";
+import c from "../console.module.css";
+import { SanctionButtons } from "./SanctionButtons";
 
 /*
-  어뷰징 검토 — PLN3 2장. 참가자 소명(`/dashboard/appeal`)의 짝이다.
+  어뷰징 — 시안 `#scr-adm-abuse`(3131행). 참가자 소명(`/dashboard/appeal`)의 짝이다.
 
-  ⚠️ **판정이 지표를 직접 고치지 않는다.** 확정된 플래그가 집계에서 무엇을 빼는지는
-  채점 시점에 이 표를 조인해 정한다(admin-store.resolveAbuseFlag 주석).
+  위는 플래그 큐, 아래는 고른 플래그 하나의 판정 카드다. 줄의 유형을 누르면 그
+  플래그가 카드에 선다(`?flag=`). 고르지 않았으면 아직 판정하지 않은 것 중 맨 위.
 
-  ⚠️ 참가자 소명을 판정 화면에 함께 둔다. 다른 화면에 있으면 안 읽고 누르게 되고,
-  규칙 제16조 ①이 요구하는 「적용 전 소명 기회」가 형식만 남는다.
-
-  플래그를 만드는 쪽(엣지 탐지·운영자 수동 등록)은 아직 없다 — PLN8이 "조사·정의,
-  구현은 시즌 중 필요 시"로 못박은 범위다. 이 화면은 만들어진 플래그를 처리한다.
+  ⚠️ 참가자 소명을 판정 옆에 둔다 — 카드 부연이 「소명 접수됨(10.23)」이다.
+  다른 화면에 있으면 안 읽고 누르게 되고, 규칙 제16조 ①이 요구하는 「적용 전 소명
+  기회」가 형식만 남는다.
 */
 
 export const metadata: Metadata = {
-  title: "어뷰징 검토",
+  title: "어뷰징",
   robots: { index: false, follow: false },
 };
 
-const WHEN = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: "Asia/Seoul",
-  month: "numeric",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const SEVERITY_TONE: Record<string, BadgeTone> = { high: "red", medium: "warn", low: "gray" };
 
-const STATUS_LABEL: Record<string, string> = {
-  [AbuseStatus.flagged]: "검토 대기",
-  [AbuseStatus.appealed]: "소명 접수",
-  [AbuseStatus.upheld]: "어뷰징 확정",
-  [AbuseStatus.overturned]: "플래그 취소",
+/* 상태 — 시안 「소명 중」(바이올렛)·「대기」(회색)·「판정 완료」(라임) */
+const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
+  [AbuseStatus.flagged]: { label: "대기", tone: "gray" },
+  [AbuseStatus.appealed]: { label: "소명 중", tone: "violet" },
+  [AbuseStatus.upheld]: { label: "판정 완료", tone: "lime" },
+  [AbuseStatus.overturned]: { label: "판정 완료", tone: "lime" },
 };
 
-export default async function Page() {
-  const { viewer } = await guardPage("adminAbuse", "/admin/abuse");
+const OPEN: string[] = [AbuseStatus.flagged, AbuseStatus.appealed];
 
-  const flags = viewer.season
+/* 줄 순서 — 소명이 들어온 것(회신 의무가 있다)이 맨 위, 그다음 대기, 끝난 것은 아래 */
+const RANK: Record<string, number> = {
+  [AbuseStatus.appealed]: 0,
+  [AbuseStatus.flagged]: 1,
+  [AbuseStatus.upheld]: 2,
+  [AbuseStatus.overturned]: 2,
+};
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const { viewer } = await guardPage("adminAbuse", "/admin/abuse");
+  const sp = await searchParams;
+
+  const flags = (viewer.season
     ? await prisma.abuseFlag.findMany({
         where: { entry: { seasonId: viewer.season.id } },
-        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        orderBy: [{ createdAt: "desc" }],
         take: 200,
         select: {
           id: true,
           status: true,
+          kind: true,
+          severity: true,
+          evidence: true,
           reason: true,
-          botScore: true,
-          adjustedVisitors: true,
-          appealText: true,
           appealedAt: true,
           resolutionNote: true,
-          createdAt: true,
-          entry: {
-            select: { id: true, ideaTitle: true, team: { select: { name: true } } },
-          },
+          entry: { select: { team: { select: { name: true } } } },
         },
       })
-    : [];
+    : []
+  ).sort((a, b) => RANK[a.status] - RANK[b.status]);
+
+  const picked =
+    flags.find((f) => f.id === sp.flag) ?? flags.find((f) => OPEN.includes(f.status)) ?? null;
+  const kindLabel = (f: (typeof flags)[number]) =>
+    f.kind ? ABUSE_KIND_LABEL[f.kind] : (f.reason ?? "기타");
 
   return (
-    <section className={styles.root}>
-      <header className={styles.head}>
-        <h1 className={styles.title}>어뷰징 검토</h1>
-        <p className={styles.sub}>
-          확정하면 그 팀의 지표가 채점에서 조정되고 제재로 이어질 수 있습니다.
-          확정·취소 모두 사유가 남고 감사 로그에 기록됩니다.
-        </p>
-      </header>
+    <>
+      <h2 className={hub.h1}>어뷰징</h2>
+      <p className={hub.sub}>플래그 큐 판정, 모든 제재는 사유 필수, 소명 절차 연결</p>
 
-      {flags.length === 0 ? (
-        <EmptyState
-          title="검토할 플래그가 없습니다"
-          detail="측정 파이프라인이 붙고 이상 트래픽이 잡히면 여기에 쌓입니다. 운영자가 직접 등록하는 화면은 아직 없습니다."
-        />
-      ) : (
-        <ul className={styles.list}>
-          {flags.map((flag) => (
-            <li key={flag.id} className={styles.item}>
-              <div className={styles.main}>
-                <p className={styles.team}>
-                  {flag.entry.team.name}
-                  <span className={styles.idea}>{flag.entry.ideaTitle}</span>
-                  <span className={styles.status} data-status={flag.status}>
-                    {STATUS_LABEL[flag.status] ?? flag.status}
-                  </span>
-                </p>
-                <p className={styles.facts}>
-                  <span>{WHEN.format(flag.createdAt)}</span>
-                  <span>{flag.reason ?? "사유 미기재"}</span>
-                  {flag.botScore !== null ? (
-                    <span>봇 스코어 {flag.botScore.toString()}</span>
-                  ) : null}
-                  {flag.adjustedVisitors !== null ? (
-                    <span>조정 {flag.adjustedVisitors}</span>
-                  ) : null}
-                </p>
-
-                {/* 소명은 판정 바로 옆에 둔다 — 다른 화면에 있으면 안 읽는다 */}
-                {flag.appealText ? (
-                  <blockquote className={styles.appeal}>
-                    <p className={styles.appealWhen}>
-                      {flag.appealedAt ? WHEN.format(flag.appealedAt) : null} 참가팀
-                      소명
-                    </p>
-                    <p className={styles.appealText}>{flag.appealText}</p>
-                  </blockquote>
-                ) : null}
-
-                {flag.resolutionNote ? (
-                  <p className={styles.resolution}>
-                    처리 사유 — {flag.resolutionNote}
-                  </p>
-                ) : null}
-              </div>
-
-              <FlagActions flagId={flag.id} status={flag.status} />
-            </li>
+      <table className={c.atbl} style={{ marginBottom: "16px" }} data-probe="abuse">
+        <thead>
+          <tr>
+            <th>유형</th>
+            <th>TEAM</th>
+            <th>심각도</th>
+            <th>증거 요약</th>
+            <th>상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          {flags.map((f) => (
+            <tr key={f.id}>
+              <td>
+                <Link href={`?flag=${f.id}`} scroll={false} style={{ color: "inherit" }}>
+                  <b>{kindLabel(f)}</b>
+                </Link>
+              </td>
+              <td>{f.entry.team.name}</td>
+              <td>
+                {f.severity ? (
+                  <Badge tone={SEVERITY_TONE[f.severity]}>{SEVERITY_LABEL[f.severity]}</Badge>
+                ) : (
+                  <Badge tone="gray">미정</Badge>
+                )}
+              </td>
+              <td className={c.num}>{f.evidence ?? f.reason ?? "-"}</td>
+              <td>
+                <Badge tone={STATUS[f.status].tone}>{STATUS[f.status].label}</Badge>
+              </td>
+            </tr>
           ))}
-        </ul>
-      )}
-    </section>
+        </tbody>
+      </table>
+      {flags.length === 0 ? (
+        <p style={{ fontSize: "12px", color: "var(--faint)" }}>
+          플래그 없음. 측정 파이프라인이 이상 트래픽을 잡거나 지표 검토에서 이관하면 쌓임.
+        </p>
+      ) : null}
+
+      {picked ? (
+        <Card style={{ padding: "20px" }} data-probe="abuse-card">
+          <b style={{ fontSize: "14px" }}>
+            판정, {picked.entry.team.name}, {kindLabel(picked)}
+          </b>
+          <p style={{ fontSize: "13px", color: "var(--muted)", margin: "6px 0 14px" }}>
+            {picked.status === AbuseStatus.appealed && picked.appealedAt
+              ? `소명 접수됨(${fmtMD(picked.appealedAt)}), 근거 지표 회신 의무`
+              : picked.status === AbuseStatus.flagged
+                ? "소명 전, 제재 적용 전 소명 기회 부여(제16조 ①)"
+                : `판정 완료, ${picked.resolutionNote ?? "사유 미기재"}`}
+          </p>
+          <SanctionButtons key={picked.id} flagId={picked.id} kind={picked.kind} />
+        </Card>
+      ) : null}
+    </>
   );
 }

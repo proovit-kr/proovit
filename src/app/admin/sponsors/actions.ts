@@ -7,36 +7,35 @@ import {
   CreditKind,
   CreditOfferStatus,
   CreditUnlockEvent,
+  NotifChannel,
 } from "@/generated/prisma/enums";
-import { canAccess, getSessionUser, loadAccessContext } from "@/lib/access";
+import { canAccess, getSessionUser, loadAccessContext, loadViewerState } from "@/lib/access";
 import {
+  batchDeliverCredits,
   deliverCreditManually,
   saveCreditOffer,
+  setCreditOfferStatus,
+  setSponsorLogo,
   uploadCreditCodes,
 } from "@/lib/admin-store";
-import { loadViewerState } from "@/lib/access";
+import { CREDIT_CARD_BY_KIND } from "@/lib/credits";
+import { evidenceStorage } from "@/lib/evidence-storage";
+import { sendCreditMail } from "@/lib/mail";
+import { prisma } from "@/lib/prisma";
 
 /*
-  스폰서 크레딧 쓰기 셋 — 혜택 저장, 코드 풀 업로드, 수동 발급.
+  스폰서 크레딧 쓰기 — 혜택 저장·상태 전환·로고 교체·코드 풀 업로드·수동 발급·일괄 발송.
 
-  ⚠️ 셋 다 판정을 다시 한다. 화면이 버튼을 안 그렸다는 사실은 아무것도 막지
-  않는다(admin/entries/actions.ts와 같은 규칙).
-
-  ⚠️ 폼 문자열을 그대로 DB에 넘기지 않는다. enum은 값 목록에 대조해서 통과한
-  것만 쓴다 — 그러지 않으면 Prisma가 던지는 자리까지 잘못된 값이 흘러간다.
+  ⚠️ 전부 판정을 다시 한다. 화면이 버튼을 안 그렸다는 사실은 아무것도 막지
+  않는다(admin/entries/actions.ts와 같은 규칙). enum은 값 목록에 대조해서 통과한
+  것만 쓴다.
 */
 
-export type SponsorActionState = { message?: string; done?: string };
+export type SponsorActionState = { message?: string; done?: number };
 
-/** 폼에서 온 문자열을 enum 값으로. 목록에 없으면 null이다 */
-function toEnum<T extends Record<string, string>>(
-  values: T,
-  raw: unknown,
-): T[keyof T] | null {
+function toEnum<T extends Record<string, string>>(values: T, raw: unknown): T[keyof T] | null {
   const value = String(raw ?? "");
-  return (Object.values(values) as string[]).includes(value)
-    ? (value as T[keyof T])
-    : null;
+  return (Object.values(values) as string[]).includes(value) ? (value as T[keyof T]) : null;
 }
 
 /** 비어 있으면 null. 빈 문자열을 DB에 넣으면 "없음"과 ""가 갈린다 */
@@ -45,7 +44,7 @@ function orNull(raw: unknown): string | null {
   return value === "" ? null : value;
 }
 
-/** YYYY-MM-DD. 잘못된 값은 null로 떨어뜨린다 — 날짜 하나 때문에 저장을 막지 않는다 */
+/** YYYY-MM-DD. 잘못된 값은 null로 떨어뜨린다 */
 function toDate(raw: unknown): Date | null {
   const value = String(raw ?? "").trim();
   if (!value) return null;
@@ -56,20 +55,19 @@ function toDate(raw: unknown): Date | null {
 async function guard() {
   const user = await getSessionUser();
   if (!user) return { error: "로그인이 풀렸습니다." } as const;
-
   const permission = canAccess("adminSponsors", await loadAccessContext());
   if (!permission.ok) return { error: permission.message } as const;
-
   const viewer = await loadViewerState();
   if (!viewer.season) return { error: "현재 시즌이 없습니다." } as const;
-
   return { actorId: user.id, seasonId: viewer.season.id } as const;
 }
 
-export async function saveOffer(
-  _prev: SponsorActionState,
-  formData: FormData,
-): Promise<SponsorActionState> {
+const done = () => {
+  revalidatePath("/", "layout");
+  return { done: Date.now() };
+};
+
+export async function saveOffer(_prev: SponsorActionState, formData: FormData): Promise<SponsorActionState> {
   const gate = await guard();
   if ("error" in gate) return { message: gate.error };
 
@@ -77,15 +75,13 @@ export async function saveOffer(
   const status = toEnum(CreditOfferStatus, formData.get("status"));
   const unlockEvent = toEnum(CreditUnlockEvent, formData.get("unlockEvent"));
   const deliveryMethod = toEnum(CreditDelivery, formData.get("deliveryMethod"));
-  if (!kind || !status || !unlockEvent || !deliveryMethod) {
-    return { message: "잘못된 요청입니다." };
-  }
+  if (!kind || !status || !unlockEvent || !deliveryMethod) return { message: "잘못된 요청입니다." };
 
   const result = await saveCreditOffer({
     seasonId: gate.seasonId,
     kind,
     status,
-    sponsorId: orNull(formData.get("sponsorId")),
+    sponsorName: orNull(formData.get("sponsorName")),
     unlockEvent,
     deliveryMethod,
     releaseDate: toDate(formData.get("releaseDate")),
@@ -99,63 +95,136 @@ export async function saveOffer(
     reason: String(formData.get("reason") ?? ""),
     actorId: gate.actorId,
   });
-  if (!result.ok) return { message: result.message };
-
-  revalidatePath("/admin/sponsors");
-  revalidatePath("/dashboard/credits");
-  return { done: "저장했습니다." };
+  return result.ok ? done() : { message: result.message };
 }
 
-export async function uploadCodes(
-  _prev: SponsorActionState,
-  formData: FormData,
-): Promise<SponsorActionState> {
+export async function changeOfferStatus(_prev: SponsorActionState, formData: FormData): Promise<SponsorActionState> {
   const gate = await guard();
   if ("error" in gate) return { message: gate.error };
+  const status = toEnum(CreditOfferStatus, formData.get("status"));
+  const offerId = String(formData.get("offerId") ?? "");
+  if (!status || !offerId) return { message: "잘못된 요청입니다." };
+  const result = await setCreditOfferStatus({
+    offerId, status, reason: String(formData.get("reason") ?? ""), actorId: gate.actorId,
+  });
+  return result.ok ? done() : { message: result.message };
+}
 
+const LOGO_TYPES: Record<string, string> = {
+  "image/svg+xml": "svg",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
+
+export async function uploadLogo(_prev: SponsorActionState, formData: FormData): Promise<SponsorActionState> {
+  const gate = await guard();
+  if ("error" in gate) return { message: gate.error };
+  const offerId = String(formData.get("offerId") ?? "");
+  const file = formData.get("logo");
+  if (!offerId || !(file instanceof File) || file.size === 0) return { message: "로고 파일을 골라 주세요." };
+  const ext = LOGO_TYPES[file.type];
+  if (!ext) return { message: "svg·png·jpg·webp만 올릴 수 있습니다." };
+  if (file.size > 1024 * 1024) return { message: "로고는 1MB까지입니다." };
+  const storage = evidenceStorage();
+  if (!storage) return { message: "파일 저장소가 연결되지 않았습니다." };
+  const key = `sponsor/logo/${crypto.randomUUID()}.${ext}`;
+  await storage.put(key, new Uint8Array(await file.arrayBuffer()), file.type);
+  const result = await setSponsorLogo({ offerId, key, filename: file.name, actorId: gate.actorId });
+  return result.ok ? done() : { message: result.message };
+}
+
+export async function uploadCodes(_prev: SponsorActionState, formData: FormData): Promise<SponsorActionState> {
+  const gate = await guard();
+  if ("error" in gate) return { message: gate.error };
   const offerId = String(formData.get("offerId") ?? "");
   if (!offerId) return { message: "잘못된 요청입니다." };
 
-  /* 줄바꿈·쉼표 아무거나 받는다. 스폰서가 보내는 모양이 매번 다르다 */
-  const codes = String(formData.get("codes") ?? "")
-    .split(/[\r\n,;]+/)
-    .map((c) => c.trim())
-    .filter(Boolean);
+  /* CSV 파일이든 붙여 넣은 글이든 받는다. 줄바꿈·쉼표 아무거나 — 스폰서가 보내는 모양이 매번 다르다 */
+  const file = formData.get("csv");
+  const raw =
+    file instanceof File && file.size > 0 ? await file.text() : String(formData.get("codes") ?? "");
+  const codes = raw.split(/[\r\n,;]+/).map((c) => c.trim()).filter(Boolean);
 
   const result = await uploadCreditCodes({
-    offerId,
-    codes,
-    reason: String(formData.get("reason") ?? ""),
-    actorId: gate.actorId,
+    offerId, codes, reason: String(formData.get("reason") ?? ""), actorId: gate.actorId,
   });
-  if (!result.ok) return { message: result.message };
-
-  revalidatePath("/admin/sponsors");
-  return {
-    done: `${result.added ?? 0}개를 올렸습니다. 중복은 건너뛰었습니다.`,
-  };
+  return result.ok ? done() : { message: result.message };
 }
 
-export async function deliverManually(
-  _prev: SponsorActionState,
-  formData: FormData,
-): Promise<SponsorActionState> {
+export async function deliverManually(_prev: SponsorActionState, formData: FormData): Promise<SponsorActionState> {
   const gate = await guard();
   if ("error" in gate) return { message: gate.error };
-
   const offerId = String(formData.get("offerId") ?? "");
   const entryId = String(formData.get("entryId") ?? "");
   if (!offerId || !entryId) return { message: "잘못된 요청입니다." };
-
   const result = await deliverCreditManually({
-    offerId,
-    entryId,
-    reason: String(formData.get("reason") ?? ""),
-    actorId: gate.actorId,
+    offerId, entryId, reason: String(formData.get("reason") ?? ""), actorId: gate.actorId,
   });
+  return result.ok ? done() : { message: result.message };
+}
+
+/**
+ * 일괄 발송 — 발급한 뒤 팀원에게 인앱 알림과 메일을 보낸다(메일은 트랜잭션 밖).
+ * 대상 팀은 화면이 보낸 목록을 믿지 않고 다시 고른다 — 그 카드가 「발급 가능」인 팀.
+ */
+export async function batchDeliver(_prev: SponsorActionState, formData: FormData): Promise<SponsorActionState> {
+  const gate = await guard();
+  if ("error" in gate) return { message: gate.error };
+  const offerId = String(formData.get("offerId") ?? "");
+  const requested = String(formData.get("entryIds") ?? "").split(",").filter(Boolean);
+
+  const { loadAdminCreditConsole } = await import("@/lib/credits-store");
+  const view = await loadAdminCreditConsole(gate.seasonId);
+  const offer = view.offers.find((o) => o.id === offerId);
+  if (!offer) return { message: "혜택을 찾을 수 없습니다." };
+  const allowed = new Set(
+    view.claims
+      .filter((r) => r.cells.some((c) => c.kind === offer.kind && c.available))
+      .map((r) => r.entryId),
+  );
+  const entryIds = requested.filter((id) => allowed.has(id));
+
+  const result = await batchDeliverCredits({ offerId, entryIds, actorId: gate.actorId });
   if (!result.ok) return { message: result.message };
 
-  revalidatePath("/admin/sponsors");
-  revalidatePath("/dashboard/credits");
-  return { done: "발급 완료로 바꿨습니다." };
+  const card = CREDIT_CARD_BY_KIND[offer.kind];
+  const members = await prisma.teamMember.findMany({
+    where: { team: { entries: { some: { id: { in: result.delivered.map((d) => d.entryId) } } } } },
+    select: { userId: true, user: { select: { email: true } }, team: { select: { entries: { select: { id: true } } } } },
+  });
+  const now = new Date();
+  await prisma.notification.createMany({
+    data: members.map((m) => ({
+      userId: m.userId,
+      type: "notice",
+      title: `${card.code} ${card.title} 발급`,
+      body: "혜택과 크레딧에서 코드와 적용 방법을 확인해요.",
+      linkUrl: "/dashboard/credits",
+      channel: NotifChannel.inapp,
+      sentAt: now,
+    })),
+  });
+  let mailFailed = 0;
+  for (const m of members) {
+    const d = result.delivered.find((x) => m.team.entries.some((e) => e.id === x.entryId));
+    if (!d || d.scheduled || !m.user.email) continue;
+    const r = await sendCreditMail({
+      email: m.user.email,
+      card: `${card.code} ${card.title}`,
+      sponsor: offer.sponsorName,
+      code: d.code,
+      link: offer.deliveryMethod === CreditDelivery.invite_link ? offer.inviteUrl : null,
+      validUntil: offer.validUntil,
+      howto: offer.redeemNote,
+    });
+    if (!r.ok) mailFailed += 1;
+  }
+
+  revalidatePath("/", "layout");
+  const notes = [
+    result.soldOut ? "코드 풀이 비어 일부 팀은 보내지 못했습니다." : null,
+    mailFailed ? `메일 ${mailFailed}통은 보내지 못했습니다.` : null,
+  ].filter(Boolean);
+  return { done: Date.now(), ...(notes.length ? { message: notes.join(" ") } : {}) };
 }

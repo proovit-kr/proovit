@@ -1,128 +1,116 @@
 import type { Metadata } from "next";
 
-import { EmptyState } from "@/components/EmptyState";
-import { SeasonPhase } from "@/generated/prisma/enums";
+import { Badge, type BadgeTone } from "@/components/Badge";
+import { Field } from "@/components/Field";
 import { guardPage } from "@/lib/access";
-import { loadAdminSeasons } from "@/lib/admin-read";
+import { loadAdminSeason } from "@/lib/admin-read";
+import { parseFeatureFlags } from "@/lib/feature-flags";
+import { fmtMD, fmtYMD } from "@/lib/header-state";
 
-import { PhaseForm } from "./PhaseForm";
-
+import hub from "../../dashboard/hub.module.css";
+import c from "../console.module.css";
+import { SeasonPanel } from "./SeasonPanel";
 import styles from "./seasons.module.css";
 
 /*
-  시즌·페이즈 — PLN3 2장 「시즌 구조와 전환」.
+  시즌 관리 — 시안 `#scr-adm-seasons`(3003행).
 
-  ⚠️ 페이즈 전환의 정본은 크론이다(ADR-010). 이 화면은 **예정과 실제를 나란히
-  보여주고**, 앞당기거나 되돌리는 예외 경로를 준다. 두 칸의 차이가 곧
-  "크론이 안 돌았는지, 사람이 앞당겼는지"의 답이다.
+  헤더의 시즌 셀렉트가 고른 시즌 하나를 본다. 스테이지 일정·트랙·기능 플래그를
+  여기서 고치고, 고칠 때마다 사유 모달(`#mdl-reason`)을 거친다.
 
-  ⚠️ 스테이지 일정(opens_at·closes_at)은 여기서 못 고친다. 시즌1 캘린더가 잠정이라
-  아직 넣을 값이 없고, 값이 정해지면 시드나 마이그레이션으로 한 번에 넣는 편이
-  안전하다 — 폼으로 한 칸씩 고치면 다섯 스테이지의 순서가 어긋난 채 저장될 수 있다.
+  ⚠️ 페이즈 전환의 정본은 크론이다(ADR-010). 시안에는 전환 칸이 없는데, 크론이
+  멈췄을 때 앞당기거나 되돌릴 길이 없으면 DB를 직접 고치게 된다 — 그래서 맨 아래에
+  「페이즈 수동 전환」 한 칸을 남겼다(내가 정함, 수연 확인 대기).
 */
+
+/** 「2026-10-12」 — 시작일이라 자정을 전날로 옮기지 않는다(fmtYMD는 마감용) */
+const YMD = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" });
 
 export const metadata: Metadata = {
   title: "시즌 관리",
   robots: { index: false, follow: false },
 };
 
-const WHEN = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: "Asia/Seoul",
-  month: "numeric",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+/* 페이즈 배지 색 — 시안은 racing(라임)만 그렸다. 나머지는 내가 정함(수연 확인 대기) */
+const PHASE_TONE: Record<string, BadgeTone> = {
+  draft: "gray",
+  pre_apply: "blue",
+  recruiting: "blue",
+  racing: "lime",
+  awarded: "violet",
+  archived: "gray",
+};
+
+/*
+  scoring_config를 시안 `.pre`처럼 적는다 — 최상위 키마다 한 줄, 배열·객체 값은
+  한 줄에 붙인다. `JSON.stringify(v, null, 2)`는 배열을 여러 줄로 펼친다.
+*/
+function prettyConfig(cfg: unknown): string {
+  const inline = (v: unknown): string =>
+    Array.isArray(v)
+      ? `[${v.map(inline).join(", ")}]`
+      : v && typeof v === "object"
+        ? `{ ${Object.entries(v).map(([k, x]) => `${JSON.stringify(k)}: ${inline(x)}`).join(", ")} }`
+        : JSON.stringify(v);
+  if (!cfg || typeof cfg !== "object" || Array.isArray(cfg)) return inline(cfg ?? {});
+  const entries = Object.entries(cfg);
+  if (entries.length === 0) return "{}";
+  return `{\n${entries.map(([k, v]) => `  ${JSON.stringify(k)}: ${inline(v)}`).join(",\n")}\n}`;
+}
+
+/** 마감 표기 — 자정 마감(다음 날 00:00)은 전날로 적는다(fmtMDHM과 같은 규칙) */
+function closeMD(d: Date): string {
+  return fmtMD(new Date(d.getTime() - 60_000));
+}
 
 export default async function Page() {
-  await guardPage("adminSeasons", "/admin/seasons");
-  const seasons = await loadAdminSeasons();
+  const { viewer } = await guardPage("adminSeasons", "/admin/seasons");
+  const season = viewer.season ? await loadAdminSeason(viewer.season.id) : null;
+
+  if (!season) {
+    return (
+      <>
+        <h2 className={hub.h1}>시즌 관리</h2>
+        <p className={hub.sub}>시즌 없음. 시드(npm run db:seed)로 시즌 1을 만들 수 있음.</p>
+      </>
+    );
+  }
+
+  const flags = parseFeatureFlags(season.featureFlags);
 
   return (
-    <section className={styles.root}>
-      <header className={styles.head}>
-        <h1 className={styles.title}>시즌</h1>
-        <p className={styles.sub}>
-          페이즈 전환은 크론이 일정표(season_schedules)를 읽어 자동으로 합니다.
-          여기서 바꾸는 것은 앞당기거나 되돌리는 경우이고, 사유가 남습니다.
-        </p>
-      </header>
+    <>
+      <h2 className={hub.h1}>시즌 관리</h2>
+      <p className={hub.sub}>시즌, 스테이지, 트랙 시딩 및 설정</p>
 
-      {seasons.length === 0 ? (
-        <EmptyState
-          title="시즌이 없습니다"
-          detail="시드(npm run db:seed)로 시즌1을 만들 수 있습니다."
-        />
-      ) : null}
+      <Field label="시즌">
+        <div className={hub.keybox} style={{ flexWrap: "nowrap" }} data-probe="season-box">
+          {season.title} <Badge tone={PHASE_TONE[season.phase] ?? "gray"}>{season.phase}</Badge>
+          {season.startsAt && season.endsAt ? (
+            <span className={`${styles.cp} mono`} style={{ fontSize: "11.5px", color: "var(--faint)" }}>
+              {`${YMD.format(season.startsAt)} → ${fmtYMD(season.endsAt).slice(5)}`}
+            </span>
+          ) : null}
+        </div>
+      </Field>
 
-      {seasons.map((season) => (
-        <article key={season.id} className={styles.season}>
-          <div className={styles.seasonHead}>
-            <h2 className={styles.seasonTitle}>{season.title}</h2>
-            <p className={styles.seasonMeta}>
-              <span className={styles.phase}>{season.phase}</span>
-              <span>{season.slug}</span>
-              <span>참가 {season.entryCount}팀</span>
-            </p>
-          </div>
-
-          <div className={styles.cols}>
-            <div className={styles.col}>
-              <h3 className={styles.colTitle}>스테이지</h3>
-              <ul className={styles.rows}>
-                {season.stages.map((stage) => (
-                  <li key={stage.stageKey} className={styles.row}>
-                    <span className={styles.rowKey}>
-                      {stage.stageKey}
-                      {stage.isGate ? (
-                        <span className={styles.gate}>게이트</span>
-                      ) : null}
-                    </span>
-                    <span className={styles.rowName}>{stage.name}</span>
-                    <span className={styles.rowWhen}>
-                      {stage.opensAt && stage.closesAt
-                        ? `${WHEN.format(stage.opensAt)} ~ ${WHEN.format(stage.closesAt)}`
-                        : "미정"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className={styles.col}>
-              <h3 className={styles.colTitle}>전환 일정</h3>
-              {season.schedules.length === 0 ? (
-                <p className={styles.note}>
-                  일정 행이 없습니다. 크론이 전환할 근거가 없으니 지금은 이
-                  화면에서 수동으로만 바뀝니다.
-                </p>
-              ) : (
-                <ul className={styles.rows}>
-                  {season.schedules.map((schedule) => (
-                    <li key={schedule.phase} className={styles.row}>
-                      <span className={styles.rowKey}>{schedule.phase}</span>
-                      <span className={styles.rowName}>
-                        예정 {WHEN.format(schedule.startsAt)}
-                      </span>
-                      <span className={styles.rowWhen}>
-                        {schedule.appliedAt
-                          ? `전환 ${WHEN.format(schedule.appliedAt)}`
-                          : "대기"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-
-          <PhaseForm
-            seasonId={season.id}
-            current={season.phase}
-            phases={Object.values(SeasonPhase)}
-          />
-        </article>
-      ))}
-    </section>
+      <SeasonPanel
+        seasonId={season.id}
+        phase={season.phase}
+        stages={season.stages.map((st) => ({
+          stageKey: st.stageKey,
+          isGate: st.isGate,
+          opens: st.opensAt ? fmtMD(st.opensAt) : "",
+          closes: st.closesAt ? closeMD(st.closesAt) : "",
+        }))}
+        tracks={season.tracks}
+        flags={{
+          leaderboard: flags.leaderboard,
+          testerAssignments: flags.testerAssignments,
+          credits: flags.credits,
+        }}
+        config={<div className={c.pre}>{prettyConfig(season.scoringConfig)}</div>}
+      />
+    </>
   );
 }

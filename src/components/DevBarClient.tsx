@@ -87,7 +87,7 @@ type Option<T extends string> = { value: T; label: string };
 
 type Props = {
   blocked?: string;
-  me?: { nickname: string; onboarded: boolean } | null;
+  me?: { nickname: string; onboarded: boolean; admin: boolean } | null;
 
   /** 가정한 「오늘」(ISO). null이면 진짜 오늘 */
   today?: string | null;
@@ -177,11 +177,14 @@ function ReloadPick({
   action,
   fields,
   active,
+  to,
   children,
 }: {
   action: (formData: FormData) => Promise<void>;
   fields: Record<string, string>;
   active?: boolean;
+  /** 다시 부를 곳. 없으면 지금 화면 */
+  to?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -192,7 +195,8 @@ function ReloadPick({
           `router.refresh()`로는 바가 안 갱신된다(2026-09-21 확인) — 문서를
           통째로 다시 받아야 새 쿠키로 그린다.
         */
-        window.location.reload();
+        if (to) window.location.href = to;
+        else window.location.reload();
       }}
     >
       {Object.entries(fields).map(([name, value]) => (
@@ -208,12 +212,14 @@ function AuthPick({
   active,
   children,
 }: {
-  on: boolean;
+  /** "1" 민재 · "admin" 운영자 · "0" 비로그인 */
+  on: "1" | "admin" | "0";
   active?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <ReloadPick action={devSetAuth} fields={{ on: on ? "1" : "0" }} active={active}>
+    /* 운영자로 들어가면 운영 대시보드로 간다 — 참가자 화면은 운영자에게 404다 */
+    <ReloadPick action={devSetAuth} fields={{ on }} active={active} to={on === "admin" ? "/admin" : undefined}>
       {children}
     </ReloadPick>
   );
@@ -411,19 +417,23 @@ export function DevBarClient({
             전부 「로그인한 계정」 기준이라 그 위에 둔다.
 
             「로그인」은 테스트 계정(시드의 민재)으로 로그인했다 치는 것이고
+            「운영자」는 시드의 운영 계정으로 들어가 운영 콘솔로 간다.
             「비로그인」은 지금 세션을 끝낸다(lib/dev-session.ts).
           */}
           <div className={styles.row}>
             <span className={styles.label}>
               로그인
-              <em className={styles.hint}>테스트 계정 민재</em>
+              <em className={styles.hint}>테스트 계정 민재 · 운영</em>
             </span>
             <div className={styles.picks}>
-              {[
-                { on: true, label: "로그인" },
-                { on: false, label: "비로그인" },
-              ].map((pick) => (
-                <AuthPick key={pick.label} on={pick.on} active={!!me === pick.on}>
+              {(
+                [
+                  { on: "1", label: "로그인", active: !!me && !me.admin },
+                  { on: "admin", label: "운영자", active: !!me?.admin },
+                  { on: "0", label: "비로그인", active: !me },
+                ] as const
+              ).map((pick) => (
+                <AuthPick key={pick.label} on={pick.on} active={pick.active}>
                   {pick.label}
                 </AuthPick>
               ))}

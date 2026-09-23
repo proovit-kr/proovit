@@ -3,21 +3,21 @@
 import { revalidatePath } from "next/cache";
 
 import { canAccess, getSessionUser, loadAccessContext, loadViewerState } from "@/lib/access";
-import type { Audience } from "@/lib/notify";
+import type { StageTarget } from "@/lib/notify";
 import { sendNotice } from "@/lib/notify-store";
-import { safeNext } from "@/lib/access";
 
 /*
-  공지 발송.
+  공지 발송 — 시안 `#mdl-send` 「발송」.
 
-  ⚠️ 링크는 **우리 서비스 안의 주소만** 받는다. 공지에 외부 주소를 실을 수 있으면
-  운영 계정이 털렸을 때 참가자 전원에게 피싱 링크가 나간다. `safeNext`가 로그인
-  되돌아갈 주소를 거르는 것과 같은 규칙이고 같은 함수를 쓴다.
+  ⚠️ 발송 후 회수할 수 없다(시안 모달 문구). 권한을 다시 보고, 대상은 서버가
+  다시 센다 — 화면이 보여 준 「예상 대상」은 안내일 뿐이다.
 */
 
-export type NoticeState = { message?: string; sent?: number };
+export type NoticeState = { message?: string; done?: number };
 
-export async function sendNotification(
+const STAGES: StageTarget[] = ["all", "s1_s3", "s4", "s5"];
+
+export async function postNotice(
   _prev: NoticeState,
   formData: FormData,
 ): Promise<NoticeState> {
@@ -30,28 +30,25 @@ export async function sendNotification(
   const viewer = await loadViewerState();
   if (!viewer.season) return { message: "시즌이 없습니다." };
 
-  const audience: Audience =
-    String(formData.get("audience") ?? "") === "active" ? "active" : "all";
-  const title = String(formData.get("title") ?? "");
-  const body = String(formData.get("body") ?? "");
-  const rawLink = String(formData.get("linkUrl") ?? "").trim();
-
-  const linkUrl = rawLink === "" ? null : safeNext(rawLink);
-  if (rawLink !== "" && linkUrl === null) {
-    return { message: "링크는 /로 시작하는 서비스 안 주소만 넣을 수 있습니다." };
-  }
+  const stage = String(formData.get("stage") ?? "all") as StageTarget;
+  if (!STAGES.includes(stage)) return { message: "잘못된 요청입니다." };
 
   const result = await sendNotice({
     seasonId: viewer.season.id,
-    audience,
-    title,
-    body,
-    linkUrl,
+    stage,
+    track: String(formData.get("track") ?? "all"),
+    channels: { inapp: formData.get("inapp") === "1", mail: formData.get("mail") === "1" },
+    title: String(formData.get("title") ?? ""),
+    body: String(formData.get("body") ?? ""),
     actorId: user.id,
   });
   if (!result.ok) return { message: result.message };
 
-  revalidatePath("/admin/notifications");
-  revalidatePath("/notifications");
-  return { sent: result.count };
+  revalidatePath("/", "layout");
+  return {
+    done: Date.now(),
+    ...(result.mailFailed
+      ? { message: `메일 ${result.mailFailed}통은 보내지 못했습니다. 인앱은 모두 나갔습니다.` }
+      : {}),
+  };
 }

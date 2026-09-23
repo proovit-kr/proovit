@@ -1,7 +1,8 @@
 import {
+  AbuseStatus,
   DeployStatus,
+  EntryStage,
   EntryStatus,
-  JudgmentResult,
   LeadStatus,
   SubmissionStatus,
 } from "@/generated/prisma/enums";
@@ -25,36 +26,51 @@ export type AdminSummary = {
   entries: { total: number; active: number; eliminated: number; disqualified: number };
   /** 제출은 됐는데 판정이 안 붙은 건 — 운영이 지금 해야 할 일의 크기다 */
   pendingJudgments: number;
-  leads: { total: number; unsubscribed: number };
+  leads: { total: number; unsubscribed: number; week: number };
   /** 미처리 어뷰징 플래그 */
   openAbuseFlags: number;
-  /** 배포 확인이 끝난 참가작 수 — 시안 KPI 3 */
-  deployedEntries: number;
-  /** 참가작 전체의 유효 방문 합 — 시안 KPI 4 */
-  totalVisitors: number;
+  /** 배포 확인이 끝난 참가작 수 — 시안 KPI 3. `week`는 이번 주에 확인된 것 */
+  deployed: { total: number; week: number };
+  /** 참가작 전체의 유효 방문 합 — 시안 KPI 4. `week`는 최근 7일 몫 */
+  visitors: { total: number; week: number };
   /** 답변이 안 나간 소명 */
   openAppeals: number;
   /** 손으로 볼 지표 플래그(수동 검토 미통과) */
   openMetricFlags: number;
+  /** 마지막으로 롤업이 돈 시각. 한 번도 안 돌았으면 null */
+  lastRollupAt: Date | null;
   /**
     다음 게이트. 시안의 「다음 게이트 배치」 카드가 쓴다 — 마감이 지나지 않은
     게이트 중 가장 이른 것이다. 없으면 null(시즌 전이거나 둘 다 끝났다).
   */
   nextGate: {
+    /** 게이트 번호 — s2가 1, s5가 2(시안 「GATE 1」) */
+    no: number;
     stageKey: string;
-    name: string;
     closesAt: Date | null;
     /** 그 게이트가 판정할 대상 팀 수 */
     targets: number;
   } | null;
   /** 최근 감사 로그 5줄 — 시안 `.minlog` */
-  recentAudit: {
-    id: string;
-    at: Date;
-    action: string;
-    reason: string;
-  }[];
+  recentAudit: AuditLine[];
 };
+
+/** 감사 로그 한 줄 — 대시보드 `.minlog`와 감사 로그 표가 같이 쓴다 */
+export type AuditLine = {
+  id: string;
+  at: Date;
+  /** 운영자 표시 — 계정 이메일의 @ 앞, 사람이 아니면 「system」 */
+  actor: string;
+  action: string;
+  /** 대상 이름(팀명·시즌명). 못 찾으면 null */
+  target: string | null;
+  /** 값이 바뀐 기록이면 「fail→pass」 — 대시보드 줄이 대상 뒤에 붙인다 */
+  change: string | null;
+  reason: string;
+};
+
+/** 최근 7일 — 대시보드 KPI의 「이번 주」 */
+const WEEK_MS = 7 * 86_400_000;
 
 async function countPendingJudgments(seasonId: string): Promise<number> {
   const gates = await prisma.stage.findMany({
@@ -73,38 +89,234 @@ async function countPendingJudgments(seasonId: string): Promise<number> {
   });
 }
 
-export async function loadAdminSummary(): Promise<AdminSummary> {
-  const season = await prisma.season.findFirst({
-    orderBy: { createdAt: "desc" },
-    select: { id: true, title: true, slug: true, phase: true },
+/**
+ * 감사 로그 행의 대상 이름을 찾는다.
+ *
+ * `target_id`는 외래키가 아니라 `target_type`마다 가리키는 표가 다르다. 종류별로
+ * 모아서 한 번씩만 읽는다. 대상을 풀어 쓸 수 없는 묶음 작업(게이트 일괄 판정·
+ * 전체 공지)은 쓰는 쪽이 `meta.target`에 이름을 적어 둔다 — 그것이 먼저다.
+ */
+export async function loadAuditLines(
+  rows: {
+    id: bigint;
+    createdAt: Date;
+    action: string;
+    targetType: string;
+    targetId: string | null;
+    reason: string;
+    meta: unknown;
+    actor: { email: string | null } | null;
+  }[],
+): Promise<AuditLine[]> {
+  const ids = (type: string) =>
+    [...new Set(rows.filter((r) => r.targetType === type && r.targetId).map((r) => r.targetId!))];
+  const metaEntry = (meta: unknown) =>
+    meta && typeof meta === "object" && "entryId" in meta && typeof meta.entryId === "string"
+      ? meta.entryId
+      : null;
+
+  const entryIds = [
+    ...ids("entry"),
+    ...rows.map((r) => metaEntry(r.meta)).filter((v): v is string => !!v),
+  ];
+  const [entries, teams, submissions, flags, seasons] = await Promise.all([
+    prisma.entry.findMany({
+      where: { id: { in: entryIds } },
+      select: { id: true, team: { select: { name: true } } },
+    }),
+    prisma.team.findMany({ where: { id: { in: ids("team") } }, select: { id: true, name: true } }),
+    prisma.submission.findMany({
+      where: { id: { in: ids("submission") } },
+      select: { id: true, entry: { select: { team: { select: { name: true } } } } },
+    }),
+    prisma.abuseFlag.findMany({
+      where: { id: { in: ids("abuse_flag") } },
+      select: { id: true, entry: { select: { team: { select: { name: true } } } } },
+    }),
+    prisma.season.findMany({ where: { id: { in: ids("season") } }, select: { id: true, title: true } }),
+  ]);
+
+  const name = new Map<string, string>([
+    ...entries.map((e) => [e.id, e.team.name] as const),
+    ...teams.map((t) => [t.id, t.name] as const),
+    ...submissions.map((s) => [s.id, s.entry.team.name] as const),
+    ...flags.map((f) => [f.id, f.entry.team.name] as const),
+    ...seasons.map((s) => [s.id, s.title] as const),
+  ]);
+
+  return rows.map((row) => {
+    const meta = row.meta as { target?: unknown; from?: unknown; to?: unknown } | null;
+    const label =
+      typeof meta?.target === "string"
+        ? meta.target
+        : ((row.targetId && name.get(row.targetId)) ??
+          (metaEntry(row.meta) ? name.get(metaEntry(row.meta)!) : undefined) ??
+          null);
+    return {
+      id: String(row.id),
+      at: row.createdAt,
+      actor: row.actor?.email ? row.actor.email.split("@")[0] : "system",
+      action: row.action,
+      target: label,
+      change:
+        typeof meta?.from === "string" && typeof meta?.to === "string"
+          ? `${meta.from}→${meta.to}`
+          : null,
+      reason: row.reason,
+    };
   });
+}
+
+export const AUDIT_SELECT = {
+  id: true,
+  createdAt: true,
+  action: true,
+  targetType: true,
+  targetId: true,
+  reason: true,
+  meta: true,
+  actor: { select: { email: true } },
+} as const;
+
+/** 감사 로그 필터의 액션 묶음 — 시안 네 줄에 우리 화면이 쓰는 앞마디를 더했다 */
+export const AUDIT_ACTION_GROUPS = [
+  "judgment",
+  "entry",
+  "metric",
+  "abuse",
+  "season",
+  "notification",
+  "lead",
+  "award",
+  "credit",
+] as const;
+
+export type AuditFilter = {
+  /** "season"이면 시즌 전체, 아니면 최근 30일 */
+  period?: string;
+  /** 운영자 id, "system"이면 사람이 아닌 기록 */
+  actor?: string;
+  /** 액션 앞마디(`judgment` → judgment.*) */
+  action?: string;
+};
+
+/**
+ * 감사 로그 — 시안 `#scr-adm-audit`(3180행). 읽기 전용이다.
+ *
+ * 옛 기록은 액션 이름이 콜론·밑줄 표기(`judgment:pass`·`entry_status:x`)라 앞마디
+ * 필터가 셋을 다 받는다.
+ */
+export async function loadAuditPage(
+  filter: AuditFilter,
+  season: { id: string } | null,
+  now: Date,
+): Promise<{ rows: AuditLine[]; actors: { id: string; name: string }[] }> {
+  const since =
+    filter.period === "season" && season
+      ? ((await prisma.season.findUnique({ where: { id: season.id }, select: { createdAt: true } }))?.createdAt ?? null)
+      : new Date(now.getTime() - 30 * 86_400_000);
+  const group = (AUDIT_ACTION_GROUPS as readonly string[]).includes(filter.action ?? "")
+    ? filter.action!
+    : null;
+
+  const [rows, actorRows] = await Promise.all([
+    prisma.auditLog.findMany({
+      where: {
+        ...(since ? { createdAt: { gte: since } } : {}),
+        ...(filter.actor === "system"
+          ? { actorId: null }
+          : filter.actor
+            ? { actorId: filter.actor }
+            : {}),
+        ...(group
+          ? {
+              OR: [".", ":", "_"].map((sep) => ({ action: { startsWith: group + sep } })),
+            }
+          : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: AUDIT_SELECT,
+    }),
+    prisma.auditLog.findMany({
+      where: { actorId: { not: null } },
+      distinct: ["actorId"],
+      select: { actor: { select: { id: true, email: true } } },
+    }),
+  ]);
+
+  return {
+    rows: await loadAuditLines(rows),
+    actors: actorRows
+      .filter((r) => r.actor)
+      .map((r) => ({ id: r.actor!.id, name: r.actor!.email?.split("@")[0] ?? "운영자" })),
+  };
+}
+
+/**
+ * 마지막으로 롤업이 돈 시각. 롤업은 하루 한 행을 15분마다 덮어쓰므로 가장 나중에
+ * 고쳐진 스냅샷 행이 곧 마지막 롤업이다(public-read.ts의 「n분 전 갱신」과 같은 값).
+ * 대시보드 부제와 지표 검토의 빈 상태가 같이 쓴다.
+ */
+export async function loadLastRollup(seasonId: string): Promise<Date | null> {
+  const row = await prisma.leaderboardSnapshot.findFirst({
+    where: { seasonId },
+    orderBy: { updatedAt: "desc" },
+    select: { updatedAt: true },
+  });
+  return row?.updatedAt ?? null;
+}
+
+/** 롤업 주기 — vercel.json의 크론과 같다 */
+export const ROLLUP_EVERY_MIN = 15;
+
+/**
+ * 운영 대시보드 숫자. **헤더의 시즌 셀렉트와 같은 시즌**을 본다(`viewer.season`).
+ * 한때 「가장 최근에 만든 시즌」을 따로 골라서, 다음 시즌 초안을 만들어 두면
+ * 헤더는 시즌 1인데 대시보드만 시즌 2를 읽었다.
+ */
+export async function loadAdminSummary(seasonId: string | null): Promise<AdminSummary> {
+  const season = seasonId
+    ? await prisma.season.findUnique({
+        where: { id: seasonId },
+        select: { id: true, title: true, slug: true, phase: true },
+      })
+    : null;
   if (!season) {
     return {
       season: null,
       entries: { total: 0, active: 0, eliminated: 0, disqualified: 0 },
       pendingJudgments: 0,
-      leads: { total: 0, unsubscribed: 0 },
+      leads: { total: 0, unsubscribed: 0, week: 0 },
       openAbuseFlags: 0,
-      deployedEntries: 0,
-      totalVisitors: 0,
+      deployed: { total: 0, week: 0 },
+      visitors: { total: 0, week: 0 },
       openAppeals: 0,
       openMetricFlags: 0,
+      lastRollupAt: null,
       nextGate: null,
       recentAudit: [],
     };
   }
 
+  const now = devNow();
+  const weekAgo = new Date(now.getTime() - WEEK_MS);
+
   const [
     byStatus,
     pendingJudgments,
     leads,
+    leadsWeek,
     unsubscribed,
     openAbuseFlags,
     deployedEntries,
+    deployedWeek,
     visitorAgg,
+    visitorWeek,
     openAppeals,
     openMetricFlags,
     gates,
+    lastRollup,
     recentAudit,
   ] = await Promise.all([
       prisma.entry.groupBy({
@@ -121,19 +333,32 @@ export async function loadAdminSummary(): Promise<AdminSummary> {
       */
       countPendingJudgments(season.id),
       prisma.lead.count({ where: { seasonId: season.id } }),
+      prisma.lead.count({ where: { seasonId: season.id, createdAt: { gte: weekAgo } } }),
       prisma.lead.count({
         where: { seasonId: season.id, status: LeadStatus.unsubscribed },
       }),
       prisma.abuseFlag.count({
         where: { entry: { seasonId: season.id }, status: "flagged" },
       }),
-          /* 배포 확인이 끝난 참가작 — 시안 KPI 3 「배포 완료 서비스」 */
+      /* 배포 확인이 끝난 참가작 — 시안 KPI 3 「배포 완료 서비스」 */
       prisma.hostname.count({
         where: { entry: { seasonId: season.id }, deployStatus: DeployStatus.active },
+      }),
+      /* 그중 이번 주에 소유 확인이 끝난 것 — 「↑ 2 이번 주」 */
+      prisma.hostname.count({
+        where: {
+          entry: { seasonId: season.id },
+          deployStatus: DeployStatus.active,
+          ownershipVerifiedAt: { gte: weekAgo },
+        },
       }),
       /* 참가작 전체 유효 방문 합 — 시안 KPI 4 「참가작 총 이용자」 */
       prisma.metricDaily.aggregate({
         where: { entry: { seasonId: season.id } },
+        _sum: { validVisitors: true },
+      }),
+      prisma.metricDaily.aggregate({
+        where: { entry: { seasonId: season.id }, metricDate: { gte: weekAgo } },
         _sum: { validVisitors: true },
       }),
       /* 답변이 안 나간 소명 */
@@ -150,14 +375,15 @@ export async function loadAdminSummary(): Promise<AdminSummary> {
       /* 게이트는 둘뿐이라 다 읽고 고른다 */
       prisma.stage.findMany({
         where: { seasonId: season.id, isGate: true },
-        select: { stageKey: true, name: true, closesAt: true },
-        orderBy: { closesAt: "asc" },
+        select: { stageKey: true, closesAt: true },
+        orderBy: { stageKey: "asc" },
       }),
+      loadLastRollup(season.id),
       /* 시안 `.minlog` — 다섯 줄 */
       prisma.auditLog.findMany({
         orderBy: { createdAt: "desc" },
         take: 5,
-        select: { id: true, createdAt: true, action: true, reason: true },
+        select: AUDIT_SELECT,
       }),
 ]);
 
@@ -173,35 +399,36 @@ export async function loadAdminSummary(): Promise<AdminSummary> {
       disqualified: count(EntryStatus.disqualified),
     },
     pendingJudgments,
-    leads: { total: leads, unsubscribed },
-    deployedEntries,
-    totalVisitors: visitorAgg._sum.validVisitors ?? 0,
+    leads: { total: leads, unsubscribed, week: leadsWeek },
+    deployed: { total: deployedEntries, week: deployedWeek },
+    visitors: {
+      total: visitorAgg._sum.validVisitors ?? 0,
+      week: visitorWeek._sum.validVisitors ?? 0,
+    },
     openAppeals,
     openMetricFlags,
+    lastRollupAt: lastRollup,
     /*
       마감이 안 지난 게이트 중 가장 이른 것. 마감이 비어 있는 게이트는 일정이
       아직 안 잡힌 것이라 뒤로 미룬다 — 날짜 없는 게이트를 「다음」으로 내세우면
       운영이 SLA를 못 잡는다.
     */
     nextGate: (() => {
-      const now = devNow();
-      const upcoming = gates.filter((g) => g.closesAt && g.closesAt >= now);
-      const pick = upcoming[0] ?? gates.find((g) => !g.closesAt) ?? null;
+      const numbered = gates.map((g, i) => ({ ...g, no: i + 1 }));
+      const upcoming = numbered
+        .filter((g) => g.closesAt && g.closesAt >= now)
+        .sort((a, b) => a.closesAt!.getTime() - b.closesAt!.getTime());
+      const pick = upcoming[0] ?? numbered.find((g) => !g.closesAt) ?? null;
       if (!pick) return null;
       return {
+        no: pick.no,
         stageKey: pick.stageKey,
-        name: pick.name,
         closesAt: pick.closesAt,
         /* 판정 대상은 그 시즌에 살아 있는 팀이다 */
         targets: count(EntryStatus.active),
       };
     })(),
-    recentAudit: recentAudit.map((row) => ({
-      id: String(row.id),
-      at: row.createdAt,
-      action: row.action,
-      reason: row.reason,
-    })),
+    recentAudit: await loadAuditLines(recentAudit),
     openAbuseFlags,
   };
 }
@@ -209,65 +436,94 @@ export async function loadAdminSummary(): Promise<AdminSummary> {
 export type AdminEntryRow = {
   id: string;
   teamName: string;
-  memberCount: number;
-  ideaTitle: string;
-  stage: string;
+  track: string | null;
+  stage: EntryStage;
   status: EntryStatus;
-  chargeType: string;
-  serviceUrl: string | null;
-  deployed: boolean;
-  submissions: number;
-  appliedAt: Date | null;
+  /** s3 이후인데 배포 확인이 안 된 팀 — 시안의 「미배포」 배지 */
+  undeployed: boolean;
+  /** 답이 안 나간 소명이 있다 — 시안의 「소명 대기」 배지 */
+  appealPending: boolean;
+  /** 온보딩 두 단계(팀 구성·측정 연동)가 끝났다. 판정은 access.ts와 같은 식 */
+  onboarded: boolean;
+  lastSubmittedAt: Date | null;
+};
+
+export type AdminEntryFilter = {
+  stage?: string;
+  status?: string;
+  /** "yes" 미처리 어뷰징 플래그가 있는 팀, "no" 없는 팀 */
+  flag?: string;
+  q?: string;
 };
 
 /**
- * 참가팀 목록.
+ * 참가 관리 — 시안 `#scr-adm-entries`(3041행).
  *
  * 운영이 이 화면에서 판단하는 것은 「누가 어디까지 왔고 지금 살아 있는가」다.
- * 그래서 진도·생존 상태·배포 여부·제출 수를 한 줄에 같이 둔다 — 화면을 옮겨
- * 다니며 맞춰보게 하면 실격 판단이 늦어진다.
+ * 그래서 진도·생존 상태·온보딩·최근 제출을 한 줄에 같이 둔다.
  */
 export async function loadAdminEntries(
   seasonId: string,
+  filter: AdminEntryFilter = {},
 ): Promise<AdminEntryRow[]> {
+  const stage = (Object.values(EntryStage) as string[]).includes(filter.stage ?? "")
+    ? (filter.stage as EntryStage)
+    : undefined;
+  const status = (Object.values(EntryStatus) as string[]).includes(filter.status ?? "")
+    ? (filter.status as EntryStatus)
+    : undefined;
+  const openFlag = { some: { status: AbuseStatus.flagged } };
+
   const entries = await prisma.entry.findMany({
-    where: { seasonId },
+    where: {
+      seasonId,
+      ...(stage ? { stage } : {}),
+      ...(status ? { status } : {}),
+      ...(filter.flag === "yes" ? { abuseFlags: openFlag } : {}),
+      ...(filter.flag === "no" ? { abuseFlags: { none: { status: AbuseStatus.flagged } } } : {}),
+      ...(filter.q ? { team: { name: { contains: filter.q, mode: "insensitive" as const } } } : {}),
+    },
     orderBy: [{ status: "asc" }, { appliedAt: "asc" }],
     select: {
       id: true,
-      ideaTitle: true,
       stage: true,
       status: true,
-      chargeType: true,
-      serviceUrl: true,
-      appliedAt: true,
-      team: { select: { name: true, _count: { select: { members: true } } } },
+      track: { select: { name: true } },
+      team: { select: { name: true, isSolo: true, _count: { select: { members: true } } } },
       hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
-      _count: { select: { submissions: true } },
+      appeals: { where: { respondedAt: null }, select: { id: true }, take: 1 },
+      submissions: {
+        where: { submittedAt: { not: null } },
+        orderBy: { submittedAt: "desc" },
+        take: 1,
+        select: { submittedAt: true },
+      },
     },
   });
 
-  return entries.map((entry) => ({
-    id: entry.id,
-    teamName: entry.team.name,
-    memberCount: entry.team._count.members,
-    ideaTitle: entry.ideaTitle,
-    stage: entry.stage,
-    status: entry.status,
-    chargeType: entry.chargeType,
-    serviceUrl: entry.serviceUrl,
-    deployed:
+  const AFTER_BUILD: EntryStage[] = [EntryStage.s3, EntryStage.s4, EntryStage.s5, EntryStage.completed];
+  return entries.map((entry) => {
+    const deployed =
       entry.hostname?.deployStatus === DeployStatus.active &&
-      entry.hostname.ownershipVerifiedAt !== null,
-    submissions: entry._count.submissions,
-    appliedAt: entry.appliedAt,
-  }));
+      entry.hostname.ownershipVerifiedAt !== null;
+    const teamReady = entry.team.isSolo || entry.team._count.members >= 2;
+    return {
+      id: entry.id,
+      teamName: entry.team.name,
+      track: entry.track?.name ?? null,
+      stage: entry.stage,
+      status: entry.status,
+      undeployed: AFTER_BUILD.includes(entry.stage) && !deployed,
+      appealPending: entry.appeals.length > 0,
+      onboarded: teamReady && deployed,
+      lastSubmittedAt: entry.submissions[0]?.submittedAt ?? null,
+    };
+  });
 }
 
 export type AdminLeadRow = {
   id: string;
   email: string;
-  status: LeadStatus;
   sourceChannel: string | null;
   utmSource: string | null;
   marketingOptIn: boolean;
@@ -276,20 +532,20 @@ export type AdminLeadRow = {
 };
 
 /**
- * 사전신청 리드.
+ * 사전신청 리드 — 시안 `#scr-adm-leads`(3109행). KPI 1번의 관측 지점이다.
  *
- * ⚠️ 이메일이 그대로 보이는 화면이다. 목록을 화면 밖으로 빼는 기능(내려받기)은
- * **일부러 만들지 않았다** — 파일로 나가는 순간 접근 통제가 끝나고, 마케팅 발송은
- * 발송 도구가 직접 DB를 읽는 편이 안전하다.
- *
- * 수신거부한 사람도 목록에서 지우지 않고 표시만 한다. 지우면 같은 주소로 다시
- * 발송할 수 있게 되어 수신거부의 뜻이 사라진다.
+ * 수신거부한 사람도 목록에서 지우지 않는다. 지우면 같은 주소로 다시 발송할 수
+ * 있게 되어 수신거부의 뜻이 사라진다. 화면은 마케팅 칸을 「-」로 적는다.
  */
 export async function loadAdminLeads(
   seasonId: string,
+  today: Date,
   take: number = 200,
-): Promise<{ rows: AdminLeadRow[]; total: number }> {
-  const [rows, total] = await Promise.all([
+): Promise<{ rows: AdminLeadRow[]; total: number; todayCount: number; optIn: number }> {
+  /* 「오늘」은 KST 달력일이다 */
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(today);
+  const dayStart = new Date(`${ymd}T00:00:00+09:00`);
+  const [rows, total, todayCount, optIn] = await Promise.all([
     prisma.lead.findMany({
       where: { seasonId },
       orderBy: { createdAt: "desc" },
@@ -297,7 +553,6 @@ export async function loadAdminLeads(
       select: {
         id: true,
         email: true,
-        status: true,
         sourceChannel: true,
         utmSource: true,
         marketingOptIn: true,
@@ -306,78 +561,52 @@ export async function loadAdminLeads(
       },
     }),
     prisma.lead.count({ where: { seasonId } }),
+    prisma.lead.count({
+      where: { seasonId, createdAt: { gte: dayStart, lt: new Date(dayStart.getTime() + 86_400_000) } },
+    }),
+    prisma.lead.count({ where: { seasonId, marketingOptIn: true, unsubscribedAt: null } }),
   ]);
-  return { rows, total };
+  return { rows, total, todayCount, optIn };
 }
 
-export type AdminSeasonRow = {
+export type AdminSeasonView = {
   id: string;
   title: string;
-  slug: string;
   phase: string;
   startsAt: Date | null;
   endsAt: Date | null;
-  entryCount: number;
-  stages: { stageKey: string; name: string; isGate: boolean; opensAt: Date | null; closesAt: Date | null }[];
-  schedules: { phase: string; startsAt: Date; appliedAt: Date | null; note: string | null }[];
+  stages: { stageKey: string; isGate: boolean; opensAt: Date | null; closesAt: Date | null }[];
+  tracks: { id: string; name: string }[];
+  featureFlags: Record<string, unknown>;
+  scoringConfig: unknown;
 };
 
 /**
- * 시즌 목록과 전환 일정.
- *
- * 페이즈 전환의 정본은 `season_schedules`이고 크론이 그 표를 읽는다(ADR-010).
- * 화면은 **예정과 실제를 나란히** 보여준다 — 크론이 안 돌았는지 운영자가 앞당겼는지가
- * 그 두 칸의 차이로 드러난다.
+ * 시즌 관리 화면 — 헤더의 시즌 셀렉트가 고른 시즌 하나(시안 `#scr-adm-seasons`).
+ * 플래그는 JSONB 원본을 그대로 넘긴다 — 스위치가 「명시해서 켬」과 「기본값」을
+ * 가르지 않아도 되도록 화면이 `parseFeatureFlags`로 읽는다.
  */
-export async function loadAdminSeasons(): Promise<AdminSeasonRow[]> {
-  const seasons = await prisma.season.findMany({
-    orderBy: { createdAt: "desc" },
+export async function loadAdminSeason(seasonId: string): Promise<AdminSeasonView | null> {
+  const season = await prisma.season.findUnique({
+    where: { id: seasonId },
     select: {
       id: true,
       title: true,
-      slug: true,
       phase: true,
       startsAt: true,
       endsAt: true,
-      _count: { select: { entries: true } },
+      featureFlags: true,
+      scoringConfig: true,
       stages: {
         orderBy: { stageKey: "asc" },
-        select: {
-          stageKey: true,
-          name: true,
-          isGate: true,
-          opensAt: true,
-          closesAt: true,
-        },
+        select: { stageKey: true, isGate: true, opensAt: true, closesAt: true },
       },
-      schedules: {
-        orderBy: { startsAt: "asc" },
-        select: {
-          phase: true,
-          startsAt: true,
-          appliedAt: true,
-          note: true,
-        },
-      },
+      tracks: { orderBy: { createdAt: "asc" }, select: { id: true, name: true } },
     },
   });
-
-  return seasons.map((season) => ({
-    id: season.id,
-    title: season.title,
-    slug: season.slug,
-    phase: season.phase,
-    startsAt: season.startsAt,
-    endsAt: season.endsAt,
-    entryCount: season._count.entries,
-    stages: season.stages,
-    schedules: season.schedules,
-  }));
+  if (!season) return null;
+  return {
+    ...season,
+    featureFlags: (season.featureFlags ?? {}) as Record<string, unknown>,
+  };
 }
-
-/** 판정 결과 라벨 — 운영 화면에서도 참가자 화면과 같은 말을 쓴다 */
-export const JUDGMENT_LABEL: Record<string, string> = {
-  [JudgmentResult.pass]: "통과",
-  [JudgmentResult.revision]: "보완",
-  [JudgmentResult.fail]: "미통과",
-};

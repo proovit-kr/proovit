@@ -1,20 +1,23 @@
 import type { Metadata } from "next";
 
-import { EmptyState } from "@/components/EmptyState";
 import { guardPage } from "@/lib/access";
-import { prisma } from "@/lib/prisma";
+import { AUDIT_ACTION_GROUPS, loadAuditPage } from "@/lib/admin-read";
+import { devNow } from "@/lib/dev-clock";
+import { fmtStamp } from "@/lib/header-state";
 
-import styles from "./audit-logs.module.css";
+import hub from "../../dashboard/hub.module.css";
+import c from "../console.module.css";
+import { FilterBar } from "../FilterBar";
 
 /*
-  감사 로그 — PLN3 2장 「누가 무엇을 왜 바꿨는가」.
+  감사 로그 — 시안 `#scr-adm-audit`(3180행). 「누가 무엇을 왜 바꿨는가」.
 
   읽기 전용이고 **앞으로도 읽기 전용이다.** 지우거나 고치는 기능을 만들지 않는다 —
-  고칠 수 있는 기록은 근거가 못 된다. 스키마도 `id`가 autoincrement BigInt라
-  순서가 그대로 보존된다.
+  고칠 수 있는 기록은 근거가 못 된다.
 
-  ⚠️ 사유(reason)를 목록에서 접지 않는다. 이 화면을 여는 이유가 사유를 읽으려는
-  것이고, 펼쳐야 보이면 스크린샷에 안 담긴다.
+  ⚠️ 사유를 목록에서 접지 않는다(시안도 굵게 펼쳐 둔다). 이 화면을 여는 이유가
+  사유를 읽으려는 것이다. meta(JSON)는 시안에 없어 화면에 올리지 않는다 — 대상과
+  바뀐 값은 `loadAuditLines`가 읽어 대상 칸에 붙인다.
 */
 
 export const metadata: Metadata = {
@@ -22,73 +25,83 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const WHEN = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: "Asia/Seoul",
-  month: "numeric",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-});
-
-export default async function Page() {
-  await guardPage("adminAuditLogs", "/admin/audit-logs");
-
-  const rows = await prisma.auditLog.findMany({
-    orderBy: { id: "desc" },
-    take: 200,
-    select: {
-      id: true,
-      action: true,
-      targetType: true,
-      targetId: true,
-      reason: true,
-      meta: true,
-      createdAt: true,
-      /* 운영자는 닉네임으로 식별한다 — 실명은 이 화면에 필요 없다 */
-      actor: { select: { nickname: true } },
-    },
-  });
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const { viewer } = await guardPage("adminAuditLogs", "/admin/audit-logs");
+  const sp = await searchParams;
+  const { rows, actors } = await loadAuditPage(
+    { period: sp.period, actor: sp.actor, action: sp.action },
+    viewer.season,
+    devNow(),
+  );
 
   return (
-    <section className={styles.root}>
-      <header className={styles.head}>
-        <h1 className={styles.title}>감사 로그</h1>
-        <p className={styles.sub}>
-          운영자가 상태를 바꾼 기록입니다. 최근 200건을 보여주며, 이 화면에서
-          지우거나 고칠 수 없습니다.
-        </p>
-      </header>
+    <>
+      <h2 className={hub.h1}>감사 로그</h2>
+      <p className={hub.sub}>운영자 쓰기 작업 전량 기록, 사유 필수</p>
 
-      {rows.length === 0 ? (
-        <EmptyState
-          title="기록이 없습니다"
-          detail="참가 상태 변경이나 페이즈 전환이 일어나면 여기에 쌓입니다."
-        />
-      ) : (
-        <ul className={styles.list}>
+      <FilterBar
+        selects={[
+          {
+            name: "period",
+            label: "기간",
+            options: [
+              { value: "", label: "기간, 최근 30일" },
+              { value: "season", label: "기간, 시즌 전체" },
+            ],
+          },
+          {
+            name: "actor",
+            label: "운영자",
+            options: [
+              { value: "", label: "운영자, 전체" },
+              ...actors.map((a) => ({ value: a.id, label: a.name })),
+              { value: "system", label: "system" },
+            ],
+          },
+          {
+            name: "action",
+            label: "액션",
+            options: [
+              { value: "", label: "액션, 전체" },
+              ...AUDIT_ACTION_GROUPS.map((g) => ({ value: g, label: `${g}.*` })),
+            ],
+          },
+        ]}
+      />
+
+      <table className={c.atbl} data-probe="audit">
+        <thead>
+          <tr>
+            <th>시각</th>
+            <th>운영자</th>
+            <th>액션</th>
+            <th>대상</th>
+            <th>사유</th>
+          </tr>
+        </thead>
+        <tbody>
           {rows.map((row) => (
-            <li key={row.id.toString()} className={styles.item}>
-              <div className={styles.line}>
-                <span className={styles.when}>{WHEN.format(row.createdAt)}</span>
-                <span className={styles.action}>{row.action}</span>
-                <span className={styles.actor}>
-                  {row.actor?.nickname ?? "시스템"}
-                </span>
-              </div>
-              <p className={styles.reason}>{row.reason}</p>
-              <p className={styles.target}>
-                {row.targetType}
-                {row.targetId ? ` · ${row.targetId}` : null}
-                {/* meta는 "무엇에서 무엇으로"라 그대로 보여주는 편이 읽힌다 */}
-                {row.meta ? (
-                  <span className={styles.meta}>{JSON.stringify(row.meta)}</span>
-                ) : null}
-              </p>
-            </li>
+            <tr key={row.id}>
+              <td className={c.num}>{fmtStamp(row.at)}</td>
+              <td className={c.num}>{row.actor}</td>
+              <td className={c.num}>{row.action}</td>
+              <td>{row.target ?? "-"}</td>
+              <td>
+                <b>{row.reason}</b>
+              </td>
+            </tr>
           ))}
-        </ul>
-      )}
-    </section>
+        </tbody>
+      </table>
+      {rows.length === 0 ? (
+        <p style={{ fontSize: "12px", color: "var(--faint)", marginTop: "12px" }}>
+          조건에 맞는 기록 없음.
+        </p>
+      ) : null}
+    </>
   );
 }

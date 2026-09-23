@@ -5,8 +5,12 @@ import {
   CreditDeliveredVia,
   CreditKind,
   CreditOfferStatus,
+  CreditStatus,
   CreditUnlockEvent,
   EntryStatus,
+  NotifChannel,
+  SanctionReason,
+  SanctionStatus,
   SeasonPhase,
   Prisma,
 } from "@/generated/prisma/client";
@@ -91,7 +95,7 @@ export async function setEntryStatus(args: {
     await tx.entry.update({ where: { id: entryId }, data: { status } });
     await writeAudit(tx, {
       actorId,
-      action: `entry_status:${status}`,
+      action: "entry.status",
       targetType: "entry",
       targetId: entryId,
       reason: reason.trim(),
@@ -140,7 +144,7 @@ export async function setSeasonPhase(args: {
     });
     await writeAudit(tx, {
       actorId,
-      action: `season_phase:${phase}`,
+      action: "season.phase",
       targetType: "season",
       targetId: seasonId,
       reason: reason.trim(),
@@ -152,59 +156,249 @@ export async function setSeasonPhase(args: {
 }
 
 /**
- * 어뷰징 플래그 판정 — 확정(upheld) / 취소(overturned).
+ * 스테이지 일정 — 시안 시즌 관리의 날짜 칸(3013행).
  *
- * ⚠️ **지표를 여기서 고치지 않는다.** 확정된 플래그가 집계에서 무엇을 빼는지는
- * 채점 시점에 `abuse_flags`를 조인해 정한다(종결본 주석: 캐시 컬럼을 두지 않는다).
- * 판정할 때 metric_daily를 손대면 두 값이 어긋나고, 나중에 소명이 인용됐을 때
- * 되돌릴 근거가 사라진다.
- *
- * `resolution_note`는 스키마가 「운영자 처리 사유(필수 기록)」로 잡아둔 칸이라
- * 감사 로그의 reason과 같은 값을 넣는다 — 표를 옮겨 다니지 않고도 읽히게.
+ * 다섯 스테이지를 한 번에 받는다. 한 칸씩 저장하면 중간에 순서가 어긋난 일정
+ * (s2가 s1보다 먼저 열리는 것)이 저장된 채로 남을 수 있다 — 그래서 다섯 줄을
+ * 한 트랜잭션으로 쓰고, 순서가 맞는지 먼저 본다.
  */
-export async function resolveAbuseFlag(args: {
-  flagId: string;
-  status: AbuseStatus;
+export async function setStageDates(args: {
+  seasonId: string;
+  stages: { stageKey: string; opensAt: Date; closesAt: Date }[];
   reason: string;
   actorId: string;
-  /** 확정 시 조정한 유효 방문 수. 비우면 조정 없음 */
-  adjustedVisitors?: number | null;
 }): Promise<AdminActionResult> {
-  const { flagId, status, reason, actorId, adjustedVisitors } = args;
+  const { seasonId, stages, reason, actorId } = args;
   if (reason.trim().length < REASON_MIN) {
     return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
   }
-  if (status !== AbuseStatus.upheld && status !== AbuseStatus.overturned) {
-    return { ok: false, message: "확정 또는 취소만 할 수 있습니다." };
+  const sorted = [...stages].sort((a, b) => a.stageKey.localeCompare(b.stageKey));
+  for (const [i, st] of sorted.entries()) {
+    if (st.opensAt >= st.closesAt) {
+      return { ok: false, message: `${st.stageKey}의 마감이 시작보다 앞섭니다.` };
+    }
+    const prev = sorted[i - 1];
+    if (prev && prev.closesAt > st.opensAt) {
+      return { ok: false, message: `${st.stageKey}가 ${prev.stageKey} 마감 전에 열립니다.` };
+    }
   }
 
-  const flag = await prisma.abuseFlag.findUnique({
-    where: { id: flagId },
-    select: { status: true, entryId: true },
+  const before = await prisma.stage.findMany({
+    where: { seasonId },
+    select: { id: true, stageKey: true, opensAt: true, closesAt: true },
   });
-  if (!flag) return { ok: false, message: "플래그를 찾을 수 없습니다." };
-  if (flag.status === status) return { ok: false, message: "이미 그 상태입니다." };
+  const changed = sorted.filter((st) => {
+    const b = before.find((x) => x.stageKey === st.stageKey);
+    return (
+      b &&
+      (b.opensAt?.getTime() !== st.opensAt.getTime() ||
+        b.closesAt?.getTime() !== st.closesAt.getTime())
+    );
+  });
+  if (changed.length === 0) return { ok: false, message: "바뀐 일정이 없습니다." };
 
   await prisma.$transaction(async (tx) => {
-    await tx.abuseFlag.update({
-      where: { id: flagId },
-      data: {
-        status,
-        resolutionNote: reason.trim(),
-        reviewedBy: actorId,
-        ...(adjustedVisitors === undefined ? {} : { adjustedVisitors }),
+    for (const st of changed) {
+      await tx.stage.updateMany({
+        where: { seasonId, stageKey: st.stageKey as never },
+        data: { opensAt: st.opensAt, closesAt: st.closesAt },
+      });
+    }
+    await writeAudit(tx, {
+      actorId,
+      action: "season.update",
+      targetType: "season",
+      targetId: seasonId,
+      reason: reason.trim(),
+      meta: {
+        stages: changed.map((st) => {
+          const b = before.find((x) => x.stageKey === st.stageKey)!;
+          return {
+            stageKey: st.stageKey,
+            from: [b.opensAt?.toISOString() ?? null, b.closesAt?.toISOString() ?? null],
+            to: [st.opensAt.toISOString(), st.closesAt.toISOString()],
+          };
+        }),
       },
+    });
+  });
+  return { ok: true };
+}
+
+/**
+ * 기능 플래그 하나를 켜거나 끈다 — 시안 `feature_flags` 스위치(3031행).
+ *
+ * JSONB 통째로 덮어쓰지 않고 읽어서 그 키만 바꾼다. 다른 키(시안에 스위치가 없는
+ * 알림·보증금·아카이브)는 그대로 둔다.
+ */
+export async function setSeasonFlag(args: {
+  seasonId: string;
+  key: string;
+  on: boolean;
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { seasonId, key, on, reason, actorId } = args;
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+  const season = await prisma.season.findUnique({
+    where: { id: seasonId },
+    select: { featureFlags: true },
+  });
+  if (!season) return { ok: false, message: "시즌을 찾을 수 없습니다." };
+  const flags = (season.featureFlags ?? {}) as Record<string, unknown>;
+  const from = flags[key];
+
+  await prisma.$transaction(async (tx) => {
+    await tx.season.update({
+      where: { id: seasonId },
+      data: { featureFlags: { ...flags, [key]: on } as Prisma.InputJsonObject },
     });
     await writeAudit(tx, {
       actorId,
-      action: `abuse_flag:${status}`,
-      targetType: "abuse_flag",
-      targetId: flagId,
+      action: "season.flag",
+      targetType: "season",
+      targetId: seasonId,
       reason: reason.trim(),
-      meta: { from: flag.status, to: status, entryId: flag.entryId },
+      meta: { key, from: String(from ?? "기본값"), to: String(on) },
     });
   });
+  return { ok: true };
+}
 
+/** 트랙 추가 — 시안 「+ 트랙 추가」 */
+export async function addTrack(args: {
+  seasonId: string;
+  name: string;
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { seasonId, reason, actorId } = args;
+  const name = args.name.trim();
+  if (!name) return { ok: false, message: "트랙 이름을 적어 주세요." };
+  if (name.length > 60) return { ok: false, message: "트랙 이름은 60자까지입니다." };
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+  const dup = await prisma.track.findUnique({
+    where: { seasonId_name: { seasonId, name } },
+    select: { id: true },
+  });
+  if (dup) return { ok: false, message: "같은 이름의 트랙이 있습니다." };
+
+  await prisma.$transaction(async (tx) => {
+    const track = await tx.track.create({ data: { seasonId, name }, select: { id: true } });
+    await writeAudit(tx, {
+      actorId,
+      action: "season.track_add",
+      targetType: "season",
+      targetId: seasonId,
+      reason: reason.trim(),
+      meta: { trackId: track.id, name },
+    });
+  });
+  return { ok: true };
+}
+
+/** 어뷰징 카드의 세 단계 — 시안 「경고」·「지표 무효화」·「실격」(제16조 ① 비례 적용) */
+export type SanctionStep = "warning" | "week_invalidated" | "disqualified";
+
+const STEP_LABEL: Record<SanctionStep, string> = {
+  warning: "경고",
+  week_invalidated: "지표 무효화",
+  disqualified: "실격",
+};
+
+/**
+ * 플래그를 근거로 제재한다 — 시안 어뷰징 판정 카드의 버튼 셋.
+ *
+ * 한 트랜잭션에서 넷을 한다: 제재 행 · 플래그 확정(upheld) · 실격이면 참가 상태 ·
+ * 감사 로그. 그리고 팀원에게 통지한다(사람마다 한 행).
+ *
+ * ⚠️ **지표를 여기서 고치지 않는다.** 확정된 플래그가 집계에서 무엇을 빼는지는
+ * 채점 시점에 `abuse_flags`를 조인해 정한다(종결본 주석: 캐시 컬럼을 두지 않는다).
+ * 여기서 metric_daily를 손대면 두 값이 어긋나고, 소명이 인용됐을 때 되돌릴 근거가 사라진다.
+ *
+ * ⚠️ 소명 기한을 박지 않는다(`appeal_deadline_at` 비움). 비어 있으면 소명 화면이
+ * 「통지 후 5영업일 그날 끝」으로 센다(appeal-view.ts) — 규칙이 한 곳에 남는다.
+ * 경고만 시정 기한 24시간을 박는다(제16조 ① 「경고와 시정(24시간)」).
+ */
+export async function applySanction(args: {
+  flagId: string;
+  step: SanctionStep;
+  /** 제15조 근거. 플래그에 유형이 없으면 운영자가 고른다 */
+  reasonKind: SanctionReason;
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { flagId, step, reasonKind, actorId } = args;
+  const reason = args.reason.trim();
+  if (reason.length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+  const flag = await prisma.abuseFlag.findUnique({
+    where: { id: flagId },
+    select: { id: true, entryId: true, status: true },
+  });
+  if (!flag) return { ok: false, message: "플래그를 찾을 수 없습니다." };
+
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    const sanction = await tx.sanction.create({
+      data: {
+        entryId: flag.entryId,
+        stage: step,
+        reason: reasonKind,
+        detail: reason,
+        sourceType: "abuse_flag",
+        sourceId: flag.id,
+        status: SanctionStatus.applied,
+        appliedAt: now,
+        decidedBy: actorId,
+        ...(step === "warning" ? { correctionDeadline: new Date(now.getTime() + 24 * 3_600_000) } : {}),
+      },
+      select: { id: true },
+    });
+    await tx.abuseFlag.update({
+      where: { id: flag.id },
+      data: {
+        kind: reasonKind,
+        status: AbuseStatus.upheld,
+        resolutionNote: reason,
+        reviewedBy: actorId,
+      },
+    });
+    if (step === "disqualified") {
+      await tx.entry.update({
+        where: { id: flag.entryId },
+        data: { status: EntryStatus.disqualified },
+      });
+    }
+    await writeAudit(tx, {
+      actorId,
+      action: "abuse.sanction",
+      targetType: "entry",
+      targetId: flag.entryId,
+      reason,
+      meta: { flagId: flag.id, sanctionId: sanction.id, stage: step, kind: reasonKind },
+    });
+    const members = await tx.teamMember.findMany({
+      where: { team: { entries: { some: { id: flag.entryId } } } },
+      select: { userId: true },
+    });
+    await tx.notification.createMany({
+      data: members.map((m) => ({
+        userId: m.userId,
+        type: "sanction",
+        title: `${STEP_LABEL[step]} 통지`,
+        body: "제재 사유를 확인하고 소명할 수 있어요.",
+        linkUrl: "/dashboard/appeal",
+        channel: NotifChannel.inapp,
+        sentAt: now,
+      })),
+    });
+  });
   return { ok: true };
 }
 
@@ -228,7 +422,8 @@ export async function saveCreditOffer(args: {
   seasonId: string;
   kind: CreditKind;
   status: CreditOfferStatus;
-  sponsorId: string | null;
+  /** 스폰서 이름 — 같은 이름이 있으면 그 스폰서에 잇고, 없으면 만든다(시안 `sponsorName` 칸) */
+  sponsorName: string | null;
   unlockEvent: CreditUnlockEvent;
   deliveryMethod: CreditDelivery;
   releaseDate: Date | null;
@@ -242,20 +437,20 @@ export async function saveCreditOffer(args: {
   reason: string;
   actorId: string;
 }): Promise<AdminActionResult> {
-  const { seasonId, kind, reason, actorId, ...rest } = args;
+  const { seasonId, kind, reason, actorId, sponsorName, ...rest } = args;
   if (reason.trim().length < REASON_MIN) {
     return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+  if (sponsorName && sponsorName.length > 80) {
+    return { ok: false, message: "스폰서 이름은 80자까지입니다." };
   }
 
   /*
     활성으로 올리면서 스폰서를 안 붙이면 참가자 화면에 「스폰서 미정」인 채로
     클레임 버튼이 선다. 누르면 줄 것이 없다.
   */
-  if (rest.status === CreditOfferStatus.active && !rest.sponsorId) {
-    return {
-      ok: false,
-      message: "활성으로 바꾸려면 스폰서를 먼저 지정해 주세요.",
-    };
+  if (rest.status === CreditOfferStatus.active && !sponsorName) {
+    return { ok: false, message: "활성으로 바꾸려면 스폰서를 먼저 적어 주세요." };
   }
   if (
     rest.status === CreditOfferStatus.active &&
@@ -271,15 +466,24 @@ export async function saveCreditOffer(args: {
   });
 
   await prisma.$transaction(async (tx) => {
+    const sponsorId = sponsorName
+      ? ((
+          await tx.sponsor.findFirst({
+            where: { name: { equals: sponsorName, mode: "insensitive" } },
+            select: { id: true },
+          })
+        )?.id ??
+        (await tx.sponsor.create({ data: { name: sponsorName }, select: { id: true } })).id)
+      : null;
     const saved = await tx.creditOffer.upsert({
       where: { seasonId_kind: { seasonId, kind } },
-      create: { seasonId, kind, ...rest },
-      update: rest,
+      create: { seasonId, kind, sponsorId, ...rest },
+      update: { sponsorId, ...rest },
       select: { id: true },
     });
     await writeAudit(tx, {
       actorId,
-      action: before ? "credit_offer:update" : "credit_offer:create",
+      action: before ? "credit.offer_update" : "credit.offer_create",
       targetType: "credit_offer",
       targetId: saved.id,
       reason: reason.trim(),
@@ -289,6 +493,80 @@ export async function saveCreditOffer(args: {
 
   return { ok: true };
 }
+
+/**
+ * 혜택 상태 전환 — 시안 혜택 표의 「상태 전환」(→ `#mdl-reason`).
+ * 활성으로 올릴 때의 조건은 `saveCreditOffer`와 같다.
+ */
+export async function setCreditOfferStatus(args: {
+  offerId: string;
+  status: CreditOfferStatus;
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { offerId, status, reason, actorId } = args;
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+  const offer = await prisma.creditOffer.findUnique({
+    where: { id: offerId },
+    select: { kind: true, status: true, sponsorId: true, deliveryMethod: true, inviteUrl: true },
+  });
+  if (!offer) return { ok: false, message: "혜택을 찾을 수 없습니다." };
+  if (offer.status === status) return { ok: false, message: "이미 그 상태입니다." };
+  if (status === CreditOfferStatus.active && !offer.sponsorId) {
+    return { ok: false, message: "활성으로 바꾸려면 스폰서를 먼저 적어 주세요." };
+  }
+  if (
+    status === CreditOfferStatus.active &&
+    offer.deliveryMethod === CreditDelivery.invite_link &&
+    !offer.inviteUrl
+  ) {
+    return { ok: false, message: "초대 링크 방식은 링크가 있어야 합니다." };
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.creditOffer.update({ where: { id: offerId }, data: { status } });
+    await writeAudit(tx, {
+      actorId,
+      action: "credit.status",
+      targetType: "credit_offer",
+      targetId: offerId,
+      reason: reason.trim(),
+      meta: { kind: offer.kind, from: offer.status, to: status },
+    });
+  });
+  return { ok: true };
+}
+
+/**
+ * 스폰서 로고 교체 — 시안 편집 카드의 `sponsorLogo` 「교체」.
+ * 증빙 저장소(R2, 없으면 dev 로컬)에 올리고 키를 `sponsors.logo_url`에 적는다.
+ */
+export async function setSponsorLogo(args: {
+  offerId: string;
+  key: string;
+  filename: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const offer = await prisma.creditOffer.findUnique({
+    where: { id: args.offerId },
+    select: { kind: true, sponsorId: true },
+  });
+  if (!offer?.sponsorId) return { ok: false, message: "스폰서를 먼저 저장해 주세요." };
+  await prisma.$transaction(async (tx) => {
+    await tx.sponsor.update({ where: { id: offer.sponsorId! }, data: { logoUrl: args.key } });
+    await writeAudit(tx, {
+      actorId: args.actorId,
+      action: "credit.logo",
+      targetType: "credit_offer",
+      targetId: args.offerId,
+      reason: `스폰서 로고 교체, ${args.filename}`,
+      meta: { kind: offer.kind, key: args.key },
+    });
+  });
+  return { ok: true };
+}
+
 
 /**
  * 코드 풀 업로드.
@@ -318,7 +596,7 @@ export async function uploadCreditCodes(args: {
 
   const offer = await prisma.creditOffer.findUnique({
     where: { id: offerId },
-    select: { id: true },
+    select: { id: true, kind: true },
   });
   if (!offer) return { ok: false, message: "혜택을 찾을 수 없습니다." };
 
@@ -329,11 +607,11 @@ export async function uploadCreditCodes(args: {
     });
     await writeAudit(tx, {
       actorId,
-      action: "credit_codes:upload",
+      action: "credit.codes_upload",
       targetType: "credit_offer",
       targetId: offerId,
       reason: reason.trim(),
-      meta: { submitted: clean.length, added: created.count },
+      meta: { kind: offer.kind, submitted: clean.length, added: created.count },
     });
     return created.count;
   });
@@ -348,6 +626,57 @@ export async function uploadCreditCodes(args: {
  * 옮긴다(설계서 5장 「시즌 1 수동 대체 경로」). 참가자 화면은 자동일 때와
  * 똑같이 보인다 — 그게 이 경로가 성립하는 조건이다.
  */
+type DeliverTx = Prisma.TransactionClient;
+
+/**
+ * 한 팀에 카드 하나를 발급한다(트랜잭션 안에서만). 코드 풀이면 코드 하나를 붙인다 —
+ * 참가자 「받기」(credits-store `claimCredit`)와 같은 조건부 갱신으로 이중 소비를 막는다.
+ * 지급 예정일이 남았으면 코드를 태우지 않고 「발급 예정」으로 둔다.
+ */
+async function deliverOne(
+  tx: DeliverTx,
+  offer: { id: string; deliveryMethod: CreditDelivery; releaseDate: Date | null },
+  entryId: string,
+  via: CreditDeliveredVia,
+  now: Date,
+  today: Date,
+): Promise<{ ok: true; code: string | null; scheduled: boolean } | { ok: false; soldOut: true }> {
+  const scheduled = offer.releaseDate != null && offer.releaseDate > today;
+  let creditCodeId: string | null = null;
+  let code: string | null = null;
+  if (!scheduled && offer.deliveryMethod === CreditDelivery.code_pool) {
+    const candidate = await tx.creditCode.findFirst({
+      where: { offerId: offer.id, status: CreditStatus.issued },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, code: true },
+    });
+    if (!candidate) return { ok: false, soldOut: true };
+    const taken = await tx.creditCode.updateMany({
+      where: { id: candidate.id, status: CreditStatus.issued },
+      data: { status: CreditStatus.claimed },
+    });
+    if (taken.count === 0) return { ok: false, soldOut: true };
+    creditCodeId = candidate.id;
+    code = candidate.code;
+  }
+  const status = scheduled ? CreditClaimStatus.scheduled : CreditClaimStatus.delivered;
+  const data = {
+    status,
+    claimedAt: now,
+    ...(scheduled ? {} : { deliveredAt: now, deliveredVia: via }),
+    ...(creditCodeId ? { creditCodeId } : {}),
+  };
+  await tx.creditClaim.upsert({
+    where: { offerId_entryId: { offerId: offer.id, entryId } },
+    create: { offerId: offer.id, entryId, ...data },
+    update: data,
+  });
+  return { ok: true, code, scheduled };
+}
+
+/**
+ * 수동 발급 — 시안 발급 현황의 「수동 발급」(→ `#mdl-reason`).
+ */
 export async function deliverCreditManually(args: {
   offerId: string;
   entryId: string;
@@ -359,10 +688,17 @@ export async function deliverCreditManually(args: {
     return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
   }
 
-  const claim = await prisma.creditClaim.findUnique({
-    where: { offerId_entryId: { offerId, entryId } },
-    select: { status: true },
-  });
+  const [offer, claim] = await Promise.all([
+    prisma.creditOffer.findUnique({
+      where: { id: offerId },
+      select: { id: true, kind: true, deliveryMethod: true, releaseDate: true },
+    }),
+    prisma.creditClaim.findUnique({
+      where: { offerId_entryId: { offerId, entryId } },
+      select: { status: true },
+    }),
+  ]);
+  if (!offer) return { ok: false, message: "혜택을 찾을 수 없습니다." };
   if (
     claim &&
     claim.status !== CreditClaimStatus.available &&
@@ -371,33 +707,77 @@ export async function deliverCreditManually(args: {
     return { ok: false, message: "이미 발급된 팀입니다." };
   }
 
+  const { devNow } = await import("@/lib/dev-clock");
   const now = new Date();
-  await prisma.$transaction(async (tx) => {
-    await tx.creditClaim.upsert({
-      where: { offerId_entryId: { offerId, entryId } },
-      create: {
-        offerId,
-        entryId,
-        status: CreditClaimStatus.delivered,
-        claimedAt: now,
-        deliveredAt: now,
-        deliveredVia: CreditDeliveredVia.manual,
-      },
-      update: {
-        status: CreditClaimStatus.delivered,
-        deliveredAt: now,
-        deliveredVia: CreditDeliveredVia.manual,
-      },
-    });
+  const out = await prisma.$transaction(async (tx) => {
+    const r = await deliverOne(tx, offer, entryId, CreditDeliveredVia.manual, now, devNow());
+    if (!r.ok) return r;
     await writeAudit(tx, {
       actorId,
-      action: "credit_claim:deliver_manual",
-      targetType: "credit_claim",
-      targetId: `${offerId}:${entryId}`,
+      action: "credit.deliver_manual",
+      targetType: "entry",
+      targetId: entryId,
       reason: reason.trim(),
-      meta: { offerId, entryId, from: claim?.status ?? null },
+      meta: { offerId, kind: offer.kind, from: claim?.status ?? null },
     });
+    return r;
   });
-
+  if (!out.ok) return { ok: false, message: "코드 풀이 비었습니다. CSV로 코드를 먼저 올려 주세요." };
   return { ok: true };
 }
+
+/**
+ * 발급 가능 팀에 일괄 발송 — 시안 「발급 가능 팀에 일괄 발송」 → `#mdl-crbatch`.
+ *
+ * 줄마다 코드 하나를 붙이고(코드 풀) 한 트랜잭션에 감사 로그 한 줄을 남긴다.
+ * 코드가 모자라면 붙인 데까지만 하고 멈춘다 — 받은 팀과 못 받은 팀이 갈려 남는다.
+ * 메일은 부르는 쪽이 트랜잭션 밖에서 보낸다(돌려주는 `delivered`로).
+ */
+export async function batchDeliverCredits(args: {
+  offerId: string;
+  entryIds: string[];
+  actorId: string;
+}): Promise<
+  | { ok: true; delivered: { entryId: string; code: string | null; scheduled: boolean }[]; soldOut: boolean }
+  | { ok: false; message: string }
+> {
+  const offer = await prisma.creditOffer.findUnique({
+    where: { id: args.offerId },
+    select: { id: true, kind: true, status: true, deliveryMethod: true, releaseDate: true },
+  });
+  if (!offer) return { ok: false, message: "혜택을 찾을 수 없습니다." };
+  if (offer.status !== CreditOfferStatus.active) {
+    return { ok: false, message: "활성 혜택만 보낼 수 있습니다." };
+  }
+  if (args.entryIds.length === 0) return { ok: false, message: "보낼 팀이 없습니다." };
+
+  const { devNow } = await import("@/lib/dev-clock");
+  const now = new Date();
+  return prisma.$transaction(async (tx) => {
+    const delivered: { entryId: string; code: string | null; scheduled: boolean }[] = [];
+    let soldOut = false;
+    for (const entryId of args.entryIds) {
+      const had = await tx.creditClaim.findUnique({
+        where: { offerId_entryId: { offerId: offer.id, entryId } },
+        select: { status: true },
+      });
+      if (had && had.status !== CreditClaimStatus.available) continue;
+      const r = await deliverOne(tx, offer, entryId, CreditDeliveredVia.email, now, devNow());
+      if (!r.ok) {
+        soldOut = true;
+        break;
+      }
+      delivered.push({ entryId, code: r.code, scheduled: r.scheduled });
+    }
+    await writeAudit(tx, {
+      actorId: args.actorId,
+      action: "credit.batch",
+      targetType: "credit_offer",
+      targetId: offer.id,
+      reason: "발급 가능 팀 일괄 발송",
+      meta: { kind: offer.kind, teams: delivered.length, entryIds: delivered.map((d) => d.entryId), soldOut },
+    });
+    return { ok: true as const, delivered, soldOut };
+  });
+}
+

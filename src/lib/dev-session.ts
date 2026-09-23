@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { cookies, headers } from "next/headers";
 
+import { accountConsentRows, loadAccountConsentNeed } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -39,19 +40,44 @@ const SECURE_SESSION_COOKIE = "__Secure-authjs.session-token";
 
 const MONTH = 30 * 24 * 60 * 60;
 
+/**
+ * 운영자 테스트 계정 — 시드의 「운영」(admin 역할). 개발 바 「운영자」 칩이 이 계정으로
+ * 들어가 운영 콘솔을 본다(2026-09-23 수연 — 「개발 바에 운영자 칩은 없는데 어케 봐?」).
+ */
+export const TEST_ADMIN_EMAIL = "admin@demo.proovit.local";
+
 /** 테스트 계정으로 로그인 */
 export async function loginAsTestAccount(): Promise<void> {
+  await loginAs(TEST_ACCOUNT_EMAIL);
+}
+
+/** 운영자 테스트 계정으로 로그인 */
+export async function loginAsTestAdmin(): Promise<void> {
+  await loginAs(TEST_ADMIN_EMAIL);
+}
+
+async function loginAs(email: string): Promise<void> {
   const user = await prisma.user.findUnique({
-    where: { email: TEST_ACCOUNT_EMAIL },
+    where: { email },
     select: { id: true },
   });
   if (!user) {
-    throw new Error(
-      `[dev] 테스트 계정(${TEST_ACCOUNT_EMAIL})이 없다 — npm run db:seed`,
-    );
+    throw new Error(`[dev] 테스트 계정(${email})이 없다 — npm run db:seed`);
   }
 
   await logout();
+
+  /*
+    계정 동의가 없거나 낡았으면 여기서 채운다 — 개발 바로 계정을 오갈 때마다 약관
+    동의 모달이 뜨지 않게(2026-09-23 수연 지시). 모달이 쓰는 것과 같은 행을 쌓으므로
+    판정(`loadAccountConsentNeed`)은 평소대로 돈다. 동의 모달 자체를 볼 때는 소셜로
+    새로 들어오거나 대조 전용 계정(`consent-session.mts`)을 쓴다.
+  */
+  if ((await loadAccountConsentNeed(user.id)).needed) {
+    await prisma.consent.createMany({
+      data: accountConsentRows({ userId: user.id, marketing: false, ipHash: null, userAgent: "dev-bar" }),
+    });
+  }
 
   const token = randomBytes(32).toString("hex");
   await prisma.session.create({
