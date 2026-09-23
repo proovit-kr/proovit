@@ -1,6 +1,6 @@
 /*
   운영자 콘솔 껍데기.
-  참가자 화면과 색을 다르게 쓴다 — 지금 어느 쪽에 있는지가 한눈에 보여야 한다.
+  색은 참가자 화면과 같다 — 운영자임을 알리는 것은 ADMIN 태그와 바이올렛이다(layout.tsx).
 */
 
 .page {
@@ -11,41 +11,13 @@
 }
 
 /*
-  상단 바(`.ad-top`)는 AdminTop.module.css에 있다. 여기는 그 아래
-  네비게이션 줄과, 운영자가 아닐 때의 워드마크 자리뿐이다.
-*/
-/*
-  ⚠️ 배경이 여기와 `.top`(AdminTop) 두 군데에 있다. 참가자 헤더와 같은 사정이다
-  (dashboard.module.css의 같은 자리) — 여기 배경은 `container`라 폭이 좁은
-  `<nav>`를 전폭으로 덮고, 네비가 사이드바로 빠지면 이 줄을 지운다.
+  상단 바(시안 `.db-top`)는 AdminTop.module.css에 있다 — 배경·괘선도 거기 하나다.
+  이 `<header>`는 sticky만 맡는다. 네비가 사이드바로 빠져 헤더에 바만 남았다.
 
-  ⚠️ `--c-surface-ops`(= `--surface` 별칭)에서 글래스로 바꿨다. 솔리드 위에
-  글래스를 얹으면 바가 페이지 배경이 아니라 그 솔리드와 섞여, 바와 네비 줄이
-  서로 다른 표면으로 보인다.
+  ⚠️ **바가 아니라 이 `<header>`에 sticky를 건다.** sticky는 부모 상자 안에서만
+  버틴다. z-index 30은 공개 헤더와 같은 층이다(모달·토스트는 100).
 */
 .head {
-  border-bottom: 1px solid var(--c-line-2);
-  background: var(--c-nav);
-  backdrop-filter: blur(12px);
-  /*
-    참가자 헤더와 같은 이유로 붙인다(dashboard.module.css의 같은 줄).
-    대기열 필이 「지금 처리할 일」이라 어느 위치에서든 보여야 한다.
-
-    ver4도 운영자 바가 sticky다 — `.db-top[data-adm]`으로 그려 `.db-top`의 값을
-    통째로 물려받는다(AdminTop.module.css 머리 주석). 한때 「ver4에 어드민 크롬이
-    없다」고 적어 두었는데 클래스 이름만 grep한 잘못된 확인이었다.
-
-    ⚠️ **바(`.top`)가 아니라 이 `<header>`에 건다.** sticky는 부모 상자 안에서만
-    버티는데, 바는 이 헤더의 첫 줄이라 네비 줄 높이(약 47px)만큼만 붙어 있다가
-    같이 올라간다 — 시안 셀렉터를 글자 그대로 옮기면 한 번 움찔하고 끝난다.
-
-    시안이 60px 바 하나만 붙이는 이유는 네비가 좌측 사이드바에 있어서다. 우리는
-    아직 네비가 이 헤더 안에 있어서 약 107px(모바일 140px 안팎)이 붙는다.
-    **네비를 시안대로 사이드바로 옮기면 이 헤더에 바만 남아 저절로 시안과 같아진다**
-    — 그래서 지금 이 줄이 목표 상태다(2026-09-16 수연 결정).
-
-    z-index 30은 공개 헤더와 같은 층이다. 모달·토스트는 100이라 위로 지나간다.
-  */
   position: sticky;
   top: 0;
   z-index: 30;
@@ -74,29 +46,6 @@
   background: var(--surface-2);
 }
 
-.nav {
-  display: flex;
-  gap: var(--s-5);
-  overflow-x: auto;
-  padding-block: var(--s-3);
-  scrollbar-width: none;
-}
-
-.nav::-webkit-scrollbar {
-  display: none;
-}
-
-.navLink {
-  color: var(--c-text-dim);
-  font-size: var(--fs-base);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.15s ease;
-}
-
-.navLink:hover {
-  color: var(--c-text-ops);
-}
 
 /*
   시안 `.db` — 운영자도 같은 상자를 쓴다. 사이드바만 `.adm`(tone="ops")이라
@@ -107,176 +56,32 @@
   align-items: stretch;
   flex: 1;
   min-height: 0;
-  --side-top: 56px;
+  --side-top: 60px;
 }
 
-/*
-  시안 `.ad-body` — 운영자 본문은 폭 상한을 두지 않는다. 표가 넓어서다
-  (시안 `.ad-body{flex:1;padding:32px 36px 80px;min-width:0}`, 넓은 화면에서 1120).
-*/
+/* 시안 `.ad-body` — 값은 ver4 승자. 폭 상한 1120도 시안 값이다 */
 .body {
   flex: 1;
-  padding: 32px 36px 80px;
+  padding: 36px 40px 84px;
   min-width: 0;
   max-width: 1120px;
 }
 
-@media (max-width: 860px) {
+/* 시안은 1024에서 `.db`를 세로로 눕힌다 — 사이드바가 가로줄이 된다(SideNav) */
+@media (max-width: 1024px) {
   .db {
     flex-direction: column;
   }
+}
+
+/* 표가 넓어 본문 상자 안에서 가로로 넘긴다(시안 `.ad-body{overflow-x:auto}`) */
+@media (max-width: 760px) {
+  .db {
+    --side-top: 56px;
+  }
 
   .body {
-    max-width: none;
-    padding: 24px 18px 72px;
-  }
-}
-
-
-/* ───── 운영 대시보드 (시안 `#scr-admin`) ───── */
-
-/* 시안 `.kpi` — 넉 장을 같은 폭으로 */
-.kpi {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--s-4);
-  margin: 0 0 var(--s-6);
-}
-
-.kpiCard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  padding: var(--s-5) var(--s-6) var(--s-6);
-  border: 1px solid var(--c-line);
-  border-radius: 14px;
-  background: var(--c-surface);
-  text-decoration: none;
-}
-
-.kpiLink:hover {
-  border-color: var(--c-line-3);
-}
-
-.kpiCard dt {
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-xs);
-}
-
-.kpiCard dd {
-  margin: 0;
-  color: var(--c-text-strong);
-  font-family: var(--mono);
-  font-size: var(--fs-3xl);
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.trend {
-  color: var(--c-text-faint);
-  font-size: var(--fs-xs);
-}
-
-/* 시안의 2단 카드 줄 */
-.pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--s-4);
-  margin-bottom: var(--s-4);
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s-3);
-  padding: var(--s-6) var(--s-6) var(--s-7);
-  border: 1px solid var(--c-line);
-  border-radius: 14px;
-  background: var(--c-surface);
-}
-
-.cardTitle {
-  color: var(--c-text-strong);
-  font-size: var(--fs-sm);
-  font-weight: 700;
-}
-
-.cardBody {
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
-}
-
-/* 마감 D-n은 시안에서 바이올렛이다 — 운영자 화면의 강조색 */
-.dday {
-  color: var(--c-violet);
-  font-family: var(--mono);
-}
-
-.num {
-  color: var(--c-text-strong);
-  font-family: var(--mono);
-}
-
-.cardCta {
-  padding: 8px 16px;
-  border: 1px solid var(--c-violet-55);
-  border-radius: 99px;
-  color: var(--c-violet);
-  font-size: var(--fs-sm);
-  text-decoration: none;
-}
-
-.cardCta:hover {
-  background: var(--c-violet-13);
-}
-
-.logHead {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: var(--s-4);
-}
-
-.logAll {
-  margin-left: auto;
-  color: var(--c-text-dim);
-  font-family: var(--mono);
-  font-size: var(--fs-xs);
-  text-decoration: none;
-}
-
-/* 시안 `.minlog` — 시각과 내용 두 칸 */
-.minlog {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  gap: var(--s-2);
-  font-size: var(--fs-sm);
-}
-
-.minlog > div {
-  display: flex;
-  gap: var(--s-4);
-  color: var(--c-text-muted);
-}
-
-.logAt {
-  flex: none;
-  color: var(--c-text-faint);
-  font-family: var(--mono);
-  font-size: var(--fs-xs);
-}
-
-@media (max-width: 900px) {
-  .kpi {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .pair {
-    grid-template-columns: 1fr;
+    padding: 20px 16px 60px;
+    overflow-x: auto;
   }
 }

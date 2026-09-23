@@ -25,36 +25,51 @@ export type AdminSummary = {
   entries: { total: number; active: number; eliminated: number; disqualified: number };
   /** 제출은 됐는데 판정이 안 붙은 건 — 운영이 지금 해야 할 일의 크기다 */
   pendingJudgments: number;
-  leads: { total: number; unsubscribed: number };
+  leads: { total: number; unsubscribed: number; week: number };
   /** 미처리 어뷰징 플래그 */
   openAbuseFlags: number;
-  /** 배포 확인이 끝난 참가작 수 — 시안 KPI 3 */
-  deployedEntries: number;
-  /** 참가작 전체의 유효 방문 합 — 시안 KPI 4 */
-  totalVisitors: number;
+  /** 배포 확인이 끝난 참가작 수 — 시안 KPI 3. `week`는 이번 주에 확인된 것 */
+  deployed: { total: number; week: number };
+  /** 참가작 전체의 유효 방문 합 — 시안 KPI 4. `week`는 최근 7일 몫 */
+  visitors: { total: number; week: number };
   /** 답변이 안 나간 소명 */
   openAppeals: number;
   /** 손으로 볼 지표 플래그(수동 검토 미통과) */
   openMetricFlags: number;
+  /** 마지막으로 롤업이 돈 시각. 한 번도 안 돌았으면 null */
+  lastRollupAt: Date | null;
   /**
     다음 게이트. 시안의 「다음 게이트 배치」 카드가 쓴다 — 마감이 지나지 않은
     게이트 중 가장 이른 것이다. 없으면 null(시즌 전이거나 둘 다 끝났다).
   */
   nextGate: {
+    /** 게이트 번호 — s2가 1, s5가 2(시안 「GATE 1」) */
+    no: number;
     stageKey: string;
-    name: string;
     closesAt: Date | null;
     /** 그 게이트가 판정할 대상 팀 수 */
     targets: number;
   } | null;
   /** 최근 감사 로그 5줄 — 시안 `.minlog` */
-  recentAudit: {
-    id: string;
-    at: Date;
-    action: string;
-    reason: string;
-  }[];
+  recentAudit: AuditLine[];
 };
+
+/** 감사 로그 한 줄 — 대시보드 `.minlog`와 감사 로그 표가 같이 쓴다 */
+export type AuditLine = {
+  id: string;
+  at: Date;
+  /** 운영자 표시 — 계정 이메일의 @ 앞, 사람이 아니면 「system」 */
+  actor: string;
+  action: string;
+  /** 대상 이름(팀명·시즌명). 못 찾으면 null */
+  target: string | null;
+  /** 값이 바뀐 기록이면 「fail→pass」 — 대시보드 줄이 대상 뒤에 붙인다 */
+  change: string | null;
+  reason: string;
+};
+
+/** 최근 7일 — 대시보드 KPI의 「이번 주」 */
+const WEEK_MS = 7 * 86_400_000;
 
 async function countPendingJudgments(seasonId: string): Promise<number> {
   const gates = await prisma.stage.findMany({
@@ -73,38 +88,142 @@ async function countPendingJudgments(seasonId: string): Promise<number> {
   });
 }
 
-export async function loadAdminSummary(): Promise<AdminSummary> {
-  const season = await prisma.season.findFirst({
-    orderBy: { createdAt: "desc" },
-    select: { id: true, title: true, slug: true, phase: true },
+/**
+ * 감사 로그 행의 대상 이름을 찾는다.
+ *
+ * `target_id`는 외래키가 아니라 `target_type`마다 가리키는 표가 다르다. 종류별로
+ * 모아서 한 번씩만 읽는다. 대상을 풀어 쓸 수 없는 묶음 작업(게이트 일괄 판정·
+ * 전체 공지)은 쓰는 쪽이 `meta.target`에 이름을 적어 둔다 — 그것이 먼저다.
+ */
+export async function loadAuditLines(
+  rows: {
+    id: bigint;
+    createdAt: Date;
+    action: string;
+    targetType: string;
+    targetId: string | null;
+    reason: string;
+    meta: unknown;
+    actor: { email: string | null } | null;
+  }[],
+): Promise<AuditLine[]> {
+  const ids = (type: string) =>
+    [...new Set(rows.filter((r) => r.targetType === type && r.targetId).map((r) => r.targetId!))];
+  const metaEntry = (meta: unknown) =>
+    meta && typeof meta === "object" && "entryId" in meta && typeof meta.entryId === "string"
+      ? meta.entryId
+      : null;
+
+  const entryIds = [
+    ...ids("entry"),
+    ...rows.map((r) => metaEntry(r.meta)).filter((v): v is string => !!v),
+  ];
+  const [entries, teams, submissions, flags, seasons] = await Promise.all([
+    prisma.entry.findMany({
+      where: { id: { in: entryIds } },
+      select: { id: true, team: { select: { name: true } } },
+    }),
+    prisma.team.findMany({ where: { id: { in: ids("team") } }, select: { id: true, name: true } }),
+    prisma.submission.findMany({
+      where: { id: { in: ids("submission") } },
+      select: { id: true, entry: { select: { team: { select: { name: true } } } } },
+    }),
+    prisma.abuseFlag.findMany({
+      where: { id: { in: ids("abuse_flag") } },
+      select: { id: true, entry: { select: { team: { select: { name: true } } } } },
+    }),
+    prisma.season.findMany({ where: { id: { in: ids("season") } }, select: { id: true, title: true } }),
+  ]);
+
+  const name = new Map<string, string>([
+    ...entries.map((e) => [e.id, e.team.name] as const),
+    ...teams.map((t) => [t.id, t.name] as const),
+    ...submissions.map((s) => [s.id, s.entry.team.name] as const),
+    ...flags.map((f) => [f.id, f.entry.team.name] as const),
+    ...seasons.map((s) => [s.id, s.title] as const),
+  ]);
+
+  return rows.map((row) => {
+    const meta = row.meta as { target?: unknown; from?: unknown; to?: unknown } | null;
+    const label =
+      typeof meta?.target === "string"
+        ? meta.target
+        : ((row.targetId && name.get(row.targetId)) ??
+          (metaEntry(row.meta) ? name.get(metaEntry(row.meta)!) : undefined) ??
+          null);
+    return {
+      id: String(row.id),
+      at: row.createdAt,
+      actor: row.actor?.email ? row.actor.email.split("@")[0] : "system",
+      action: row.action,
+      target: label,
+      change:
+        typeof meta?.from === "string" && typeof meta?.to === "string"
+          ? `${meta.from}→${meta.to}`
+          : null,
+      reason: row.reason,
+    };
   });
+}
+
+export const AUDIT_SELECT = {
+  id: true,
+  createdAt: true,
+  action: true,
+  targetType: true,
+  targetId: true,
+  reason: true,
+  meta: true,
+  actor: { select: { email: true } },
+} as const;
+
+/**
+ * 운영 대시보드 숫자. **헤더의 시즌 셀렉트와 같은 시즌**을 본다(`viewer.season`).
+ * 한때 「가장 최근에 만든 시즌」을 따로 골라서, 다음 시즌 초안을 만들어 두면
+ * 헤더는 시즌 1인데 대시보드만 시즌 2를 읽었다.
+ */
+export async function loadAdminSummary(seasonId: string | null): Promise<AdminSummary> {
+  const season = seasonId
+    ? await prisma.season.findUnique({
+        where: { id: seasonId },
+        select: { id: true, title: true, slug: true, phase: true },
+      })
+    : null;
   if (!season) {
     return {
       season: null,
       entries: { total: 0, active: 0, eliminated: 0, disqualified: 0 },
       pendingJudgments: 0,
-      leads: { total: 0, unsubscribed: 0 },
+      leads: { total: 0, unsubscribed: 0, week: 0 },
       openAbuseFlags: 0,
-      deployedEntries: 0,
-      totalVisitors: 0,
+      deployed: { total: 0, week: 0 },
+      visitors: { total: 0, week: 0 },
       openAppeals: 0,
       openMetricFlags: 0,
+      lastRollupAt: null,
       nextGate: null,
       recentAudit: [],
     };
   }
 
+  const now = devNow();
+  const weekAgo = new Date(now.getTime() - WEEK_MS);
+
   const [
     byStatus,
     pendingJudgments,
     leads,
+    leadsWeek,
     unsubscribed,
     openAbuseFlags,
     deployedEntries,
+    deployedWeek,
     visitorAgg,
+    visitorWeek,
     openAppeals,
     openMetricFlags,
     gates,
+    lastRollup,
     recentAudit,
   ] = await Promise.all([
       prisma.entry.groupBy({
@@ -121,19 +240,32 @@ export async function loadAdminSummary(): Promise<AdminSummary> {
       */
       countPendingJudgments(season.id),
       prisma.lead.count({ where: { seasonId: season.id } }),
+      prisma.lead.count({ where: { seasonId: season.id, createdAt: { gte: weekAgo } } }),
       prisma.lead.count({
         where: { seasonId: season.id, status: LeadStatus.unsubscribed },
       }),
       prisma.abuseFlag.count({
         where: { entry: { seasonId: season.id }, status: "flagged" },
       }),
-          /* 배포 확인이 끝난 참가작 — 시안 KPI 3 「배포 완료 서비스」 */
+      /* 배포 확인이 끝난 참가작 — 시안 KPI 3 「배포 완료 서비스」 */
       prisma.hostname.count({
         where: { entry: { seasonId: season.id }, deployStatus: DeployStatus.active },
+      }),
+      /* 그중 이번 주에 소유 확인이 끝난 것 — 「↑ 2 이번 주」 */
+      prisma.hostname.count({
+        where: {
+          entry: { seasonId: season.id },
+          deployStatus: DeployStatus.active,
+          ownershipVerifiedAt: { gte: weekAgo },
+        },
       }),
       /* 참가작 전체 유효 방문 합 — 시안 KPI 4 「참가작 총 이용자」 */
       prisma.metricDaily.aggregate({
         where: { entry: { seasonId: season.id } },
+        _sum: { validVisitors: true },
+      }),
+      prisma.metricDaily.aggregate({
+        where: { entry: { seasonId: season.id }, metricDate: { gte: weekAgo } },
         _sum: { validVisitors: true },
       }),
       /* 답변이 안 나간 소명 */
@@ -150,14 +282,20 @@ export async function loadAdminSummary(): Promise<AdminSummary> {
       /* 게이트는 둘뿐이라 다 읽고 고른다 */
       prisma.stage.findMany({
         where: { seasonId: season.id, isGate: true },
-        select: { stageKey: true, name: true, closesAt: true },
-        orderBy: { closesAt: "asc" },
+        select: { stageKey: true, closesAt: true },
+        orderBy: { stageKey: "asc" },
+      }),
+      /* 롤업은 하루 한 행을 15분마다 덮어쓴다 — 가장 나중에 고쳐진 행이 마지막 롤업이다 */
+      prisma.leaderboardSnapshot.findFirst({
+        where: { seasonId: season.id },
+        orderBy: { updatedAt: "desc" },
+        select: { updatedAt: true },
       }),
       /* 시안 `.minlog` — 다섯 줄 */
       prisma.auditLog.findMany({
         orderBy: { createdAt: "desc" },
         take: 5,
-        select: { id: true, createdAt: true, action: true, reason: true },
+        select: AUDIT_SELECT,
       }),
 ]);
 
@@ -173,35 +311,36 @@ export async function loadAdminSummary(): Promise<AdminSummary> {
       disqualified: count(EntryStatus.disqualified),
     },
     pendingJudgments,
-    leads: { total: leads, unsubscribed },
-    deployedEntries,
-    totalVisitors: visitorAgg._sum.validVisitors ?? 0,
+    leads: { total: leads, unsubscribed, week: leadsWeek },
+    deployed: { total: deployedEntries, week: deployedWeek },
+    visitors: {
+      total: visitorAgg._sum.validVisitors ?? 0,
+      week: visitorWeek._sum.validVisitors ?? 0,
+    },
     openAppeals,
     openMetricFlags,
+    lastRollupAt: lastRollup?.updatedAt ?? null,
     /*
       마감이 안 지난 게이트 중 가장 이른 것. 마감이 비어 있는 게이트는 일정이
       아직 안 잡힌 것이라 뒤로 미룬다 — 날짜 없는 게이트를 「다음」으로 내세우면
       운영이 SLA를 못 잡는다.
     */
     nextGate: (() => {
-      const now = devNow();
-      const upcoming = gates.filter((g) => g.closesAt && g.closesAt >= now);
-      const pick = upcoming[0] ?? gates.find((g) => !g.closesAt) ?? null;
+      const numbered = gates.map((g, i) => ({ ...g, no: i + 1 }));
+      const upcoming = numbered
+        .filter((g) => g.closesAt && g.closesAt >= now)
+        .sort((a, b) => a.closesAt!.getTime() - b.closesAt!.getTime());
+      const pick = upcoming[0] ?? numbered.find((g) => !g.closesAt) ?? null;
       if (!pick) return null;
       return {
+        no: pick.no,
         stageKey: pick.stageKey,
-        name: pick.name,
         closesAt: pick.closesAt,
         /* 판정 대상은 그 시즌에 살아 있는 팀이다 */
         targets: count(EntryStatus.active),
       };
     })(),
-    recentAudit: recentAudit.map((row) => ({
-      id: String(row.id),
-      at: row.createdAt,
-      action: row.action,
-      reason: row.reason,
-    })),
+    recentAudit: await loadAuditLines(recentAudit),
     openAbuseFlags,
   };
 }

@@ -1,0 +1,337 @@
+/*
+  운영자 화면들이 같이 쓰는 부품 — 시안 `.kpi` `.atbl` `.fbar` `.minlog` `.pre`
+  `.lb-empty` `.sel-mini`.
+
+  값은 ver4 승자다(`node scripts/design-diff/fold-spec.mjs --media '^(\.kpi|\.atbl|\.fbar|\.minlog|\.pre|\.lb-empty|\.sel-mini|\.trend)'`).
+  화면 하나만 쓰는 것은 그 화면 모듈에 둔다. 다른 화면 모듈에서
+  `import c from "../console.module.css"`로 부른다.
+
+  ⚠️ 표면(`.card`·`.chip`)은 `Surface`, 입력은 `Field`, 배지는 `Badge`, 버튼은
+  `Button`이 이미 시안 값이다 — 여기서는 시안이 자리마다 덮는 값만 덮는다.
+*/
+
+/* ── KPI 카드(`.kpi`) — 넉 장, 윗변 색 선과 점이 4n 순서로 블루·라임·틸·바이올렛 ── */
+.kpi {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.kpi > * {
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi > :nth-child(4n + 1) {
+  --tint: var(--blue);
+}
+
+.kpi > :nth-child(4n + 2) {
+  --tint: var(--accent);
+}
+
+.kpi > :nth-child(4n + 3) {
+  --tint: var(--teal);
+}
+
+.kpi > :nth-child(4n + 4) {
+  --tint: var(--violet);
+}
+
+.kpi > ::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--tint, transparent), transparent 75%);
+}
+
+.kpi small {
+  font-family: var(--font);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  display: flex;
+  margin-bottom: 6px;
+  font-weight: 600;
+  align-items: center;
+}
+
+.kpi small::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--tint, var(--faint));
+  margin-right: 8px;
+  flex: none;
+}
+
+.kpi :global(.score) {
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+
+/* 시안 `.trend` — 숫자 옆에 붙는 추세 한 줄 */
+.trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.up {
+  color: var(--accent);
+}
+
+/* ── 표(`.atbl`) ── */
+.atbl {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-l);
+  overflow: hidden;
+  font-size: 14.5px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.atbl th {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-align: left;
+  padding: 13px 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0)),
+    var(--surface-2);
+  border-bottom: 1.5px solid var(--line);
+  font-weight: 700;
+  white-space: nowrap;
+  font-family: var(--font);
+}
+
+.atbl td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(232, 236, 244, 0.07);
+  vertical-align: middle;
+  color: var(--muted);
+}
+
+.atbl tr:last-child td {
+  border-bottom: 0;
+}
+
+.atbl tr:hover td {
+  background: rgba(232, 236, 244, 0.02);
+}
+
+.atbl td b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.atbl .num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 시안 `.atbl .btn-ghost{padding:6px 11px!important;font-size:13px!important}` */
+.atbl .tblBtn {
+  padding: 6px 11px;
+  font-size: 13px;
+}
+
+/* 시안 `.atbl .bd-mini` */
+.atbl .bdMini {
+  font-size: 10.5px;
+  padding: 2px 8px;
+}
+
+/* 시안 `tr.strike` — 탈락·실격 줄. 팀명에만 줄을 긋는다 */
+.strike td {
+  opacity: 0.55;
+}
+
+.strike .tnm {
+  text-decoration: line-through;
+}
+
+/* ── 필터 줄(`.fbar`) ── */
+.fbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.fbar .fbarInp {
+  width: auto;
+  padding: 9px 13px;
+  font-size: 14px;
+}
+
+.fbar .fbarSel {
+  width: auto;
+  padding: 8px 34px 8px 12px;
+  font-size: 14px;
+  background-position: right 10px center;
+}
+
+/* ── 한 줄 기록(`.minlog`) — 시각·내용(·태그) ── */
+.minlog {
+  font-size: 14px;
+}
+
+.minlog > div {
+  display: flex;
+  gap: 14px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.minlog > div:last-child {
+  border-bottom: 0;
+}
+
+.minlog .t {
+  font-family: var(--mono);
+  color: var(--faint);
+  flex: none;
+}
+
+.minlog .who {
+  color: var(--text);
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.minlog .tg {
+  margin-left: auto;
+  flex: none;
+}
+
+/* ── 설정 JSON(`.pre`) ── */
+.pre {
+  background: var(--surface-2);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 18px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.8;
+  overflow: auto;
+  white-space: pre;
+}
+
+/* ── 빈 상태(`.lb-empty`) — 리더보드와 같은 상자 ── */
+.lbEmpty {
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-l);
+  padding: 90px 20px;
+  text-align: center;
+  background: radial-gradient(420px 170px at 50% 0%, rgba(200, 255, 61, 0.05), transparent 70%);
+  position: relative;
+  overflow: hidden;
+}
+
+.lbEmpty::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -30%;
+  height: 26%;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(200, 255, 61, 0.055), transparent);
+  animation: sweep 5.5s ease-in-out infinite;
+}
+
+.lbEmpty::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.38;
+  mix-blend-mode: overlay;
+  background: repeating-linear-gradient(0deg, rgba(234, 238, 246, 0.05) 0 1px, transparent 1px 3px);
+}
+
+.lbEmpty .big {
+  font-family: var(--mono);
+  font-weight: 800;
+  font-size: 27px;
+}
+
+.lbEmpty p {
+  color: var(--muted);
+  margin-top: 12px;
+  font-size: 15.5px;
+}
+
+/* 모듈은 animation 이름도 해싱한다 — 같은 파일에 둔다(AGENTS.md 「없는 애니메이션 검사」) */
+@keyframes sweep {
+  0% {
+    top: -30%;
+  }
+  60%,
+  100% {
+    top: 110%;
+  }
+}
+
+/* ── 작은 셀렉트(`.sel-mini`) ── */
+.selMini {
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 13.5px;
+  font-family: inherit;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  /* preflight가 폼 요소에 body 글줄을 물린다 — UA 기본값으로 되돌린다 */
+  line-height: normal;
+  letter-spacing: normal;
+}
+
+@media (max-width: 1024px) {
+  .kpi {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .kpi {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .atbl {
+    font-size: 13px;
+  }
+
+  .lbEmpty {
+    padding: 56px 16px;
+  }
+
+  .lbEmpty .big {
+    font-size: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lbEmpty::before {
+    animation: none;
+  }
+}
