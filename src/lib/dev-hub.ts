@@ -2,6 +2,8 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { devToolsEnabled } from "@/lib/dev-env";
+
 /*
   개발 바가 마지막으로 누른 허브 판 — `dev-clock.ts`와 같은 자리, 같은 이유로
   파일이다(쿠키는 랜딩 정적 렌더를 끄고, DB에는 개발용 칸을 안 둔다).
@@ -16,7 +18,7 @@ import { join } from "node:path";
 */
 
 const FILE = join(tmpdir(), "proovit-design-diff", "dev-hub.json");
-const dev = process.env.NODE_ENV !== "production";
+const dev = devToolsEnabled;
 
 /** 마지막으로 누른 판. 안 눌렀으면 null */
 export function devHubKey(): string | null {
