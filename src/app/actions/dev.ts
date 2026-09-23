@@ -24,7 +24,9 @@ import {
   setSandboxTeamSize,
   setMetricsFixture,
   setSandboxCredits,
+  setSandboxMyMetrics,
   type CreditsPane,
+  type MyMetricsPane,
   type HubKey,
   type MetricsFixture,
   type SubmitPane,
@@ -213,6 +215,19 @@ export async function devSetCredits(formData: FormData): Promise<void> {
     throw new Error("[dev] entryId·pane가 잘못됐습니다.");
   }
   await setSandboxCredits({ entryId, pane: raw as CreditsPane });
+  refresh();
+}
+
+/** 내 지표 화면의 판 — h6 위에 시안 목업 집계를 심거나 지운다(`setSandboxMyMetrics`) */
+export async function devSetMyMetrics(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const raw = String(formData.get("pane") ?? "");
+  if (!entryId || !["data", "empty"].includes(raw)) {
+    throw new Error("[dev] entryId·pane가 잘못됐습니다.");
+  }
+  await setSandboxMyMetrics({ entryId, pane: raw as MyMetricsPane });
   refresh();
 }
 

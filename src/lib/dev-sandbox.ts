@@ -62,6 +62,7 @@ import {
   specS3,
 } from "@/lib/dev-submit-fixture";
 import { seoulDateOnly } from "@/lib/measure";
+import { type MetricsPane as MyMetricsPane, metricsWindow } from "@/lib/metrics-view";
 import { measurementState, type MeasurementState } from "@/lib/measurement";
 import { paymentPane, type PaymentPane } from "@/lib/payment";
 import { encryptSecret } from "@/lib/payment-crypto";
@@ -163,6 +164,8 @@ export type SandboxTeam = {
   submit: SubmitPane | null;
   /** 혜택과 크레딧 화면의 판(시안 ①~⑦). 「크레딧」 줄이 되짚는다 */
   credits: CreditsPane | null;
+  /** 내 지표 화면의 판(시안 ①②). 「내 지표」 줄이 되짚는다 — s3 전이면 null */
+  myMetrics: MyMetricsPane | null;
   /** 팀원 수. 「팀원」 줄이 1인·2인 중 어느 쪽이 눌렸는지 되짚는 데 쓴다 */
   members: number;
   /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
@@ -197,6 +200,7 @@ export type SandboxState = {
 export async function loadSandboxState(): Promise<SandboxState> {
   assertSandbox();
 
+  const metricsWin = metricsWindow(seoulDateOnly(devNow()));
   const [entries, season] = await Promise.all([
     prisma.entry.findMany({
       orderBy: [{ stage: "asc" }, { createdAt: "asc" }],
@@ -219,6 +223,12 @@ export async function loadSandboxState(): Promise<SandboxState> {
         submissions: { select: { stageKey: true, week: true, status: true } },
         creditClaims: { select: { status: true, offer: { select: { kind: true } } } },
         awards: { where: { awardedAt: { not: null } }, take: 1, select: { id: true } },
+        /* 내 지표 ①②를 가르는 것 — 어제까지 14일에 집계 행이 있는가 */
+        metricDaily: {
+          where: { metricDate: { gte: metricsWin.chartFrom, lt: metricsWin.to } },
+          take: 1,
+          select: { id: true },
+        },
         team: {
           select: {
             id: true,
@@ -304,6 +314,11 @@ export async function loadSandboxState(): Promise<SandboxState> {
           status: entry.integration?.status ?? null,
         }),
         submit: submitPane(entry.submissions),
+        myMetrics: myMetricsPaneOf({
+          stage: entry.stage,
+          hasRows: entry.metricDaily.length > 0,
+          verified: entry.hostname?.ownershipVerifiedAt != null,
+        }),
         credits: creditsPaneOf({
           phase: entry.season.phase,
           status: entry.status,
@@ -2764,4 +2779,91 @@ function creditsPaneOf(args: {
     };
   });
   return creditsPane({ season, eliminated: args.status === EntryStatus.eliminated, cards });
+}
+
+/* ═══════════ 내 지표 ═══════════ */
+
+export type { MetricsPane as MyMetricsPane } from "@/lib/metrics-view";
+
+/*
+  시안 `#scr-mymetrics`의 두 판. 둘 다 허브 h6(s4 레이스, 배포 검증됨) 위다 —
+  시안의 `.db-top`이 「s4 마케팅과 유저 유입 · 주간 제출 D-2」다.
+
+    data   시안 ① 목업 그대로 — 주간 방문 1,204 · 주간 가입 187 · 전환율 15.5%,
+           14일 곡선, 채널 스레드 42% · 카카오 오픈채팅 27% · 인스타 릴스 18%
+    empty  시안 ② — 검증은 됐는데 집계 행이 하나도 없다
+
+  ⚠️ h6의 집계 픽스처(`setMetricsFixture race`)가 시즌 전 팀에 14일치를 심는다.
+  그 위에서 **이 팀의 행만** 시안 값으로 갈아 끼우거나(data) 지운다(empty) —
+  리더보드 순위표는 스냅샷이 정본이라 흔들리지 않는다.
+*/
+const SPEC_MY_METRICS = {
+  /* 어제까지 14일. 뒤 7일 합이 1,204 · 187 — 시안 카드 값이다 */
+  visitors: [62, 70, 78, 74, 96, 108, 104, 128, 150, 144, 176, 188, 200, 218],
+  signups: [8, 10, 11, 10, 14, 17, 16, 20, 23, 22, 27, 29, 31, 35],
+  /* 날마다 이 비율로 나눈다. 나머지는 direct */
+  channels: [
+    ["스레드", 0.42],
+    ["카카오 오픈채팅", 0.27],
+    ["인스타 릴스", 0.18],
+  ] as const,
+} as const;
+
+export async function setSandboxMyMetrics(args: {
+  entryId: string;
+  pane: MyMetricsPane;
+}): Promise<void> {
+  assertSandbox();
+  const { entryId, pane } = args;
+
+  await setSandboxHub({ key: "h6", entryId });
+
+  await prisma.metricChannelDaily.deleteMany({ where: { entryId } });
+  await prisma.metricDaily.deleteMany({ where: { entryId } });
+  if (pane === "empty") return;
+
+  const today = seoulDateOnly(devNow());
+  const days = SPEC_MY_METRICS.visitors.length;
+  const dateOf = (i: number) => {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - days + i);
+    return d;
+  };
+  await prisma.metricDaily.createMany({
+    data: SPEC_MY_METRICS.visitors.map((visitors, i) => ({
+      entryId,
+      metricDate: dateOf(i),
+      rawVisitors: visitors,
+      validVisitors: visitors,
+      pageviews: visitors * 3,
+      sessions: visitors,
+      signups: SPEC_MY_METRICS.signups[i],
+      /* 「운영자 보정」 — 자동 집계인 척하지 않는다(픽스처와 같다) */
+      source: MetricSource.manual,
+      manualReviewPassed: true,
+    })),
+  });
+  await prisma.metricChannelDaily.createMany({
+    data: SPEC_MY_METRICS.visitors.flatMap((visitors, i) => {
+      const tagged = SPEC_MY_METRICS.channels.map(([channel, share]) => ({
+        entryId,
+        metricDate: dateOf(i),
+        channel,
+        visitors: Math.round(visitors * share),
+      }));
+      const rest = visitors - tagged.reduce((s, c) => s + c.visitors, 0);
+      return [...tagged, { entryId, metricDate: dateOf(i), channel: "direct", visitors: rest }];
+    }),
+  });
+}
+
+/** 바가 되짚는 판. 화면이 s3부터라 그 전엔 null */
+function myMetricsPaneOf(args: {
+  stage: EntryStage;
+  hasRows: boolean;
+  verified: boolean;
+}): MyMetricsPane | null {
+  if (!stageAtLeast(args.stage, EntryStage.s3)) return null;
+  if (args.hasRows) return "data";
+  return args.verified ? "empty" : null;
 }
