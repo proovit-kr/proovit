@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import type { DashboardHeaderModel } from "@/lib/header-state";
+import { shortStage, type DashboardHeaderModel } from "@/lib/header-state";
 
 import { Badge } from "./Badge";
 import { LinkButton } from "./Button";
@@ -49,6 +49,7 @@ export function DashboardTop({
   entryId: string;
 }) {
   const { banner, strip, team } = model;
+  const stageShort = shortStage(banner.stage);
 
   return (
     <>
@@ -82,7 +83,16 @@ export function DashboardTop({
         <span className={[styles.ban, TONE[banner.tone]].filter(Boolean).join(" ")} data-probe="db-ban">
           {banner.live ? <LiveDot tone={banner.live} /> : null}
           {banner.lock ? <Icon name="lock" className={styles.lock} /> : null}
-          <span className={styles.stg}>{banner.stage}</span>
+          <span className={styles.stg}>
+            {stageShort !== banner.stage ? (
+              <>
+                <span className={styles.full}>{banner.stage}</span>
+                <span className={styles.short}>{stageShort}</span>
+              </>
+            ) : (
+              banner.stage
+            )}
+          </span>
           <span className={styles.tm}>
             {banner.timeShort ? (
               <>

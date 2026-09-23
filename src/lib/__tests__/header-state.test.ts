@@ -28,6 +28,7 @@ import {
   resolveAdminHeader,
   resolveDashboardHeader,
   resolvePublicHeader,
+  shortStage,
   toHeaderSeason,
   toHeaderUser,
   type AdminHeaderInput,
@@ -299,7 +300,7 @@ describe("참가자 헤더 — 조합기 MAP.app", () => {
     expect(m.variant).toBe("D3");
     expect(m.banner).toMatchObject({ tone: "judge", live: "violet", stage: "s2 1차 심사 중" });
     expect(m.banner.time).toEqual([{ text: "회신까지 31시간" }]);
-    expect(m.banner.go).toEqual({ label: "심사 결과", href: "/dashboard/judgments", tone: "violet" });
+    expect(m.banner.go).toEqual({ label: "심사 결과", short: "결과", href: "/dashboard/judgments", tone: "violet" });
   });
 
   it("게이트 2는 「발표 MM.DD 내」", () => {
@@ -314,6 +315,24 @@ describe("참가자 헤더 — 조합기 MAP.app", () => {
     expect(m.banner).toMatchObject({ tone: "verify", live: "teal", stage: "s5 트래픽과 매출" });
     expect(m.banner.time).toEqual([{ text: "집계 확정 11.01 24:00" }]);
     expect(m.banner.go?.label).toBe("자동 제출 확인");
+    /* ≤760 — 시간 값과 버튼을 줄여야 스테이지명이 한 줄에 남는다 */
+    expect(m.banner.timeShort).toEqual([{ text: "11.01 24:00" }]);
+    expect(m.banner.go?.short).toBe("확인");
+  });
+
+  it("모바일 스테이지명 — 12자 안에서 어절로 자르고 꼬리 이음 조사를 뗀다(시안 5장 D2-M)", () => {
+    expect(shortStage("s1 아이디어 등록과 고도화")).toBe("s1 아이디어 등록");
+    expect(shortStage("s5 트래픽과 매출")).toBe("s5 트래픽과 매출");
+    expect(shortStage("🏆 시즌 1 종료")).toBe("🏆 시즌 1 종료");
+    expect(shortStage("가나다라마바사아자차카타파하")).toBe("가나다라마바사아자차카타파하");
+  });
+
+  it("배너 버튼은 모바일 짧은 문구를 모두 갖는다", () => {
+    const cases = [
+      dash({ entry: { stage: EntryStage.s2, status: EntryStatus.active } }),
+      dash({ phase: SeasonPhase.awarded, finalRank: 3 }),
+    ];
+    for (const m of cases) expect(m.banner.go?.short).toBe("결과");
   });
 
   it("종료·시상 → D5 (🏆, 최종 순위)", () => {
@@ -393,7 +412,7 @@ describe("참가자 헤더 — 조합기 MAP.app", () => {
     );
     expect(m.banner).toMatchObject({ tone: "dq", stage: "실격 처리" });
     expect(m.banner.time).toEqual([{ text: "소명 D-4" }]);
-    expect(m.banner.go).toEqual({ label: "소명하기", href: "/dashboard/appeal", tone: "red" });
+    expect(m.banner.go).toEqual({ label: "소명하기", short: "소명", href: "/dashboard/appeal", tone: "red" });
     expect(m.bell).toEqual({ dot: true, red: true });
   });
 
