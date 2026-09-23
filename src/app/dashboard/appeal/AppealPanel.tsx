@@ -46,11 +46,15 @@ export function AppealPanel({
 }) {
   const [state, formAction, pending] = useActionState(fileAppeal, INITIAL);
   const open = targets.filter((t) => !t.appealed);
-  const [target, setTarget] = useState(
-    () => state.values?.target ?? open[0]?.value ?? "",
-  );
+  const [chosen, setTarget] = useState(() => state.values?.target ?? "");
   const [reason, setReason] = useState(state.values?.reason ?? "");
 
+  /*
+    ⚠️ 고른 값이 지금 목록에 없으면 첫 대상으로 — 상태는 마운트 때 한 번 잡히는데
+    대상은 바뀐다(개발 바가 제재를 새로 만들면 id가 바뀐다, 접수 뒤 서버가 다시
+    그린다). 옛 id를 쥐고 있으면 기한 상자가 「—」가 된다.
+  */
+  const target = targets.some((t) => t.value === chosen) ? chosen : (open[0]?.value ?? "");
   const picked = targets.find((t) => t.value === target) ?? null;
   const locked = !canWrite || open.length === 0;
 
