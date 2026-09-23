@@ -1,5 +1,7 @@
 import {
+  AbuseStatus,
   DeployStatus,
+  EntryStage,
   EntryStatus,
   JudgmentResult,
   LeadStatus,
@@ -348,59 +350,89 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
 export type AdminEntryRow = {
   id: string;
   teamName: string;
-  memberCount: number;
-  ideaTitle: string;
-  stage: string;
+  track: string | null;
+  stage: EntryStage;
   status: EntryStatus;
-  chargeType: string;
-  serviceUrl: string | null;
-  deployed: boolean;
-  submissions: number;
-  appliedAt: Date | null;
+  /** s3 이후인데 배포 확인이 안 된 팀 — 시안의 「미배포」 배지 */
+  undeployed: boolean;
+  /** 답이 안 나간 소명이 있다 — 시안의 「소명 대기」 배지 */
+  appealPending: boolean;
+  /** 온보딩 두 단계(팀 구성·측정 연동)가 끝났다. 판정은 access.ts와 같은 식 */
+  onboarded: boolean;
+  lastSubmittedAt: Date | null;
+};
+
+export type AdminEntryFilter = {
+  stage?: string;
+  status?: string;
+  /** "yes" 미처리 어뷰징 플래그가 있는 팀, "no" 없는 팀 */
+  flag?: string;
+  q?: string;
 };
 
 /**
- * 참가팀 목록.
+ * 참가 관리 — 시안 `#scr-adm-entries`(3041행).
  *
  * 운영이 이 화면에서 판단하는 것은 「누가 어디까지 왔고 지금 살아 있는가」다.
- * 그래서 진도·생존 상태·배포 여부·제출 수를 한 줄에 같이 둔다 — 화면을 옮겨
- * 다니며 맞춰보게 하면 실격 판단이 늦어진다.
+ * 그래서 진도·생존 상태·온보딩·최근 제출을 한 줄에 같이 둔다.
  */
 export async function loadAdminEntries(
   seasonId: string,
+  filter: AdminEntryFilter = {},
 ): Promise<AdminEntryRow[]> {
+  const stage = (Object.values(EntryStage) as string[]).includes(filter.stage ?? "")
+    ? (filter.stage as EntryStage)
+    : undefined;
+  const status = (Object.values(EntryStatus) as string[]).includes(filter.status ?? "")
+    ? (filter.status as EntryStatus)
+    : undefined;
+  const openFlag = { some: { status: AbuseStatus.flagged } };
+
   const entries = await prisma.entry.findMany({
-    where: { seasonId },
+    where: {
+      seasonId,
+      ...(stage ? { stage } : {}),
+      ...(status ? { status } : {}),
+      ...(filter.flag === "yes" ? { abuseFlags: openFlag } : {}),
+      ...(filter.flag === "no" ? { abuseFlags: { none: { status: AbuseStatus.flagged } } } : {}),
+      ...(filter.q ? { team: { name: { contains: filter.q, mode: "insensitive" as const } } } : {}),
+    },
     orderBy: [{ status: "asc" }, { appliedAt: "asc" }],
     select: {
       id: true,
-      ideaTitle: true,
       stage: true,
       status: true,
-      chargeType: true,
-      serviceUrl: true,
-      appliedAt: true,
-      team: { select: { name: true, _count: { select: { members: true } } } },
+      track: { select: { name: true } },
+      team: { select: { name: true, isSolo: true, _count: { select: { members: true } } } },
       hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
-      _count: { select: { submissions: true } },
+      appeals: { where: { respondedAt: null }, select: { id: true }, take: 1 },
+      submissions: {
+        where: { submittedAt: { not: null } },
+        orderBy: { submittedAt: "desc" },
+        take: 1,
+        select: { submittedAt: true },
+      },
     },
   });
 
-  return entries.map((entry) => ({
-    id: entry.id,
-    teamName: entry.team.name,
-    memberCount: entry.team._count.members,
-    ideaTitle: entry.ideaTitle,
-    stage: entry.stage,
-    status: entry.status,
-    chargeType: entry.chargeType,
-    serviceUrl: entry.serviceUrl,
-    deployed:
+  const AFTER_BUILD: EntryStage[] = [EntryStage.s3, EntryStage.s4, EntryStage.s5, EntryStage.completed];
+  return entries.map((entry) => {
+    const deployed =
       entry.hostname?.deployStatus === DeployStatus.active &&
-      entry.hostname.ownershipVerifiedAt !== null,
-    submissions: entry._count.submissions,
-    appliedAt: entry.appliedAt,
-  }));
+      entry.hostname.ownershipVerifiedAt !== null;
+    const teamReady = entry.team.isSolo || entry.team._count.members >= 2;
+    return {
+      id: entry.id,
+      teamName: entry.team.name,
+      track: entry.track?.name ?? null,
+      stage: entry.stage,
+      status: entry.status,
+      undeployed: AFTER_BUILD.includes(entry.stage) && !deployed,
+      appealPending: entry.appeals.length > 0,
+      onboarded: teamReady && deployed,
+      lastSubmittedAt: entry.submissions[0]?.submittedAt ?? null,
+    };
+  });
 }
 
 export type AdminLeadRow = {

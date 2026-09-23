@@ -17,7 +17,7 @@ import { setEntryStatus } from "@/lib/admin-store";
   검사는 store가 다시 한다(admin-store.ts) — 화면·액션·저장 셋 다 통과해야 바뀐다.
 */
 
-export type EntryActionState = { message?: string; done?: boolean };
+export type EntryActionState = { message?: string; done?: number };
 
 export async function changeEntryStatus(
   _prev: EntryActionState,
@@ -53,7 +53,7 @@ export async function changeEntryStatus(
   });
   if (!result.ok) return { message: result.message };
 
-  revalidatePath("/admin/entries");
-  revalidatePath("/admin");
-  return { done: true };
+  /* 상태는 참가자 화면(허브·사이드바·헤더)과 공개 리더보드에도 걸린다 */
+  revalidatePath("/", "layout");
+  return { done: Date.now() };
 }

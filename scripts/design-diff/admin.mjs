@@ -194,8 +194,9 @@ try {
         r.text = {};
         for (const [n, sel] of texts) r.text[n] = await p.eval(textNodes(sel));
         r.hover = {};
-        for (const [n, sel] of hovers) {
-          await p.hover(sel);
+        /* 넷째 칸이 있으면 그 요소에 hover를 걸고 셋째(재는 요소)를 잰다 — 행 hover가 칸 배경을 바꾸는 자리 */
+        for (const [n, sel, , on] of hovers) {
+          await p.hover(on ?? sel);
           Object.assign(r.hover, await p.eval(hoverProbe(n, sel)));
         }
         await p.hover();
@@ -225,8 +226,8 @@ try {
         r.text = {};
         for (const [n, , sel] of texts) r.text[n] = await p.eval(textNodes(fix(sel)));
         r.hover = {};
-        for (const [n, , sel] of hovers) {
-          await p.hover(fix(sel));
+        for (const [n, , sel, , on] of hovers) {
+          await p.hover(fix(on ?? sel));
           Object.assign(r.hover, await p.eval(hoverProbe(n, fix(sel))));
         }
         await p.hover();

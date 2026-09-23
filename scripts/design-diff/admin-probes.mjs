@@ -7,7 +7,7 @@
     states 판이 있는 화면만 — { 판: { pane: 시안 data-pane, query: 구현본 쿼리 } }
     list   (S, 판) → [이름, 시안 셀렉터, 구현 셀렉터, 더 잴 속성, 뺄 속성, 390에서만 뺄 속성, {kids}]
     text   (S, 판) → [이름, 시안, 구현, 무시할 정규식[]]
-    hover  (S, 판) → [이름, 시안, 구현]
+    hover  (S, 판) → [이름, 시안, 구현, 시안 hover 대상?, 구현 hover 대상?]
 
   구현 셀렉터의 자리표 — `{{c:x}}` console.module.css, `{{hub:x}}` hub.module.css,
   `{{p:x}}` 그 화면 모듈. 공용 컴포넌트는 `data-probe` 아래로 좁혀 부분 일치로 집는다.
@@ -17,6 +17,31 @@ const BADGE = '[class*="Badge-module__"][class*="__badge"]';
 const CARD = '[class*="Surface-module__"][class*="__card"]';
 const BTN = '[class*="Button-module__"][class*="__btn"]';
 const FLD = '[class*="Field-module__"][class*="__fld"]';
+
+/*
+  필터 줄 — 첫 셀렉트·검색 칸·줄 자체. 셀렉트 폭은 선택지 글자 폭이라 뺀다.
+*/
+const fbar = (S, { selects = 1, search = false } = {}) => [
+  ["fbar", S + ".fbar", '[data-probe="fbar"]', [], ["height"], [], { kids: true }],
+  ["fbar select", S + ".fbar select", '[data-probe="fbar"] select', [], ["width"]],
+  ...(selects > 1
+    ? [["fbar select 끝", S + `.fbar select:nth-of-type(${selects})`, `[data-probe="fbar"] select:nth-of-type(${selects})`, [], ["width"]]]
+    : []),
+  ...(search ? [["fbar 검색", S + ".fbar input", '[data-probe="fbar"] input', [], ["width"]]] : []),
+];
+
+/*
+  표 — 표 자체·머리 칸·첫 행 첫 칸·끝 행. 칸 폭은 글자(데이터)에 달려 뺀다.
+  `cols`는 머리글 수(구조 축).
+*/
+const table = (S, impl, { cols } = {}) => [
+  /* 좁은 폭에서 표는 본문 밖으로 넘친다 — 얼마나 넘치는지는 칸 글자(데이터)가 정한다 */
+  ["atbl", S + ".atbl", impl, [], ["height"], ["width"]],
+  ["th", S + ".atbl th", `${impl} th`, [], ["width", "height"]],
+  ["thead tr", S + ".atbl thead tr", `${impl} thead tr`, [], ["width", "height"], [], { kids: !!cols }],
+  ["td 첫칸", S + ".atbl tbody tr:first-child td", `${impl} tbody tr:first-child td`, [], ["width", "height"]],
+  ["td 끝행", S + ".atbl tbody tr:last-child td", `${impl} tbody tr:last-child td`, [], ["width", "height"]],
+];
 
 /* 제목·부제 — 모든 화면이 hub의 `.h1`·`.sub`를 쓴다 */
 const head = (S) => [
@@ -132,6 +157,36 @@ export const SCREENS = {
     ],
     hover: (S) => [
       ["트랙 추가 hover", S + ".ad-body > .fld:nth-of-type(3) .btn", `[data-probe="tracks"] > ${BTN}`],
+    ],
+  },
+
+  /* ── 참가 관리 ── */
+  entries: {
+    hash: "adm-entries",
+    route: "/admin/entries",
+    list: (S) => [
+      ...head(S),
+      ...fbar(S, { selects: 3, search: true }),
+      ...table(S, '[data-probe="entries"]', { cols: 7 }),
+      ["td 팀 b", S + ".atbl tbody tr:first-child td:first-child b", '[data-probe="entries"] tbody tr:first-child td:first-child b', [], ["width"]],
+      ["td stage", S + ".atbl tbody tr:first-child td:nth-child(3)", '[data-probe="entries"] tbody tr:first-child td:nth-child(3)', [], ["width", "height"]],
+      ["td 상태 배지", S + ".atbl tbody tr:first-child td:nth-child(4) .badge", `[data-probe="entries"] tbody tr:first-child td:nth-child(4) ${BADGE}`, [], ["width"]],
+      ["td 온보딩", S + ".atbl tbody tr:first-child td:nth-child(5)", '[data-probe="entries"] tbody tr:first-child td:nth-child(5)', [], ["width", "height", "color"]],
+      /* 칸 폭이 모자라면 버튼 글자가 두 줄이 된다 — 다른 칸 글자(데이터)가 정한다 */
+      ["td 버튼", S + ".atbl tbody tr:first-child .btn", `[data-probe="entries"] tbody tr:first-child ${BTN}`, [], ["width", "height"]],
+    ],
+    text: (S) => [
+      ["제목", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}'],
+      ["부제", S + ".hb-sub", '[data-probe="ad-body"] {{hub:sub}}'],
+      /* 상태 값은 스키마를 따른다(page.tsx 주석) — 시안 `completed`는 우리 상태에 없다 */
+      ["필터", S + ".fbar", '[data-probe="fbar"]', [/^completed$/, /^withdrawn$/]],
+      ["머리글", S + ".atbl thead", '[data-probe="entries"] thead'],
+      ["버튼", S + ".atbl tbody tr:first-child td:last-child", '[data-probe="entries"] tbody tr:first-child td:last-child'],
+    ],
+    hover: (S) => [
+      ["행 hover td", S + ".atbl tbody tr:first-child td:first-child", '[data-probe="entries"] tbody tr:first-child td:first-child',
+        S + ".atbl tbody tr:first-child", '[data-probe="entries"] tbody tr:first-child'],
+      ["버튼 hover", S + ".atbl tbody tr:first-child .btn", `[data-probe="entries"] tbody tr:first-child ${BTN}`],
     ],
   },
 };

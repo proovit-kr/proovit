@@ -1,100 +1,148 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import { EmptyState } from "@/components/EmptyState";
-import { EntryStatus } from "@/generated/prisma/enums";
+import { Badge, type BadgeTone } from "@/components/Badge";
+import { EntryStage, EntryStatus } from "@/generated/prisma/enums";
 import { guardPage } from "@/lib/access";
 import { loadAdminEntries } from "@/lib/admin-read";
+import { fmtMD } from "@/lib/header-state";
 
+import hub from "../../dashboard/hub.module.css";
+import c from "../console.module.css";
+import { FilterBar } from "../FilterBar";
 import { EntryActions } from "./EntryRow";
 
-import styles from "./entries.module.css";
-
 /*
-  참가팀 관리 — PLN3 2장 「누가 어디까지 왔고 지금 살아 있는가」.
+  참가 관리 — 시안 `#scr-adm-entries`(3041행).
 
   실격·복구가 여기서 일어난다. 그래서 **한 줄에 판단 재료를 다 둔다** — 진도,
-  생존 상태, 배포 여부, 제출 수. 화면을 옮겨 다니며 맞춰보게 하면 근거를 덜 보고
+  생존 상태, 온보딩, 최근 제출. 화면을 옮겨 다니며 맞춰보게 하면 근거를 덜 보고
   누르게 된다.
 
-  ⚠️ 실명은 읽지 않는다(admin-read.ts 머리 주석). 팀명과 인원 수까지다.
+  ⚠️ 실명은 읽지 않는다(admin-read.ts 머리 주석). 팀명까지다.
 */
 
 export const metadata: Metadata = {
-  title: "참가팀 관리",
+  title: "참가 관리",
   robots: { index: false, follow: false },
 };
 
-const DATE = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: "Asia/Seoul",
-  month: "numeric",
-  day: "numeric",
-});
-
-const STATUS_LABEL: Record<string, string> = {
-  [EntryStatus.active]: "진행 중",
-  [EntryStatus.eliminated]: "탈락",
-  [EntryStatus.disqualified]: "실격",
-  [EntryStatus.withdrawn]: "자진 포기",
+const STATUS_TONE: Record<string, BadgeTone> = {
+  [EntryStatus.active]: "lime",
+  [EntryStatus.eliminated]: "gray",
+  [EntryStatus.disqualified]: "red",
+  [EntryStatus.withdrawn]: "gray",
 };
 
-export default async function Page() {
+/*
+  필터 선택지. 시안은 status에 `completed`를 적었는데 우리 상태에는 없고(완주는
+  진도 `stage=completed`다) `withdrawn`(자진 포기)이 있다 — 스키마 값을 쓴다.
+*/
+const STAGES = Object.values(EntryStage);
+const STATUSES = Object.values(EntryStatus);
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const { viewer } = await guardPage("adminEntries", "/admin/entries");
-  const rows = viewer.season ? await loadAdminEntries(viewer.season.id) : [];
+  const sp = await searchParams;
+  const rows = viewer.season
+    ? await loadAdminEntries(viewer.season.id, {
+        stage: sp.stage,
+        status: sp.status,
+        flag: sp.flag,
+        q: sp.q,
+      })
+    : [];
 
   return (
-    <section className={styles.root}>
-      <header className={styles.head}>
-        <h1 className={styles.title}>참가팀</h1>
-        <p className={styles.sub}>
-          {rows.length}팀 · 상태 변경은 사유를 남겨야 처리되고 감사 로그에
-          기록됩니다.
-        </p>
-      </header>
+    <>
+      <h2 className={hub.h1}>참가 관리</h2>
+      <p className={hub.sub}>엔트리 상태 전환, 상태 변경은 사유 필수, 감사 로그 기록</p>
 
-      {rows.length === 0 ? (
-        <EmptyState
-          title="아직 참가팀이 없습니다"
-          detail="모집이 열리고 신청이 접수되면 여기에 쌓입니다."
-        />
-      ) : (
-        <ul className={styles.list}>
+      <FilterBar
+        selects={[
+          {
+            name: "stage",
+            label: "진도",
+            options: [
+              { value: "", label: "stage 전체" },
+              ...STAGES.map((v) => ({ value: v, label: v })),
+            ],
+          },
+          {
+            name: "status",
+            label: "상태",
+            options: [
+              { value: "", label: "status 전체" },
+              ...STATUSES.map((v) => ({ value: v, label: v })),
+            ],
+          },
+          {
+            name: "flag",
+            label: "플래그",
+            options: [
+              { value: "", label: "플래그 전체" },
+              { value: "yes", label: "있음" },
+              { value: "no", label: "없음" },
+            ],
+          },
+        ]}
+        search={{ name: "q", placeholder: "팀명 검색" }}
+      />
+
+      <table className={c.atbl} data-probe="entries">
+        <thead>
+          <tr>
+            <th>TEAM</th>
+            <th>TRACK</th>
+            <th>STAGE</th>
+            <th>STATUS</th>
+            <th>온보딩</th>
+            <th>최근 제출</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
           {rows.map((row) => (
-            <li key={row.id} className={styles.item}>
-              <div className={styles.main}>
-                <p className={styles.team}>
-                  {row.teamName}
-                  <span className={styles.members}>{row.memberCount}인</span>
-                  <span className={styles.status} data-status={row.status}>
-                    {STATUS_LABEL[row.status] ?? row.status}
-                  </span>
-                </p>
-                <p className={styles.idea}>{row.ideaTitle}</p>
-                <p className={styles.facts}>
-                  <span>진도 {row.stage}</span>
-                  <span>제출 {row.submissions}건</span>
-                  <span>{row.deployed ? "배포 확인" : "미배포"}</span>
-                  <span>
-                    {row.chargeType === "payment" ? "결제형" : "문의형"}
-                  </span>
-                  {row.appliedAt ? (
-                    <span>{DATE.format(row.appliedAt)} 신청</span>
-                  ) : null}
-                  {/*
-                    참가작 공개 페이지로 잇는다 — 운영이 판단할 때 실제 화면을
-                    보지 않고 결정하면 그게 곧 오판이 된다.
-                  */}
-                  <Link href={`/projects/${row.id}`} className={styles.link}>
-                    공개 페이지
-                  </Link>
-                </p>
-              </div>
-
-              <EntryActions entryId={row.id} status={row.status} />
-            </li>
+            <tr key={row.id}>
+              <td>
+                <b>{row.teamName}</b>
+                {row.undeployed ? (
+                  <>
+                    {" "}
+                    <Badge tone="gray">미배포</Badge>
+                  </>
+                ) : row.appealPending ? (
+                  <>
+                    {" "}
+                    <Badge tone="violet">소명 대기</Badge>
+                  </>
+                ) : null}
+              </td>
+              {/* 트랙이 비었으면 시즌 1의 단일 트랙이다(schema Track 주석) */}
+              <td>{row.track ?? "자유 주제"}</td>
+              <td className={c.num}>{row.stage}</td>
+              <td>
+                <Badge tone={STATUS_TONE[row.status] ?? "gray"}>{row.status}</Badge>
+              </td>
+              <td className={c.num} style={{ color: row.onboarded ? "var(--teal)" : "var(--faint)" }}>
+                {row.onboarded ? "✓" : "-"}
+              </td>
+              <td className={c.num}>{row.lastSubmittedAt ? fmtMD(row.lastSubmittedAt) : "-"}</td>
+              <td>
+                <EntryActions entryId={row.id} teamName={row.teamName} status={row.status} />
+              </td>
+            </tr>
           ))}
-        </ul>
-      )}
-    </section>
+        </tbody>
+      </table>
+      {rows.length === 0 ? (
+        <p style={{ fontSize: "12px", color: "var(--faint)", marginTop: "12px" }}>
+          조건에 맞는 팀 없음.
+        </p>
+      ) : null}
+    </>
   );
 }
