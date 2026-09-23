@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import hub from "../dashboard/hub.module.css";
 
 import { markAllRead } from "./actions";
+import { NotiLink } from "./NotiLink";
 
 import styles from "./notifications.module.css";
 
@@ -24,7 +25,7 @@ import styles from "./notifications.module.css";
 
   시안과 일부러 다른 것(내가 정함, 2026-09-23, 수연 확인 대기):
     · 링크가 있는 알림은 행 전체가 링크다 — 누르면 읽음으로 두고 그리로 간다
-      (`[id]/route.ts`). 시안에는 행을 누르는 동작이 없다.
+      (`NotiLink`). 시안에는 행을 누르는 동작이 없다.
     · 순서는 최신 순. 시안 목업의 순서는 날짜와 안 맞는다.
     · 채널·도달 결과(메일·도달·반송)를 더는 적지 않는다 — 시안에 자리가 없다.
       기록은 `notifications.delivery_status`에 그대로 남는다.
@@ -95,11 +96,17 @@ export default async function Page() {
               {row.readAt ? null : <span className={styles.un} />}
             </>
           );
-          /* 프리페치가 읽음 처리를 부르면 안 되므로 `next/link`가 아니다 */
-          return notiHref(row.linkUrl) ? (
-            <a key={row.id} className={cls} href={`/notifications/${row.id}`}>
+          const href = notiHref(row.linkUrl);
+          return href ? (
+            <NotiLink
+              key={row.id}
+              id={row.id}
+              href={href}
+              unread={!row.readAt}
+              className={cls}
+            >
               {inner}
-            </a>
+            </NotiLink>
           ) : (
             <div key={row.id} className={cls}>
               {inner}

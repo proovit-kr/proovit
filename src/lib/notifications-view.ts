@@ -21,7 +21,7 @@ export function notiTone(type: string): NotiTone {
 
 /**
  * 행을 눌렀을 때 갈 곳. 우리 화면 안의 경로만 받는다 — `//host`나 절대 URL은
- * 버린다(읽음 처리 뒤 이 값으로 리다이렉트하므로 열린 리다이렉트가 된다).
+ * 버린다(행이 곧 그리로 가는 링크라 바깥 주소면 피싱 통로가 된다).
  */
 export function notiHref(linkUrl: string | null): string | null {
   if (!linkUrl) return null;
