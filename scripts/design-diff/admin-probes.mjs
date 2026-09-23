@@ -276,4 +276,36 @@ export const SCREENS = {
         ? []
         : [["확정 hover", S + ".pane.on .atbl tbody tr:first-child .btn", `[data-probe="metrics"] tbody tr:first-child ${BTN}`]],
   },
+
+  /* ── 사전신청 리드 ── */
+  leads: {
+    hash: "adm-leads",
+    route: "/admin/leads",
+    list: (S) => {
+      const K = '[data-probe="leads-kpi"]';
+      const T = '[data-probe="leads"]';
+      return [
+        ...head(S),
+        ["sub 버튼", S + ".hb-sub .btn", `[data-probe="ad-body"] {{hub:sub}} ${BTN}`, [], ["width"]],
+        ["kpi", S + ".kpi", K, [], ["height"], ["height"], { kids: true }],
+        ["kpi 카드", S + ".kpi .card:nth-child(1)", `${K} > ${CARD}:nth-child(1)`, [], ["width", "height"]],
+        ["kpi 카드3", S + ".kpi .card:nth-child(3)", `${K} > ${CARD}:nth-child(3)`, [], ["width", "height"]],
+        ["kpi small", S + ".kpi .card:nth-child(1) small", `${K} > ${CARD}:nth-child(1) small`, [], ["width"]],
+        ["kpi score", S + ".kpi .card:nth-child(1) .score", `${K} > ${CARD}:nth-child(1) .score`, [], ["width"]],
+        ["kpi 오늘", S + ".kpi .card:nth-child(2) .score", `${K} > ${CARD}:nth-child(2) .score`, [], ["width"]],
+        ...table(S, T, { cols: 4 }),
+        ["td 이메일", S + ".atbl tbody tr:first-child td:nth-child(1)", `${T} tbody tr:first-child td:nth-child(1)`, [], ["width", "height"]],
+        ["td 동의", S + ".atbl tbody tr:first-child td:nth-child(2)", `${T} tbody tr:first-child td:nth-child(2)`, [], ["width", "height"]],
+      ];
+    },
+    text: (S) => [
+      ["제목", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}'],
+      ["부제", S + ".hb-sub", '[data-probe="ad-body"] {{hub:sub}}'],
+      ["KPI 라벨", S + ".kpi", '[data-probe="leads-kpi"]', [/^[+]?[\d,]+%?$/, /^\+$/]],
+      ["머리글", S + ".atbl thead", '[data-probe="leads"] thead'],
+    ],
+    hover: (S) => [
+      ["CSV hover", S + ".hb-sub .btn", `[data-probe="ad-body"] {{hub:sub}} ${BTN}`],
+    ],
+  },
 };

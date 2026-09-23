@@ -269,6 +269,9 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
         entryBefore: [...entryBefore, { id: mocha.id, status: mocha.status, stage: mocha.stage }],
       };
     }
+    case "leads":
+      created.lead = await seedLeads(season.id);
+      break;
     case "metrics:q": {
       /*
         시안 ① 큐 세 줄(3095행) — 두잇로그 급증, 모카브루 단일 채널, 골목마켓.

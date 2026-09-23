@@ -1,107 +1,100 @@
 import type { Metadata } from "next";
 
-import { EmptyState } from "@/components/EmptyState";
-import { LeadStatus } from "@/generated/prisma/enums";
+import { AnchorButton } from "@/components/Button";
+import { Card } from "@/components/Surface";
 import { guardPage } from "@/lib/access";
+import { maskEmail } from "@/lib/admin";
 import { loadAdminLeads } from "@/lib/admin-read";
+import { devNow } from "@/lib/dev-clock";
+import { fmtMD } from "@/lib/header-state";
 
-import styles from "./leads.module.css";
+import hub from "../../dashboard/hub.module.css";
+import c from "../console.module.css";
 
 /*
-  사전신청 목록 — PLN3 2장 「모집 전 수집한 이메일」.
+  사전신청 리드 — 시안 `#scr-adm-leads`(3109행). KPI 1번 관측 지점.
 
-  ⚠️ **이메일이 그대로 보이는 화면이다.** 그래서 셋을 지켰다.
-    ① 내려받기 기능을 만들지 않았다 — 파일로 나가는 순간 접근 통제가 끝난다
-    ② 수신거부한 사람도 지우지 않고 표시만 한다 — 지우면 같은 주소로 다시
-       보낼 수 있게 되어 수신거부의 뜻이 사라진다
-    ③ 마케팅 동의 여부를 한 칸으로 둔다 — 발송 대상은 이 칸이 정하지, 목록에
-       있다는 사실이 정하지 않는다(운영규칙 제24조 ②)
+  ⚠️ **주소는 가려서 보인다**(시안 「y***@g***.com」). 주소 전체가 필요한 일(모집
+  오픈 알림 발송)은 「CSV 내보내기」로 한다 — 내려받기는 감사 로그에 남는다
+  (`export/route.ts`). 한때 「내려받기를 일부러 만들지 않는다」고 적어 두었는데
+  시안이 CSV를 정했다(옛 판단보다 시안이 나중이다).
 
-  읽기 전용이다. 상태 변경(연락함·전환됨)은 발송 도구가 붙을 때 함께 만든다 —
-  지금 손으로 바꾸면 도구가 쓰는 값과 사람이 쓴 값이 섞인다.
+  수신거부한 사람도 지우지 않고 마케팅 칸을 「-」로 적는다 — 지우면 같은 주소로
+  다시 보낼 수 있게 되어 수신거부의 뜻이 사라진다(운영규칙 제24조 ②).
 */
 
 export const metadata: Metadata = {
-  title: "사전신청",
+  title: "사전신청 리드",
   robots: { index: false, follow: false },
 };
 
-const WHEN = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: "Asia/Seoul",
-  month: "numeric",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-const STATUS_LABEL: Record<string, string> = {
-  [LeadStatus.new]: "신규",
-  [LeadStatus.contacted]: "연락함",
-  [LeadStatus.converted]: "전환됨",
-  [LeadStatus.unsubscribed]: "수신거부",
-};
+const NUM = new Intl.NumberFormat("ko-KR");
 
 export default async function Page() {
   const { viewer } = await guardPage("adminLeads", "/admin/leads");
-  const { rows, total } = viewer.season
-    ? await loadAdminLeads(viewer.season.id)
-    : { rows: [], total: 0 };
-
-  const optIn = rows.filter((row) => row.marketingOptIn).length;
+  const data = viewer.season
+    ? await loadAdminLeads(viewer.season.id, devNow())
+    : { rows: [], total: 0, todayCount: 0, optIn: 0 };
+  const rate = data.total ? Math.round((data.optIn / data.total) * 100) : 0;
 
   return (
-    <section className={styles.root}>
-      <header className={styles.head}>
-        <h1 className={styles.title}>사전신청</h1>
-        <p className={styles.sub}>
-          {total}건 · 최근 {rows.length}건을 보여줍니다. 마케팅 수신에 동의한
-          사람은 이 중 {optIn}명이고, 광고성 발송은 그 사람들에게만 나갑니다.
-        </p>
-      </header>
+    <>
+      <h2 className={hub.h1}>사전신청 리드</h2>
+      <p className={hub.sub} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        KPI 1번 관측 지점{" "}
+        <AnchorButton
+          href="/admin/leads/export"
+          variant="outline"
+          style={{ marginLeft: "auto", padding: "8px 16px", fontSize: "13px" }}
+        >
+          CSV 내보내기
+        </AnchorButton>
+      </p>
 
-      {rows.length === 0 ? (
-        <EmptyState
-          title="아직 사전신청이 없습니다"
-          detail="랜딩의 이메일 폼으로 접수되면 여기에 쌓입니다."
-        />
-      ) : (
-        <div className={styles.scroller}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th scope="col">이메일</th>
-                <th scope="col">상태</th>
-                <th scope="col">마케팅</th>
-                <th scope="col">유입</th>
-                <th scope="col">접수</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <th scope="row" className={styles.email}>
-                    {row.email}
-                  </th>
-                  <td>{STATUS_LABEL[row.status] ?? row.status}</td>
-                  <td>
-                    {row.unsubscribedAt ? (
-                      <span className={styles.off}>거부</span>
-                    ) : row.marketingOptIn ? (
-                      "동의"
-                    ) : (
-                      <span className={styles.off}>미동의</span>
-                    )}
-                  </td>
-                  <td className={styles.source}>
-                    {row.utmSource ?? row.sourceChannel ?? "직접"}
-                  </td>
-                  <td className={styles.when}>{WHEN.format(row.createdAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+      <div className={c.kpi} style={{ gridTemplateColumns: "repeat(3,1fr)" }} data-probe="leads-kpi">
+        <Card>
+          <small>누적 리드</small>
+          <span className="score">{NUM.format(data.total)}</span>
+        </Card>
+        <Card>
+          <small>오늘</small>
+          <span className="score" style={{ color: "var(--accent)" }}>
+            +{NUM.format(data.todayCount)}
+          </span>
+        </Card>
+        <Card>
+          <small>마케팅 동의율</small>
+          <span className="score">{rate}%</span>
+        </Card>
+      </div>
+
+      <table className={c.atbl} data-probe="leads">
+        <thead>
+          <tr>
+            <th>EMAIL</th>
+            <th>동의</th>
+            <th>유입일</th>
+            <th>UTM</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.rows.map((row) => (
+            <tr key={row.id}>
+              <td className={c.num}>{maskEmail(row.email)}</td>
+              <td>
+                필수 ✓, 마케팅 {row.marketingOptIn && !row.unsubscribedAt ? "✓" : "-"}
+              </td>
+              <td className={c.num}>{fmtMD(row.createdAt)}</td>
+              <td className={c.num}>{row.utmSource ?? row.sourceChannel ?? "direct"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {data.rows.length === 0 ? (
+        <p style={{ fontSize: "12px", color: "var(--faint)", marginTop: "12px" }}>
+          사전신청 없음. 랜딩의 이메일 폼으로 접수되면 여기에 쌓임.
+        </p>
+      ) : null}
+    </>
   );
 }

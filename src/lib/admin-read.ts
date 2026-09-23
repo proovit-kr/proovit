@@ -450,7 +450,6 @@ export async function loadAdminEntries(
 export type AdminLeadRow = {
   id: string;
   email: string;
-  status: LeadStatus;
   sourceChannel: string | null;
   utmSource: string | null;
   marketingOptIn: boolean;
@@ -459,20 +458,20 @@ export type AdminLeadRow = {
 };
 
 /**
- * 사전신청 리드.
+ * 사전신청 리드 — 시안 `#scr-adm-leads`(3109행). KPI 1번의 관측 지점이다.
  *
- * ⚠️ 이메일이 그대로 보이는 화면이다. 목록을 화면 밖으로 빼는 기능(내려받기)은
- * **일부러 만들지 않았다** — 파일로 나가는 순간 접근 통제가 끝나고, 마케팅 발송은
- * 발송 도구가 직접 DB를 읽는 편이 안전하다.
- *
- * 수신거부한 사람도 목록에서 지우지 않고 표시만 한다. 지우면 같은 주소로 다시
- * 발송할 수 있게 되어 수신거부의 뜻이 사라진다.
+ * 수신거부한 사람도 목록에서 지우지 않는다. 지우면 같은 주소로 다시 발송할 수
+ * 있게 되어 수신거부의 뜻이 사라진다. 화면은 마케팅 칸을 「-」로 적는다.
  */
 export async function loadAdminLeads(
   seasonId: string,
+  today: Date,
   take: number = 200,
-): Promise<{ rows: AdminLeadRow[]; total: number }> {
-  const [rows, total] = await Promise.all([
+): Promise<{ rows: AdminLeadRow[]; total: number; todayCount: number; optIn: number }> {
+  /* 「오늘」은 KST 달력일이다 */
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(today);
+  const dayStart = new Date(`${ymd}T00:00:00+09:00`);
+  const [rows, total, todayCount, optIn] = await Promise.all([
     prisma.lead.findMany({
       where: { seasonId },
       orderBy: { createdAt: "desc" },
@@ -480,7 +479,6 @@ export async function loadAdminLeads(
       select: {
         id: true,
         email: true,
-        status: true,
         sourceChannel: true,
         utmSource: true,
         marketingOptIn: true,
@@ -489,8 +487,12 @@ export async function loadAdminLeads(
       },
     }),
     prisma.lead.count({ where: { seasonId } }),
+    prisma.lead.count({
+      where: { seasonId, createdAt: { gte: dayStart, lt: new Date(dayStart.getTime() + 86_400_000) } },
+    }),
+    prisma.lead.count({ where: { seasonId, marketingOptIn: true, unsubscribedAt: null } }),
   ]);
-  return { rows, total };
+  return { rows, total, todayCount, optIn };
 }
 
 export type AdminSeasonRow = {
