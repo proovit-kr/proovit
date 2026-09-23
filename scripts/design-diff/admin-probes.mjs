@@ -413,4 +413,42 @@ export const SCREENS = {
       ["몸통", S + ".atbl tbody", '[data-probe="audit"] tbody', [/^admin$/, /^hub-check$/]],
     ],
   },
+
+  /* ── 시상 ── */
+  awards: {
+    hash: "adm-awards",
+    route: "/admin/awards",
+    list: (S) => {
+      const T = '[data-probe="awards"]';
+      const B = '[data-probe="awards-bar"]';
+      return [
+        ["h1", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}', [], ["width"]],
+        ["wbar", S + ".wbar", '[data-probe="ad-body"] {{hub:wbar}}', [], ["width", "height"]],
+        ["줄", S + ".ad-body > div[style*=flex]", B, [], ["height"], [], { kids: true }],
+        ["chip", S + ".ad-body > div[style*=flex] .chip", `${B} [class*="Surface-module__"][class*="__chip"]`, [], ["width"]],
+        ["확정 버튼", S + ".ad-body > div[style*=flex] .btn", `${B} ${BTN}`, [], ["width", "margin-left"]],
+        ...table(S, T, { cols: 6 }),
+        ["td rank", S + ".atbl tbody tr:first-child td:nth-child(1)", `${T} tbody tr:first-child td:nth-child(1)`, [], ["width", "height"]],
+        ["td b", S + ".atbl tbody tr:first-child b", `${T} tbody tr:first-child b`, [], ["width"]],
+        ["td 수상", S + ".atbl tbody tr:first-child td:nth-child(5) .badge", `${T} tbody tr:first-child td:nth-child(5) ${BADGE}`, [], ["width"]],
+        ["td 보증금", S + ".atbl tbody tr:first-child td:nth-child(6)", `${T} tbody tr:first-child td:nth-child(6)`, [], ["width", "height"]],
+        ["줄긋기 td", S + ".atbl tr.strike td:nth-child(3)", `${T} tr{{c:strike}} td:nth-child(3)`, [], ["width", "height"]],
+        ["줄긋기 팀", S + ".atbl tr.strike .tnm", `${T} tr{{c:strike}} {{c:tnm}}`, [], ["width", "height"]],
+        ["제재 배지", S + ".atbl tr.strike .badge", `${T} tr{{c:strike}} ${BADGE}`, [], ["width"]],
+        ["안내", S + ".ad-body > p:last-child", '[data-probe="ad-body"] > p:last-child', [], ["width", "height"]],
+      ];
+    },
+    text: (S) => [
+      ["제목", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}'],
+      ["경고줄", S + ".wbar", '[data-probe="ad-body"] {{hub:wbar}}'],
+      ["줄", S + ".ad-body > div[style*=flex]", '[data-probe="awards-bar"]'],
+      ["머리글", S + ".atbl thead", '[data-probe="awards"] thead'],
+      /* 몸통 다섯 줄도 시안 목업 그대로 심었다(dev-admin-fixture) */
+      ["몸통", S + ".atbl tbody", '[data-probe="awards"] tbody'],
+      ["안내", S + ".ad-body > p:last-child", '[data-probe="ad-body"] > p:last-child'],
+    ],
+    hover: (S) => [
+      ["확정 hover", S + ".ad-body > div[style*=flex] .btn", `[data-probe="awards-bar"] ${BTN}`],
+    ],
+  },
 };

@@ -23,6 +23,8 @@ export type AdminFixture = {
     metricDaily?: string[];
     metricChannel?: string[];
     abuseFlag?: string[];
+    snapshot?: string[];
+    sanction?: string[];
   };
   /** 큐에서 잠시 내린 집계 줄(reviewedBy를 채웠다) — 걷을 때 비운다 */
   metricHidden?: string[];
@@ -321,6 +323,54 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
       }
       break;
     }
+    case "awards": {
+      /*
+        시안 시상 표(3212행) — 1~4위와 제재로 빠진 두잇로그(512 → 298, 지표 무효화 −214).
+        스냅샷은 다른 집계보다 늦은 날(11.17)에 심어 「가장 최근 집계일」이 되게 한다.
+      */
+      const day = new Date("2026-11-17T00:00:00Z");
+      const rows = [
+        { team: "새벽창고", rank: 1, visitors: 1368 },
+        { team: "리틀포션", rank: 2, visitors: 1248 },
+        { team: "오늘의루틴", rank: 3, visitors: 1094 },
+        { team: "밥값하는AI", rank: 4, visitors: 901 },
+        { team: "두잇로그", rank: 5, visitors: 512 },
+      ];
+      created.snapshot = [];
+      for (const r of rows) {
+        const snap = await prisma.leaderboardSnapshot.create({
+          data: {
+            seasonId: season.id,
+            entryId: await entryOf(season.id, r.team),
+            snapshotDate: day,
+            rank: r.rank,
+            score: 0,
+            validVisitorsTotal: r.visitors,
+          },
+          select: { id: true },
+        });
+        created.snapshot.push(snap.id);
+      }
+      const doit = await prisma.entry.findFirstOrThrow({
+        where: { seasonId: season.id, team: { name: "두잇로그" } },
+        select: { id: true, status: true, stage: true },
+      });
+      await prisma.entry.update({ where: { id: doit.id }, data: { status: "disqualified" } });
+      const flag = await prisma.abuseFlag.create({
+        data: { entryId: doit.id, kind: "bot_traffic", status: "upheld", adjustedVisitors: -214, reason: "시안 목업" },
+        select: { id: true },
+      });
+      created.abuseFlag = [flag.id];
+      const sanction = await prisma.sanction.create({
+        data: {
+          entryId: doit.id, stage: "week_invalidated", reason: "bot_traffic",
+          detail: "시안 목업", status: "applied", appliedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      created.sanction = [sanction.id];
+      return { screen, created, entryBefore: [{ id: doit.id, status: doit.status, stage: doit.stage }] };
+    }
     case "leads":
       created.lead = await seedLeads(season.id);
       break;
@@ -389,6 +439,12 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
 
 export async function clearSandboxAdmin(f: AdminFixture): Promise<void> {
   assertSandbox();
+  if (f.created.snapshot?.length) {
+    await prisma.leaderboardSnapshot.deleteMany({ where: { id: { in: f.created.snapshot } } });
+  }
+  if (f.created.sanction?.length) {
+    await prisma.sanction.deleteMany({ where: { id: { in: f.created.sanction } } });
+  }
   if (f.created.abuseFlag?.length) {
     await prisma.abuseFlag.deleteMany({ where: { id: { in: f.created.abuseFlag } } });
   }
