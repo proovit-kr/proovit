@@ -59,8 +59,15 @@ const COMMON = [
 ];
 
 /* 카드 머리 — 제목·칩·배지·(시각). 시각은 데이터라 폭을 뺀다 */
-const head = (k, stamp) => [
-  [`card ${k}`, sCard(k), iCard(k)],
+/*
+  카드 높이 — ① 안내문은 390에서만 뺀다(절 단위 줄바꿈으로 줄이 는다, 혜택과
+  크레딧·내 지표와 같은 결정). 코멘트(`.q`)가 든 카드는 폭마다 뺀다 — 코멘트는
+  데이터이고 절 단위로 끊어 1440에서도 시안의 두 줄이 세 줄이 된다(내가 정함).
+*/
+const head = (k, stamp, comment) => [
+  comment
+    ? [`card ${k}`, sCard(k), iCard(k), [], ["height"]]
+    : [`card ${k}`, sCard(k), iCard(k), [], [], ["height"]],
   [`card ${k} hd`, `${sCard(k)} .jd-hd`, `${iCard(k)} ${I("jdHd")}`],
   [`card ${k} h3`, `${sCard(k)} .jd-hd h3`, `${iCard(k)} ${I("jdHd")} h3`, [], ["width"]],
   [`card ${k} chip`, `${sCard(k)} .gate-chip`, `${iCard(k)} ${I("gateChip")}`, [], ["width"]],
@@ -75,7 +82,8 @@ const quote = (k, name = "q") => [
   [`card ${k} ${name}`, `${sCard(k)} .q`, `${iCard(k)} ${I("q")}`, [], ["height"]],
 ];
 const pubNote = (k) => [
-  [`card ${k} note`, `${sCard(k)} .pub-note`, `${iCard(k)} ${I("pubNote")}`, [], [], ["height"]],
+  /* inline-flex의 너비는 LayoutUnit(1/64px)이 어긋난다 — 글자를 span에 담아서다 */
+  [`card ${k} note`, `${sCard(k)} .pub-note`, `${iCard(k)} ${I("pubNote")}`, [], ["width"], ["height"]],
   [`card ${k} note ic`, `${sCard(k)} .pub-note .ic`, `${iCard(k)} ${I("pubNote")} svg`],
 ];
 
@@ -114,23 +122,19 @@ const totalBox = () => {
 };
 
 const LIST = {
-  /*
-    ① 390에서 카드·본문 높이를 뺀다 — 본문을 절 단위로 끊어(`Clauses`) 시안의
-    줄 수와 다르다. 혜택과 크레딧·내 지표와 같은 결정(내가 정함).
-  */
   none: [
     ...COMMON,
     ...head(1), ["card 1 p", `${sCard(1)} p`, `${iCard(1)} p`, [], [], ["height"]],
     ...head(2), ["card 2 p", `${sCard(2)} p`, `${iCard(2)} p`, [], [], ["height"]],
-  ].map((row) => (/^card \d$/.test(row[0]) ? [row[0], row[1], row[2], [], [], ["height"]] : row)),
+  ],
   pass: [
     ...COMMON,
-    ...head(1, true), ...quote(1), ...pubNote(1),
+    ...head(1, true, true), ...quote(1), ...pubNote(1),
     ...head(2),
   ],
   fail: [
     ...COMMON,
-    ...head(1, true),
+    ...head(1, true, true),
     ["card 1 sum", `${sCard(1)} .hb-sum`, `${iCard(1)} ${H("sum")}`],
     ["card 1 sum div", `${sCard(1)} .hb-sum div`, `${iCard(1)} ${H("sum")} div`],
     ["card 1 sum span", `${sCard(1)} .hb-sum span`, `${iCard(1)} ${H("sum")} span`, [], ["width"]],
@@ -144,8 +148,8 @@ const LIST = {
   ],
   final: [
     ...COMMON,
-    ...head(1, true), ...quote(1),
-    ...head(2, true),
+    ...head(1, true, true), ...quote(1),
+    ...head(2, true, true),
     ["final", `${sCard(2)} .jd-final`, `${iCard(2)} ${I("jdFinal")}`],
     ...axis(1), ...axis(2), ...totalBox(),
     ...quote(2),

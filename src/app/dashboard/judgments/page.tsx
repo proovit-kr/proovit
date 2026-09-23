@@ -142,12 +142,24 @@ function gateOneBadge(j: GateJudgment): { badge: string; tone: Tone } {
 
 const judgedStamp = (j: GateJudgment) => `${GATE_STAMP.judged} ${fmtMDHM(j.judgedAt)}`;
 
+/** 운영진 코멘트·안내 — 시안 `.q`. 줄은 문장·절 끝에서만 끊는다 */
+function Quote({ text }: { text: string }) {
+  return (
+    <div className={styles.q}>
+      <Clauses text={text} />
+    </div>
+  );
+}
+
 /** 🔒 줄 — 시안 `.pub-note` */
 function PubNote({ text }: { text: string }) {
   return (
     <span className={styles.pubNote}>
       <Icon name="lock" />
-      {text}
+      {/* flex 줄 안의 절은 span 하나에 담는다 — 절마다 flex 항목이 되면 안 된다 */}
+      <span>
+        <Clauses text={text} />
+      </span>
     </span>
   );
 }
@@ -181,7 +193,7 @@ function PassPane({ view }: { view: JudgmentsView }) {
     <>
       <Card className={styles.jd}>
         <Head gate={GATE.first} {...gateOneBadge(j)} stamp={judgedStamp(j)} />
-        {j.feedback ? <div className={styles.q}>{j.feedback}</div> : null}
+        {j.feedback ? <Quote text={j.feedback} /> : null}
         <PubNote text={PUB_NOTE.pass} />
       </Card>
       <Card className={styles.jd}>
@@ -205,7 +217,7 @@ function FailPane({ view }: { view: JudgmentsView }) {
             <b>{view.reason ?? "—"}</b>
           </div>
         </Card>
-        {view.reasonBody ? <div className={styles.q}>{view.reasonBody}</div> : null}
+        {view.reasonBody ? <Quote text={view.reasonBody} /> : null}
         <PubNote text={PUB_NOTE.fail} />
         <div
           style={{
@@ -221,11 +233,13 @@ function FailPane({ view }: { view: JudgmentsView }) {
           </LinkButton>
           {view.appealBy ? (
             <span style={{ fontSize: "12.5px", color: "var(--faint)" }}>
-              {APPEAL.note({
-                appealDays: APPEAL_BUSINESS_DAYS,
-                by: fmtMDHM(view.appealBy),
-                responseDays: RESPONSE_BUSINESS_DAYS,
-              })}
+              <Clauses
+                text={APPEAL.note({
+                  appealDays: APPEAL_BUSINESS_DAYS,
+                  by: fmtMDHM(view.appealBy),
+                  responseDays: RESPONSE_BUSINESS_DAYS,
+                })}
+              />
             </span>
           ) : null}
         </div>
@@ -248,7 +262,7 @@ function FinalPane({ view }: { view: JudgmentsView }) {
         {g1 ? (
           <>
             <Head gate={GATE.first} {...gateOneBadge(g1)} stamp={judgedStamp(g1)} />
-            {g1.feedback ? <div className={styles.q}>{g1.feedback}</div> : null}
+            {g1.feedback ? <Quote text={g1.feedback} /> : null}
           </>
         ) : (
           <Head gate={GATE.first} badge={GATE_BADGE.before} tone="gray" />
@@ -262,7 +276,7 @@ function FinalPane({ view }: { view: JudgmentsView }) {
           stamp={`${GATE_STAMP.final} ${fmtMDHM(g2.judgedAt)}`}
         />
         {view.finalScore ? <ScoreTable score={view.finalScore} /> : null}
-        <div className={styles.q}>{FINAL_NOTE}</div>
+        <Quote text={FINAL_NOTE} />
       </Card>
     </>
   );
