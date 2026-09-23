@@ -1,150 +1,155 @@
 /*
-  심사 결과. 상자 없이 줄과 괘선으로만(CLAUDE.md §7).
-  판정 결과에만 색을 쓴다 — 통과/보완/미통과는 색이 곧 정보다.
+  심사 결과 — 시안 ver4 `#scr-judgments`의 최종 승자 값 그대로
+  (`fold-spec.mjs --media '^\.(jd|q|pub-note|sc-|gate-chip)'`).
+  머리(h1·sub)·사유 요지(.hb-sum)는 hub.module.css, 카드는 Surface의 Card.
 */
 
-.root {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-6);
-  padding-block: var(--s-10) var(--s-14);
+/* 시안 `.card.jd` */
+.jd {
+  padding: 24px 26px;
+  margin-bottom: 14px;
 }
 
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-
-.title {
-  margin: 0;
-  color: var(--c-text-strong);
-  font-size: var(--fs-3xl);
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.purpose {
-  /* 읽기 폭은 텍스트에만(§6) */
-  max-width: 34em;
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-md);
-  line-height: 1.7;
-}
-
-.locked {
-  max-width: 34em;
-  margin: 0;
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--c-line-3);
-  border-radius: var(--r-lg);
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-}
-
-.list {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  padding-block: var(--s-5);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.itemHead {
+.jdHd {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
-}
-
-.stage {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  color: var(--c-text-strong);
-  font-size: var(--fs-base);
-  font-weight: 600;
-}
-
-.pending {
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-}
-
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-
-.when {
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-}
-
-.feedback {
-  max-width: 34em;
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-base);
-  line-height: 1.8;
-  /* 심사 의견은 줄바꿈이 뜻을 갖는다 */
-  white-space: pre-wrap;
-}
-
-.muted {
-  margin: 0;
-  color: var(--c-text-faint);
-  font-size: var(--fs-sm);
-}
-
-.link {
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  text-decoration: none;
-  border-bottom: 1px solid var(--c-line-3);
-}
-
-.link:hover {
-  color: var(--c-text-strong);
-}
-
-/*
-  소명 통로. 떨어진 판정에만 붙는다 — 규칙 제6조의 5영업일이 곧 권리라서
-  참가자가 이 화면을 떠나기 전에 보여야 한다.
-*/
-.appeal {
-  display: flex;
+  gap: 10px;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-2) var(--s-3);
-  margin: var(--s-2) 0 0;
 }
 
-.appealLink {
-  color: var(--c-text-strong);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  text-decoration: none;
-  border-bottom: 1px solid var(--c-line-3);
+/* Tailwind preflight가 h3 크기·굵기를 지운다 — 시안 값으로 되돌린다 */
+.jdHd h3 {
+  font-size: 17px;
+  font-weight: 800;
+  margin: 0 2px 0 0;
 }
 
-.appealLink:hover {
-  color: var(--c-lime);
+/* 시안 `.gate-chip` — 스테이지 제출의 것과 같은 값 */
+.gateChip {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  color: var(--violet);
+  border: 1px dashed rgba(167, 139, 250, 0.55);
+  border-radius: 99px;
+  padding: 3.5px 12px;
+  font-weight: 700;
 }
 
-.appealNote {
-  color: var(--c-text-faint);
-  font-size: var(--fs-xs);
+/* 판정 시각 — 머리의 오른끝 */
+.tm {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+}
+
+/* ① 카드 본문 — 시안 인라인 style 그대로 */
+.before {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+
+/* 운영진 코멘트 — 시안 `.q` */
+.q {
+  background: var(--surface-2);
+  border-left: 3px solid var(--violet);
+  border-radius: 0 10px 10px 0;
+  padding: 14px 18px;
+  font-size: 14.5px;
+  color: var(--muted);
+  margin-top: 14px;
+  line-height: 1.75;
+}
+
+/* 🔒 줄 — 시안 `.jd .pub-note` */
+.pubNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--faint);
+  margin-top: 12px;
+}
+
+.pubNote svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ④ 점수표 — 시안 `.jd-final` */
+.jdFinal {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 28px;
+}
+
+.jdFinal > div:last-child {
+  grid-column: 1 / -1;
+}
+
+.scAx {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+  font-weight: 800;
+  font-family: var(--mono);
+}
+
+.scAx b {
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.scRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14.5px;
+}
+
+.scRow b {
+  font-family: var(--mono);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.scRow.tot {
+  border-bottom: 0;
+  padding-top: 13px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.scRow.tot b {
+  color: var(--accent);
+  font-size: 16.5px;
+}
+
+.raw {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+  margin-left: 8px;
+}
+
+.w {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+  margin-left: 6px;
+}
+
+@media (max-width: 760px) {
+  .jdFinal {
+    grid-template-columns: 1fr;
+  }
 }

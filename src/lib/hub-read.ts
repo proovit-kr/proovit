@@ -10,11 +10,11 @@ import {
 } from "@/generated/prisma/enums";
 import { HUB_GOLDEN_PATH, HUB_ONBOARDING, HUB_STEP_CHIP } from "@/content/hub";
 import type { ViewerState } from "@/lib/access";
-import { addBusinessDays, APPEAL_BUSINESS_DAYS } from "@/lib/appeal";
+import { addBusinessDays, APPEAL_BUSINESS_DAYS, endOfSeoulDay } from "@/lib/appeal";
 import { devNow } from "@/lib/dev-clock";
 import { conversionRate, currentStage } from "@/lib/header-state";
 import type { HubPane } from "@/lib/hub-state";
-import { seoulDateOnly } from "@/lib/measure";
+import { splitFeedback } from "@/lib/judgments-view";
 import { prisma } from "@/lib/prisma";
 import { loadLeaderboard } from "@/lib/public-read";
 import { isRacing } from "@/lib/season-phase";
@@ -227,11 +227,6 @@ async function loadExtra(
   return out;
 }
 
-/** 그날의 끝(서울 23:59). 이의신청 기한이 「그날 이내」라서다 */
-function endOfSeoulDay(at: Date): Date {
-  return new Date(seoulDateOnly(at).getTime() + (24 * 60 - 9 * 60 - 1) * 60_000);
-}
-
 /** 그 참가작의 누적 지표. 리더보드에 행이 없을 때도 쓴다 */
 async function totals(entryId: string) {
   const sum = await prisma.metricDaily.aggregate({
@@ -244,6 +239,23 @@ async function totals(entryId: string) {
     /* `0n` 리터럴은 tsconfig target(ES2017)에서 못 쓴다 — 값은 같다 */
     revenue: sum._sum.revenue ?? BigInt(0),
   };
+}
+
+/**
+ * 1차 게이트가 본 숫자 — 「 (신청 3명, 전환율 0.8%)」.
+ *
+ * 시안 h12의 사유 요지는 「수요 신호 부족 (신청 3명, 전환율 0.8%)」다. 괄호 안은
+ * 운영이 적는 것이 아니라 **1차 게이트가 본 숫자**라(h4와 같은 재료) 화면이
+ * 붙인다. 허브 h12와 심사 결과 ③이 같은 줄을 쓴다.
+ */
+export async function gateOneNumbers(entryId: string): Promise<string> {
+  const [leads, sum] = await Promise.all([
+    prisma.entryLead.count({ where: { entryId, verifiedAt: { not: null } } }),
+    totals(entryId),
+  ]);
+  const applicants = leads || sum.signups;
+  const rate = conversionRate(applicants, sum.validVisitors);
+  return ` (신청 ${applicants}명, 전환율 ${rate === null ? "—" : `${rate}%`})`;
 }
 
 /**
@@ -606,7 +618,7 @@ export async function loadHub(
     case "gateFail": {
       const gate =
         entry.stage === EntryStage.s5 ? StageKey.s5 : StageKey.s2;
-      const [judgment, leads, sum] = await Promise.all([
+      const [judgment, numbers] = await Promise.all([
         prisma.judgment.findFirst({
           where: {
             submission: { entryId: entry.id, stageKey: gate },
@@ -615,26 +627,15 @@ export async function loadHub(
           orderBy: { judgedAt: "desc" },
           select: { feedback: true, judgedAt: true },
         }),
-        prisma.entryLead.count({
-          where: { entryId: entry.id, verifiedAt: { not: null } },
-        }),
-        totals(entry.id),
+        /* 2차 게이트는 수요 숫자가 근거가 아니라 안 붙인다 */
+        gate === StageKey.s2 ? gateOneNumbers(entry.id) : Promise.resolve(""),
       ]);
-      /*
-        사유 요지 — 시안 h12는 「수요 신호 부족 (신청 3명, 전환율 0.8%)」다.
-        괄호 안은 운영이 적는 것이 아니라 **1차 게이트가 본 숫자**라(h4와 같은
-        재료) 화면이 붙인다. 2차 게이트는 수요 숫자가 근거가 아니라 안 붙인다.
-      */
-      const applicants = leads || sum.signups;
-      const rate = conversionRate(applicants, sum.validVisitors);
-      const numbers =
-        gate === StageKey.s2
-          ? ` (신청 ${applicants}명, 전환율 ${rate === null ? "—" : `${rate}%`})`
-          : "";
+      /* 요지는 코멘트의 첫 문단 — 심사 결과 ③의 `.hb-sum`과 같은 줄 */
+      const { summary } = splitFeedback(judgment?.feedback ?? null);
       return {
         pane,
         gate,
-        reason: judgment?.feedback ? `${judgment.feedback}${numbers}` : null,
+        reason: summary ? `${summary}${numbers}` : null,
         /*
           제11조 ① — 통지 후 5영업일. **기산점은 판정 시각**이고 공휴일은 못
           세므로(appeal.ts 주석) 실제 기한은 이 값보다 늦어질 수 있다.

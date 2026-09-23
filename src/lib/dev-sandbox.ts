@@ -62,6 +62,7 @@ import {
   specS3,
 } from "@/lib/dev-submit-fixture";
 import { seoulDateOnly } from "@/lib/measure";
+import { type JudgmentsPane, paneOf as judgmentsPane } from "@/lib/judgments-view";
 import { type MetricsPane as MyMetricsPane, metricsWindow } from "@/lib/metrics-view";
 import { measurementState, type MeasurementState } from "@/lib/measurement";
 import { paymentPane, type PaymentPane } from "@/lib/payment";
@@ -166,6 +167,8 @@ export type SandboxTeam = {
   credits: CreditsPane | null;
   /** 내 지표 화면의 판(시안 ①②). 「내 지표」 줄이 되짚는다 — s3 전이면 null */
   myMetrics: MyMetricsPane | null;
+  /** 심사 결과 화면의 판(시안 ①~④). 「심사 결과」 줄이 되짚는다 — s2 전이면 null */
+  judgments: JudgmentsPane | null;
   /** 팀원 수. 「팀원」 줄이 1인·2인 중 어느 쪽이 눌렸는지 되짚는 데 쓴다 */
   members: number;
   /* 어느 팀·시즌의 기록인가 — 바가 판을 앉힐 기록을 고르는 데 쓴다 */
@@ -220,7 +223,15 @@ export async function loadSandboxState(): Promise<SandboxState> {
         hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
         chargeType: true,
         integration: { select: { status: true } },
-        submissions: { select: { stageKey: true, week: true, status: true } },
+        submissions: {
+          select: {
+            stageKey: true,
+            week: true,
+            status: true,
+            /* 심사 결과 ①~④를 가르는 것 — 게이트의 최신 판정 */
+            judgments: { orderBy: { judgedAt: "desc" }, take: 1, select: { result: true } },
+          },
+        },
         creditClaims: { select: { status: true, offer: { select: { kind: true } } } },
         awards: { where: { awardedAt: { not: null } }, take: 1, select: { id: true } },
         /* 내 지표 ①②를 가르는 것 — 어제까지 14일에 집계 행이 있는가 */
@@ -318,6 +329,11 @@ export async function loadSandboxState(): Promise<SandboxState> {
           stage: entry.stage,
           hasRows: entry.metricDaily.length > 0,
           verified: entry.hostname?.ownershipVerifiedAt != null,
+        }),
+        judgments: judgmentsPaneOf({
+          stage: entry.stage,
+          gate1: entry.submissions.find((x) => x.stageKey === StageKey.s2)?.judgments[0] ?? null,
+          gate2: entry.submissions.find((x) => x.stageKey === StageKey.s5)?.judgments[0] ?? null,
         }),
         credits: creditsPaneOf({
           phase: entry.season.phase,
@@ -2866,4 +2882,144 @@ function myMetricsPaneOf(args: {
   if (!stageAtLeast(args.stage, EntryStage.s3)) return null;
   if (args.hasRows) return "data";
   return args.verified ? "empty" : null;
+}
+
+/* ── 심사 결과 ─────────────────────────────────────────────────────────── */
+
+export type { JudgmentsPane } from "@/lib/judgments-view";
+
+/*
+  심사 결과 화면의 네 판 — 시안 `#scr-judgments`의 목업을 허브 판 위에 얹는다.
+
+    none   h4(1차 심사 대기) — 게이트 판정 없음
+    pass   h5(s3 빌드) — s2 PASS, 시안 ②의 코멘트
+    fail   h12(탈락팀 접근) — s2 FAIL, 시안 ③의 요지·코멘트(허브 h12가 만든
+           판정의 문구만 바꾼다. 판정 시각은 h12대로 「오늘」 — 이의신청 기한이
+           지나지 않게)
+    final  h8(시상 발표) — s2·s5 PASS, s5에 시안 ④의 점수표
+
+  판정 시각은 그 게이트 마감 다음 날 14:20(시안 「판정 10.12 14:20」의 시각),
+  확정은 s5 마감 뒤 10:00(「확정 11.03 10:00」)이다 — 날짜는 dev 일정을 따른다.
+*/
+const SPEC_JUDGMENTS = {
+  pass: "수요 검증이 충실합니다. 비지인 인터뷰 6건과 유효 사전 신청 24건이 확인되고, 위험 가정(\"구독료 지불 의사\")이 조사 설계와 정확히 연결됐습니다. 기존 대안 분석에서 원가표 수작업의 불만 지점을 잡아낸 것이 차별 포인트로 이어졌습니다.",
+  /* 첫 문단이 요지 — 괄호 숫자는 화면이 붙인다(허브 h12와 같다) */
+  fail: "수요 신호 부족\n\n문제 정의는 명확하나 수요 검증이 통과 기준에 못 미칩니다. 사전 신청 3건은 존재 확인 기준(10건)에 미달하고, 비지인 직접 조사 기록이 없습니다. 채널을 페르소나가 실제로 모여 있는 곳으로 좁혀 다음 시즌 재도전을 권합니다.",
+  finalPass: "수요 검증이 충실합니다. 비지인 인터뷰 6건과 유효 사전 신청 24건이 확인됐습니다.",
+  /* `judgments-view.ts`의 `FinalScoreJson` — 축 점수·총점은 화면이 센다 */
+  score: {
+    items: {
+      T1: { raw: "V 1,248", score: 80.8 },
+      T2: { raw: "r 2.0배", score: 66.7 },
+      T3: { raw: "유효 채널 3.35", score: 100 },
+      R1: { raw: "W ₩126,000", score: 44.4 },
+      R2: { raw: "0.62%", score: 35.2 },
+      R3: { raw: "결제형 L3, 결제자 7인", score: 75 },
+    },
+    compliance: { raw: "주간 제출 누락 0, 증빙 불응 0", factor: 1 },
+    rank: { position: 2, teams: 11, floorsMet: true },
+  },
+  formulaVersion: "v0.3.1",
+} as const;
+
+const JUDGMENTS_HUB: Record<JudgmentsPane, HubKey> = {
+  none: "h4",
+  pass: "h5",
+  fail: "h12",
+  final: "h8",
+};
+
+export async function setSandboxJudgments(args: {
+  entryId: string;
+  pane: JudgmentsPane;
+}): Promise<void> {
+  assertSandbox();
+  const { entryId, pane } = args;
+
+  await setSandboxHub({ key: JUDGMENTS_HUB[pane], entryId });
+
+  const entry = await prisma.entry.findUniqueOrThrow({
+    where: { id: entryId },
+    select: {
+      seasonId: true,
+      submissions: {
+        where: { stageKey: { in: [StageKey.s2, StageKey.s5] } },
+        select: { id: true, stageKey: true },
+      },
+    },
+  });
+  const stages = await prisma.stage.findMany({
+    where: { seasonId: entry.seasonId, stageKey: { in: [StageKey.s2, StageKey.s5] } },
+    select: { stageKey: true, closesAt: true },
+  });
+  const gate = (key: StageKey) => entry.submissions.find((x) => x.stageKey === key) ?? null;
+  const closes = (key: StageKey) => {
+    const at = stages.find((x) => x.stageKey === key)?.closesAt;
+    if (!at) throw new Error(`[dev] ${key} 마감이 없다`);
+    return at;
+  };
+  /* 마감(23:59 서울) 다음 날 14:20 */
+  const judgedAfterClose = (key: StageKey) =>
+    new Date(closes(key).getTime() + (14 * 60 + 21) * 60_000);
+
+  const s2 = gate(StageKey.s2);
+  const s5 = gate(StageKey.s5);
+
+  if (pane === "none") {
+    await prisma.judgment.deleteMany({
+      where: { submissionId: { in: entry.submissions.map((x) => x.id) } },
+    });
+    return;
+  }
+  if (!s2) throw new Error("[dev] s2 제출물이 없다 — 허브 판이 만들었어야 한다");
+
+  if (pane === "pass") {
+    await prisma.judgment.deleteMany({ where: { submissionId: s2.id } });
+    await prisma.judgment.create({
+      data: {
+        submissionId: s2.id,
+        result: JudgmentResult.pass,
+        feedback: SPEC_JUDGMENTS.pass,
+        judgedAt: judgedAfterClose(StageKey.s2),
+        aiReport: { dev: true },
+      },
+    });
+    return;
+  }
+
+  if (pane === "fail") {
+    /* h12가 만든 판정(요지 「수요 신호 부족」)에 시안 ③의 코멘트를 붙인다 */
+    await prisma.judgment.updateMany({
+      where: { submissionId: s2.id, result: JudgmentResult.fail },
+      data: { feedback: SPEC_JUDGMENTS.fail },
+    });
+    return;
+  }
+
+  /* final — h8의 `gatePass`가 단 판정 둘에 시안 ④의 문구·점수표 */
+  if (!s5) throw new Error("[dev] s5 제출물이 없다 — 허브 h8이 만들었어야 한다");
+  await prisma.judgment.updateMany({
+    where: { submissionId: s2.id },
+    data: { feedback: SPEC_JUDGMENTS.finalPass, judgedAt: judgedAfterClose(StageKey.s2) },
+  });
+  await prisma.judgment.updateMany({
+    where: { submissionId: s5.id },
+    data: {
+      feedback: null,
+      /* s5 마감은 자정(서울)이라 같은 날 10:00 */
+      judgedAt: new Date(closes(StageKey.s5).getTime() + 10 * 60 * 60_000),
+      scoreBreakdown: SPEC_JUDGMENTS.score,
+      formulaVersion: SPEC_JUDGMENTS.formulaVersion,
+    },
+  });
+}
+
+/** 바가 되짚는 판. 화면이 s2부터라 그 전엔 null */
+function judgmentsPaneOf(args: {
+  stage: EntryStage;
+  gate1: { result: string } | null;
+  gate2: { result: string } | null;
+}): JudgmentsPane | null {
+  if (!stageAtLeast(args.stage, EntryStage.s2)) return null;
+  return judgmentsPane({ gate1: args.gate1, gate2: args.gate2 });
 }

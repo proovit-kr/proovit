@@ -13,6 +13,7 @@ import {
   devSetPayment,
   devSetStatus,
   devSetCredits,
+  devSetJudgments,
   devSetMyMetrics,
   devSetSubmit,
   devSetTeam,
@@ -71,6 +72,8 @@ type Team = {
   credits: "pend" | "locked" | "sched" | "build" | "race" | "tester" | "end" | null;
   /** 내 지표 화면의 판(시안 ①②). 「내 지표」 줄이 되짚는다 — s3 전이면 null */
   myMetrics: "data" | "empty" | null;
+  /** 심사 결과 화면의 판(시안 ①~④). 「심사 결과」 줄이 되짚는다 — s2 전이면 null */
+  judgments: "none" | "pass" | "fail" | "final" | null;
   teamId: string;
 };
 
@@ -586,6 +589,39 @@ export function DevBarClient({
             </div>
           </div>
 
+
+          {/*
+            ── 심사 결과 ────────────────────────────────────
+            심사 결과 화면의 네 판(시안 ①~④). 허브 h4·h5·h12·h8 위에 게이트
+            판정을 시안 목업으로 심는다.
+          */}
+          <div className={styles.row}>
+            <span className={styles.label}>
+              심사 결과
+              <em className={styles.hint}>심사 결과 ①②③④</em>
+            </span>
+            <div className={styles.picks}>
+              {current ? (
+                [
+                  { pane: "none", label: "① 심사 전" },
+                  { pane: "pass", label: "② 1차 pass" },
+                  { pane: "fail", label: "③ 1차 fail" },
+                  { pane: "final", label: "④ 2차 확정" },
+                ].map((pick) => (
+                  <PickButton
+                    key={pick.pane}
+                    action={devSetJudgments}
+                    fields={{ entryId: current.entryId, pane: pick.pane }}
+                    active={current.judgments === pick.pane}
+                  >
+                    {pick.label}
+                  </PickButton>
+                ))
+              ) : (
+                <span className={styles.empty}>로그인한 계정에 참가 기록이 없어요</span>
+              )}
+            </div>
+          </div>
 
           {/*
             ── 내 지표 ──────────────────────────────────────
