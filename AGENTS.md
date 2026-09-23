@@ -27,9 +27,27 @@ npm run verify   # typecheck + lint + test
 빌드가 필요한 때는 스키마를 고쳤거나 프로덕션 렌더를 확인해야 할 때뿐이다.
 그때는 개발 서버를 먼저 내린다.
 
-## main에는 직접 push하지 않는다
+## 브랜치 흐름: feat → dev → main
 
-운영이 main에서 나간다. main에 직접 push하면 리뷰 없이 배포된다.
+```
+feat/* ──PR(스쿼시)──▶ dev ──PR(머지 커밋)──▶ main
+                      │                     │
+                      스테이징                운영
+```
+
+- **main** — 운영(proovit.kr)이 여기서 나간다.
+- **dev** — 스테이징이다. GitHub **기본 브랜치**라 새 PR은 저절로 dev를 향한다.
+  Vercel이 `https://proovit-git-dev-proovit-kr.vercel.app`에 배포하고
+  (Vercel 로그인으로 잠김), **dev DB**에 붙어 개발 바가 뜬다. 릴리스 직전
+  통합 확인을 여기서 한다.
+- 기능 브랜치는 **dev에서 딴다.** `git switch -c <브랜치> origin/dev`
+
+(2026-09-23. 그 전에는 feat → main이었고, 릴리스 전에 모아 볼 자리가 없었다.)
+
+### dev·main에는 직접 push하지 않는다
+
+main에 직접 push하면 리뷰 없이 운영에 배포되고, dev에 직접 push하면 리뷰
+없이 스테이징에 올라간다.
 
 조직이 GitHub Free이고 리포가 비공개라 **서버 쪽 브랜치 보호를 걸 수 없다** —
 클래식 보호도 룰셋도 `403 Upgrade to GitHub Pro…`를 낸다(2026-08-31 확인).
@@ -41,23 +59,46 @@ git config core.hooksPath .githooks
 git config push.default current
 ```
 
-`.githooks/pre-push`가 main으로 가는 push를 거부한다.
+`.githooks/pre-push`가 main·dev로 가는 push를 거부한다.
 
 `push.default current`가 함께 필요한 이유가 있다. `git switch -c <새브랜치>
-origin/main`으로 브랜치를 따면 **업스트림이 main으로 잡힌다.** 그 상태에서
-`git push`만 치면 새 브랜치가 아니라 main으로 나간다. `current`는 항상 같은
-이름의 원격 브랜치로만 보낸다. (2026-08-31에 실제로 이 자리에서 걸릴 뻔했다.)
+origin/dev`로 브랜치를 따면 **업스트림이 dev로 잡힌다.** 그 상태에서
+`git push`만 치면 새 브랜치가 아니라 dev로 나간다. `current`는 항상 같은
+이름의 원격 브랜치로만 보낸다. (2026-08-31에 main에서 실제로 걸릴 뻔했다.)
 
-## 머지는 항상 스쿼시
+### 머지 방식은 대상 브랜치마다 다르다
 
-PR은 **스쿼시 머지**로만 합친다. main의 한 커밋이 PR 하나가 되게 한다.
+| PR | 방식 | 이유 |
+| --- | --- | --- |
+| feat → dev | **Squash and merge** | dev의 커밋 하나가 기능 하나 |
+| dev → main | **Create a merge commit** | 릴리스 하나가 머지 커밋 하나 |
+| 핫픽스 → main 뒤 main → dev | **Create a merge commit** | 두 브랜치를 다시 맞춘다 |
 
 ```
-gh pr merge <번호> --squash --delete-branch
+gh pr merge <번호> --squash --delete-branch   # feat → dev
+gh pr merge <번호> --merge                    # dev → main (dev는 지우지 않는다)
 ```
+
+⚠️ **dev → main을 스쿼시하지 않는다.** 스쿼시하면 main에 dev에 없는 커밋이
+생겨, 다음 릴리스 PR에 이미 나간 변경이 다시 뜨거나 충돌한다.
+
+⚠️ **main에서 바로 고친 것(핫픽스)은 곧바로 dev로 되돌려 합친다**(main → dev PR,
+머지 커밋). 빠뜨리면 다음 릴리스가 그 수정을 덮는다.
 
 브랜치 보호를 못 거는 리포라(위 참고) 웹의 머지 버튼 기본값을 서버가 강제해
-주지 않는다. 버튼을 쓸 때도 「Squash and merge」를 고른다.
+주지 않는다. 버튼을 누를 때마다 위 표대로 고른다.
+
+### 스테이징에서 확인하기
+
+- 개발 바의 「로그인」·「운영자」로 테스트 계정에 바로 들어간다. 카카오·구글
+  로그인도 된다(두 콘솔에 스테이징 주소를 등록해 두었다).
+- 스테이지·진도 줄로 원하는 판을 바로 세운다. s1부터 차례로 밟지 않아도 된다.
+- ⚠️ **dev DB 하나를 모두가 같이 쓴다.** 페이즈는 전역이고 테스트 계정도
+  하나라, 누가 판을 바꾸면 다른 사람 화면도 바뀐다. 여럿이 볼 때는 순서를 정한다.
+- ⚠️ 릴리스할 코드의 **마이그레이션이 dev DB에 적용됐는지** 먼저 본다.
+  어긋나면 화면이 깨져도 코드 탓인지 DB 탓인지 모른다.
+- Preview 환경변수: DB는 dev, Turnstile은 항상 통과하는 테스트 키, 메일(Resend)은
+  일부러 없다 — 스테이징에서 초대 메일이 실제 주소로 나가지 않게.
 
 ## 라우트를 지우면 `.next`도 지운다
 
