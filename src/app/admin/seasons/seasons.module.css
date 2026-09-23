@@ -1,205 +1,73 @@
 /*
-  시즌 관리. 운영 화면 밀도 — 스테이지 다섯 줄과 전환 일정을 나란히 본다.
-  페이즈 값에는 색을 주지 않는다. 어느 페이즈가 「좋은」 상태가 아니라 그냥 상태다.
+  시즌 관리 — 시안 `#scr-adm-seasons`.
+  값은 ver4 승자(`fold-spec.mjs --media '^(\.stgrow|\.gate-chip|\.keybox \.cp)'`).
 */
 
-.root {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-6);
-  padding-block: var(--s-8) var(--s-14);
+/* 시안 `.keybox .cp` — 기간을 오른쪽 끝으로 민다 */
+.cp {
+  margin-left: auto;
 }
 
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-
-.title {
-  margin: 0;
-  color: var(--c-text-strong);
-  font-size: var(--fs-2xl);
-  font-weight: 700;
-}
-
-.sub,
-.note {
-  /* 읽기 폭은 텍스트에만(§6) */
-  max-width: 44em;
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  line-height: 1.7;
-}
-
-.season {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-5);
-  padding-top: var(--s-5);
-  border-top: 1px solid var(--c-line-2);
-}
-
-.seasonHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-3) var(--s-5);
-}
-
-.seasonTitle {
-  margin: 0;
-  color: var(--c-text-strong);
-  font-size: var(--fs-lg);
-  font-weight: 700;
-}
-
-.seasonMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3);
-  margin: 0;
-  color: var(--c-text-faint);
-  font-size: var(--fs-2xs);
-}
-
-.phase {
-  padding: 1px var(--s-2);
-  border: 1px solid var(--c-line-3);
-  border-radius: 4px;
-  color: var(--c-text-dim);
-  font-family: var(--font-mono);
-}
-
-/* 균등 분할하지 않는다(§7) — 스테이지 쪽이 길어서 더 먹는다 */
-.cols {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-8);
-}
-
-.col {
-  display: flex;
-  flex: 1 1 22em;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-
-.colTitle {
-  margin: 0;
-  color: var(--c-text-dim);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-}
-
-.rows {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-3);
-  padding-block: var(--s-2);
-  border-top: 1px solid var(--c-line-2);
-  font-size: var(--fs-sm);
-}
-
-.rowKey {
-  display: flex;
+/* 시안 `.stgrow` — 스테이지 한 줄: 키 · 이름 · 시작 · 마감 · 칩 */
+.stgrow {
+  display: grid;
+  grid-template-columns: 44px 1fr 116px 116px 100px;
+  gap: 10px;
   align-items: center;
-  gap: var(--s-2);
-  flex: 0 0 6em;
-  color: var(--c-text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--muted);
 }
 
-.gate {
-  padding: 0 var(--s-2);
-  border: 1px solid var(--c-line-3);
-  border-radius: 999px;
-  color: var(--c-text-faint);
-  font-family: var(--font-sans);
-  font-size: var(--fs-2xs);
+.stgrow:last-of-type {
+  border-bottom: 0;
 }
 
-.rowName {
-  flex: 1 1 8em;
-  color: var(--c-text-strong);
+.k {
+  font-family: var(--mono);
+  font-weight: 800;
+  color: var(--faint);
+  font-size: 12.5px;
 }
 
-.rowWhen {
-  color: var(--c-text-faint);
-  font-size: var(--fs-xs);
+/* 시안 `.stgrow .inp{padding:9px 12px;font-size:14px}` + `.stgrow input{width:100%}` */
+.stgrow .inp {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 14px;
 }
 
-/* ── 전환 폼 ───────────────────────────────────────────────── */
+/* 시안 `.gate-chip` — 바이올렛 점선 알약 */
+.gateChip {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  color: var(--violet);
+  border: 1px dashed rgba(167, 139, 250, 0.55);
+  border-radius: 99px;
+  padding: 3.5px 12px;
+  font-weight: 700;
+}
 
-.phaseForm {
+/* 시안에 없는 줄 — 일정을 고치면 나타나는 저장 버튼(SeasonPanel 머리 주석) */
+.saveRow {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s-2);
-  max-width: 32em;
-  padding-top: var(--s-4);
-  border-top: 1px solid var(--c-line-2);
+  justify-content: flex-end;
+  gap: 10px;
 }
 
+/* 시안에 없는 줄 — 페이즈 수동 전환(page.tsx 머리 주석) */
 .phaseRow {
   display: flex;
+  gap: 10px;
   align-items: center;
-  gap: var(--s-3);
+  flex-wrap: wrap;
 }
 
-.label {
-  color: var(--c-text-dim);
-  font-size: var(--fs-xs);
-}
-
-.select {
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--c-line-3);
-  border-radius: var(--r-md);
-  background: var(--c-field);
-  color: var(--c-text-strong);
-  font-family: var(--font-mono);
-  font-size: var(--fs-sm);
-}
-
-/* 무엇이 열리는지 미리 알린다 — 값만 보고 누르지 않게 */
-.effect {
-  margin: 0;
-  color: var(--c-text-muted);
-  font-size: var(--fs-sm);
-}
-
-.reason {
-  width: 100%;
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--c-line-3);
-  border-radius: var(--r-md);
-  background: var(--c-field);
-  color: var(--c-text-strong);
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-  outline: none;
-  resize: vertical;
-}
-
-.reason:focus {
-  border-color: var(--c-line-strong);
-}
-
-.error {
-  margin: 0;
-  color: var(--c-danger);
-  font-size: var(--fs-2xs);
+.phaseRow .phaseSel {
+  width: auto;
+  padding: 9px 36px 9px 13px;
+  font-size: 14px;
+  background-position: right 12px center;
 }

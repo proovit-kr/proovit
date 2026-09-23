@@ -91,7 +91,7 @@ export async function setEntryStatus(args: {
     await tx.entry.update({ where: { id: entryId }, data: { status } });
     await writeAudit(tx, {
       actorId,
-      action: `entry_status:${status}`,
+      action: "entry.status",
       targetType: "entry",
       targetId: entryId,
       reason: reason.trim(),
@@ -140,7 +140,7 @@ export async function setSeasonPhase(args: {
     });
     await writeAudit(tx, {
       actorId,
-      action: `season_phase:${phase}`,
+      action: "season.phase",
       targetType: "season",
       targetId: seasonId,
       reason: reason.trim(),
@@ -148,6 +148,152 @@ export async function setSeasonPhase(args: {
     });
   });
 
+  return { ok: true };
+}
+
+/**
+ * 스테이지 일정 — 시안 시즌 관리의 날짜 칸(3013행).
+ *
+ * 다섯 스테이지를 한 번에 받는다. 한 칸씩 저장하면 중간에 순서가 어긋난 일정
+ * (s2가 s1보다 먼저 열리는 것)이 저장된 채로 남을 수 있다 — 그래서 다섯 줄을
+ * 한 트랜잭션으로 쓰고, 순서가 맞는지 먼저 본다.
+ */
+export async function setStageDates(args: {
+  seasonId: string;
+  stages: { stageKey: string; opensAt: Date; closesAt: Date }[];
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { seasonId, stages, reason, actorId } = args;
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+  const sorted = [...stages].sort((a, b) => a.stageKey.localeCompare(b.stageKey));
+  for (const [i, st] of sorted.entries()) {
+    if (st.opensAt >= st.closesAt) {
+      return { ok: false, message: `${st.stageKey}의 마감이 시작보다 앞섭니다.` };
+    }
+    const prev = sorted[i - 1];
+    if (prev && prev.closesAt > st.opensAt) {
+      return { ok: false, message: `${st.stageKey}가 ${prev.stageKey} 마감 전에 열립니다.` };
+    }
+  }
+
+  const before = await prisma.stage.findMany({
+    where: { seasonId },
+    select: { id: true, stageKey: true, opensAt: true, closesAt: true },
+  });
+  const changed = sorted.filter((st) => {
+    const b = before.find((x) => x.stageKey === st.stageKey);
+    return (
+      b &&
+      (b.opensAt?.getTime() !== st.opensAt.getTime() ||
+        b.closesAt?.getTime() !== st.closesAt.getTime())
+    );
+  });
+  if (changed.length === 0) return { ok: false, message: "바뀐 일정이 없습니다." };
+
+  await prisma.$transaction(async (tx) => {
+    for (const st of changed) {
+      await tx.stage.updateMany({
+        where: { seasonId, stageKey: st.stageKey as never },
+        data: { opensAt: st.opensAt, closesAt: st.closesAt },
+      });
+    }
+    await writeAudit(tx, {
+      actorId,
+      action: "season.update",
+      targetType: "season",
+      targetId: seasonId,
+      reason: reason.trim(),
+      meta: {
+        stages: changed.map((st) => {
+          const b = before.find((x) => x.stageKey === st.stageKey)!;
+          return {
+            stageKey: st.stageKey,
+            from: [b.opensAt?.toISOString() ?? null, b.closesAt?.toISOString() ?? null],
+            to: [st.opensAt.toISOString(), st.closesAt.toISOString()],
+          };
+        }),
+      },
+    });
+  });
+  return { ok: true };
+}
+
+/**
+ * 기능 플래그 하나를 켜거나 끈다 — 시안 `feature_flags` 스위치(3031행).
+ *
+ * JSONB 통째로 덮어쓰지 않고 읽어서 그 키만 바꾼다. 다른 키(시안에 스위치가 없는
+ * 알림·보증금·아카이브)는 그대로 둔다.
+ */
+export async function setSeasonFlag(args: {
+  seasonId: string;
+  key: string;
+  on: boolean;
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { seasonId, key, on, reason, actorId } = args;
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+  const season = await prisma.season.findUnique({
+    where: { id: seasonId },
+    select: { featureFlags: true },
+  });
+  if (!season) return { ok: false, message: "시즌을 찾을 수 없습니다." };
+  const flags = (season.featureFlags ?? {}) as Record<string, unknown>;
+  const from = flags[key];
+
+  await prisma.$transaction(async (tx) => {
+    await tx.season.update({
+      where: { id: seasonId },
+      data: { featureFlags: { ...flags, [key]: on } as Prisma.InputJsonObject },
+    });
+    await writeAudit(tx, {
+      actorId,
+      action: "season.flag",
+      targetType: "season",
+      targetId: seasonId,
+      reason: reason.trim(),
+      meta: { key, from: String(from ?? "기본값"), to: String(on) },
+    });
+  });
+  return { ok: true };
+}
+
+/** 트랙 추가 — 시안 「+ 트랙 추가」 */
+export async function addTrack(args: {
+  seasonId: string;
+  name: string;
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { seasonId, reason, actorId } = args;
+  const name = args.name.trim();
+  if (!name) return { ok: false, message: "트랙 이름을 적어 주세요." };
+  if (name.length > 60) return { ok: false, message: "트랙 이름은 60자까지입니다." };
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+  const dup = await prisma.track.findUnique({
+    where: { seasonId_name: { seasonId, name } },
+    select: { id: true },
+  });
+  if (dup) return { ok: false, message: "같은 이름의 트랙이 있습니다." };
+
+  await prisma.$transaction(async (tx) => {
+    const track = await tx.track.create({ data: { seasonId, name }, select: { id: true } });
+    await writeAudit(tx, {
+      actorId,
+      action: "season.track_add",
+      targetType: "season",
+      targetId: seasonId,
+      reason: reason.trim(),
+      meta: { trackId: track.id, name },
+    });
+  });
   return { ok: true };
 }
 

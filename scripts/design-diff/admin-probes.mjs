@@ -16,6 +16,7 @@
 const BADGE = '[class*="Badge-module__"][class*="__badge"]';
 const CARD = '[class*="Surface-module__"][class*="__card"]';
 const BTN = '[class*="Button-module__"][class*="__btn"]';
+const FLD = '[class*="Field-module__"][class*="__fld"]';
 
 /* 제목·부제 — 모든 화면이 hub의 `.h1`·`.sub`를 쓴다 */
 const head = (S) => [
@@ -69,6 +70,68 @@ export const SCREENS = {
     ],
     hover: (S) => [
       ["gate 버튼", S + ".ad-body > div[style*=grid] > .card:nth-child(1) .btn", `[data-probe="adm-gate"] ${BTN}`],
+    ],
+  },
+
+  /* ── 시즌 관리 ── */
+  seasons: {
+    hash: "adm-seasons",
+    route: "/admin/seasons",
+    mod: "seasons",
+    list: (S) => {
+      const F = (k) => S + `.ad-body > .fld:nth-of-type(${k})`;
+      const G = (k) => `[data-probe="ad-body"] > ${FLD}:nth-of-type(${k})`;
+      return [
+        ...head(S),
+        ["fld 시즌", F(1), G(1), [], ["width"]],
+        ["fld label", F(1) + " > label", G(1) + " > label", [], ["width"]],
+        ["시즌 keybox", F(1) + " .keybox", '[data-probe="season-box"]', [], ["width"]],
+        ["시즌 배지", F(1) + " .keybox .badge", `[data-probe="season-box"] ${BADGE}`, [], ["width"]],
+        /* 기간 글자는 데이터라 폭을 뺀다 */
+        ["시즌 기간", F(1) + " .keybox .cp", '[data-probe="season-box"] {{p:cp}}', [], ["width", "margin-left"]],
+        ["일정 label small", F(2) + " > label small", G(2) + " > label small", [], ["width"]],
+        /*
+          ⚠️ 줄 높이는 뺀다 — 날짜 칸이 모노라 시안(캐스케이드로 모노가 안 먹는다)보다
+          2px 높다(플레이북 함정 「input.inp.mono」). 카드 높이도 그만큼 다르다.
+        */
+        ["일정 card", F(2) + " > .card", '[data-probe="stages"]', [], ["width", "height"]],
+        ["stgrow s1", F(2) + " .stgrow:nth-child(1)", '[data-probe="stages"] > {{p:stgrow}}:nth-child(1)', [], ["width", "height"]],
+        ["stgrow .k", F(2) + " .stgrow:nth-child(1) .k", '[data-probe="stages"] > {{p:stgrow}}:nth-child(1) {{p:k}}', [], ["width"]],
+        ["stgrow 이름", F(2) + " .stgrow:nth-child(1) > span:nth-child(2)", '[data-probe="stages"] > {{p:stgrow}}:nth-child(1) > span:nth-child(2)', [], ["width"]],
+        /* `.inp.mono` — 시안은 캐스케이드로 모노가 안 먹는다(플레이북 함정). 글꼴·높이는 뺀다 */
+        ["stgrow 입력", F(2) + " .stgrow:nth-child(1) input", '[data-probe="stages"] > {{p:stgrow}}:nth-child(1) input', [], ["font-family", "height"]],
+        ["gate-chip", F(2) + " .stgrow:nth-child(2) .gate-chip", '[data-probe="stages"] > {{p:stgrow}}:nth-child(2) {{p:gateChip}}', [], ["width"]],
+        ["주간 chip", F(2) + " .stgrow:nth-child(4) .chip", '[data-probe="stages"] > {{p:stgrow}}:nth-child(4) [class*="Surface-module__"][class*="__chip"]', [], ["width"]],
+        ["stgrow s5", F(2) + " .stgrow:nth-child(5)", '[data-probe="stages"] > {{p:stgrow}}:nth-child(5)', [], ["width", "height"]],
+        /* 트랙 수는 데이터다(시안 둘째 「테마 트랙 비활성」은 목업) — 줄 폭은 뺀다 */
+        ["트랙 줄", F(3) + " > div", '[data-probe="tracks"]', [], ["width", "height"]],
+        ["트랙 keybox", F(3) + " > div > .keybox:first-child", '[data-probe="tracks"] > span:first-child', [], ["width"]],
+        ["트랙 배지", F(3) + " > div > .keybox:first-child .badge", `[data-probe="tracks"] > span:first-child ${BADGE}`, [], ["width"]],
+        /* 390에서 버튼이 트랙 옆에 서느냐 다음 줄로 가느냐는 트랙 수(데이터)에 달렸다 */
+        ["트랙 추가", F(3) + " > div > .btn", `[data-probe="tracks"] > ${BTN}`, [], [], ["height", "width"]],
+        ["pre", F(4) + " .pre", G(4) + " {{c:pre}}", [], ["width"]],
+        ["row-sw 1", F(5) + " .row-sw:nth-of-type(1)", G(5) + ` > div > [class*="Field-module__"][class*="__rowSw"]:nth-child(1)`, [], ["width"]],
+        ["row-sw b", F(5) + " .row-sw:nth-of-type(1) b", G(5) + ` > div > [class*="Field-module__"][class*="__rowSw"]:nth-child(1) b`, [], ["width"]],
+        ["row-sw 2 small", F(5) + " .row-sw:nth-of-type(2) small", G(5) + ` > div > [class*="Field-module__"][class*="__rowSw"]:nth-child(2) small`, [], ["width"]],
+        ["row-sw 3", F(5) + " .row-sw:nth-of-type(3)", G(5) + ` > div > [class*="Field-module__"][class*="__rowSw"]:nth-child(3)`, [], ["width", "height"]],
+        ["sw 켬", F(5) + " .row-sw:nth-of-type(1) .sw i", G(5) + ` > div > [class*="Field-module__"][class*="__rowSw"]:nth-child(1) i`],
+        ["sw 끔", F(5) + " .row-sw:nth-of-type(2) .sw i", G(5) + ` > div > [class*="Field-module__"][class*="__rowSw"]:nth-child(2) i`],
+      ];
+    },
+    text: (S) => [
+      ["제목", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}'],
+      ["부제", S + ".hb-sub", '[data-probe="ad-body"] {{hub:sub}}'],
+      /* 기간·페이즈는 데이터 */
+      ["시즌", S + ".ad-body > .fld:nth-of-type(1)", `[data-probe="ad-body"] > ${FLD}:nth-of-type(1)`, [/^\d{4}-\d\d-\d\d → \d\d-\d\d$/]],
+      ["일정", S + ".ad-body > .fld:nth-of-type(2)", '[data-probe="ad-body"] > div:nth-of-type(2)'],
+      /* 시안 둘째 트랙은 목업이다 */
+      ["트랙", S + ".ad-body > .fld:nth-of-type(3)", '[data-probe="ad-body"] > div:nth-of-type(3)', [/^테마 트랙$/, /^비활성$/]],
+      /* JSON 본문은 시즌 값이다 — 게다가 jsonb는 키 순서를 제 식으로 바꿔 저장한다 */
+      ["config", S + ".ad-body > .fld:nth-of-type(4)", '[data-probe="ad-body"] > div:nth-of-type(4)', [/^\{/]],
+      ["flags", S + ".ad-body > .fld:nth-of-type(5)", '[data-probe="ad-body"] > div:nth-of-type(5)'],
+    ],
+    hover: (S) => [
+      ["트랙 추가 hover", S + ".ad-body > .fld:nth-of-type(3) .btn", `[data-probe="tracks"] > ${BTN}`],
     ],
   },
 };

@@ -18,6 +18,8 @@ export type AdminFixture = {
     auditLog?: string[];
     lead?: string[];
   };
+  /** 덮어쓴 시즌 칸의 원래 값 — 걷을 때 되돌린다 */
+  seasonBefore?: { scoringConfig: unknown; featureFlags: unknown };
 };
 
 const SLUG = "season-1";
@@ -160,6 +162,31 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
       });
       created.lead = await seedLeads(season.id);
       break;
+    case "seasons": {
+      /*
+        시안의 scoring_config(3024행)와 플래그 셋(리더보드 켬, 테스터·크레딧 끔).
+        시즌 행을 덮으므로 원래 값을 떠 둔다.
+      */
+      const before = await prisma.season.findUniqueOrThrow({
+        where: { id: season.id },
+        select: { scoringConfig: true, featureFlags: true },
+      });
+      const flags = (before.featureFlags ?? {}) as Record<string, unknown>;
+      await prisma.season.update({
+        where: { id: season.id },
+        data: {
+          scoringConfig: {
+            traffic_weight: 0.6,
+            conversion_weight: 0.4,
+            t3_channel_hhi: true,
+            r2_bayesian_prior: 12,
+            log_scale_metrics: ["t1", "r1"],
+          },
+          featureFlags: { ...flags, leaderboard: true, testerAssignments: false, credits: false },
+        },
+      });
+      return { screen, created, seasonBefore: before };
+    }
     case "audit":
       created.auditLog = await seedAudit(season.id);
       break;
@@ -171,6 +198,15 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
 
 export async function clearSandboxAdmin(f: AdminFixture): Promise<void> {
   assertSandbox();
+  if (f.seasonBefore) {
+    await prisma.season.update({
+      where: { slug: SLUG },
+      data: {
+        scoringConfig: f.seasonBefore.scoringConfig as never,
+        featureFlags: f.seasonBefore.featureFlags as never,
+      },
+    });
+  }
   if (f.created.lead?.length) {
     await prisma.lead.deleteMany({ where: { id: { in: f.created.lead } } });
   }

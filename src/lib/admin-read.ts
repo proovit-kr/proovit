@@ -514,6 +514,48 @@ export async function loadAdminSeasons(): Promise<AdminSeasonRow[]> {
   }));
 }
 
+export type AdminSeasonView = {
+  id: string;
+  title: string;
+  phase: string;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  stages: { stageKey: string; isGate: boolean; opensAt: Date | null; closesAt: Date | null }[];
+  tracks: { id: string; name: string }[];
+  featureFlags: Record<string, unknown>;
+  scoringConfig: unknown;
+};
+
+/**
+ * 시즌 관리 화면 — 헤더의 시즌 셀렉트가 고른 시즌 하나(시안 `#scr-adm-seasons`).
+ * 플래그는 JSONB 원본을 그대로 넘긴다 — 스위치가 「명시해서 켬」과 「기본값」을
+ * 가르지 않아도 되도록 화면이 `parseFeatureFlags`로 읽는다.
+ */
+export async function loadAdminSeason(seasonId: string): Promise<AdminSeasonView | null> {
+  const season = await prisma.season.findUnique({
+    where: { id: seasonId },
+    select: {
+      id: true,
+      title: true,
+      phase: true,
+      startsAt: true,
+      endsAt: true,
+      featureFlags: true,
+      scoringConfig: true,
+      stages: {
+        orderBy: { stageKey: "asc" },
+        select: { stageKey: true, isGate: true, opensAt: true, closesAt: true },
+      },
+      tracks: { orderBy: { createdAt: "asc" }, select: { id: true, name: true } },
+    },
+  });
+  if (!season) return null;
+  return {
+    ...season,
+    featureFlags: (season.featureFlags ?? {}) as Record<string, unknown>,
+  };
+}
+
 /** 판정 결과 라벨 — 운영 화면에서도 참가자 화면과 같은 말을 쓴다 */
 export const JUDGMENT_LABEL: Record<string, string> = {
   [JudgmentResult.pass]: "통과",
