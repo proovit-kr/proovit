@@ -1,4 +1,4 @@
-import { EntryStage, JudgmentResult, StageKey } from "@/generated/prisma/enums";
+import { EntryStage, StageKey } from "@/generated/prisma/enums";
 
 /*
   심사의 **순수** 절반 — 판정이 무엇을 바꾸는가. 화면(클라이언트)도 읽는다.
@@ -33,20 +33,6 @@ export const PASS_ADVANCES_TO: Partial<Record<StageKey, EntryStage>> = {
  * 적으면 그 팀에게 규칙에 없는 낙인을 찍는 것이고, 소명 절차도 달라진다.
  */
 export const FAIL_MEANS_ELIMINATED = true;
-
-export const RESULT_LABEL: Record<string, string> = {
-  [JudgmentResult.pass]: "통과",
-  [JudgmentResult.revision]: "보완 요청",
-  [JudgmentResult.fail]: "미통과",
-};
-
-export const RESULT_EFFECT: Record<string, string> = {
-  [JudgmentResult.pass]: "진도가 다음 단계로 넘어갑니다.",
-  [JudgmentResult.revision]:
-    `재제출 기한이 ${REVISION_HOURS}시간 열립니다. 진도와 상태는 그대로입니다.`,
-  [JudgmentResult.fail]:
-    "탈락 처리되고 리더보드에서 빠집니다. 실격이 아니라 테스터·평가자로 전환됩니다(제9조 ④).",
-};
 
 export type JudgingFailureCode =
   | "NOT_FOUND"

@@ -159,11 +159,14 @@ for (const [key, scr] of Object.entries(SCREENS)) {
 }
 if (!plan.length) throw new Error(`SCREEN은 ${Object.keys(SCREENS).join("·")} 중 하나`);
 
-console.log(state("save").trim());
-
 let total = 0;
+let saved = false;
 try {
   for (const [key, st] of plan) {
+    /* 판마다 떠 두고 걷는다 — 판끼리 같은 행(리드 주소 등)을 심어 겹치지 않게 */
+    if (saved) console.log(state("restore").trim());
+    console.log(state("save").trim());
+    saved = true;
     const scr = SCREENS[key];
     const S = `#scr-${scr.hash} `;
     const sub = st ? scr.states[st] : {};
@@ -254,7 +257,7 @@ try {
     }
   }
 } finally {
-  console.log(state("restore").trim());
+  if (saved) console.log(state("restore").trim());
 }
 
 console.log(`\n═══════════════════════════\n합계 불일치 ${total}건`);

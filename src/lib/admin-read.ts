@@ -3,7 +3,6 @@ import {
   DeployStatus,
   EntryStage,
   EntryStatus,
-  JudgmentResult,
   LeadStatus,
   SubmissionStatus,
 } from "@/generated/prisma/enums";
@@ -570,71 +569,6 @@ export async function loadAdminLeads(
   return { rows, total, todayCount, optIn };
 }
 
-export type AdminSeasonRow = {
-  id: string;
-  title: string;
-  slug: string;
-  phase: string;
-  startsAt: Date | null;
-  endsAt: Date | null;
-  entryCount: number;
-  stages: { stageKey: string; name: string; isGate: boolean; opensAt: Date | null; closesAt: Date | null }[];
-  schedules: { phase: string; startsAt: Date; appliedAt: Date | null; note: string | null }[];
-};
-
-/**
- * 시즌 목록과 전환 일정.
- *
- * 페이즈 전환의 정본은 `season_schedules`이고 크론이 그 표를 읽는다(ADR-010).
- * 화면은 **예정과 실제를 나란히** 보여준다 — 크론이 안 돌았는지 운영자가 앞당겼는지가
- * 그 두 칸의 차이로 드러난다.
- */
-export async function loadAdminSeasons(): Promise<AdminSeasonRow[]> {
-  const seasons = await prisma.season.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      title: true,
-      slug: true,
-      phase: true,
-      startsAt: true,
-      endsAt: true,
-      _count: { select: { entries: true } },
-      stages: {
-        orderBy: { stageKey: "asc" },
-        select: {
-          stageKey: true,
-          name: true,
-          isGate: true,
-          opensAt: true,
-          closesAt: true,
-        },
-      },
-      schedules: {
-        orderBy: { startsAt: "asc" },
-        select: {
-          phase: true,
-          startsAt: true,
-          appliedAt: true,
-          note: true,
-        },
-      },
-    },
-  });
-
-  return seasons.map((season) => ({
-    id: season.id,
-    title: season.title,
-    slug: season.slug,
-    phase: season.phase,
-    startsAt: season.startsAt,
-    endsAt: season.endsAt,
-    entryCount: season._count.entries,
-    stages: season.stages,
-    schedules: season.schedules,
-  }));
-}
-
 export type AdminSeasonView = {
   id: string;
   title: string;
@@ -676,10 +610,3 @@ export async function loadAdminSeason(seasonId: string): Promise<AdminSeasonView
     featureFlags: (season.featureFlags ?? {}) as Record<string, unknown>,
   };
 }
-
-/** 판정 결과 라벨 — 운영 화면에서도 참가자 화면과 같은 말을 쓴다 */
-export const JUDGMENT_LABEL: Record<string, string> = {
-  [JudgmentResult.pass]: "통과",
-  [JudgmentResult.revision]: "보완",
-  [JudgmentResult.fail]: "미통과",
-};
