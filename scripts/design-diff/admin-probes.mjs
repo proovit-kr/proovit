@@ -382,4 +382,35 @@ export const SCREENS = {
       ["발송 hover", S + ".ad-body > .btn", `[data-probe="ad-body"] > ${BTN}`],
     ],
   },
+
+  /* ── 감사 로그 ── */
+  audit: {
+    hash: "adm-audit",
+    /*
+      시안의 「최근 30일」은 시안 속 오늘(10.24 무렵) 기준이라 09.25가 든다. dev의
+      「오늘」은 개발 시계(11.02)라 그 줄이 빠진다 — 시즌 전체로 연다.
+    */
+    route: "/admin/audit-logs?period=season",
+    list: (S) => {
+      const T = '[data-probe="audit"]';
+      return [
+        ...head(S),
+        ...fbar(S, { selects: 3 }),
+        ...table(S, T, { cols: 5 }),
+        ["td 시각", S + ".atbl tbody tr:first-child td:nth-child(1)", `${T} tbody tr:first-child td:nth-child(1)`, [], ["width", "height"]],
+        ["td 액션", S + ".atbl tbody tr:first-child td:nth-child(3)", `${T} tbody tr:first-child td:nth-child(3)`, [], ["width", "height"]],
+        ["td 대상", S + ".atbl tbody tr:first-child td:nth-child(4)", `${T} tbody tr:first-child td:nth-child(4)`, [], ["width", "height"]],
+        ["td 사유 b", S + ".atbl tbody tr:first-child b", `${T} tbody tr:first-child b`, [], ["width"]],
+      ];
+    },
+    text: (S) => [
+      ["제목", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}'],
+      ["부제", S + ".hb-sub", '[data-probe="ad-body"] {{hub:sub}}'],
+      /* 운영자 선택지는 계정(데이터), 액션 묶음은 시안 넷에 우리 화면 것을 더했다 */
+      ["필터", S + ".fbar", '[data-probe="fbar"]', [/^system$/, /^(season|notification|lead|award|credit)\.\*$/, /^[a-z0-9._-]+$/]],
+      ["머리글", S + ".atbl thead", '[data-probe="audit"] thead'],
+      /* 몸통은 시안 목업 여섯 줄을 그대로 심었다(dev-admin-fixture) — 글자까지 본다 */
+      ["몸통", S + ".atbl tbody", '[data-probe="audit"] tbody', [/^admin$/, /^hub-check$/]],
+    ],
+  },
 };

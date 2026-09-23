@@ -378,7 +378,8 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
       return { screen, created, metricHidden: rows.map((r) => r.id) };
     }
     case "audit":
-      created.auditLog = await seedAudit(season.id);
+      /* 감사 로그 표(3190행)의 여섯 줄 — 대시보드에만 있는 10.19 공지 줄은 뺀다 */
+      created.auditLog = await seedAudit(season.id, { only: (s) => s.action !== "notification.broadcast" });
       break;
     default:
       break;

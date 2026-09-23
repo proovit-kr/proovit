@@ -179,6 +179,81 @@ export const AUDIT_SELECT = {
   actor: { select: { email: true } },
 } as const;
 
+/** 감사 로그 필터의 액션 묶음 — 시안 네 줄에 우리 화면이 쓰는 앞마디를 더했다 */
+export const AUDIT_ACTION_GROUPS = [
+  "judgment",
+  "entry",
+  "metric",
+  "abuse",
+  "season",
+  "notification",
+  "lead",
+  "award",
+  "credit",
+] as const;
+
+export type AuditFilter = {
+  /** "season"이면 시즌 전체, 아니면 최근 30일 */
+  period?: string;
+  /** 운영자 id, "system"이면 사람이 아닌 기록 */
+  actor?: string;
+  /** 액션 앞마디(`judgment` → judgment.*) */
+  action?: string;
+};
+
+/**
+ * 감사 로그 — 시안 `#scr-adm-audit`(3180행). 읽기 전용이다.
+ *
+ * 옛 기록은 액션 이름이 콜론·밑줄 표기(`judgment:pass`·`entry_status:x`)라 앞마디
+ * 필터가 셋을 다 받는다.
+ */
+export async function loadAuditPage(
+  filter: AuditFilter,
+  season: { id: string } | null,
+  now: Date,
+): Promise<{ rows: AuditLine[]; actors: { id: string; name: string }[] }> {
+  const since =
+    filter.period === "season" && season
+      ? ((await prisma.season.findUnique({ where: { id: season.id }, select: { createdAt: true } }))?.createdAt ?? null)
+      : new Date(now.getTime() - 30 * 86_400_000);
+  const group = (AUDIT_ACTION_GROUPS as readonly string[]).includes(filter.action ?? "")
+    ? filter.action!
+    : null;
+
+  const [rows, actorRows] = await Promise.all([
+    prisma.auditLog.findMany({
+      where: {
+        ...(since ? { createdAt: { gte: since } } : {}),
+        ...(filter.actor === "system"
+          ? { actorId: null }
+          : filter.actor
+            ? { actorId: filter.actor }
+            : {}),
+        ...(group
+          ? {
+              OR: [".", ":", "_"].map((sep) => ({ action: { startsWith: group + sep } })),
+            }
+          : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: AUDIT_SELECT,
+    }),
+    prisma.auditLog.findMany({
+      where: { actorId: { not: null } },
+      distinct: ["actorId"],
+      select: { actor: { select: { id: true, email: true } } },
+    }),
+  ]);
+
+  return {
+    rows: await loadAuditLines(rows),
+    actors: actorRows
+      .filter((r) => r.actor)
+      .map((r) => ({ id: r.actor!.id, name: r.actor!.email?.split("@")[0] ?? "운영자" })),
+  };
+}
+
 /**
  * 마지막으로 롤업이 돈 시각. 롤업은 하루 한 행을 15분마다 덮어쓰므로 가장 나중에
  * 고쳐진 스냅샷 행이 곧 마지막 롤업이다(public-read.ts의 「n분 전 갱신」과 같은 값).
