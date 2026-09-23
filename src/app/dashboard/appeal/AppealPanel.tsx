@@ -102,7 +102,7 @@ export function AppealPanel({
           <b>
             {picked
               ? APPEAL_SUM.deadlineText(picked.by, picked.noticed, APPEAL_BUSINESS_DAYS)
-              : "—"}
+              : APPEAL_SUM.deadlineBefore(APPEAL_BUSINESS_DAYS)}
           </b>
         </div>
         <div>

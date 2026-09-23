@@ -49,6 +49,8 @@ export const APPEAL_SUM = {
   /** 「10.29 23:59 (통지 10.22, 5영업일)」 */
   deadlineText: (by: string, noticed: string, days: number) =>
     `${by} (통지 ${noticed}, ${days}영업일)`,
+  /** 대상이 없을 때 — 회신 기한 줄과 같은 꼴로 규칙만 적는다 */
+  deadlineBefore: (days: number) => `통지 후 ${days}영업일`,
   reply: "회신 기한",
   /** ① — 아직 접수 전 */
   replyBefore: (days: number) => `접수일부터 ${days}영업일`,
