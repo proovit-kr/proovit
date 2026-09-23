@@ -343,4 +343,43 @@ export const SCREENS = {
       ["실격 hover", S + ".ad-body > .card .btn:nth-child(3)", `[data-probe="abuse-card"] ${BTN}:nth-child(3)`],
     ],
   },
+
+  /* ── 공지 발송 ── */
+  noti: {
+    hash: "adm-noti",
+    route: "/admin/notifications",
+    list: (S) => {
+      const F = (k) => S + `.ad-body > .fld:nth-of-type(${k})`;
+      const G = (k) => `[data-probe="ad-body"] > ${FLD}:nth-of-type(${k})`;
+      const T = '[data-probe="notices"]';
+      return [
+        ...head(S),
+        ["fld 제목", F(1), G(1), [], ["width"]],
+        ["제목 input", F(1) + " input", G(1) + " input", [], ["width"]],
+        ["본문 textarea", F(2) + " textarea", G(2) + " textarea", [], ["width"]],
+        ...fbar(S, { selects: 2 }),
+        ["fbar 체크 label", S + ".fbar label", '[data-probe="fbar"] label', [], ["width"]],
+        ["fbar chip", S + ".fbar .chip", '[data-probe="fbar"] [class*="Surface-module__"][class*="__chip"]', [], ["width", "margin-left"]],
+        ["fbar chip b", S + ".fbar .chip b", '[data-probe="fbar"] [class*="Surface-module__"][class*="__chip"] b', [], ["width"]],
+        ["발송", S + ".ad-body > .btn", `[data-probe="ad-body"] > ${BTN}`, [], ["width"]],
+        /* 셋째 div는 필터 줄이라 이력 칸은 넷째다 */
+        ["fld 이력", F(4), G(4), [], ["width", "height"]],
+        ...table(S, T, { cols: 4 }),
+        ["td 일시", S + ".atbl tbody tr:first-child td:first-child", `${T} tbody tr:first-child td:first-child`, [], ["width", "height"]],
+      ];
+    },
+    text: (S) => [
+      ["제목", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}'],
+      ["부제", S + ".hb-sub", '[data-probe="ad-body"] {{hub:sub}}'],
+      ["라벨", S + ".ad-body > .fld:nth-of-type(1) > label", `[data-probe="ad-body"] > ${FLD}:nth-of-type(1) > label`],
+      /* 선택지 순서·셋째 이후는 우리 대상 규칙(notify.ts)이다. 예상 대상 수는 데이터 */
+      ["필터", S + ".fbar", '[data-probe="fbar"]', [/^stage, s5$/, /^\d+팀, \d+명$/]],
+      ["버튼", S + ".ad-body > .btn", `[data-probe="ad-body"] > ${BTN}`],
+      ["이력 머리", S + ".ad-body > .fld:nth-of-type(4) > label", `[data-probe="ad-body"] > ${FLD}:nth-of-type(4) > label`],
+      ["이력 머리글", S + ".atbl thead", '[data-probe="notices"] thead'],
+    ],
+    hover: (S) => [
+      ["발송 hover", S + ".ad-body > .btn", `[data-probe="ad-body"] > ${BTN}`],
+    ],
+  },
 };

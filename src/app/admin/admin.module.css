@@ -67,6 +67,14 @@
   max-width: 1120px;
 }
 
+/*
+  시안이 본문 폭을 좁히는 화면 — 공지 발송(`.ad-body style="max-width:720px"`).
+  본문 상자는 레이아웃 몫이라 화면이 표식(`data-body="narrow"`)을 두고 여기서 좁힌다.
+*/
+.body:has(> [data-body="narrow"]) {
+  max-width: 720px;
+}
+
 /* 시안은 1024에서 `.db`를 세로로 눕힌다 — 사이드바가 가로줄이 된다(SideNav) */
 @media (max-width: 1024px) {
   .db {

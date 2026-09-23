@@ -405,3 +405,54 @@ export async function sendTeamInvite(params: {
     html,
   });
 }
+
+/** 본문 글자를 HTML에 안전하게 싣는다 — 운영자가 적은 글이 그대로 들어간다 */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * 운영 공지 메일 — 공지 발송 화면(시안 `#scr-adm-noti`)의 「메일」 채널.
+ *
+ * ⚠️ **이행 메일이다.** 공지 창구는 시즌 이행 통지 전용이라(notify-store.ts 머리
+ * 주석) 여기도 그 몫만 싣는다. 참가팀 명단에 보내는 것이라 수신거부 링크 대신
+ * 대시보드 알림센터 링크를 둔다 — 같은 공지가 인앱에도 남는다.
+ */
+export async function sendNoticeMail(params: {
+  email: string;
+  title: string;
+  body: string;
+}): Promise<MailResult> {
+  const { email, title, body } = params;
+  const link = `${siteUrl()}/notifications`;
+  const text = [title, "", body, "", `알림센터: ${link}`, "", "PROOVIT | 문의: help@proovit.kr"].join("\n");
+  const html = shell(`
+          <div style="font-size:17px;font-weight:800;letter-spacing:.06em;color:${INK}">
+            PROO<span style="color:#8fc400">✓</span>IT
+          </div>
+          <h1 style="margin:26px 0 0;font-size:21px;line-height:1.45;font-weight:800;color:${INK}">
+            ${escapeHtml(title)}
+          </h1>
+          <p style="margin:14px 0 0;font-size:15px;line-height:1.75;color:${MUTED};white-space:pre-line">
+            ${escapeHtml(body)}
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 0">
+            <tr><td style="border-radius:10px;background:${INK}">
+              <a href="${link}"
+                 style="display:inline-block;padding:13px 22px;font-size:14px;font-weight:700;
+                        color:#ffffff;text-decoration:none;border-radius:10px;border:1px solid ${INK}">
+                알림센터에서 보기
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:30px 0 0;padding-top:18px;border-top:1px solid ${LINE};
+                    font-size:12px;line-height:1.8;color:${MUTED}">
+            PROOVIT &nbsp;|&nbsp;
+            문의: <a href="mailto:help@proovit.kr" style="color:${MUTED}">help@proovit.kr</a>
+          </p>`);
+  return send({ to: email, subject: `[PROOVIT] ${title}`, text, html });
+}

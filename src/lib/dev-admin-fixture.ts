@@ -295,6 +295,32 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
       }
       break;
     }
+    case "noti": {
+      /* 시안 발송 이력(3170행) 세 줄 — 발송마다 감사 로그 한 줄이 남는 모양 그대로 */
+      const actor = await adminId();
+      const rows = [
+        { at: "09.28 10:00", title: "시즌 1 킥오프", mail: true },
+        { at: "10.12 15:00", title: "1차 심사 결과 발표, 판정과 사유", mail: true },
+        { at: "10.19 09:30", title: "롤업 주기 안내", mail: false },
+      ];
+      created.auditLog = [];
+      for (const r of rows) {
+        const row = await prisma.auditLog.create({
+          data: {
+            actorId: actor,
+            action: "notification.broadcast",
+            targetType: "season",
+            targetId: season.id,
+            reason: r.title,
+            meta: { target: "전체", stage: "all", track: "all", teams: 12, people: 20, inapp: true, mail: r.mail },
+            createdAt: at(r.at),
+          },
+          select: { id: true },
+        });
+        created.auditLog.push(String(row.id));
+      }
+      break;
+    }
     case "leads":
       created.lead = await seedLeads(season.id);
       break;
