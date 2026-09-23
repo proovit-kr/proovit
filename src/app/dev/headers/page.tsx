@@ -161,7 +161,11 @@ export default function Page() {
   if (process.env.NODE_ENV === "production") notFound();
 
   return (
-    <main style={{ padding: 40, maxWidth: 1180, margin: "0 auto" }}>
+    /*
+      ≤760에서는 좌우 여백을 없앤다. 헤더가 창 폭을 그대로 받아야 390 대조가
+      실제 화면과 같은 폭으로 잰다(여백 40이면 310px만 받아 버튼이 접혔다).
+    */
+    <main style={{ padding: "40px clamp(0px, calc(100vw - 760px), 40px)", maxWidth: 1180, margin: "0 auto" }}>
       <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 24 }}>헤더 상태별 진열장</h1>
 
       {PUB.map((p) => (

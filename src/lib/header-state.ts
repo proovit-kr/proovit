@@ -538,12 +538,31 @@ export type DashboardBanner = {
   timeShort?: Seg[];
   go: {
     label: string;
-    /** ≤760에서 쓰는 두 글자 문구(시안 5장 「제출」) */
+    /**
+     * ≤760에서 쓰는 짧은 문구(시안 5장 「제출」 — 「버튼 문구는 두 글자」).
+     * 리더보드만 네 글자다 — 공개 헤더 모바일 CTA(P3-M)가 같은 자리를 「리더보드」로 줄였다.
+     */
     short?: string;
     href: string;
     tone: GoTone;
   } | null;
 };
+
+/**
+ * ≤760 배너의 스테이지명(시안 5장 「스테이지명을 12자 안으로 줄이고, 고도화 같은
+ * 꼬리 절삭」). 넘치면 어절 단위로 자르고 끝에 남은 이음 조사(과·와)를 뗀다 —
+ * 「s1 아이디어 등록과 고도화」 → 「s1 아이디어 등록」.
+ */
+export function shortStage(name: string, max = 12): string {
+  if (name.length <= max) return name;
+  const [head, ...rest] = name.split(" ");
+  let out = head;
+  for (const w of rest) {
+    if (`${out} ${w}`.length > max) break;
+    out = `${out} ${w}`;
+  }
+  return out === head ? out : out.replace(/[과와]$/, "");
+}
 
 export type DashboardStrip = {
   tone: "gray" | "red";
@@ -623,8 +642,8 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
         stage: "실격 처리",
         time: [{ text: appealed ? "검토 중" : deadline ? `소명 ${fmtDday(now, deadline)}` : "소명 가능" }],
         go: appealed
-          ? { label: "소명 접수됨", href: "/dashboard/appeal", tone: "gray" }
-          : { label: "소명하기", href: "/dashboard/appeal", tone: "red" },
+          ? { label: "소명 접수됨", short: "접수", href: "/dashboard/appeal", tone: "gray" }
+          : { label: "소명하기", short: "소명", href: "/dashboard/appeal", tone: "red" },
       },
       bell: bellOn ? { dot: input.unread > 0, red: true } : null,
     };
@@ -667,7 +686,7 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
         stage: seasonKind === "done" ? `${season.title} 종료` : `${season.title} 진행 중`,
         time: [{ text: "관전 모드" }],
         /* 리더보드가 꺼져 있으면 갈 곳이 없다 — 띠만 남긴다 */
-        go: boardOn ? { label: "리더보드 보기", href: board, tone: "gray" } : null,
+        go: boardOn ? { label: "리더보드 보기", short: "리더보드", href: board, tone: "gray" } : null,
       },
       /* 벨 제거 — 이후 알림 대상이 없다(D7 노트) */
       bell: null,
@@ -691,7 +710,7 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
           tone: "next",
           stage: `${nextSeason.label}, 모집 중`,
           time: nextSeason.startsAt ? [{ text: `개막 ${fmtMD(nextSeason.startsAt)}` }] : [{ text: "개막 일정 확정 중" }],
-          go: { label: `${nextSeason.label} 참가 신청`, href: "/apply", tone: "lime" },
+          go: { label: `${nextSeason.label} 참가 신청`, short: "신청", href: "/apply", tone: "lime" },
         },
         bell,
       };
@@ -725,7 +744,7 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
         time: input.finalRank !== null
           ? [{ text: "최종 " }, { text: String(input.finalRank), num: true }, { text: "위" }]
           : [{ text: "결과 발표" }],
-        go: { label: "결과 보기", href: "/dashboard/judgments", tone: "lime" },
+        go: { label: "결과 보기", short: "결과", href: "/dashboard/judgments", tone: "lime" },
       },
       bell,
     };
@@ -777,7 +796,7 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
         live: "violet",
         stage: "s5 최종 심사 중",
         time: [{ text: season.endsAt ? `발표 ${fmtMD(season.endsAt)} 내` : "발표 대기" }],
-        go: { label: "심사 결과", href: "/dashboard/judgments", tone: "violet" },
+        go: { label: "심사 결과", short: "결과", href: "/dashboard/judgments", tone: "violet" },
       },
       bell,
     };
@@ -801,7 +820,7 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
           : due
             ? [{ text: `회신까지 ${fmtHoursLeft(now, due)}` }]
             : [{ text: `회신까지 ${input.reviewSlaHours}시간 내` }],
-        go: { label: "심사 결과", href: "/dashboard/judgments", tone: "violet" },
+        go: { label: "심사 결과", short: "결과", href: "/dashboard/judgments", tone: "violet" },
       },
       bell,
     };
@@ -825,7 +844,8 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
         live: "teal",
         stage: `s5 ${s5.name}`,
         time: s5.closesAt ? [{ text: `집계 확정 ${fmtMDHM(s5.closesAt)}` }] : [{ text: "집계 중" }],
-        go: { label: "자동 제출 확인", href: "/dashboard/submit/s5", tone: "lime" },
+        timeShort: s5.closesAt ? [{ text: fmtMDHM(s5.closesAt) }] : undefined,
+        go: { label: "자동 제출 확인", short: "확인", href: "/dashboard/submit/s5", tone: "lime" },
       },
       bell,
     };

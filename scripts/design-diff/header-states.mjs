@@ -169,12 +169,17 @@ async function hoverValues(p, rootSel, pairs, side) {
   for (const [name, specSel, implSel, o] of pairs) {
     if (!o?.hover) continue;
     const sel = rootSel + " " + (side === "spec" ? specSel : implSel);
-    const n = await p.eval(`document.querySelectorAll(${JSON.stringify(sel)}).length`);
+    /*
+      n번째 요소에 표를 붙여 집는다. `:nth-of-type`은 태그로 순번을 매겨서,
+      구현처럼 로그인 링크와 버튼이 둘 다 `<a>`면 버튼을 못 집고 조용히 건너뛴다.
+    */
+    const n = await p.eval(`(() => {
+      const els = document.querySelectorAll(${JSON.stringify(sel)});
+      els.forEach((el, i) => el.setAttribute("data-hv", ${JSON.stringify(name)} + i));
+      return els.length;
+    })()`);
     for (let i = 0; i < n; i++) {
-      const one = `${sel}:nth-of-type(${i + 1})`;
-      /* nth-of-type이 셀렉터 끝 요소에 붙어 형제 순서를 재므로, 없으면 건너뛴다 */
-      const ok = await p.eval(`!!document.querySelector(${JSON.stringify(one)})`);
-      if (!ok) continue;
+      const one = `[data-hv="${name}${i}"]`;
       await p.hover(one);
       const v = await p.eval(`(() => {
         const cs = getComputedStyle(document.querySelector(${JSON.stringify(one)}));
@@ -289,9 +294,9 @@ const injectVer4 = (p) => p.eval(`(() => { const s = document.createElement("sty
   의도한 차이. 여기 넣는 순간 대조되지 않으므로 이유가 있는 것만.
     cursor           워드마크·벨·아바타를 실제 링크로 만든다(시안은 span)
     live::after opacity  무한 애니메이션의 중간값. animation-* 속성은 대조한다
-    btn box-shadow   primary 버튼의 그림자는 ver4 v1.1 CRAFT 값이다(Button.module.css). 헤더 시안은 ver3 값을 적었다
+    btn box-shadow   primary 버튼의 그림자는 hover까지 ver4 v1.1 CRAFT 값이다(Button.module.css). 헤더 시안은 ver3 값을 적었다
 */
-const IGNORE_KEYS = [/ cursor$/, /^live::after.* opacity$/, /^btn(#\d+)? box-shadow$/];
+const IGNORE_KEYS = [/ cursor$/, /^live::after.* opacity$/, /^btn(#\d+)?(:hover)? box-shadow$/];
 /*
   탈락 스트립의 닫기 ×  시안은 「닫을 수 있음」이라고만 적고 버튼을 그리지 않았다
   시즌 아카이브        화면이 보류라 헤더에서 뺐다(2026-09-16 수연 지시). 화면이 생기면 이 줄을 지운다
@@ -386,6 +391,52 @@ for (const [id, specFrame, implId, kind] of MOBILE) {
   for (const k of Object.keys(spec.out)) if (IGNORE_KEYS.some((re) => re.test(k))) { delete spec.out[k]; delete impl.out[k]; }
   total += diffTable(`${id} — 값`, spec.out, impl.out);
   total += diffText(spec.text, impl.text?.filter((t) => t !== implId) ?? null, { label: id, ignore: IGNORE_TEXT });
+}
+
+/*
+  ── 좁은 폭에서 한 줄인가 — 27판 전부 ──
+  시안의 모바일 프레임은 셋뿐이라 위 대조는 나머지 판의 모바일을 안 본다.
+  실제로 D3·D4·D9 배너 버튼이 두 줄로 접히고, 운영자 합친 필이 「137명전환율4.2%」로
+  붙은 채 넘어갔다(2026-09-23). 버튼·시간 값·대기열 필·CTA가 한 줄인지,
+  헤더가 가로로 넘치지 않는지 센다.
+*/
+const ONE_LINE = [
+  '[class*="__btn"]', '[class*="__go"]', '[class*="__tm"]', '[class*="__stg"]',
+  '[data-probe="ad-q"]', '[class*="__adTag"]',
+];
+for (const w of [390, 360]) {
+  const bad = await withPage(async (p) => {
+    await p.goto(IMPL);
+    await p.resize(w);
+    return p.eval(`(() => {
+      if (innerWidth !== ${w}) return ["innerWidth " + innerWidth];
+      const lines = (el) => {
+        const r = document.createRange(); r.selectNodeContents(el);
+        /* 글꼴이 섞인 조각(모노 숫자)은 바닥이 1px쯤 다르다 — 6px 넘게 벌어져야 새 줄 */
+        const bottoms = [...r.getClientRects()].filter((b) => b.width > 0.5).map((b) => b.bottom).sort((a, b) => a - b);
+        let n = bottoms.length ? 1 : 0;
+        for (let i = 1; i < bottoms.length; i++) if (bottoms[i] - bottoms[i - 1] > 6) n++;
+        return n;
+      };
+      const out = [];
+      for (const [id] of ${JSON.stringify(VARIANTS.map(([id]) => [id]))}) {
+        const root = document.querySelector('[data-id="' + id + '"]');
+        if (!root) { out.push(id + " 못 찾음"); continue; }
+        const head = root.querySelector("header, [data-probe=db-top], [data-probe=ad-top]");
+        if (head && head.scrollWidth > head.clientWidth + 1) out.push(id + " 가로 넘침 " + head.scrollWidth + ">" + head.clientWidth);
+        for (const el of root.querySelectorAll(${JSON.stringify(ONE_LINE.join(","))})) {
+          if (!el.getClientRects().length || getComputedStyle(el).display === "none") continue;
+          const n = lines(el);
+          if (n > 1) out.push(id + " " + n + "줄: " + el.textContent.trim());
+        }
+      }
+      return out;
+    })()`);
+  });
+  console.log(`\n\n████ 한 줄 검사 ${w}px`);
+  if (!bad.length) console.log("  전부 한 줄 ✓");
+  for (const b of bad) console.log("  ✗ " + b);
+  total += bad.length;
 }
 
 console.log(`\n═══════════════════════════\n합계 불일치 ${total}건`);

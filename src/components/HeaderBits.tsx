@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 
 import type { Seg } from "@/lib/header-state";
 
@@ -89,41 +90,35 @@ export function Chip({ children }: { children: React.ReactNode }) {
 /**
  * 글자 조각을 그린다. 시안이 `<b>`·`.num`·`--faint`로 강조한 자리를
  * 판정(header-state.ts)이 Seg로 넘겨 주고, 여기서 태그로 바꾼다.
+ *
+ * 흐린·강조 조각 앞뒤에는 시안처럼 공백을 둔다(`명 <span>전환율</span> <span>4.2%</span>`).
+ * 데스크톱 대기열은 flex라 공백이 안 그려지고 `gap`이 띄우지만, 모바일 합친 필은
+ * 인라인이라 공백이 없으면 「137명전환율4.2%」로 붙는다.
  */
 export function Segs({ segs }: { segs: Seg[] }) {
+  const loose = (s: Seg | undefined) => !!s && (!!s.faint || !!s.accent);
   return (
     <>
-      {segs.map((s, i) => {
-        if (s.num) {
-          return (
-            <span key={i} className={styles.num} data-num="">
-              {s.text}
-            </span>
-          );
-        }
-        if (s.strong) {
-          return (
-            <b key={i} className={styles.strong}>
-              {s.text}
-            </b>
-          );
-        }
-        if (s.faint) {
-          return (
-            <span key={i} className={styles.faint}>
-              {s.text}
-            </span>
-          );
-        }
-        if (s.accent) {
-          return (
-            <span key={i} className={styles.accent}>
-              {s.text}
-            </span>
-          );
-        }
-        return <span key={i}>{s.text}</span>;
-      })}
+      {segs.map((s, i) => (
+        <Fragment key={i}>
+          {i > 0 && (loose(s) || loose(segs[i - 1])) ? " " : null}
+          <Seg1 s={s} />
+        </Fragment>
+      ))}
     </>
   );
+}
+
+function Seg1({ s }: { s: Seg }) {
+  if (s.num) {
+    return (
+      <span className={styles.num} data-num="">
+        {s.text}
+      </span>
+    );
+  }
+  if (s.strong) return <b className={styles.strong}>{s.text}</b>;
+  if (s.faint) return <span className={styles.faint}>{s.text}</span>;
+  if (s.accent) return <span className={styles.accent}>{s.text}</span>;
+  return <span>{s.text}</span>;
 }
