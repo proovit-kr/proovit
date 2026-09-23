@@ -1,86 +1,14 @@
 /*
-  설정 화면. /onboarding·/login과 같은 골격을 쓴다 — 세 화면이 서로 이어지는
-  자리라 머리말 위치와 폭이 어긋나면 화면이 튄 것처럼 보인다.
-
-  §7 "AI 티 피하기": 카드 상자를 두르지 않는다. 괘선과 여백으로 나눈다.
+  시안 `#scr-settings .db-body{max-width:640px}` — 본문 상자(패딩 포함)의 상한이다.
+  우리 본문 상자(`dashboard.module.css .body`)는 860이라 안쪽에서 같은 폭을 건다:
+  640에서 좌우 패딩(40·40, ≤760에서 16·16)을 뺀 값.
 */
-
-.page {
-  justify-content: center;
-}
-
 .wrap {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--s-6);
-  padding-block: var(--s-10);
-  max-width: 420px;
-  /*
-    ⚠️ 이게 없으면 420px 칸이 800px 컨테이너의 왼쪽 끝에 붙어 오른쪽이 통째로
-    빈다 — 자세한 설명은 onboarding.module.css의 같은 자리에 있다.
-  */
-  margin-inline: auto;
+  max-width: 560px;
 }
 
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-
-.title {
-  margin: var(--s-4) 0 0;
-  font-size: var(--fs-5xl);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--c-text-strong);
-}
-
-/* 읽기 폭은 .wrap(420px)이 잡는다 — ch로 걸지 않는 이유는 onboarding 쪽 주석 참조 */
-.lead {
-  margin: 0;
-  font-size: var(--fs-base);
-  line-height: 1.6;
-  color: var(--c-text-muted);
-}
-/* 문장마다 제 줄. <br> 대신 블록으로 두는 이유는 ProfileFields.tsx 주석에 있다 */
-.lead > span {
-  display: block;
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-6);
-  padding-top: var(--s-6);
-  border-top: 1px solid var(--c-line);
-}
-
-/*
-  저장 버튼은 폭을 다 쓰지 않는다. 온보딩의 "시작하기"는 그 화면에서 할 일이
-  하나뿐이라 통 버튼이 맞지만, 설정은 다시 올 수 있는 화면이라 같은 무게로
-  두면 과하다.
-*/
-.actions {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-}
-
-.status {
-  margin: 0;
-  font-size: var(--fs-sm);
-  color: var(--c-text-muted);
-}
-
-.formError {
-  margin: 0;
-  padding: var(--s-3) var(--s-4);
-  border-left: 2px solid var(--c-warn);
-  background: var(--c-surface);
-  border-radius: 0 var(--r-md) var(--r-md) 0;
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-  color: var(--c-text);
+@media (max-width: 760px) {
+  .wrap {
+    max-width: 608px;
+  }
 }

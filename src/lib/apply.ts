@@ -3,7 +3,7 @@ import { z } from "@/lib/z";
 /*
   참가 신청(/apply)의 **규칙**만 둔다. 저장은 apply-store.ts다.
 
-  ⚠️ 나누는 이유는 profile.ts / profile-store.ts와 같다 — 이 파일을 클라이언트
+  ⚠️ 나누는 이유는 access-policy.ts / access.ts와 같다 — 이 파일을 클라이언트
   컴포넌트(ApplyForm)가 maxLength·전화번호 표기 때문에 import하는데, 여기에
   prisma가 같이 있으면 클라이언트 번들이 node:module을 끌어와 빌드가 깨진다.
 

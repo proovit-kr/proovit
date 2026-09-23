@@ -333,18 +333,3 @@ export async function findMyEntry(userId: string, seasonId: string) {
     },
   });
 }
-
-/**
- * 참가 신청이 확정된 사람인가.
- *
- * 실명 잠금의 판정 기준이다 — 실명은 상금 지급 때 예금주와 대조하는 값이라
- * 계약이 성립한 뒤에는 조용히 바뀌면 안 된다(profile-store.ts 머리 주석).
- * 시즌을 가리지 않는다: 지난 시즌 입상자의 실명도 정산 근거로 남아 있다.
- */
-export async function hasAnyEntry(userId: string): Promise<boolean> {
-  const found = await prisma.entry.findFirst({
-    where: { team: { members: { some: { userId } } } },
-    select: { id: true },
-  });
-  return found !== null;
-}

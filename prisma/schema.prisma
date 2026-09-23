@@ -376,6 +376,9 @@ model User {
   emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(6)
   /// 추가정보 입력 완료 시각. null이면 온보딩 화면을 다시 띄운다.
   onboardedAt     DateTime? @map("onboarded_at") @db.Timestamptz(6)
+  /// 탈퇴한 시각. 탈퇴하면 이메일·이름·전화·소셜 연결을 지워 익명화하고 행은 남긴다 —
+  /// 참가·판정·제재 기록이 이 행을 가리키고, 운영 규정대로 보관한 뒤 지운다.
+  withdrawnAt     DateTime? @map("withdrawn_at") @db.Timestamptz(6)
 
   oauthAccounts        OauthAccount[]
   sessions             Session[]
