@@ -3,46 +3,58 @@
 import { revalidatePath } from "next/cache";
 
 import { getSessionUser } from "@/lib/access";
-import { type ProfileFieldErrors } from "@/lib/profile";
-import { saveProfile } from "@/lib/profile-store";
+import { signOut } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
-export interface SettingsState {
-  errors?: ProfileFieldErrors;
-  /** 필드에 못 붙는 오류(로그인 만료 등). */
-  message?: string;
-  /** 저장에 성공했다. 화면에 그대로 머무르므로 결과를 말해줘야 한다. */
-  saved?: boolean;
-  /** 되돌려 채울 입력값. 없으면 사용자가 방금 친 것을 잃는다. */
-  values?: { name: string; nickname: string };
-}
-
-export async function saveSettings(
-  _prev: SettingsState,
-  formData: FormData,
-): Promise<SettingsState> {
+/** 수신 채널 스위치 하나. 누르는 즉시 저장한다 — 시안에 저장 버튼이 없다 */
+export async function setChannel(channel: "email" | "alimtalk", on: boolean) {
   // 서버 액션은 폼을 거치지 않고 직접 호출할 수 있다. 인증을 생략하지 않는다.
   const user = await getSessionUser();
-  if (!user) {
-    return { message: "로그인이 풀렸습니다. 다시 로그인해 주세요." };
-  }
+  if (!user) return;
+  await prisma.user.update({
+    where: { id: user.id },
+    data: channel === "email" ? { notifyEmail: on } : { notifyAlimtalk: on },
+  });
+  revalidatePath("/settings");
+}
 
-  const values = {
-    name: String(formData.get("name") ?? ""),
-    nickname: String(formData.get("nickname") ?? ""),
-  };
+/*
+  탈퇴 — 익명화하고 로그아웃한다(2026-09-23 수연 결정).
 
-  /*
-    markOnboarded: false — onboarded_at은 "가입 절차를 언제 마쳤나"라서
-    나중에 이름을 고칠 때마다 뒤로 밀리면 안 된다.
-  */
-  const result = await saveProfile(user, values, { markOnboarded: false });
-  if (!result.ok) return { errors: result.errors, values };
+  행은 지우지 않는다. 참가·판정·제재·감사 기록이 이 사용자를 가리키고, 그 기록은
+  운영 규정대로 보관한 뒤 지운다(개인정보 처리방침 제3조). 대신 사람을 알아볼 수
+  있는 값을 전부 지운다 — 이메일·이름·닉네임·전화·아바타, 그리고 소셜 연결.
+  소셜 연결이 없어지므로 같은 계정으로 다시 로그인하면 새 회원이 된다.
 
-  /*
-    NavBar가 서버에서 세션 사용자를 읽어 이름을 그린다. 저장 후 화면에
-    머무르므로 다시 그려주지 않으면 헤더에는 옛 닉네임이 남는다.
-  */
-  revalidatePath("/", "layout");
+  이메일은 unique라 비울 수 없어 이 행만의 자리표로 바꾼다(`.invalid`는 배달되지
+  않는 최상위 도메인). 세션은 전부 지운다 — 다른 기기에 남은 로그인도 끝낸다.
 
-  return { saved: true, values };
+  팀·참가 기록은 건드리지 않는다(내가 정함, 수연 확인 대기). 시안 모달의
+  「팀 참가가 함께 종료될 수 있어요」는 운영진이 판단할 여지로 읽었다.
+*/
+export async function withdraw() {
+  const user = await getSessionUser();
+  if (!user) return;
+
+  const gone = "탈퇴한 회원";
+  await prisma.$transaction([
+    prisma.oauthAccount.deleteMany({ where: { userId: user.id } }),
+    prisma.session.deleteMany({ where: { userId: user.id } }),
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        email: `withdrawn-${user.id}@withdrawn.invalid`,
+        name: gone,
+        nickname: gone,
+        phone: null,
+        avatarUrl: null,
+        notifyEmail: false,
+        notifyAlimtalk: false,
+        emailVerifiedAt: null,
+        withdrawnAt: new Date(),
+      },
+    }),
+  ]);
+
+  await signOut({ redirectTo: "/" });
 }

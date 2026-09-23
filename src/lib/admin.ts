@@ -4,7 +4,7 @@
   ⚠️ 이 파일이 따로 있는 이유는 취향이 아니라 강제다. 상수 하나를 admin-store.ts에
   두고 폼(클라이언트)에서 가져왔더니 그쪽이 prisma를 import하는 바람에
   `node:module`이 브라우저 번들에 딸려가 **운영자 화면 셋이 통째로 500**이 났다.
-  access-policy.ts / access.ts, profile.ts / profile-store.ts를 가른 것과 같은 이유다.
+  access-policy.ts / access.ts를 가른 것과 같은 이유다.
 */
 
 /**

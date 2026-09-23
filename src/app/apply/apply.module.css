@@ -78,7 +78,10 @@
   line-height: 1.6;
   color: var(--c-text-muted);
 }
-/* 문장마다 제 줄 — ProfileFields.tsx 주석 */
+/*
+  문장마다 제 줄. <br>은 문장이 한 줄에 안 들어갈 때 그 자리에서만 끊고 나머지는
+  아무 데서나 접는다 — 블록으로 두면 각 문장이 자기 줄 안에서만 접힌다.
+*/
 .lead > span {
   display: block;
 }

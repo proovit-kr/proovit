@@ -1,61 +1,61 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-import { Footer } from "@/components/Footer";
-import { Logo } from "@/components/NavBar";
-import { requireUser } from "@/lib/access";
-import { hasAnyEntry } from "@/lib/apply-store";
+import { SETTINGS_HEAD } from "@/content/settings";
+import { guardPage } from "@/lib/access";
+import { prisma } from "@/lib/prisma";
 
-import { SettingsForm } from "./SettingsForm";
+import hub from "../dashboard/hub.module.css";
+
+import { SettingsPanel } from "./SettingsPanel";
 
 import styles from "./settings.module.css";
 
 /*
-  설정 — 이름·닉네임을 나중에 고치는 자리.
+  계정 설정 — 시안 ver4 `#scr-settings`(단일 상태) + 탈퇴 확인 모달 `#mdl-quit`.
 
-  일자별 계획에서는 9/2였는데 8/12로 당겼다. 온보딩 안내문이 "설정에서 언제든
-  바꿀 수 있습니다"라고 약속하는데 그 화면이 없으면 지키지 못할 말이 되고,
-  이름을 잘못 넣은 사람의 문의가 3명짜리 팀 운영 손으로 온다.
+  수신 채널 스위치 둘(`users.notify_email`·`notify_alimtalk`), 로그인 계정과 연결된
+  소셜, 로그아웃, 탈퇴. 대시보드 크롬 안이다(`layout.tsx`). 대조는
+  `scripts/design-diff/settings.mjs`.
 
-  지금 다루는 것은 이름 두 개뿐이다. 알림 설정(notify_email·notify_alimtalk)은
-  일부러 뺐다 — 알림톡은 발신프로필 심사(윤서)가 선행이고 전화번호는 /apply에서
-  받기로 한 값이라, 여기 먼저 놓으면 끌 수만 있고 켤 수 없는 스위치가 된다.
+  ⚠️ 이름·닉네임을 고치는 칸은 없다 — 시안에 없어 뺐다(2026-09-23 수연 결정).
+  둘 다 가입할 때 소셜 계정의 이름으로 들어간 값 그대로다.
 
-  requireUser만 쓴다. 소셜 가입 직후에는 이름 두 칸이 임시값(이메일 아이디)인데,
-  그 값을 진짜 이름으로 바꾸는 자리가 여기다 — 막으면 바꿀 데가 없어진다.
-
-  실명 칸은 참가 신청이 확정되면 읽기 전용이 된다(DEV3에서 구현). 근거는
-  profile-store.ts 머리 주석에 있다 — 상금 지급 때 예금주와 대조하는 값이라
-  계약이 성립한 뒤에 조용히 바뀌면 안 된다.
+  시안과 일부러 다른 것(내가 정함, 2026-09-23, 수연 확인 대기):
+    · 구글로 가입한 사람은 배지가 회색 「구글 연결됨」이다. 시안은 카카오만 그렸다.
+    · 알림톡 스위치는 전화번호가 없어도 켜진다. 값만 남고, 보낼 때 번호가 없으면
+      안 보낸다(스키마 주석대로).
 */
 
 export const metadata: Metadata = {
-  title: "설정",
+  title: "계정 설정",
   robots: { index: false, follow: false },
 };
 
-export default async function SettingsPage() {
-  const user = await requireUser("/settings");
-  const nameLocked = await hasAnyEntry(user.id);
+export default async function Page() {
+  const { viewer } = await guardPage("settings", "/settings");
+  // guardPage가 로그인 안 한 사람을 로그인으로 보낸다(settings는 auth: "user")
+  if (!viewer.user) notFound();
+  const me = await prisma.user.findUniqueOrThrow({
+    where: { id: viewer.user.id },
+    select: {
+      email: true,
+      notifyEmail: true,
+      notifyAlimtalk: true,
+      oauthAccounts: { select: { provider: true }, orderBy: { createdAt: "asc" } },
+    },
+  });
 
   return (
-    <main className={`page ${styles.page}`}>
-      <div className={`container container--narrow grow ${styles.wrap}`}>
-        <div className={styles.head}>
-          <Logo />
-          <h1 className={styles.title}>설정</h1>
-          <p className={styles.lead}>
-            <span>PROOVIT에서 쓰는 이름을 바꿀 수 있습니다.</span>
-            <span>로그인 계정은 {user.email} 입니다.</span>
-          </p>
-        </div>
-
-        <SettingsForm
-          defaultName={user.name}
-          defaultNickname={user.nickname}
-          nameLocked={nameLocked}
-        />
-      </div>
-      <Footer />
-    </main>
+    <div className={styles.wrap} data-probe="settings" data-state="single">
+      <h2 className={hub.h1}>{SETTINGS_HEAD.title}</h2>
+      <p className={hub.sub}>{SETTINGS_HEAD.sub}</p>
+      <SettingsPanel
+        email={me.email}
+        providers={me.oauthAccounts.map((a) => a.provider)}
+        notifyEmail={me.notifyEmail}
+        notifyAlimtalk={me.notifyAlimtalk}
+      />
+    </div>
   );
 }

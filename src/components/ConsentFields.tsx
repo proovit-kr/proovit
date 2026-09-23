@@ -28,7 +28,7 @@ import styles from "./ConsentFields.module.css";
 /*
   항목 목록을 밖에서 받는다. 사전 신청(PREREGISTER_CONSENTS)과 참가 신청
   (APPLY_CONSENTS)이 같은 컴포넌트를 쓰는데, D1~D5는 문안이 아니라 **받는 방식**의
-  요건이라 화면마다 복사하면 한쪽만 고쳐진다. profile.ts를 둘로 나눈 것과 같은 이유다.
+  요건이라 화면마다 복사하면 한쪽만 고쳐진다.
 */
 export type ConsentState = Record<string, boolean>;
 
