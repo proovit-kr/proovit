@@ -20,7 +20,11 @@ export type AdminFixture = {
     submission?: string[];
     judgment?: string[];
     notification?: string[];
+    metricDaily?: string[];
+    metricChannel?: string[];
   };
+  /** 큐에서 잠시 내린 집계 줄(reviewedBy를 채웠다) — 걷을 때 비운다 */
+  metricHidden?: string[];
   /** 덮어쓴 시즌 칸의 원래 값 — 걷을 때 되돌린다 */
   seasonBefore?: { scoringConfig: unknown; featureFlags: unknown };
   /** 덮어쓴 제출의 원래 값(없던 제출은 created.submission) */
@@ -265,6 +269,59 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
         entryBefore: [...entryBefore, { id: mocha.id, status: mocha.status, stage: mocha.stage }],
       };
     }
+    case "metrics:q": {
+      /*
+        시안 ① 큐 세 줄(3095행) — 두잇로그 급증, 모카브루 단일 채널, 골목마켓.
+        골목마켓의 「체류 0초 비율 42%」는 우리 규칙에 없어 무효 세션 비율로 건다.
+        날짜는 집계 픽스처(10.19~)가 안 쓰는 10.15 하루, 그 날 행이 없을 때만 심는다.
+      */
+      const day = new Date("2026-10-15T00:00:00Z");
+      const seeds = [
+        { team: "두잇로그", raw: 512, valid: 298, spike: 214, sessions: 512, channels: null },
+        { team: "모카브루", raw: 455, valid: 455, spike: 0, sessions: 455, channels: [434, 21] },
+        { team: "골목마켓", raw: 731, valid: 688, spike: 0, sessions: 1750, channels: null },
+      ];
+      created.metricDaily = [];
+      created.metricChannel = [];
+      for (const m of seeds) {
+        const entryId = await entryOf(season.id, m.team);
+        const had = await prisma.metricDaily.findFirst({ where: { entryId, metricDate: day }, select: { id: true } });
+        if (had) continue;
+        const row = await prisma.metricDaily.create({
+          data: {
+            entryId, metricDate: day, rawVisitors: m.raw, validVisitors: m.valid,
+            spikeTrimmed: m.spike, sessions: m.sessions, batchAt: new Date(),
+          },
+          select: { id: true },
+        });
+        created.metricDaily.push(row.id);
+        for (const [i, v] of (m.channels ?? []).entries()) {
+          const ch = await prisma.metricChannelDaily.create({
+            data: { entryId, metricDate: day, channel: i === 0 ? "threads" : "direct", visitors: v },
+            select: { id: true },
+          });
+          created.metricChannel.push(ch.id);
+        }
+      }
+      break;
+    }
+    case "metrics:empty": {
+      /* 시안 ② — 큐에 오를 줄을 잠시 「누가 본 것」으로 돌려 큐를 비운다 */
+      const actor = await adminId();
+      const rows = await prisma.metricDaily.findMany({
+        where: {
+          entry: { seasonId: season.id },
+          reviewedBy: null,
+          OR: [{ spikeTrimmed: { gt: 0 } }, { botFiltered: { gt: 0 } }, { sessions: { gt: 0 } }],
+        },
+        select: { id: true },
+      });
+      await prisma.metricDaily.updateMany({
+        where: { id: { in: rows.map((r) => r.id) } },
+        data: { reviewedBy: actor },
+      });
+      return { screen, created, metricHidden: rows.map((r) => r.id) };
+    }
     case "audit":
       created.auditLog = await seedAudit(season.id);
       break;
@@ -276,6 +333,15 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
 
 export async function clearSandboxAdmin(f: AdminFixture): Promise<void> {
   assertSandbox();
+  if (f.metricHidden?.length) {
+    await prisma.metricDaily.updateMany({ where: { id: { in: f.metricHidden } }, data: { reviewedBy: null } });
+  }
+  if (f.created.metricChannel?.length) {
+    await prisma.metricChannelDaily.deleteMany({ where: { id: { in: f.created.metricChannel } } });
+  }
+  if (f.created.metricDaily?.length) {
+    await prisma.metricDaily.deleteMany({ where: { id: { in: f.created.metricDaily } } });
+  }
   if (f.created.notification?.length) {
     await prisma.notification.deleteMany({ where: { id: { in: f.created.notification } } });
   }

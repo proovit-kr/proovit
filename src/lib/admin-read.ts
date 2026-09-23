@@ -180,6 +180,23 @@ export const AUDIT_SELECT = {
 } as const;
 
 /**
+ * 마지막으로 롤업이 돈 시각. 롤업은 하루 한 행을 15분마다 덮어쓰므로 가장 나중에
+ * 고쳐진 스냅샷 행이 곧 마지막 롤업이다(public-read.ts의 「n분 전 갱신」과 같은 값).
+ * 대시보드 부제와 지표 검토의 빈 상태가 같이 쓴다.
+ */
+export async function loadLastRollup(seasonId: string): Promise<Date | null> {
+  const row = await prisma.leaderboardSnapshot.findFirst({
+    where: { seasonId },
+    orderBy: { updatedAt: "desc" },
+    select: { updatedAt: true },
+  });
+  return row?.updatedAt ?? null;
+}
+
+/** 롤업 주기 — vercel.json의 크론과 같다 */
+export const ROLLUP_EVERY_MIN = 15;
+
+/**
  * 운영 대시보드 숫자. **헤더의 시즌 셀렉트와 같은 시즌**을 본다(`viewer.season`).
  * 한때 「가장 최근에 만든 시즌」을 따로 골라서, 다음 시즌 초안을 만들어 두면
  * 헤더는 시즌 1인데 대시보드만 시즌 2를 읽었다.
@@ -287,12 +304,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
         select: { stageKey: true, closesAt: true },
         orderBy: { stageKey: "asc" },
       }),
-      /* 롤업은 하루 한 행을 15분마다 덮어쓴다 — 가장 나중에 고쳐진 행이 마지막 롤업이다 */
-      prisma.leaderboardSnapshot.findFirst({
-        where: { seasonId: season.id },
-        orderBy: { updatedAt: "desc" },
-        select: { updatedAt: true },
-      }),
+      loadLastRollup(season.id),
       /* 시안 `.minlog` — 다섯 줄 */
       prisma.auditLog.findMany({
         orderBy: { createdAt: "desc" },
@@ -321,7 +333,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
     },
     openAppeals,
     openMetricFlags,
-    lastRollupAt: lastRollup?.updatedAt ?? null,
+    lastRollupAt: lastRollup,
     /*
       마감이 안 지난 게이트 중 가장 이른 것. 마감이 비어 있는 게이트는 일정이
       아직 안 잡힌 것이라 뒤로 미룬다 — 날짜 없는 게이트를 「다음」으로 내세우면

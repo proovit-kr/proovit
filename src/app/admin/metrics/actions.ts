@@ -22,13 +22,11 @@ import { prisma } from "@/lib/prisma";
   지표 화면에서 곧바로 제재로 가지 않는다. 플래그를 만들어 `/admin/abuse`가
   소명과 함께 판정하게 둔다.
 
-  ⚠️ 액션 이름을 시안의 점 표기(`metric.recalc`)로 적는다 — 감사 로그 화면의
-  정본이 그렇다(ver4 `#scr-adm-audit`). 기존 쓰기 일부는 콜론 표기
-  (`abuse_flag:upheld`)를 쓰고 있어 표기가 섞여 있다. 한쪽으로 맞추는 것은
-  기존 호출부를 함께 고쳐야 해서 뒤 패스로 미룬다.
+  액션 이름은 시안의 점 표기(`metric.recalc`)다 — 감사 로그 화면(ver4 `#scr-adm-audit`)의
+  필터가 `metric.*`처럼 앞마디로 거른다.
 */
 
-export type ReviewState = { message?: string; done?: boolean };
+export type ReviewState = { message?: string; done?: number };
 
 type Kind = "confirm" | "recalc" | "escalate";
 
@@ -149,8 +147,6 @@ export async function reviewMetric(
     });
   });
 
-  revalidatePath("/admin/metrics");
-  revalidatePath("/admin");
-  if (kind === "escalate") revalidatePath("/admin/abuse");
-  return { done: true };
+  revalidatePath("/admin", "layout");
+  return { done: Date.now() };
 }

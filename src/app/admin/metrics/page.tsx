@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 
-import { EmptyState } from "@/components/EmptyState";
 import { guardPage } from "@/lib/access";
+import { loadLastRollup, ROLLUP_EVERY_MIN } from "@/lib/admin-read";
+import { fmtMD } from "@/lib/header-state";
 import { prisma } from "@/lib/prisma";
 
+import hub from "../../dashboard/hub.module.css";
+import c from "../console.module.css";
 import { ReviewActions } from "./ReviewActions";
 import { channelHhi, flagReasons } from "./rules";
-
-import styles from "./metrics.module.css";
 
 /*
   지표 검토 — PLN3 2장, 시안 ver4 `#scr-adm-metrics`.
@@ -17,8 +18,9 @@ import styles from "./metrics.module.css";
   조정할 때 마크업을 헤집게 된다.
 
   ⚠️ 시안은 상태 토글(① 큐 3건 / ② 빈 상태)로 둘을 보여주지만 여기서는 **실제
-  데이터로 갈린다.** 걸린 줄이 없으면 빈 상태다. 운영 화면에 가짜 예시를 두면
-  "지금 처리할 일이 있는가"를 화면이 대신 답해 주지 못한다.
+  데이터로 갈린다.** 걸린 줄이 없으면 빈 상태다. 빈 상태의 「다음 롤업 n분 후」는
+  마지막 롤업에서 주기(15분)로 센다 — 롤업이 멈추면 「정상」이라 쓰지 않도록
+  대시보드 부제가 지연을 알린다.
 
   ⚠️ 조회를 admin-read.ts로 올리지 않았다. 이 규칙은 이 화면에서만 쓰고,
   올리는 순간 다른 화면이 같은 이름으로 다른 기준을 기대하게 된다.
@@ -28,12 +30,6 @@ export const metadata: Metadata = {
   title: "지표 검토",
   robots: { index: false, follow: false },
 };
-
-const DAY = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: "Asia/Seoul",
-  month: "numeric",
-  day: "numeric",
-});
 
 const NUM = new Intl.NumberFormat("ko-KR");
 
@@ -139,75 +135,61 @@ export default async function Page() {
     상태에 롤업 시각을 적는 이유가 이것이다 — 둘을 못 가르면 파이프라인이
     죽은 것을 「평온함」으로 읽는다.
   */
-  const lastRollup = seasonId
-    ? (
-        await prisma.metricDaily.aggregate({
-          where: { entry: { seasonId } },
-          _max: { batchAt: true },
-        })
-      )._max.batchAt
+  const lastRollup = seasonId ? await loadLastRollup(seasonId) : null;
+
+  const nextRollupMin = lastRollup
+    ? Math.max(0, ROLLUP_EVERY_MIN - (minutesAgo(lastRollup) % ROLLUP_EVERY_MIN))
     : null;
 
   return (
-    <section className={styles.root}>
-      <header className={styles.head}>
-        <h1 className={styles.title}>지표 검토</h1>
-        <p className={styles.sub}>
-          플래그된 건만 검토합니다. 전 팀을 손으로 확인하지 않습니다. 확정·재계산·이관
-          모두 사유가 남고 감사 로그에 기록됩니다.
-        </p>
-      </header>
+    <>
+      <h2 className={hub.h1}>지표 검토</h2>
+      <p className={hub.sub}>플래그된 건만 검토, 전 팀 수동 검증 아님</p>
 
       {queue.length === 0 ? (
-        <EmptyState
-          title="검토할 플래그가 없습니다"
-          detail={
-            lastRollup
-              ? `자동 집계 정상 작동 중입니다. 마지막 롤업 ${minutesAgo(lastRollup)}분 전.`
-              : "아직 집계가 들어오지 않았습니다. 측정이 붙고 롤업이 돌면 걸린 건만 여기에 쌓입니다."
-          }
-        />
-      ) : (
-        <div className={styles.scroller}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th scope="col">팀</th>
-                <th scope="col">플래그 사유</th>
-                <th scope="col">원시 → 보정</th>
-                <th scope="col">
-                  <span className={styles.srOnly}>판정</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {queue.map((row) => (
-                <tr key={row.id}>
-                  <th scope="row" className={styles.team}>
-                    {row.entry.team.name}
-                    <span className={styles.when}>{DAY.format(row.metricDate)}</span>
-                  </th>
-                  <td>
-                    <ul className={styles.reasons}>
-                      {row.reasons.map((reason) => (
-                        <li key={reason}>{reason}</li>
-                      ))}
-                    </ul>
-                  </td>
-                  <td className={styles.numbers}>
-                    {NUM.format(row.rawVisitors)}
-                    <span className={styles.arrow}> → </span>
-                    <b>{NUM.format(row.validVisitors)}</b>
-                  </td>
-                  <td>
-                    <ReviewActions rowId={row.id} rawVisitors={row.rawVisitors} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        /* 시안 ② — 리더보드 빈 상태와 같은 상자(`.lb-empty`) */
+        <div className={c.lbEmpty} data-probe="metrics-empty" data-state="empty">
+          <div className={c.big}>검토할 플래그 없음</div>
+          <p>
+            {nextRollupMin !== null
+              ? `자동 집계 정상 작동 중, 다음 롤업 ${nextRollupMin}분 후.`
+              : "롤업 전, 측정이 붙고 롤업이 돌면 걸린 건만 여기에 쌓임."}
+          </p>
         </div>
+      ) : (
+        <table className={c.atbl} data-probe="metrics" data-state="q">
+          <thead>
+            <tr>
+              <th>TEAM</th>
+              <th>플래그 사유</th>
+              <th>원시 → 보정</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {queue.map((row) => (
+              <tr key={row.id}>
+                <td>
+                  <b>{row.entry.team.name}</b>
+                </td>
+                {/*
+                  큐는 팀·하루 한 줄이라 날짜를 사유 앞에 붙인다 — 한 팀이 이틀 걸리면
+                  같은 팀명이 두 줄 선다(내가 정함, 시안은 팀명만).
+                */}
+                <td>
+                  {fmtMD(row.metricDate)}, {row.reasons.join(", ")}
+                </td>
+                <td className={c.num}>
+                  {NUM.format(row.rawVisitors)} → <b>{NUM.format(row.validVisitors)}</b>
+                </td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <ReviewActions rowId={row.id} teamName={row.entry.team.name} rawVisitors={row.rawVisitors} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
-    </section>
+    </>
   );
 }

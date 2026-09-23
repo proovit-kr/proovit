@@ -50,14 +50,14 @@ function percent(part: number, whole: number): number {
  *
  * 빈 배열이면 자동 집계를 그대로 믿는다. 이유가 하나라도 있으면 큐에 올린다 —
  * 그리고 **그 문장이 곧 참가자에게 설명할 말**이 된다. 그래서 "이상함" 같은
- * 판정이 아니라 관측한 수를 적는다.
+ * 판정이 아니라 관측한 수를 적는다. 꼴은 시안 표(3097행)의 「단일 채널 집중 (HHI 0.91)」.
  */
 export function flagReasons(row: MetricRow): string[] {
   const reasons: string[] = [];
 
   /* 기간 중위값의 20배를 넘겨 잘라낸 날 — 급증 자체가 판단 대상이다 */
   if (row.spikeTrimmed > 0) {
-    reasons.push(`급증 구간 절단 ${row.spikeTrimmed.toLocaleString("ko-KR")}건`);
+    reasons.push(`유입 급증 (${row.spikeTrimmed.toLocaleString("ko-KR")}건 절단)`);
   }
 
   if (row.sessions > 0) {
@@ -69,12 +69,12 @@ export function flagReasons(row: MetricRow): string[] {
 
   if (row.rawVisitors > 0 && row.botFiltered / row.rawVisitors > BOT_RATE_MAX) {
     reasons.push(
-      `봇 트래픽 제외 ${row.botFiltered.toLocaleString("ko-KR")}건, 원시의 ${percent(row.botFiltered, row.rawVisitors)}%`,
+      `봇 트래픽 제외 (${row.botFiltered.toLocaleString("ko-KR")}건, 원시의 ${percent(row.botFiltered, row.rawVisitors)}%)`,
     );
   }
 
   if (row.channelHhi !== null && row.channelHhi > HHI_MAX) {
-    reasons.push(`단일 채널 집중, HHI ${row.channelHhi.toFixed(2)}`);
+    reasons.push(`단일 채널 집중 (HHI ${row.channelHhi.toFixed(2)})`);
   }
 
   return reasons;

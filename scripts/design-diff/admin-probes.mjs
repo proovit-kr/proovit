@@ -232,4 +232,48 @@ export const SCREENS = {
       ["버튼 hover", S + ".fbar .btn", `[data-probe="fbar"] ${BTN}`],
     ],
   },
+
+  /* ── 지표 검토 ① 큐 ② 빈 상태 ── */
+  metrics: {
+    hash: "adm-metrics",
+    route: "/admin/metrics",
+    states: { q: { pane: "am-q" }, empty: { pane: "am-empty" } },
+    guard: `document.querySelector('[data-probe="ad-body"] [data-state]')?.dataset.state ?? "없음"`,
+    list: (S, st) => {
+      const P = S + `.pane.on `;
+      if (st === "empty") {
+        return [
+          ...head(S),
+          ["lb-empty", P + ".lb-empty", '[data-probe="metrics-empty"]', [], ["height"]],
+          ["big", P + ".lb-empty .big", '[data-probe="metrics-empty"] {{c:big}}', [], ["width"]],
+          ["p", P + ".lb-empty p", '[data-probe="metrics-empty"] p', [], ["width"]],
+        ];
+      }
+      const T = '[data-probe="metrics"]';
+      return [
+        ...head(S),
+        ...table(S.replace(/ $/, "") + " .pane.on ", T, { cols: 4 }),
+        ["td b", P + ".atbl tbody tr:first-child b", `${T} tbody tr:first-child b`, [], ["width"]],
+        ["td 수치", P + ".atbl tbody tr:first-child td:nth-child(3)", `${T} tbody tr:first-child td:nth-child(3)`, [], ["width", "height"]],
+        ["td 수치 b", P + ".atbl tbody tr:first-child td:nth-child(3) b", `${T} tbody tr:first-child td:nth-child(3) b`, [], ["width"]],
+        ["td 버튼칸", P + ".atbl tbody tr:first-child td:last-child", `${T} tbody tr:first-child td:last-child`, [], ["width", "height"]],
+        ["확정", P + ".atbl tbody tr:first-child .btn:nth-child(1)", `${T} tbody tr:first-child ${BTN}:nth-child(1)`],
+        ["이관", P + ".atbl tbody tr:first-child .btn:nth-child(3)", `${T} tbody tr:first-child ${BTN}:nth-child(3)`],
+      ];
+    },
+    text: (S, st) => [
+      ["제목", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}'],
+      ["부제", S + ".hb-sub", '[data-probe="ad-body"] {{hub:sub}}'],
+      ...(st === "empty"
+        ? [["빈 상태", S + ".pane.on .lb-empty", '[data-probe="metrics-empty"]', [/^자동 집계 정상 작동 중, 다음 롤업 \d+분 후\.$/]]]
+        : [
+            ["머리글", S + ".pane.on .atbl thead", '[data-probe="metrics"] thead'],
+            ["버튼", S + ".pane.on .atbl tbody tr:first-child td:last-child", '[data-probe="metrics"] tbody tr:first-child td:last-child'],
+          ]),
+    ],
+    hover: (S, st) =>
+      st === "empty"
+        ? []
+        : [["확정 hover", S + ".pane.on .atbl tbody tr:first-child .btn", `[data-probe="metrics"] tbody tr:first-child ${BTN}`]],
+  },
 };
