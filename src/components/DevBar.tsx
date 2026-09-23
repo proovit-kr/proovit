@@ -14,6 +14,7 @@ import {
   type HubKey,
 } from "@/lib/dev-sandbox";
 import { devToday } from "@/lib/dev-clock";
+import { devToolsEnabled } from "@/lib/dev-env";
 import { devHubKey } from "@/lib/dev-hub";
 
 import { DevBarClient } from "./DevBarClient";
@@ -97,7 +98,7 @@ export async function DevBar() {
     간다. 운영 DB에 붙었을 때 특히 그렇다 — 그 사실 자체가 알아야 할 정보다.
   */
   if (!check.ok) {
-    return process.env.NODE_ENV === "production" ? null : (
+    return !devToolsEnabled ? null : (
       <DevBarClient blocked={check.reason} />
     );
   }
