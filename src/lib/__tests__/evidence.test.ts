@@ -32,6 +32,8 @@ describe("증빙 파일 키", () => {
   it("모양이 다른 키는 null", () => {
     expect(parseEvidenceKey("../etc/passwd")).toBeNull();
     expect(parseEvidenceKey(`${ENTRY}/s9/evidence/${ID}-a.pdf`)).toBeNull();
+    /* 소명 증빙 — 스테이지 자리에 `appeal` */
+    expect(parseEvidenceKey(`${ENTRY}/appeal/evidence/${ID}-a.pdf`)?.stageKey).toBe("appeal");
     expect(parseEvidenceKey(`${ENTRY}/s1/other/${ID}-a.pdf`)).toBeNull();
     expect(parseEvidenceKey(`${ENTRY}/s1/evidence/short-a.pdf`)).toBeNull();
     expect(parseEvidenceKey(`${ENTRY}/s1/evidence/${ID}-a/b.pdf`)).toBeNull();

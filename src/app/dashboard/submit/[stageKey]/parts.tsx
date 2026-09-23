@@ -5,13 +5,13 @@ import { useRef, useState, type ReactNode } from "react";
 import { Field, Input, Textarea } from "@/components/Field";
 import { Icon } from "@/components/Icon";
 import { EVIDENCE_FIELD, EVIDENCE_MESSAGE, READ_ONLY_LOCK } from "@/content/submission";
-import type { StageKey } from "@/generated/prisma/enums";
 import {
   EVIDENCE_ACCEPT,
   EVIDENCE_COUNT_MAX,
   EVIDENCE_MAX_BYTES,
   evidenceHref,
   evidenceName,
+  type EvidenceScope,
   type EvidenceSlot,
 } from "@/lib/evidence";
 
@@ -256,10 +256,11 @@ type Uploaded = { key: string; name: string };
  * 폼이 저장될 때 목록과 맞춰진다(submission-store.ts).
  *
  * 잠긴 판은 시안대로 칩만 그린다(s2). 열린 판은 드롭 칸을 그린다.
+ * 소명 화면도 이 칸을 쓴다(`scope="appeal"`) — 시안의 `.drop`·`.file`이 같은 값이다.
  */
 export function Files({
   name,
-  stageKey,
+  scope,
   slot,
   defaultValue,
   sub,
@@ -268,7 +269,8 @@ export function Files({
   error,
 }: {
   name: string;
-  stageKey: StageKey;
+  /** 어느 판의 증빙인가 — 스테이지, 또는 소명(`appeal`) */
+  scope: EvidenceScope;
   slot: EvidenceSlot;
   defaultValue: string[];
   /** `.drop`의 둘째 줄 */
@@ -303,7 +305,7 @@ export function Files({
       try {
         const body = new FormData();
         body.set("file", file);
-        body.set("stageKey", stageKey);
+        body.set("stageKey", scope);
         body.set("slot", slot);
         const res = await fetch("/api/evidence", { method: "POST", body });
         const json = (await res.json().catch(() => null)) as

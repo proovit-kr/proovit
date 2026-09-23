@@ -26,6 +26,8 @@ import {
   setSandboxCredits,
   setSandboxMyMetrics,
   setSandboxJudgments,
+  setSandboxAppeal,
+  type AppealPane,
   type CreditsPane,
   type MyMetricsPane,
   type JudgmentsPane,
@@ -243,6 +245,19 @@ export async function devSetJudgments(formData: FormData): Promise<void> {
     throw new Error("[dev] entryId·pane가 잘못됐습니다.");
   }
   await setSandboxJudgments({ entryId, pane: raw as JudgmentsPane });
+  refresh();
+}
+
+/** 소명 화면의 판 — 허브 h14 위에 제재·플래그·접수 기록을 심는다(`setSandboxAppeal`) */
+export async function devSetAppeal(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const raw = String(formData.get("pane") ?? "");
+  if (!entryId || !["write", "sent"].includes(raw)) {
+    throw new Error("[dev] entryId·pane가 잘못됐습니다.");
+  }
+  await setSandboxAppeal({ entryId, pane: raw as AppealPane });
   refresh();
 }
 
