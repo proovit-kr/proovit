@@ -22,6 +22,7 @@ export type AdminFixture = {
     notification?: string[];
     metricDaily?: string[];
     metricChannel?: string[];
+    abuseFlag?: string[];
   };
   /** 큐에서 잠시 내린 집계 줄(reviewedBy를 채웠다) — 걷을 때 비운다 */
   metricHidden?: string[];
@@ -269,6 +270,31 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
         entryBefore: [...entryBefore, { id: mocha.id, status: mocha.status, stage: mocha.stage }],
       };
     }
+    case "abuse": {
+      /* 시안 어뷰징 표(3137행)의 세 줄 */
+      const seeds = [
+        { team: "두잇로그", kind: "bot_traffic", severity: "high", evidence: "03:12~04:40, 214건, UA 단일", status: "appealed", appealedAt: at("10.23 11:00") },
+        { team: "러닝메이트", kind: "multi_account", severity: "medium", evidence: "동일 결제수단 가입 6건", status: "flagged", appealedAt: null },
+        { team: "시들지마", kind: "false_representation", severity: "medium", evidence: "제출 채널과 유입원 불일치", status: "upheld", appealedAt: null },
+      ] as const;
+      created.abuseFlag = [];
+      for (const f of seeds) {
+        const row = await prisma.abuseFlag.create({
+          data: {
+            entryId: await entryOf(season.id, f.team),
+            kind: f.kind,
+            severity: f.severity,
+            evidence: f.evidence,
+            status: f.status,
+            appealedAt: f.appealedAt,
+            reason: "시안 목업",
+          },
+          select: { id: true },
+        });
+        created.abuseFlag.push(row.id);
+      }
+      break;
+    }
     case "leads":
       created.lead = await seedLeads(season.id);
       break;
@@ -336,6 +362,9 @@ export async function setSandboxAdmin({ screen }: { screen: string }): Promise<A
 
 export async function clearSandboxAdmin(f: AdminFixture): Promise<void> {
   assertSandbox();
+  if (f.created.abuseFlag?.length) {
+    await prisma.abuseFlag.deleteMany({ where: { id: { in: f.created.abuseFlag } } });
+  }
   if (f.metricHidden?.length) {
     await prisma.metricDaily.updateMany({ where: { id: { in: f.metricHidden } }, data: { reviewedBy: null } });
   }

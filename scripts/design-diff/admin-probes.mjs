@@ -308,4 +308,39 @@ export const SCREENS = {
       ["CSV hover", S + ".hb-sub .btn", `[data-probe="ad-body"] {{hub:sub}} ${BTN}`],
     ],
   },
+
+  /* ── 어뷰징 ── */
+  abuse: {
+    hash: "adm-abuse",
+    route: "/admin/abuse",
+    list: (S) => {
+      const T = '[data-probe="abuse"]';
+      const K = '[data-probe="abuse-card"]';
+      return [
+        ...head(S),
+        ...table(S, T, { cols: 5 }),
+        ["td 유형 b", S + ".atbl tbody tr:first-child b", `${T} tbody tr:first-child b`, [], ["width"]],
+        ["td 심각도", S + ".atbl tbody tr:first-child .badge", `${T} tbody tr:first-child td:nth-child(3) ${BADGE}`, [], ["width"]],
+        ["td 증거", S + ".atbl tbody tr:first-child td:nth-child(4)", `${T} tbody tr:first-child td:nth-child(4)`, [], ["width", "height"]],
+        ["td 상태", S + ".atbl tbody tr:first-child td:nth-child(5) .badge", `${T} tbody tr:first-child td:nth-child(5) ${BADGE}`, [], ["width"]],
+        ["카드", S + ".ad-body > .card", K, [], ["height"]],
+        ["카드 b", S + ".ad-body > .card > b", `${K} > b`, [], ["width"]],
+        ["카드 p", S + ".ad-body > .card > p", `${K} > p`, [], ["width", "height"]],
+        ["버튼줄", S + ".ad-body > .card > div", `${K} > div`, [], ["width", "height"], [], { kids: true }],
+        ["경고", S + ".ad-body > .card .btn:nth-child(1)", `${K} ${BTN}:nth-child(1)`, [], ["width"]],
+        ["무효화", S + ".ad-body > .card .btn:nth-child(2)", `${K} ${BTN}:nth-child(2)`, [], ["width"]],
+        ["실격", S + ".ad-body > .card .btn:nth-child(3)", `${K} ${BTN}:nth-child(3)`, [], ["width"]],
+      ];
+    },
+    text: (S) => [
+      ["제목", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}'],
+      ["부제", S + ".hb-sub", '[data-probe="ad-body"] {{hub:sub}}'],
+      ["머리글", S + ".atbl thead", '[data-probe="abuse"] thead'],
+      ["카드", S + ".ad-body > .card", '[data-probe="abuse-card"]'],
+    ],
+    hover: (S) => [
+      ["경고 hover", S + ".ad-body > .card .btn:nth-child(1)", `[data-probe="abuse-card"] ${BTN}:nth-child(1)`],
+      ["실격 hover", S + ".ad-body > .card .btn:nth-child(3)", `[data-probe="abuse-card"] ${BTN}:nth-child(3)`],
+    ],
+  },
 };

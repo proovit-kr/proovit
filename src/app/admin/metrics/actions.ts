@@ -121,7 +121,7 @@ export async function reviewMetric(
       });
       /*
         이관한 줄은 「검토 통과 아님」으로 남긴다. 채점이 이 표를 조인해
-        무엇을 뺄지 정한다(admin-store.resolveAbuseFlag 주석).
+        무엇을 뺄지 정한다(admin-store.applySanction 주석).
       */
       await tx.metricDaily.update({
         where: { id: row.id },

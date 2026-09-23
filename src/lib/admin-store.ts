@@ -7,6 +7,9 @@ import {
   CreditOfferStatus,
   CreditUnlockEvent,
   EntryStatus,
+  NotifChannel,
+  SanctionReason,
+  SanctionStatus,
   SeasonPhase,
   Prisma,
 } from "@/generated/prisma/client";
@@ -297,60 +300,104 @@ export async function addTrack(args: {
   return { ok: true };
 }
 
+/** 어뷰징 카드의 세 단계 — 시안 「경고」·「지표 무효화」·「실격」(제16조 ① 비례 적용) */
+export type SanctionStep = "warning" | "week_invalidated" | "disqualified";
+
+const STEP_LABEL: Record<SanctionStep, string> = {
+  warning: "경고",
+  week_invalidated: "지표 무효화",
+  disqualified: "실격",
+};
+
 /**
- * 어뷰징 플래그 판정 — 확정(upheld) / 취소(overturned).
+ * 플래그를 근거로 제재한다 — 시안 어뷰징 판정 카드의 버튼 셋.
+ *
+ * 한 트랜잭션에서 넷을 한다: 제재 행 · 플래그 확정(upheld) · 실격이면 참가 상태 ·
+ * 감사 로그. 그리고 팀원에게 통지한다(사람마다 한 행).
  *
  * ⚠️ **지표를 여기서 고치지 않는다.** 확정된 플래그가 집계에서 무엇을 빼는지는
  * 채점 시점에 `abuse_flags`를 조인해 정한다(종결본 주석: 캐시 컬럼을 두지 않는다).
- * 판정할 때 metric_daily를 손대면 두 값이 어긋나고, 나중에 소명이 인용됐을 때
- * 되돌릴 근거가 사라진다.
+ * 여기서 metric_daily를 손대면 두 값이 어긋나고, 소명이 인용됐을 때 되돌릴 근거가 사라진다.
  *
- * `resolution_note`는 스키마가 「운영자 처리 사유(필수 기록)」로 잡아둔 칸이라
- * 감사 로그의 reason과 같은 값을 넣는다 — 표를 옮겨 다니지 않고도 읽히게.
+ * ⚠️ 소명 기한을 박지 않는다(`appeal_deadline_at` 비움). 비어 있으면 소명 화면이
+ * 「통지 후 5영업일 그날 끝」으로 센다(appeal-view.ts) — 규칙이 한 곳에 남는다.
+ * 경고만 시정 기한 24시간을 박는다(제16조 ① 「경고와 시정(24시간)」).
  */
-export async function resolveAbuseFlag(args: {
+export async function applySanction(args: {
   flagId: string;
-  status: AbuseStatus;
+  step: SanctionStep;
+  /** 제15조 근거. 플래그에 유형이 없으면 운영자가 고른다 */
+  reasonKind: SanctionReason;
   reason: string;
   actorId: string;
-  /** 확정 시 조정한 유효 방문 수. 비우면 조정 없음 */
-  adjustedVisitors?: number | null;
 }): Promise<AdminActionResult> {
-  const { flagId, status, reason, actorId, adjustedVisitors } = args;
-  if (reason.trim().length < REASON_MIN) {
+  const { flagId, step, reasonKind, actorId } = args;
+  const reason = args.reason.trim();
+  if (reason.length < REASON_MIN) {
     return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
   }
-  if (status !== AbuseStatus.upheld && status !== AbuseStatus.overturned) {
-    return { ok: false, message: "확정 또는 취소만 할 수 있습니다." };
-  }
-
   const flag = await prisma.abuseFlag.findUnique({
     where: { id: flagId },
-    select: { status: true, entryId: true },
+    select: { id: true, entryId: true, status: true },
   });
   if (!flag) return { ok: false, message: "플래그를 찾을 수 없습니다." };
-  if (flag.status === status) return { ok: false, message: "이미 그 상태입니다." };
 
+  const now = new Date();
   await prisma.$transaction(async (tx) => {
-    await tx.abuseFlag.update({
-      where: { id: flagId },
+    const sanction = await tx.sanction.create({
       data: {
-        status,
-        resolutionNote: reason.trim(),
+        entryId: flag.entryId,
+        stage: step,
+        reason: reasonKind,
+        detail: reason,
+        sourceType: "abuse_flag",
+        sourceId: flag.id,
+        status: SanctionStatus.applied,
+        appliedAt: now,
+        decidedBy: actorId,
+        ...(step === "warning" ? { correctionDeadline: new Date(now.getTime() + 24 * 3_600_000) } : {}),
+      },
+      select: { id: true },
+    });
+    await tx.abuseFlag.update({
+      where: { id: flag.id },
+      data: {
+        kind: reasonKind,
+        status: AbuseStatus.upheld,
+        resolutionNote: reason,
         reviewedBy: actorId,
-        ...(adjustedVisitors === undefined ? {} : { adjustedVisitors }),
       },
     });
+    if (step === "disqualified") {
+      await tx.entry.update({
+        where: { id: flag.entryId },
+        data: { status: EntryStatus.disqualified },
+      });
+    }
     await writeAudit(tx, {
       actorId,
-      action: `abuse_flag:${status}`,
-      targetType: "abuse_flag",
-      targetId: flagId,
-      reason: reason.trim(),
-      meta: { from: flag.status, to: status, entryId: flag.entryId },
+      action: "abuse.sanction",
+      targetType: "entry",
+      targetId: flag.entryId,
+      reason,
+      meta: { flagId: flag.id, sanctionId: sanction.id, stage: step, kind: reasonKind },
+    });
+    const members = await tx.teamMember.findMany({
+      where: { team: { entries: { some: { id: flag.entryId } } } },
+      select: { userId: true },
+    });
+    await tx.notification.createMany({
+      data: members.map((m) => ({
+        userId: m.userId,
+        type: "sanction",
+        title: `${STEP_LABEL[step]} 통지`,
+        body: "제재 사유를 확인하고 소명할 수 있어요.",
+        linkUrl: "/dashboard/appeal",
+        channel: NotifChannel.inapp,
+        sentAt: now,
+      })),
     });
   });
-
   return { ok: true };
 }
 

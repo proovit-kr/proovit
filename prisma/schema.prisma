@@ -194,6 +194,13 @@ enum SanctionReason {
   false_representation
 }
 
+/// 어뷰징 플래그의 심각도 — 운영 어뷰징 표(시안 `#scr-adm-abuse`)의 높음·중간·낮음
+enum AbuseSeverity {
+  high
+  medium
+  low
+}
+
 enum SanctionStatus {
   pending
   applied
@@ -1453,6 +1460,13 @@ model AbuseFlag {
   /// CF 봇 스코어
   botScore Decimal? @map("bot_score") @db.Decimal(5, 2)
   reason   String?  @db.VarChar(120)
+
+  /// 의심 유형 — 제15조 금지행위 7종 중 어느 것인가. 제재의 근거(`sanctions.reason`)가 된다.
+  /// 지표 검토 이관처럼 유형을 모르는 채 올라온 플래그는 비어 있다.
+  kind     SanctionReason?
+  severity AbuseSeverity?
+  /// 증거 요약 한 줄(「03:12~04:40, 214건, UA 단일」). 운영 표에 그대로 선다.
+  evidence String?        @db.VarChar(200)
 
   status           AbuseStatus @default(flagged)
   adjustedVisitors Int?        @map("adjusted_visitors")
