@@ -60,3 +60,13 @@ export const APPEAL_FAILURE_MESSAGE: Record<AppealFailureCode, string> = {
   REASON_TOO_SHORT: `사유를 ${APPEAL_REASON_MIN}자 이상 적어 주세요. 어느 지표·어느 판단이 어떻게 잘못됐는지가 있어야 다시 볼 수 있어요.`,
   NOT_APPEALABLE: "지금은 이의신청을 받을 수 없는 대상이에요.",
 };
+
+/**
+ * 그날의 끝(서울 23:59). 「통지 후 5영업일 이내」의 끝은 그날의 끝이다 —
+ * 허브 h12와 심사 결과 ③이 같은 기한을 적는다.
+ */
+export function endOfSeoulDay(at: Date): Date {
+  const kst = new Date(at.getTime() + 9 * 60 * 60 * 1000);
+  const midnight = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate());
+  return new Date(midnight + (24 * 60 - 9 * 60 - 1) * 60_000);
+}

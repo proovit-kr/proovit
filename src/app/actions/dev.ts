@@ -25,8 +25,10 @@ import {
   setMetricsFixture,
   setSandboxCredits,
   setSandboxMyMetrics,
+  setSandboxJudgments,
   type CreditsPane,
   type MyMetricsPane,
+  type JudgmentsPane,
   type HubKey,
   type MetricsFixture,
   type SubmitPane,
@@ -228,6 +230,19 @@ export async function devSetMyMetrics(formData: FormData): Promise<void> {
     throw new Error("[dev] entryId·pane가 잘못됐습니다.");
   }
   await setSandboxMyMetrics({ entryId, pane: raw as MyMetricsPane });
+  refresh();
+}
+
+/** 심사 결과 화면의 판 — 허브 판 위에 시안 목업 판정을 심는다(`setSandboxJudgments`) */
+export async function devSetJudgments(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const raw = String(formData.get("pane") ?? "");
+  if (!entryId || !["none", "pass", "fail", "final"].includes(raw)) {
+    throw new Error("[dev] entryId·pane가 잘못됐습니다.");
+  }
+  await setSandboxJudgments({ entryId, pane: raw as JudgmentsPane });
   refresh();
 }
 

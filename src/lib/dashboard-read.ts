@@ -1,4 +1,10 @@
-import { DeployStatus, StageKey, SubmissionStatus } from "@/generated/prisma/enums";
+import { DeployStatus, JudgmentResult, StageKey } from "@/generated/prisma/enums";
+import { gateOneNumbers } from "@/lib/hub-read";
+import {
+  buildJudgmentsView,
+  type GateJudgment,
+  type JudgmentsView,
+} from "@/lib/judgments-view";
 import { seoulDateOnly } from "@/lib/measure";
 import { buildMetricsView, metricsWindow, type MetricsView } from "@/lib/metrics-view";
 import { prisma } from "@/lib/prisma";
@@ -15,83 +21,39 @@ import { prisma } from "@/lib/prisma";
   시안 ver4가 카드로 그린다(2026-09-23).
 */
 
-export type StageJudgment = {
-  stageKey: StageKey;
-  name: string;
-  isGate: boolean;
-  /** 제출을 냈는가. 안 낸 게이트는 판정이 있을 수 없다 */
-  submissionStatus: SubmissionStatus | null;
-  submittedAt: Date | null;
-  judgment: {
-    result: string;
-    feedback: string | null;
-    /** 채점식 버전 — 그때 규칙으로는 이랬다는 증명 */
-    formulaVersion: string | null;
-    /** 2차는 배점까지 공개, 1차는 결과와 근거만(API v0.2 §9.1) */
-    scoreBreakdown: unknown;
-    judgedAt: Date;
-  } | null;
-};
-
 /**
- * 게이트별 판정.
+ * 심사 결과 — 시안 ver4 `#scr-judgments`.
  *
- * 게이트가 아닌 스테이지도 함께 돌려준다 — 참가자가 보는 것은 「내 시즌이 어디까지
- * 왔는가」이고, 게이트만 보이면 그 사이가 비어 사고 흐름이 끊긴다.
+ * 게이트 둘(s2·s5)의 최신 판정을 읽고, 판·요지·기한·점수표는 `judgments-view.ts`가
+ * 만든다. 1차의 `score_breakdown`은 읽지 않는다 — 배점은 비공개다(규칙 제9조).
  */
-export async function loadJudgments(
-  entryId: string,
-  seasonId: string,
-): Promise<StageJudgment[]> {
-  const [stages, submissions] = await Promise.all([
-    prisma.stage.findMany({
-      where: { seasonId },
-      orderBy: { stageKey: "asc" },
-      select: { stageKey: true, name: true, isGate: true },
-    }),
-    prisma.submission.findMany({
-      where: { entryId },
-      select: {
-        stageKey: true,
-        status: true,
-        submittedAt: true,
-        judgments: {
-          orderBy: { judgedAt: "desc" },
-          take: 1,
-          select: {
-            result: true,
-            feedback: true,
-            formulaVersion: true,
-            scoreBreakdown: true,
-            judgedAt: true,
-          },
-        },
+export async function loadJudgmentsView(entryId: string): Promise<JudgmentsView> {
+  const gates = await prisma.submission.findMany({
+    where: { entryId, stageKey: { in: [StageKey.s2, StageKey.s5] } },
+    select: {
+      stageKey: true,
+      judgments: {
+        orderBy: { judgedAt: "desc" },
+        take: 1,
+        select: { result: true, feedback: true, judgedAt: true, scoreBreakdown: true },
       },
-    }),
-  ]);
-
-  const byStage = new Map(submissions.map((s) => [s.stageKey, s]));
-
-  return stages.map((stage) => {
-    const submission = byStage.get(stage.stageKey);
-    const judgment = submission?.judgments[0] ?? null;
-    return {
-      stageKey: stage.stageKey,
-      name: stage.name,
-      isGate: stage.isGate,
-      submissionStatus: submission?.status ?? null,
-      submittedAt: submission?.submittedAt ?? null,
-      judgment: judgment
-        ? {
-            result: judgment.result,
-            feedback: judgment.feedback,
-            formulaVersion: judgment.formulaVersion,
-            scoreBreakdown: judgment.scoreBreakdown,
-            judgedAt: judgment.judgedAt,
-          }
-        : null,
-    };
+    },
   });
+  const latest = (key: StageKey): GateJudgment | null => {
+    const j = gates.find((g) => g.stageKey === key)?.judgments[0];
+    if (!j) return null;
+    return {
+      result: j.result,
+      feedback: j.feedback,
+      judgedAt: j.judgedAt,
+      scoreBreakdown: key === StageKey.s5 ? j.scoreBreakdown : null,
+    };
+  };
+  const gate1 = latest(StageKey.s2);
+  const gate2 = latest(StageKey.s5);
+  const numbers =
+    gate1?.result === JudgmentResult.fail ? await gateOneNumbers(entryId) : "";
+  return buildJudgmentsView({ gate1, gate2, gateOneNumbers: numbers });
 }
 
 export type MyMetrics = MetricsView & {
