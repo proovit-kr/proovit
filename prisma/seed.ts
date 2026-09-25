@@ -13,8 +13,8 @@ import { prisma } from "../src/lib/prisma";
     recruiting → 참가신청(/apply 개방)
 
   전환은 season_schedules가 한다(ADR-010). 시즌1 캘린더가 아직 "잠정"이라
-  일정 행을 만들지 않았다 — 확정되면 여기에 pre_apply·recruiting 두 행을 넣고,
-  그때부터 크론이 phase를 옮긴다. 그전까지는 운영자가 직접 바꾼다.
+  일정 행을 만들지 않았다 — 확정되면 운영 콘솔 시즌 관리의 「페이즈 일정」에
+  넣고, 그때부터 크론(`/api/v1/cron/phase`)이 phase를 옮긴다.
 */
 async function main() {
   const season = await prisma.season.upsert({

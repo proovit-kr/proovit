@@ -6,7 +6,7 @@ import {
   SubmissionStatus,
 } from "@/generated/prisma/enums";
 import type { Prisma } from "@/generated/prisma/client";
-import { stageAtLeast } from "@/lib/access-policy";
+import { passedGate, stageAtLeast, stageReachable } from "@/lib/access-policy";
 import { devNow } from "@/lib/dev-clock";
 import { foreignEvidence } from "@/lib/evidence";
 import { evidenceStorage } from "@/lib/evidence-storage";
@@ -15,6 +15,8 @@ import { loadLeaderboard } from "@/lib/public-read";
 import {
   SINGLE_WEEK,
   currentWeek,
+  stageRowState,
+  stageWindows,
   type StageState,
   type SubmissionFailureCode,
   type SubmitIntent,
@@ -24,10 +26,15 @@ import {
   제출 저장. **서버 전용이다** — 길이·형식 규칙과 판을 읽는 규칙은 submission.ts에
   있고 그쪽은 클라이언트도 읽는다.
 
-  권한(팀장인가·이 스테이지가 열렸는가)은 `canSubmitStage()`가 판정하고 화면과
+  권한(팀장인가·진도로 닿았는가)은 `canSubmitStage()`가 판정하고 화면과
   서버 액션이 그 하나를 부른다(CLAUDE.md §3). 이 파일이 지키는 것은 **시간과
   잠금**이다 — 아직 안 열렸는지, 마감이 지났는지, 심사가 시작돼 잠겼는지, 과금
   유형이 굳었는지.
+
+  ⚠️ 시간은 `stages`의 달력이 아니라 **실제 창**으로 본다(유동 게이트, 2026-09-25
+  수연 지시 — submission.ts `stageWindows`). s1을 일찍 낸 팀이 s2 달력 주차를
+  기다리지 않고, s1은 1차 심사 마감까지 열려 있다(그 전에 1차 판정이 나면 그때
+  잠긴다 — `stageRowState`).
 */
 
 export type StageRow = StageState & {
@@ -112,42 +119,67 @@ export async function loadSubmitOverview(
     }),
     prisma.entry.findUnique({
       where: { id: entryId },
-      select: { chargeType: true, serviceUrl: true },
+      select: { chargeType: true, serviceUrl: true, stage: true },
     }),
   ]);
   if (!entry || stages.length === 0) return null;
 
+  const windows = stageWindows(stages);
+
   const rows: StageRow[] = stages.map((stage) => {
     const mine = submissions.filter((s) => s.stageKey === stage.stageKey);
-    /* s4는 주차가 행을 가른다. 지금 주차 것이 「지금 보는 제출」이다 */
+    /*
+      s4는 주차가 행을 가른다. 지금 주차 것이 「지금 보는 제출」이다. 주차는
+      **달력** 시작일로 센다 — 레이스 집계 구간을 s4 opens_at에 고정한 결정
+      (2026-09-06 수연)과 같은 주를 봐야 한다. 달력보다 먼저 낸 것은 1주차다.
+    */
     const week =
       stage.stageKey === StageKey.s4 ? currentWeek(stage.opensAt, now) : SINGLE_WEEK;
     const current = mine.find((s) => s.week === week) ?? null;
+    const win = windows[stage.stageKey] ?? {
+      opensAt: stage.opensAt,
+      closesAt: stage.closesAt,
+      gate: null,
+    };
 
-    const locked = current?.status === SubmissionStatus.locked;
     /*
-      마감이 지나도 보완 재제출 기한이 남아 있으면 열어둔다 — 그게 보완의 뜻이다.
+      판정은 `stageRowState` 하나다(순수 — 잠금 순서와 「예정」 규칙이 거기 있다).
+      여기서는 재료만 읽는다. EntryStage와 StageKey는 s1~s5에서 값이 같다.
+      「아직 안 열림」은 달력이 여는 스테이지(첫·마지막)에서만 나고 가운데는
+      진도가 연다 — 진도 잠금의 문구는 `canSubmitStage`가 따로 낸다.
       마감이 비어 있으면(시즌1 일정 잠정) 마감이 없다.
     */
-    const closed =
-      stage.closesAt !== null &&
-      stage.closesAt <= now &&
-      !(current?.revisionDueAt && current.revisionDueAt > now);
-    const notOpen = stage.opensAt !== null && stage.opensAt > now;
-    const lockedReason: SubmissionFailureCode | null = locked
-      ? "STAGE_LOCKED"
-      : closed
-        ? "STAGE_CLOSED"
-        : notOpen
-          ? "STAGE_NOT_OPEN"
-          : null;
+    const cover = win.gate !== null && win.gate !== stage.stageKey ? win.gate : null;
+    /* 바로 앞 스테이지. 게이트면 진도(통과)가 대신 말해 준다 — stageRowState 주석 */
+    const prev = stages[stages.indexOf(stage) - 1] ?? null;
+    const { open, lockedReason } = stageRowState({
+      win,
+      now,
+      current,
+      reachable: stageReachable(stage.stageKey as unknown as EntryStage, entry.stage),
+      gateSettled:
+        cover !== null &&
+        (submissions.some(
+          (s) => s.stageKey === cover && s.status === SubmissionStatus.locked,
+        ) ||
+          passedGate(entry.stage, cover as unknown as EntryStage)),
+      prevSubmitted:
+        prev === null ||
+        prev.isGate ||
+        submissions.some(
+          (s) => s.stageKey === prev.stageKey && s.status !== SubmissionStatus.draft,
+        ),
+    });
 
     return {
       stageKey: stage.stageKey,
       name: stage.name,
       isGate: stage.isGate,
+      /* 달력 그대로 — s4 주차 기산일(StageState 주석) */
       opensAt: stage.opensAt,
-      closesAt: stage.closesAt,
+      /* 실제 마감 — 머리의 「마감」·D-day와 s5 확인 문구가 읽는다 */
+      closesAt: win.closesAt,
+      open,
       week,
       status: current?.status ?? null,
       judgment: current?.judgments[0]?.result ?? null,
@@ -317,14 +349,17 @@ export type StageMetrics = {
   revenue: number;
   /** 집계된 날이 하루도 없으면 「집계 전」이다 */
   hasData: boolean;
+  /** 구간 안의 첫 집계일(서울 날짜). s2의 기간 표기 앞쪽이다. 없으면 null */
+  firstDate: Date | null;
 };
 
 /**
  * 읽기 전용 지표.
  *
  * ⚠️ 참가자가 숫자를 입력하지 않는다는 것이 이 제품의 약속이라, 제출 화면의
- * 지표 칸은 **입력이 아니라 이 조회의 출력**이다. 기간을 받는 이유는 s2가
- * 스테이지 구간만, s4가 그 주만 세기 때문이다.
+ * 지표 칸은 **입력이 아니라 이 조회의 출력**이다. 기간을 받는 이유는 s4가 그
+ * 주만 세기 때문이다. s2는 측정 시작부터(from=null) 1차 심사 마감까지 센다 —
+ * 유동 게이트에서는 랜딩을 s2 달력 주차보다 먼저 올릴 수 있다.
  */
 export async function loadStageMetrics(
   entryId: string,
@@ -343,7 +378,8 @@ export async function loadStageMetrics(
           }
         : {}),
     },
-    select: { validVisitors: true, signups: true, revenue: true },
+    orderBy: { metricDate: "asc" },
+    select: { metricDate: true, validVisitors: true, signups: true, revenue: true },
   });
 
   return {
@@ -352,6 +388,7 @@ export async function loadStageMetrics(
     /* BigInt는 화면에서 못 쓴다. 원 단위라 Number로 좁혀도 안전하다 */
     revenue: rows.reduce((sum, row) => sum + Number(row.revenue), 0),
     hasData: rows.length > 0,
+    firstDate: rows[0]?.metricDate ?? null,
   };
 }
 

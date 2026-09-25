@@ -2,7 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { canManageTeam, guardPage, toAccessContext } from "@/lib/access";
-import { MAX_TEAM_SIZE } from "@/lib/team";
+import { isRacing } from "@/lib/season-phase";
+import {
+  JOIN_DEADLINE_NOTE,
+  joinClosedCode,
+  MAX_TEAM_SIZE,
+  TEAM_FAILURE_MESSAGE,
+} from "@/lib/team";
 import { loadTeamPanel } from "@/lib/team-store";
 
 import hub from "../hub.module.css";
@@ -26,6 +32,10 @@ import { TeamPanel } from "./TeamPanel";
 
   ⚠️ 「합류 처리」는 이 화면에 못 둔다 — 초대받은 사람은 아직 참가 기록이 없어
   `canAccess("dashboardTeam")`이 404를 낸다. 그래서 코드를 넣는 자리는 `/apply`다.
+
+  합류가 마감된 팀(s2를 낸 뒤, 또는 모집·레이스 밖 · 2026-09-25)에는 초대 상자
+  대신 그 사유를 세운다. 판정은 서버 액션과 같은 `joinClosedCode`이고 문구만
+  내려보낸다. 레이스 중 열려 있으면 살아 있는 초대 밑에 「s2를 내면 닫힌다」를 붙인다.
 
   머리(`.hb-h1`·`.hb-sub`)와 행동 상자(`.act`)·요약 카드(`.hb-sum`)는 참가자
   화면이 공유하는 시안 클래스라 hub.module.css의 것을 그대로 쓴다.
@@ -52,6 +62,11 @@ export default async function Page() {
 
   /* 화면이 폼을 그릴지 정하는 판정. 서버 액션이 같은 함수를 다시 부른다 */
   const manage = canManageTeam(toAccessContext(viewer));
+  /* 초대 발급·재발송도 같다 — actions.ts의 `joinClosed`가 같은 규칙을 다시 본다 */
+  const closed = viewer.season
+    ? joinClosedCode(viewer.season.phase, viewer.entry)
+    : "JOIN_PHASE_CLOSED";
+  const racing = viewer.season !== null && isRacing(viewer.season.phase);
 
   return (
     <>
@@ -86,6 +101,8 @@ export default async function Page() {
         joinedWith={panel.joinedWith}
         full={panel.full}
         canManage={access.ok && manage.ok}
+        joinClosed={closed ? TEAM_FAILURE_MESSAGE[closed] : null}
+        joinNote={!closed && racing ? JOIN_DEADLINE_NOTE : null}
         viewerId={viewer.user.id}
         viewerIsLeader={viewer.team.isLeader}
       />

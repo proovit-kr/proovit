@@ -79,7 +79,11 @@ export type HubInput = {
    * 그래서 시안 h13이 「리더보드에 미배포로 표시되고」라고 말할 수 있다.
    */
   measurementReady: boolean;
-  /** 지금 열린 스테이지. 레이스에서 h6과 h15를 가르는 유일한 축이다 */
+  /**
+   * 지금 열린 스테이지. 레이스에서 h6과 h15를 가르는 유일한 축이다.
+   * **달력** 기준이다 — 유동 게이트(2026-09-25)에서도 s5는 달력으로 열려서
+   * (submission.ts `stageWindows`) 이 축이 보는 「s5 창인가」는 달라지지 않는다.
+   */
   stageNow: StageKey | null;
   /** 탈락에 미통과 판정이 달려 있는가. 없으면 마감 도달로 자동 처리된 것(h11) */
   gateFailed: boolean;

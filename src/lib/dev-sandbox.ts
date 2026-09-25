@@ -2408,18 +2408,33 @@ export async function setSandboxSubmit(args: {
     pane === "s3" ? SubmissionStatus.draft : SubmissionStatus.submitted,
     specS3(host, pane === "s4"),
   );
-  /* s2 판의 방문자·사전 신청자 — 허브 h4와 같은 수. 방문은 s2 구간 안의 날이어야 센다 */
+  /*
+    s2 판의 방문자·사전 신청자 — 허브 h4와 같은 수. 방문은 s2(1차 심사) 마감 전의
+    날이어야 센다 — 제출 화면은 측정 시작부터 마감까지 센다(유동 게이트).
+  */
   await setLeads(entryId, SPEC_S2_LEADS);
   if (pane === "s3") {
-    const closes = stageOf(StageKey.s2)?.closesAt;
+    /*
+      s2 달력 첫날부터 마감일까지 나눠 심는다(합은 시안 수 그대로, 나머지는 마지막
+      날에). 기간 표기의 앞은 첫 집계일이라(submission.ts `visitRange`) 하루에 몰면
+      「10.11~10.11」이 된다 — 나눠 심어야 시안처럼 「10.05~」로 선다.
+    */
+    const s2 = stageOf(StageKey.s2);
+    const last = seoulDateOnly(s2?.closesAt ? new Date(s2.closesAt.getTime() - 60_000) : devNow());
+    const first = s2?.opensAt ? seoulDateOnly(s2.opensAt) : last;
+    const days: Date[] = [];
+    for (let t = first.getTime(); t <= last.getTime(); t += 86_400_000) days.push(new Date(t));
+    if (days.length === 0) days.push(last);
+    const each = Math.floor(SPEC_S2_VISITORS / days.length);
     await prisma.metricDaily.deleteMany({ where: { entryId } });
-    await prisma.metricDaily.create({
-      data: {
+    await prisma.metricDaily.createMany({
+      data: days.map((metricDate, i) => ({
         entryId,
-        metricDate: seoulDateOnly(closes ? new Date(closes.getTime() - 60_000) : devNow()),
-        validVisitors: SPEC_S2_VISITORS,
+        metricDate,
+        validVisitors:
+          i === days.length - 1 ? SPEC_S2_VISITORS - each * (days.length - 1) : each,
         source: MetricSource.manual,
-      },
+      })),
     });
     return;
   }

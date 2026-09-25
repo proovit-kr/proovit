@@ -3,13 +3,16 @@ import type { Metadata } from "next";
 import { Badge, type BadgeTone } from "@/components/Badge";
 import { Field } from "@/components/Field";
 import { guardPage } from "@/lib/access";
+import { kstInputValue } from "@/lib/admin";
 import { loadAdminSeason } from "@/lib/admin-read";
+import { devNow } from "@/lib/dev-clock";
 import { parseFeatureFlags } from "@/lib/feature-flags";
-import { fmtMD, fmtYMD } from "@/lib/header-state";
+import { fmtMD, fmtStamp, fmtYMD } from "@/lib/header-state";
+import { PHASE_SKIP_NOTE, SCHEDULE_PHASES, phaseAtLeast } from "@/lib/season-phase";
 
 import hub from "../../dashboard/hub.module.css";
 import c from "../console.module.css";
-import { SeasonPanel } from "./SeasonPanel";
+import { SeasonPanel, type ScheduleRow } from "./SeasonPanel";
 import styles from "./seasons.module.css";
 
 /*
@@ -21,6 +24,10 @@ import styles from "./seasons.module.css";
   ⚠️ 페이즈 전환의 정본은 크론이다(ADR-010). 시안에는 전환 칸이 없는데, 크론이
   멈췄을 때 앞당기거나 되돌릴 길이 없으면 DB를 직접 고치게 된다 — 그래서 맨 아래에
   「페이즈 수동 전환」 한 칸을 남겼다(내가 정함, 수연 확인 대기).
+
+  그 위의 「페이즈 일정」도 시안에 없는 칸이다. 크론(`/api/v1/cron/phase`)은
+  `season_schedules`만 읽는데 그 행을 넣을 화면이 없어 SQL로만 넣을 수 있었다
+  (2026-09-25 수연 지시로 크론을 만들며 더함). 페이즈 다섯 줄에 KST 시각 하나씩.
 */
 
 /** 「2026-10-12」 — 시작일이라 자정을 전날로 옮기지 않는다(fmtYMD는 마감용) */
@@ -78,6 +85,26 @@ export default async function Page() {
 
   const flags = parseFeatureFlags(season.featureFlags);
 
+  /*
+    줄 상태. 「지연」은 크론과 같은 「지금」으로 가르고, **크론이 넘길 행에만**
+    붙인다 — 시즌이 이미 그 페이즈이거나 지났으면 크론은 건너뛰기만 하므로
+    경고할 일이 아니다(「이미 넘어감」). 크론이 건너뛴 행(`PHASE_SKIP_NOTE`)도
+    같은 뜻이라 같게 적는다.
+  */
+  const now = devNow();
+  const schedule: ScheduleRow[] = SCHEDULE_PHASES.map((phase) => {
+    const row = season.schedules.find((s) => s.phase === phase);
+    if (!row) return { phase, at: "", state: "empty" };
+    const at = kstInputValue(row.startsAt);
+    if (row.appliedAt) {
+      return row.note === PHASE_SKIP_NOTE
+        ? { phase, at, state: "skipped" }
+        : { phase, at, state: "applied", stamp: fmtStamp(row.appliedAt) };
+    }
+    if (phaseAtLeast(season.phase, phase)) return { phase, at, state: "reached" };
+    return { phase, at, state: row.startsAt <= now ? "late" : "pending" };
+  });
+
   return (
     <>
       <h2 className={hub.h1}>시즌 관리</h2>
@@ -104,6 +131,7 @@ export default async function Page() {
           closes: st.closesAt ? closeMD(st.closesAt) : "",
         }))}
         tracks={season.tracks}
+        schedule={schedule}
         flags={{
           leaderboard: flags.leaderboard,
           testerAssignments: flags.testerAssignments,

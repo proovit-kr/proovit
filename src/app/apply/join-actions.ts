@@ -6,8 +6,8 @@ import { redirect } from "next/navigation";
 import { APPLY_CONSENTS } from "@/content/consent";
 import { getSessionUser } from "@/lib/access";
 import { missingRequiredConsents } from "@/lib/apply-store";
-import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
-import { InviteCodeSchema, TEAM_FAILURE_MESSAGE } from "@/lib/team";
+import { getCurrentSeason } from "@/lib/season";
+import { InviteCodeSchema, isJoinPhase, TEAM_FAILURE_MESSAGE } from "@/lib/team";
 import { acceptInvite } from "@/lib/team-store";
 
 /*
@@ -17,9 +17,18 @@ import { acceptInvite } from "@/lib/team-store";
   참가를 만들고, 합류는 **이미 있는 참가에 사람을 붙인다.** 팀 이름·참가작을
   다시 받지 않는다(팀장이 이미 냈다). 받는 것은 참가 동의뿐이다(APPLY_CONSENTS, 09-21부터 둘).
 
-  ⚠️ 합류도 모집 기간에만 받는다. 신청과 같은 함수(resolveLandingCta)로 판정한다 —
-  랜딩이 닫혀 있는데 초대 링크만 열려 있으면 우회로가 된다.
-  **모집 마감 후 팀원 추가를 받을지는 8/17에 확인할 것**(규칙 문서에 조항이 없다).
+  ✅ **합류는 모집 기간이 끝나도 s2 제출 전까지 받는다**(2026-09-25 수연 지시,
+  PRD FR-B3 · OPEN-6 지각 참가). 그 전에는 신청과 같이 모집 기간에만 받았다.
+
+  판정이 두 겹이다.
+    ① 페이즈 — 모집·레이스가 아니면 여기서 끊는다(`isJoinPhase`). 문구는 신청과 같다.
+       /apply 화면도 같은 함수로 합류 폼을 연다.
+    ② 팀의 진도·상태 — `acceptInvite`가 트랜잭션 안에서 `inviteFailure`로 본다
+       (그 안의 `joinClosedCode`). 초대가 가리키는 팀의 참가를 읽어야 해서 액션이
+       아니라 store에 있다. 진도는 모집 중에도 본다 — s2를 낸 팀은 닫힌다.
+
+  ⚠️ **새 참가 신청은 여전히 모집 기간에만 받는다**(submitApply의 `resolveLandingCta`).
+  레이스 중에 초대 링크로 팀을 새로 만드는 길은 없다 — 합류는 이미 있는 팀에만 붙는다.
 */
 
 export type JoinState = {
@@ -49,7 +58,7 @@ export async function joinTeam(
   }
 
   const season = await getCurrentSeason();
-  if (!season || resolveLandingCta(season).kind !== "APPLY") {
+  if (!season || !isJoinPhase(season.phase)) {
     return {
       message: "지금은 참가 신청을 받고 있지 않습니다.",
       code: raw,
@@ -73,7 +82,7 @@ export async function joinTeam(
   const requestHeaders = await headers();
   const forwarded = requestHeaders.get("x-forwarded-for");
 
-  const result = await acceptInvite(user, parsed.data, season.id, consent, {
+  const result = await acceptInvite(user, parsed.data, season, consent, {
     ip: forwarded?.split(",")[0]?.trim() ?? requestHeaders.get("x-real-ip"),
     userAgent: requestHeaders.get("user-agent"),
   });

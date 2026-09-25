@@ -37,6 +37,15 @@ import styles from "./team.module.css";
   칸 아래에 붙인다(`state.emailError`). 다른 실패처럼 닫아 버리면 적던 주소가
   사라진다. 「초대 대기」 상자에는 메일을 보낸 주소가 서고, 재발송·취소가 붙는다.
   주소 없이 만든 옛 초대만 코드와 복사로 선다.
+
+  합류가 마감된 팀(`joinClosed`, 2026-09-25)은 시안에 판이 없다. 초대 상자 자리에
+  버튼 없는 `.act`로 사유를 세우고(제목 「팀원 초대가 마감됐어요」), 남은 초대는
+  배지를 「합류 마감」으로 바꾸고 재발송·복사를 떼고 취소만 둔다 — 받을 수 없는
+  초대를 「수락 대기」로 두면 기다리게 된다. 제목·배지 문구와 복사를 뗀 것 모두
+  내가 정함(수연 확인 대기, 2026-09-25).
+
+  레이스 중 열려 있으면 살아 있는 초대 밑에 `joinNote`(s2를 내면 닫힌다)를 붙인다 —
+  메일의 기한은 7일인데 그보다 먼저 죽을 수 있어서다. 이것도 시안에 없다.
 */
 
 type MemberView = {
@@ -79,6 +88,8 @@ export function TeamPanel({
   joinedWith,
   full,
   canManage,
+  joinClosed,
+  joinNote,
   viewerId,
   viewerIsLeader,
 }: {
@@ -89,6 +100,10 @@ export function TeamPanel({
   joinedWith: string | null;
   full: boolean;
   canManage: boolean;
+  /** 합류가 마감됐으면 그 사유 문구. 서버가 `joinClosedCode`로 판정해 내린다 */
+  joinClosed: string | null;
+  /** 열려 있지만 곧 닫힐 수 있을 때 살아 있는 초대 밑에 붙이는 안내(레이스 중) */
+  joinNote: string | null;
   viewerId: string;
   viewerIsLeader: boolean;
 }) {
@@ -171,7 +186,14 @@ export function TeamPanel({
       </Card>
 
       {/* ── 초대(② 개인 참가) ─────────────────────────────── */}
-      {canManage && !full && !invite ? (
+      {canManage && !full && !invite && joinClosed ? (
+        <div className={`${hub.act} ${styles.actGap}`}>
+          <div>
+            <h3>팀원 초대가 마감됐어요</h3>
+            <p>{joinClosed}</p>
+          </div>
+        </div>
+      ) : canManage && !full && !invite ? (
         <div className={`${hub.act} ${hub.hero} ${styles.actGap}`}>
           <div>
             <h3>한 명 더 초대할 수 있어요</h3>
@@ -189,12 +211,17 @@ export function TeamPanel({
       ) : null}
 
       {invite ? (
-        <Field label="초대 대기">
+        <Field label="초대 대기" hint={joinClosed ?? joinNote ?? undefined}>
           <div className={hub.keybox}>
             {invite.email ?? formatInviteCode(invite.code)}
-            <Badge tone="warn">수락 대기</Badge>
+            {joinClosed ? (
+              <Badge tone="gray">합류 마감</Badge>
+            ) : (
+              <Badge tone="warn">수락 대기</Badge>
+            )}
             <span className={styles.cp}>
-              {invite.email ? (
+              {/* 마감되면 재발송·복사를 뗀다 — 받을 수 없는 초대다. 취소만 남긴다 */}
+              {joinClosed ? null : invite.email ? (
                 canManage ? (
                   <Button
                     type="submit"

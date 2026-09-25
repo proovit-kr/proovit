@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { LinkButton } from "@/components/Button";
 import { Footer } from "@/components/Footer";
@@ -9,7 +10,7 @@ import { findMyEntry } from "@/lib/apply-store";
 import { loadPublicNav } from "@/lib/header-read";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
-import { TEAM_FAILURE_MESSAGE } from "@/lib/team";
+import { isJoinPhase, TEAM_FAILURE_MESSAGE } from "@/lib/team";
 import { findInvite } from "@/lib/team-store";
 
 import { ApplyDone } from "./ApplyDone";
@@ -22,7 +23,7 @@ import styles from "./apply.module.css";
   참가 신청 — 회원이 참가자가 되는 자리다.
 
   화면이 네 갈래이고, 그중 둘이 시안에 있다:
-    모집 기간이 아니다        → 로그인을 요구하기 전에 먼저 말한다 (시안 없음)
+    받는 기간이 아니다        → 로그인을 요구하기 전에 먼저 말한다 (시안 없음)
     초대 코드를 들고 왔다     → 합류 폼 (시안 없음)
     이미 신청했다             → 시안 ② 신청 완료
     그 외                     → 시안 ① 작성
@@ -33,12 +34,25 @@ import styles from "./apply.module.css";
 
   합류 폼이 여기 있는 이유: 초대받은 사람은 **참가 기록이 없어** 대시보드로 못
   들어온다(`canAccess`가 404를 낸다). 합류는 「참가의 한 형태」라 이 화면이 그 자리다.
+  초대 메일의 링크도 여기다(`mail.ts`의 `/apply?invite=`).
 
-  모집 아님을 로그인 앞에 두는 이유: 모집도 안 하는데 로그인부터 시키면, 로그인을
-  마친 사람이 "지금은 안 받습니다"를 보게 된다. 상태를 먼저 알리는 편이 맞다.
+  ✅ **받는 기간이 신청과 합류에서 다르다**(2026-09-25 수연 지시 · PRD FR-B3).
+    새 참가 신청 — 모집 구간에만. submitApply와 같은 판정(`resolveLandingCta`)이다.
+    합류         — 합류 페이즈(`isJoinPhase` — 모집·레이스)에 **초대 코드를 들고 온
+                   사람**. 팀별로 s2 제출 전까지다(`joinClosedCode`, findInvite가
+                   사유로 돌려준다). 합류 액션(join-actions)도 같은 두 함수를 본다.
+  그래서 레이스 중에는 **신청 폼을 절대 그리지 않는다.** 코드가 죽었거나 합류가
+  마감됐으면 사유만 말한다 — 모집 중처럼 「직접 참가 신청」으로 내려보내면 닫힌 폼에
+  닿는다. 코드 없이 오면 모집 아님 화면 그대로다.
+
+  ⚠️ access-policy의 `apply` 정책은 이 화면도 액션도 부르지 않는다(테스트만 부른다).
+  위 두 기간은 여기서 직접 가르므로, 그 정책을 고쳐도 이 화면은 안 바뀐다.
+
+  받는 기간이 아님을 로그인 앞에 두는 이유: 모집도 안 하는데 로그인부터 시키면,
+  로그인을 마친 사람이 "지금은 안 받습니다"를 보게 된다. 상태를 먼저 알리는 편이 맞다.
 
   ⚠️ 접근 판정은 서버에서만 한다(06 §5.2). 폼이 그려졌다는 사실이 권한이 아니며,
-  제출은 서버 액션이 모집 기간·동의·중복을 다시 판정한다.
+  제출은 서버 액션이 기간·동의·중복을 다시 판정한다.
 */
 
 export const metadata: Metadata = {
@@ -56,9 +70,21 @@ export default async function ApplyPage({
   const inviteCode = params.invite?.trim() ?? "";
 
   const season = await getCurrentSeason();
-  const open = season !== null && resolveLandingCta(season).kind === "APPLY";
+  /* 새 참가 신청 — 신청 액션(apply-store)과 같은 판정이다 */
+  const applyOpen =
+    season !== null && resolveLandingCta(season).kind === "APPLY";
+  /*
+    신청은 닫혔지만 합류는 열린 때 초대 링크로 온 사람(지금은 레이스 중). 페이즈는
+    합류 액션과 같은 `isJoinPhase`로 본다 — 따로 적으면 한쪽만 넓어진다. 팀이 아직
+    받는지는 로그인 뒤에 findInvite가 초대가 가리키는 팀의 진도로 판정한다.
+  */
+  const lateJoin =
+    season !== null &&
+    !applyOpen &&
+    isJoinPhase(season.phase) &&
+    inviteCode !== "";
 
-  if (!open) {
+  if (!season || (!applyOpen && !lateJoin)) {
     return (
       <main className={`page ${styles.page}`}>
         <div className={`container container--narrow grow ${styles.wrap}`}>
@@ -133,11 +159,15 @@ export default async function ApplyPage({
     ③ 초대 코드로 온 사람.
 
     코드가 살아 있으면 무엇에 합류하는지(팀·참가작)를 보여주고 동의만 받는다.
-    죽은 코드면 사유를 말하고 **신청 폼으로 내려보낸다** — 코드가 만료됐다고
-    빈 화면을 주면 스스로 참가할 길까지 막힌다.
+
+    죽은 코드거나 합류가 마감됐으면 사유를 말한다. 그다음이 기간마다 다르다.
+      모집 중 — 코드 칸을 남기고 **신청 폼으로 내려보낸다.** 코드가 만료됐다고
+                빈 화면을 주면 스스로 참가할 길까지 막힌다.
+      레이스 중 — 사유만 말한다. 신청이 닫혀 있어 내려보낼 곳이 없고, 코드 칸도
+                안 둔다(새 초대는 팀장이 메일로 다시 보낸다 — 링크가 여기로 온다).
   */
   if (inviteCode) {
-    const invite = await findInvite(inviteCode, season.id);
+    const invite = await findInvite(inviteCode, season);
 
     return (
       <main className={`page ${styles.page}`}>
@@ -159,26 +189,39 @@ export default async function ApplyPage({
               ) : (
                 <>
                   <span>{TEAM_FAILURE_MESSAGE[invite.code]}</span>
-                  <span>코드를 다시 확인하거나, 직접 참가 신청도 할 수 있습니다.</span>
+                  {applyOpen ? (
+                    <span>
+                      코드를 다시 확인하거나, 직접 참가 신청도 할 수 있습니다.
+                    </span>
+                  ) : null}
                 </>
               )}
             </p>
           </div>
 
-          <JoinForm defaultCode={inviteCode} />
+          {invite.ok || applyOpen ? <JoinForm defaultCode={inviteCode} /> : null}
 
-          <p className={styles.note}>
-            초대가 아니라 직접 참가하려면{" "}
-            <Link href="/apply" className={styles.noteLink}>
-              참가 신청 화면
-            </Link>
-            으로 가세요.
-          </p>
+          {applyOpen ? (
+            <p className={styles.note}>
+              초대가 아니라 직접 참가하려면{" "}
+              <Link href="/apply" className={styles.noteLink}>
+                참가 신청 화면
+              </Link>
+              으로 가세요.
+            </p>
+          ) : null}
         </div>
         <Footer />
       </main>
     );
   }
+
+  /*
+    여기부터는 새 참가 신청이다. 레이스 중(`lateJoin`)에는 초대 코드가 늘 있어서
+    위에서 끝난다 — 모집 구간이 아닌데 여기 닿는 길은 없다. 그래도 한 줄로
+    막아 둔다: 위 갈래를 고치다 새면 레이스 중에 신청 폼이 그려진다.
+  */
+  if (!applyOpen) notFound();
 
   /* 이미 팀장인 팀이 있으면 그 이름을 채워둔다(팀은 시즌을 넘어 유지된다) */
   const profile = await prisma.user.findUnique({

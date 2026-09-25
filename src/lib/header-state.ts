@@ -113,6 +113,15 @@ export function dayDiff(now: Date, target: Date): number {
 }
 
 /**
+ * 날짜·남은 날을 셀 마감. 자정 마감(「11.02 00:00」)은 전날이 마지막 날이다 —
+ * 제출 화면(`formatDeadline`·`dDay`)과 같은 규칙이고, 시각은 fmtHM이 「24:00」으로
+ * 적는다. 유동 게이트로 s3이 s5의 자정 마감을 물려받으며 드러났다(2026-09-26).
+ */
+function lastDayOf(at: Date): Date {
+  return fmtHM(at) === "24:00" ? new Date(at.getTime() - 60_000) : at;
+}
+
+/**
  * 「D-4」. 당일은 D-day, 지났으면 「지남」 — 앞에 「마감 10.04, 」가 붙는 자리라
  * 「마감」이라고 쓰면 「마감 10.04, 마감」이 된다. 미제출로 지나면 서버가 곧
  * D7로 넘기므로(h11) 오래 보이는 글자는 아니다.
@@ -479,6 +488,11 @@ export type Seg = {
   accent?: boolean;
 };
 
+/**
+ * 스테이지 일정. ⚠️ 헤더마다 다른 값을 넣는다 — 운영자 헤더는 **달력**(시즌 권장
+ * 일정)이고, 참가자 헤더는 **실제 창**(유동 게이트 — 가운데 스테이지의 opensAt이
+ * null, 마감은 뒤 게이트의 마감)이다. 바꾸는 곳은 submission.ts `participantStages`.
+ */
 export type StageInfo = {
   key: StageKey;
   name: string;
@@ -776,7 +790,7 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
         tone: "base",
         stage: `${season.title}, 온보딩 중`,
         time: s1?.closesAt
-          ? [{ text: `s1 마감 ${fmtMD(s1.closesAt)}` }]
+          ? [{ text: `s1 마감 ${fmtMD(lastDayOf(s1.closesAt))}` }]
           : season.startsAt
             ? [{ text: `개막 ${fmtMD(season.startsAt)}` }]
             : [{ text: "개막 일정 확정 중" }],
@@ -855,10 +869,12 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
   const key = WORKING_STAGE[entry.stage] ?? StageKey.s1;
   const stage = stageOf(key);
   const closes = stage?.closesAt ?? null;
-  const urgent = closes !== null && closes.getTime() >= now.getTime() && dayDiff(now, closes) <= 1;
-  const dday = closes ? (urgent ? `${fmtDday(now, closes)} ${fmtHM(closes)}` : fmtDday(now, closes)) : null;
-  const time: Seg[] = closes && dday
-    ? [{ text: `마감 ${fmtMD(closes)}, ${dday}` }]
+  const last = closes && lastDayOf(closes);
+  const urgent =
+    closes !== null && last !== null && closes.getTime() >= now.getTime() && dayDiff(now, last) <= 1;
+  const dday = closes && last ? (urgent ? `${fmtDday(now, last)} ${fmtHM(closes)}` : fmtDday(now, last)) : null;
+  const time: Seg[] = last && dday
+    ? [{ text: `마감 ${fmtMD(last)}, ${dday}` }]
     : [{ text: "마감 일정 확정 중" }];
   return {
     ...base,

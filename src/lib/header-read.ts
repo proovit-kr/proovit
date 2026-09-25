@@ -30,6 +30,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { devNow } from "@/lib/dev-clock";
 import { getCurrentSeason, publicHeaderSeason } from "@/lib/season";
+import { participantStages } from "@/lib/submission";
 
 /*
   세 헤더의 **재료를 모으는 곳.** 판정은 header-state.ts(순수), 그리기는
@@ -82,6 +83,7 @@ export async function loadPublicNav() {
 // 참가자 헤더
 // ═════════════════════════════════════════════════════════════
 
+/** 달력 그대로(`stages` 행). 운영자 헤더는 이것을 쓴다 — 시즌 권장 일정이다 */
 async function loadStages(seasonId: string): Promise<StageInfo[]> {
   const rows = await prisma.stage.findMany({
     where: { seasonId },
@@ -178,7 +180,8 @@ export async function loadDashboardHeader(
     team: { name: team.name, members },
     entry: { stage: entry.stage, status: entry.status },
     onboardingComplete: isOnboardingComplete(viewer.onboarding),
-    stages,
+    /* 실제 창(유동 게이트, submission.ts `participantStages`). 운영자 헤더는 달력 그대로다 */
+    stages: participantStages(stages, now),
     gateSubmittedAt: gateSubmission?.submittedAt ?? null,
     reviewSlaHours: REVIEW_SLA_HOURS,
     finalRank: finalSnapshot?.rank ?? null,

@@ -4,6 +4,7 @@ import {
   InvitationStatus,
   MemberRole,
   Prisma,
+  type SeasonPhase,
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { applyConsentRows, hashIp } from "@/lib/apply-store";
@@ -12,6 +13,7 @@ import {
   INVITE_CODE_LENGTH,
   INVITE_CODE_PREFIX,
   INVITE_TTL_DAYS,
+  inviteFailure,
   MAX_TEAM_SIZE,
   normalizeInviteCode,
   type TeamFailureCode,
@@ -341,10 +343,14 @@ export type InviteLookup =
  *
  * ⚠️ 이 결과를 권한으로 쓰지 않는다. 실제 합류는 `acceptInvite`가 같은 조건을
  * **다시** 보고 트랜잭션 안에서 처리한다. 여기와 수락 사이에 정원이 찰 수 있다.
+ *
+ * 판정은 `acceptInvite`와 같은 순수 함수(`inviteFailure`)가 한다 — 화면이 말한
+ * 사유와 제출 뒤의 사유가 달라지지 않게. 여기서는 합류할 사람을 몰라
+ * 「이미 팀원」은 보지 않는다(이미 참가 중인 사람은 화면이 먼저 걸러 낸다).
  */
 export async function findInvite(
   rawCode: string,
-  seasonId: string,
+  season: { id: string; phase: SeasonPhase },
 ): Promise<InviteLookup> {
   const code = normalizeInviteCode(rawCode);
   const invite = await prisma.teamInvitation.findUnique({
@@ -357,8 +363,8 @@ export async function findInvite(
           name: true,
           _count: { select: { members: true } },
           entries: {
-            where: { seasonId },
-            select: { ideaTitle: true },
+            where: { seasonId: season.id },
+            select: { ideaTitle: true, stage: true, status: true },
             take: 1,
           },
         },
@@ -366,19 +372,22 @@ export async function findInvite(
     },
   });
 
-  if (!invite) return { ok: false, code: "INVITE_NOT_FOUND" };
-  if (invite.status !== InvitationStatus.pending) {
-    return { ok: false, code: "INVITE_USED" };
+  const entry = invite?.team.entries[0] ?? null;
+  const failure = inviteFailure(
+    invite && {
+      status: invite.status,
+      expiresAt: invite.expiresAt,
+      memberCount: invite.team._count.members,
+      entry,
+      alreadyMember: false,
+    },
+    season.phase,
+    new Date(),
+  );
+  /* 뒤의 둘은 타입을 좁히는 줄이다 — 없으면 inviteFailure가 이미 INVITE_NOT_FOUND를 냈다 */
+  if (failure || !invite || !entry) {
+    return { ok: false, code: failure ?? "INVITE_NOT_FOUND" };
   }
-  if (invite.expiresAt <= new Date()) {
-    return { ok: false, code: "INVITE_EXPIRED" };
-  }
-  if (invite.team._count.members >= MAX_TEAM_SIZE) {
-    return { ok: false, code: "TEAM_FULL" };
-  }
-  /* 이번 시즌에 참가하지 않은 팀의 초대 — 붙을 참가가 없다 */
-  const entry = invite.team.entries[0];
-  if (!entry) return { ok: false, code: "INVITE_NOT_FOUND" };
 
   return {
     ok: true,
@@ -396,14 +405,21 @@ export async function findInvite(
  * 수집한 개인정보」가 되고 그 입증 책임이 우리에게 있다(apply-store와 같은 이유).
  *
  * 팀장의 동의가 팀원 것을 대신하지 못한다(D2). 그래서 합류 화면도 체크박스를 받는다.
+ *
+ * ⚠️ **합류 기간은 여기서 판정한다**(2026-09-25, `inviteFailure` → `joinClosedCode`).
+ * 초대가 가리키는 팀의 진도를 수락과 같은 트랜잭션에서 읽어, 판정과 수락 사이를
+ * 좁힌다. 행을 잠그지는 않는다 — s2 제출과 같은 순간에 겹치면 한 명이 붙을 수
+ * 있고, 그건 받아들인다(내가 정함, 수연 확인 대기). 페이즈는 호출하는 쪽이 읽은
+ * 시즌 값을 그대로 쓴다.
  */
 export async function acceptInvite(
   user: { id: string },
   rawCode: string,
-  seasonId: string,
+  season: { id: string; phase: SeasonPhase },
   consent: Record<string, boolean>,
   context: { ip: string | null; userAgent: string | null },
 ): Promise<TeamActionResult> {
+  const seasonId = season.id;
   const code = normalizeInviteCode(rawCode);
   const ipHash = hashIp(context.ip);
   const userAgent = context.userAgent?.slice(0, 500) ?? null;
@@ -420,35 +436,39 @@ export async function acceptInvite(
           team: {
             select: {
               members: { select: { userId: true } },
-              entries: { where: { seasonId }, select: { id: true }, take: 1 },
+              entries: {
+                where: { seasonId },
+                select: { id: true, stage: true, status: true },
+                take: 1,
+              },
             },
           },
         },
       });
 
-      if (!invite) {
-        return { ok: false as const, code: "INVITE_NOT_FOUND" as const };
-      }
-      if (invite.status !== InvitationStatus.pending) {
-        return { ok: false as const, code: "INVITE_USED" as const };
-      }
-      if (invite.expiresAt <= new Date()) {
+      /* findInvite와 같은 함수·같은 순서다. 다른 것은 「이미 팀원」을 본다는 것뿐 */
+      const entry = invite?.team.entries[0] ?? null;
+      const failure = inviteFailure(
+        invite && {
+          status: invite.status,
+          expiresAt: invite.expiresAt,
+          memberCount: invite.team.members.length,
+          entry,
+          alreadyMember: invite.team.members.some((m) => m.userId === user.id),
+        },
+        season.phase,
+        new Date(),
+      );
+      /* 기한이 지난 초대는 여기서 닫는다 — 조회(findInvite)는 읽기만 한다 */
+      if (failure === "INVITE_EXPIRED" && invite) {
         await tx.teamInvitation.update({
           where: { id: invite.id },
           data: { status: InvitationStatus.expired },
         });
-        return { ok: false as const, code: "INVITE_EXPIRED" as const };
       }
-      if (invite.team.members.some((m) => m.userId === user.id)) {
-        return { ok: false as const, code: "ALREADY_MEMBER" as const };
-      }
-      if (invite.team.members.length >= MAX_TEAM_SIZE) {
-        return { ok: false as const, code: "TEAM_FULL" as const };
-      }
-
-      const entry = invite.team.entries[0];
-      if (!entry) {
-        return { ok: false as const, code: "INVITE_NOT_FOUND" as const };
+      /* 뒤의 둘은 타입을 좁히는 줄이다 — 없으면 inviteFailure가 이미 INVITE_NOT_FOUND를 냈다 */
+      if (failure || !invite || !entry) {
+        return { ok: false as const, code: failure ?? "INVITE_NOT_FOUND" };
       }
 
       /*
