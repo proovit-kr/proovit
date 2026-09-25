@@ -26,7 +26,8 @@ export interface SeasonStageInfo {
  * 제출 2회(step1·step2)와 게이트 2회가 1:1로 대응한다(동혁 요구사항 명세서 용어표).
  *
  * TODO: 지금은 상수다. 03 ERD의 `stages` 테이블이 생기면 DB에서 읽어야 한다.
- * 06 §4에 따르면 stages는 크론이 페이즈를 넘기는 유일한 입력값이라 결국 DB로 가야 한다.
+ * (06 §4는 stages를 크론의 입력으로 적었지만, 페이즈 전환은 season_schedules가 한다 —
+ * ADR-010, `/api/v1/cron/phase`.)
  * 날짜는 여기 두지 않는다 — 시즌1 캘린더(9/28~11/1)는 「제휴 프로그램 신청」(윤서
  * 2026-08-07)의 개최일 9/28 + 5주이고, 마감 시각의 정본은 `stages.opensAt`/`closesAt`
  * 이어야 한다(명세서 3.1.2).
