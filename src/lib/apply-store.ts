@@ -16,7 +16,8 @@ import {
 import { sendTeamInvite } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
-import { createInviteIn } from "@/lib/team-store";
+import { inviteValidUntil } from "@/lib/team";
+import { createInviteIn, loadJoinWindow } from "@/lib/team-store";
 
 /*
   참가 신청 저장. **서버 전용이다** — 규칙(길이·형식)은 apply.ts에 있고 그쪽은
@@ -29,7 +30,7 @@ import { createInviteIn } from "@/lib/team-store";
 
   ⚠️ **초대 메일은 그 트랜잭션 밖이다.** 아래 submitApplication의 주석 참고.
 
-  ⚠️ team-store와 **서로 import한다**(여기 → createInviteIn, 저기 →
+  ⚠️ team-store와 **서로 import한다**(여기 → createInviteIn·loadJoinWindow, 저기 →
   applyConsentRows·hashIp). 양쪽 다 함수 안에서만 쓰고 모듈 최상단에서는 상대를
   건드리지 않아서 순환이 풀린다. 최상단으로 끌어올리지 말 것.
 */
@@ -274,6 +275,13 @@ export async function submitApplication(
     */
     if (created.invite && inviteEmail) {
       try {
+        /*
+          메일의 「유효 기한」은 팀 관리 화면이 보내는 초대와 같은 규칙이다 — 만료와
+          합류 마감(s1 달력 마감) 중 이른 쪽(team.ts `inviteValidUntil`, 2026-09-26).
+          모집 중에 보낸 초대도 레이스로 넘어가 s1 마감에 닫힌다. 읽다가 실패해도
+          접수는 살아 있어야 해서 이 try 안에서 읽는다.
+        */
+        const joinWindow = await loadJoinWindow(season);
         const sent = await sendTeamInvite({
           email: inviteEmail,
           inviterNickname: user.nickname,
@@ -281,7 +289,7 @@ export async function submitApplication(
           ideaTitle,
           seasonTitle: season.title,
           code: created.invite.code,
-          expiresAt: created.invite.expiresAt,
+          validUntil: inviteValidUntil(created.invite.expiresAt, joinWindow),
         });
         if (!sent.ok) {
           console.error(

@@ -21,12 +21,16 @@ vi.mock("@/lib/season", () => ({
   resolveLandingCta: vi.fn(),
 }));
 vi.mock("@/lib/mail", () => ({ sendTeamInvite: vi.fn() }));
-vi.mock("@/lib/team-store", () => ({ createInviteIn: vi.fn() }));
+vi.mock("@/lib/team-store", () => ({
+  createInviteIn: vi.fn(),
+  loadJoinWindow: vi.fn(),
+}));
 
+import { SeasonPhase } from "@/generated/prisma/enums";
 import { sendTeamInvite } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
-import { createInviteIn } from "@/lib/team-store";
+import { createInviteIn, loadJoinWindow } from "@/lib/team-store";
 import { submitApplication } from "@/lib/apply-store";
 
 const USER = {
@@ -85,6 +89,12 @@ beforeEach(() => {
     expiresAt: new Date("2026-09-28T00:00:00Z"),
   });
   vi.mocked(sendTeamInvite).mockResolvedValue({ ok: true, skipped: true });
+  /* 기본은 s1 마감이 잠정(비어 있음)인 모집 중 — 메일의 기한은 만료 그대로다 */
+  vi.mocked(loadJoinWindow).mockResolvedValue({
+    phase: SeasonPhase.recruiting,
+    s1ClosesAt: null,
+    now: new Date("2026-09-21T00:00:00Z"),
+  });
 });
 
 describe("혼자 참가", () => {
@@ -171,8 +181,37 @@ describe("팀 참가", () => {
         ideaTitle: "1인 카페 레시피 구독",
         seasonTitle: "시즌 1",
         code: "ACDEFGHJ",
+        validUntil: new Date("2026-09-28T00:00:00Z"),
       }),
     );
+  });
+
+  /*
+    메일의 「유효 기한」은 만료와 합류 마감(s1 달력 마감) 중 이른 쪽이다(2026-09-26).
+    모집 중에 보낸 초대도 레이스로 넘어가 s1 마감에 닫힌다 — 팀 관리 화면과 같은 규칙.
+  */
+  it("s1 마감이 만료보다 앞이면 메일은 s1 마감을 기한으로 적는다", async () => {
+    const s1ClosesAt = new Date("2026-09-27T14:59:00Z");
+    vi.mocked(loadJoinWindow).mockResolvedValue({
+      phase: SeasonPhase.recruiting,
+      s1ClosesAt,
+      now: new Date("2026-09-21T00:00:00Z"),
+    });
+
+    await submitApplication(USER, FORM, CONSENT, CONTEXT);
+
+    expect(sendTeamInvite).toHaveBeenCalledWith(
+      expect.objectContaining({ validUntil: s1ClosesAt }),
+    );
+  });
+
+  it("합류 기간을 못 읽어도 접수는 살아 있다", async () => {
+    vi.mocked(loadJoinWindow).mockRejectedValue(new Error("DB 끊김"));
+
+    const result = await submitApplication(USER, FORM, CONSENT, CONTEXT);
+
+    expect(result).toEqual({ ok: true, entryId: "entry-1" });
+    expect(sendTeamInvite).not.toHaveBeenCalled();
   });
 
   it("발송이 실패해도 접수는 살아 있다", async () => {

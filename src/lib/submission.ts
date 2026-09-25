@@ -7,6 +7,7 @@ import {
 } from "@/generated/prisma/enums";
 import { AI_CHECKS, BUILDERS, LAUNCH_CHECKS } from "@/content/submission";
 import { EVIDENCE_COUNT_MAX, EVIDENCE_KEY_MAX } from "@/lib/evidence";
+import { formatDay } from "@/lib/kst-format";
 import { seoulDateOnly } from "@/lib/measure";
 import { raceWeekBase } from "@/lib/race";
 
@@ -614,47 +615,11 @@ export function paneBadge(
 
 const DAY_MS = 86_400_000;
 
-/**
- * 마감 표기 — 시안 `마감 10.04 23:59`·`집계 확정 11.01 24:00`.
- *
- * 자정에 닫히는 마감은 **전날 24:00**으로 적는다. 「11.17 00:00」은 하루를 더
- * 주는 것처럼 읽히고, 시안도 그 자리를 24:00으로 썼다.
- */
-export function formatDeadline(at: Date): string {
-  const part = seoulParts(at);
-  if (part.hour === "00" && part.minute === "00") {
-    const prev = seoulParts(new Date(at.getTime() - DAY_MS));
-    return `${prev.month}.${prev.day} 24:00`;
-  }
-  return `${part.month}.${part.day} ${part.hour}:${part.minute}`;
-}
-
-/** 시각 표기 — 시안 `제출 이윤서, 10.02 21:14` */
-export function formatMoment(at: Date): string {
-  const part = seoulParts(at);
-  return `${part.month}.${part.day} ${part.hour}:${part.minute}`;
-}
-
-/** 날짜만 — 시안 s2의 `10.05~10.10` */
-export function formatDay(at: Date): string {
-  const part = seoulParts(at);
-  return `${part.month}.${part.day}`;
-}
-
-function seoulParts(at: Date): Record<string, string> {
-  return Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Seoul",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(at)
-      .map((p) => [p.type, p.value]),
-  );
-}
+/*
+  마감·시각 표기(`formatDeadline`·`formatMoment`·`formatDay`)는 kst-format.ts로
+  옮겼다(2026-09-26). 표기만 필요한 쪽(team.ts)이 이 파일을 끌어오면 클라이언트
+  번들에 제출 스키마와 콘텐츠가 따라갈 수 있어서다.
+*/
 
 /**
  * 남은 날 — 시안 `D-4`. 서울 달력으로 센다(마감일 − 오늘). 자정 마감은
