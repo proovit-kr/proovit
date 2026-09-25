@@ -179,12 +179,17 @@ class ScheduleRaced extends Error {}
  *     「페이즈 수동 전환」을 한 번 더 쓴다.
  *   무엇이 바뀌었고 받아도 되는지는 순수 함수 `planPhaseSchedule`(season-phase.ts)이 정한다.
  *
- * ⚠️ **`seasons.starts_at`(개막)은 건드리지 않는다.** racing 행은 레이스 시작
- * (모집 마감 다음 분)이고, 개막은 s1 시작이라 그보다 한 주 앞이다 — 랜딩이
- * 「09.28 개막」과 「10.04 마감」을 따로 적고(Landing.tsx), 개발 바 픽스처가
- * `starts_at`을 s1 시작으로 쓴다(dev-sandbox `scheduleStageDates`). 처음에는
- * racing 행을 저장하면 개막도 맞췄는데 그러면 개막이 한 주 밀려 뺐다
- * (2026-09-26 리뷰 지적). 개막을 넣을 칸은 아직 없다(수연 확인 대기).
+ * **racing 행을 저장하면 `seasons.starts_at`(개막)도 같은 값으로 옮긴다** — 같은
+ * 트랜잭션이고, 감사 로그 meta에 `startsAt` from/to가 남는다. 기획 문서 순서가
+ * 「모집 마감 → 개막 = 레이스 시작 = s1 시작」이라서다(2026-09-26 수연 결정. PRD
+ * 2장 타임라인 「모집 8/31~9/27 마감 → 킥오프~레이스 9/28~」, PLN3 3.2 지각 참가
+ * 「racing(s1 구간) × applied」). 모집과 s1은 겹치지 않는다. racing 행을 비우면
+ * 개막은 그대로 둔다. 무엇을 옮길지는 `planPhaseSchedule`이 정한다.
+ *   → 2026-09-26 뒤집음: 「개막은 건드리지 않는다. racing 행은 모집 마감 다음
+ *   분이고 개막(s1 시작)은 그보다 한 주 앞」이라고 적고 개막 맞추기를 뺐었다.
+ *   시안 ver4 본편의 「참가 신청 마감 10.04 23:59」(= s1 마감일)를 근거로 삼았는데,
+ *   그 날짜가 기획과 어긋난 시안 날짜였다. 개발 바 픽스처(dev-sandbox
+ *   `scheduleStageDates`)가 `starts_at`을 s1 시작으로 쓰는 것은 이제 같은 말이다.
  */
 export async function setPhaseSchedule(args: {
   seasonId: string;
@@ -201,6 +206,7 @@ export async function setPhaseSchedule(args: {
     where: { id: seasonId },
     select: {
       phase: true,
+      startsAt: true,
       schedules: { select: { id: true, phase: true, startsAt: true, appliedAt: true } },
     },
   });
@@ -213,15 +219,23 @@ export async function setPhaseSchedule(args: {
     incoming: args.rows,
     current: season.phase,
     now: devNow(),
+    kickoff: season.startsAt,
   });
   if (!plan.ok) return { ok: false, message: plan.message };
-  const { changed } = plan;
+  const { changed, kickoff } = plan;
 
   const before = new Map(season.schedules.map((s) => [s.phase, s]));
   const incoming = new Map(args.rows.map((r) => [r.phase, r.startsAt]));
   /* 감사 로그 표의 「from→to」 칸에 그대로 읽히게 — 「racing 10.28 00:00」 */
-  const label = (phase: SeasonPhase, at: Date | null | undefined) =>
-    `${phase} ${at ? fmtStamp(at) : "비어 있음"}`;
+  const stamp = (at: Date | null | undefined) => (at ? fmtStamp(at) : "비어 있음");
+  const label = (phase: SeasonPhase, at: Date | null | undefined) => `${phase} ${stamp(at)}`;
+  /* 개막을 같이 옮겼으면 같은 칸에 한 조각 더 — 「racing 09.28 00:00, 개막 09.28 00:00」 */
+  const fromLabels = changed.map((p) => label(p, before.get(p)?.startsAt));
+  const toLabels = changed.map((p) => label(p, incoming.get(p)));
+  if (kickoff) {
+    fromLabels.push(`개막 ${stamp(kickoff.from)}`);
+    toLabels.push(`개막 ${stamp(kickoff.to)}`);
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -241,6 +255,9 @@ export async function setPhaseSchedule(args: {
           : await tx.seasonSchedule.deleteMany({ where: { id: b.id, appliedAt: null } });
         if (done.count === 0) throw new ScheduleRaced();
       }
+      if (kickoff) {
+        await tx.season.update({ where: { id: seasonId }, data: { startsAt: kickoff.to } });
+      }
       await writeAudit(tx, {
         actorId,
         action: "season.schedule",
@@ -248,13 +265,21 @@ export async function setPhaseSchedule(args: {
         targetId: seasonId,
         reason: reason.trim(),
         meta: {
-          from: changed.map((p) => label(p, before.get(p)?.startsAt)).join(", "),
-          to: changed.map((p) => label(p, incoming.get(p))).join(", "),
+          from: fromLabels.join(", "),
+          to: toLabels.join(", "),
           rows: changed.map((p) => ({
             phase: p,
             from: before.get(p)?.startsAt.toISOString() ?? null,
             to: incoming.get(p)?.toISOString() ?? null,
           })),
+          ...(kickoff
+            ? {
+                startsAt: {
+                  from: kickoff.from?.toISOString() ?? null,
+                  to: kickoff.to.toISOString(),
+                },
+              }
+            : {}),
         },
       });
     });

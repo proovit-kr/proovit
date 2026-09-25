@@ -929,7 +929,7 @@ export type AdminHeaderInput = {
   /** 셀렉트에 올릴 시즌들. 최신순 */
   seasons: { id: string; title: string; phase: SeasonPhase }[];
   stages: StageInfo[];
-  /** 참가 신청 마감(레이스 전환 예정 시각) */
+  /** 참가 신청 마감 — 레이스 전환(= 개막) 예정 시각. 00:00이면 전날로 적는다 */
   recruitDeadline: Date | null;
   queues: {
     leads: number;
@@ -1014,8 +1014,15 @@ export function resolveAdminHeader(input: AdminHeaderInput): AdminHeaderModel {
         { text: "신청 " }, n(queues.entries), { text: "팀 " },
         { text: `목표 ${RECRUIT_TARGET}`, faint: true },
       ];
+      /*
+        레이스 전환이 00:00이면 전날이 마지막 날이다(`lastDayOf`) — 랜딩의 「09.27 마감」과
+        같은 날로 적는다. 그대로 적으면 이 헤더만 「마감 09.28」로 하루 늦게 읽혔다(2026-09-26).
+      */
       if (input.recruitDeadline) {
-        segs.push({ text: "마감", faint: true }, { text: fmtMD(input.recruitDeadline), num: true });
+        segs.push(
+          { text: "마감", faint: true },
+          { text: fmtMD(lastDayOf(input.recruitDeadline)), num: true },
+        );
       }
       const list: AdminQueue[] = [{ tone: "l", href: "/admin/entries", segs }];
       if (queues.onboardingIncomplete > 0) {

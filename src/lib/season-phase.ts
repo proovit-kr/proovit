@@ -203,23 +203,38 @@ export function phaseScheduleError(args: {
 /** 저장된 일정 행 — `applied_at`이 있으면 크론·수동 전환이 이미 처리한 행이다 */
 export type SavedScheduleRow = { phase: SeasonPhase; startsAt: Date; appliedAt: Date | null };
 
+/** 개막(`seasons.starts_at`)을 옮길 값. 옮길 일이 없으면 계획에 null로 온다 */
+export type KickoffSync = { from: Date | null; to: Date };
+
 /**
  * 운영 콘솔 「페이즈 일정」 저장 계획 — admin-store `setPhaseSchedule`이 DB에
- * 쓰기 전에 부른다. 막히면 문구, 통과하면 이번에 바뀐 페이즈(페이즈 순).
+ * 쓰기 전에 부른다. 막히면 문구, 통과하면 이번에 바뀐 페이즈(페이즈 순)와
+ * 함께 옮길 개막.
  *
  *   before    저장된 행 전부(처리된 행 포함)
  *   incoming  이번에 받은 칸. 빠진 페이즈는 그대로 두고, null은 비운다
+ *   kickoff   지금의 `seasons.starts_at`(개막)
  *
  * ⚠️ **처리된 행(`applied_at`)은 못 바꾼다** — 이미 일어난 일의 기록이다. 같은
  * 값으로 다시 보내는 것은 바뀐 것으로 치지 않는다. 그래도 순서 검사에는 넣는다 —
  * 전환된 모집 시작보다 이른 레이스 시작은 받지 않는다.
+ *
+ * **racing 행이 바뀌었고 시각이 있으면 개막도 그 값으로 옮긴다.** 개막 = 레이스
+ * 시작 = s1 시작이다(2026-09-26 수연 결정, 기획 문서 순서 — admin-store
+ * `setPhaseSchedule` 주석). racing 행을 비우면 개막은 그대로 둔다 — 레이스
+ * 일정을 다시 잡는 중이라는 뜻이지 개막을 지우라는 뜻이 아니고, 지우면 헤더·
+ * 랜딩이 「개막 일정 확정 중」으로 떨어진다. racing 행을 안 건드린 저장도 개막을
+ * 안 건드린다 — 사유가 다른 저장이 개막을 따라 옮기면 감사 로그로 못 짚는다.
  */
 export function planPhaseSchedule(args: {
   before: readonly SavedScheduleRow[];
   incoming: readonly { phase: SeasonPhase; startsAt: Date | null }[];
   current: SeasonPhase;
   now: Date;
-}): { ok: false; message: string } | { ok: true; changed: SeasonPhase[] } {
+  kickoff: Date | null;
+}):
+  | { ok: false; message: string }
+  | { ok: true; changed: SeasonPhase[]; kickoff: KickoffSync | null } {
   const before = new Map(args.before.map((r) => [r.phase, r]));
   const incoming = new Map(args.incoming.map((r) => [r.phase, r.startsAt]));
   const time = (d: Date | null | undefined) => d?.getTime() ?? null;
@@ -242,5 +257,33 @@ export function planPhaseSchedule(args: {
       : (before.get(phase)?.startsAt ?? null),
   }));
   const error = phaseScheduleError({ rows, changed, current: args.current, now: args.now });
-  return error ? { ok: false, message: error } : { ok: true, changed };
+  if (error) return { ok: false, message: error };
+
+  const racing = changed.includes(SeasonPhase.racing)
+    ? (incoming.get(SeasonPhase.racing) ?? null)
+    : null;
+  const kickoff =
+    racing && time(racing) !== time(args.kickoff) ? { from: args.kickoff, to: racing } : null;
+  return { ok: true, changed, kickoff };
+}
+
+/**
+ * 개막(레이스 시작)과 s1 시작이 어긋났는가 — 운영 콘솔 「페이즈 일정」 칸 아래
+ * 경고 한 줄(seasons/page.tsx).
+ *
+ * 둘은 같은 순간이다(2026-09-26 수연 결정, 기획 문서 순서). 그런데 racing 행은
+ * 「페이즈 일정」이, s1 시작은 「스테이지 일정」이 따로 받아서 한쪽만 고치면
+ * 벌어진다. 벌어지면 모집 중인데 s1 제출이 열리거나, 레이스인데 s1이 아직 안
+ * 열린 구간이 생긴다. **저장을 막지는 않는다** — 두 칸은 따로 저장되므로 막으면
+ * 어느 쪽도 먼저 못 고친다. 알리기만 한다(내가 정함, 수연 확인 대기).
+ *
+ * 분까지 같아야 같다 — 같은 날이라도 시각이 다르면 그 사이가 위의 구간이다.
+ * 한쪽이 비어 있으면 견줄 것이 없어 어긋난 것으로 치지 않는다.
+ */
+export function kickoffMismatch(args: { racing: Date | null; s1Opens: Date | null }): boolean {
+  return (
+    args.racing !== null &&
+    args.s1Opens !== null &&
+    args.racing.getTime() !== args.s1Opens.getTime()
+  );
 }
