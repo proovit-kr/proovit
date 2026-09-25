@@ -34,7 +34,7 @@ export default async function NotFound() {
 
   return (
     <main className="page">
-      <NavBar season={publicHeaderSeason(season)} />
+      <NavBar season={await publicHeaderSeason(season)} />
       <NotFoundBody
         title="페이지를 찾을 수 없어요"
         go={

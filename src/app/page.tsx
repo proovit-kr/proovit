@@ -109,7 +109,7 @@ export default async function Home() {
     );
   }
 
-  const headerSeason = publicHeaderSeason(season);
+  const headerSeason = await publicHeaderSeason(season);
   const [preRegisterCount, racingSchedule, live] = await Promise.all([
     prisma.lead.count({ where: { seasonId: season.id } }),
     /* 참가 신청 마감 = 레이스로 넘어가는 예정 시각(운영 헤더와 같은 정의) */

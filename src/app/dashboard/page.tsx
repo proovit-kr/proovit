@@ -535,7 +535,7 @@ function Body({ view }: { view: HubView }) {
           <div className={styles.cards}>
             {/*
               시안이 값 자체를 흐리게 둔다. 미배포 팀에는 집계가 쌓일 수 없어
-              (`public-read.ts`의 `notDeployed`) 0과 「-」가 값이 아니라 자리다.
+              (`race.ts`의 `notDeployed`) 0과 「-」가 값이 아니라 자리다.
             */}
             <Card className={styles.kpi}>
               <small>{HUB_LABEL.validUsers}</small>

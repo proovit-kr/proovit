@@ -1,9 +1,11 @@
 import { cache } from "react";
 
-import { AwardType, DeployStatus, EntryStatus } from "@/generated/prisma/enums";
+import { AwardType, EntryStatus } from "@/generated/prisma/enums";
 import { seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
 import { devNow } from "@/lib/dev-clock";
+import { capBefore, notDeployed } from "@/lib/race";
+import { loadTeamRace, raceDailyWhere } from "@/lib/race-read";
 
 /*
   공개 화면(시즌 상세·리더보드·참가작)의 조회.
@@ -85,7 +87,11 @@ export type LeaderboardRow = {
   score: string | null;
   validVisitors: number;
   revenue: bigint;
-  /** 측정 주소가 확인되지 않은 팀. 지표가 0인 이유를 밝힌다 */
+  /**
+   * 레이스 전이거나(s3 미제출) 측정 주소가 확인되지 않은 팀. 지표가 0인 이유를 밝힌다.
+   * 레이스 전 팀도 표에서 빼지 않는다 — PRD FR-F 「미배포 팀도 레이스에 참여시키되
+   * 미배포로 표시, 지표 0, 배포 즉시 합류」(2026-09-26, race.ts).
+   */
   notDeployed: boolean;
   /**
    * 확정된 종합 시상. 없으면 null이다.
@@ -172,6 +178,7 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
       ideaTitle: true,
       team: { select: { name: true } },
       serviceUrl: true,
+      raceStartedAt: true,
       hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
     },
   });
@@ -243,6 +250,7 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
     previousRows.map((s) => [s.entryId, s.validVisitorsTotal]),
   );
 
+  const now = devNow();
   const rows: LeaderboardRow[] = entries.map((entry) => {
     const snapshot = byEntry.get(entry.id);
     return {
@@ -253,9 +261,8 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
       score: snapshot ? snapshot.score.toString() : null,
       validVisitors: snapshot?.validVisitorsTotal ?? 0,
       revenue: snapshot?.revenueTotal ?? BigInt(0),
-      notDeployed:
-        entry.hostname?.deployStatus !== DeployStatus.active ||
-        entry.hostname.ownershipVerifiedAt === null,
+      /* 참가작 상세와 같은 판정이다(race.ts `notDeployed`) */
+      notDeployed: notDeployed(entry, now),
       award: awardOf(awardByEntry.get(entry.id)),
       serviceUrl: entry.serviceUrl,
       deltaVisitors:
@@ -296,7 +303,7 @@ export async function loadLeaderboard(seasonId: string): Promise<Leaderboard> {
     isFinal: snapshots.some((s) => s.isFinal),
     finalizedAt,
     rows,
-    loadedAt: devNow().getTime(),
+    loadedAt: now.getTime(),
   };
 }
 
@@ -308,6 +315,7 @@ export type PublicEntry = {
   serviceUrl: string | null;
   stage: string;
   status: string;
+  /** 리더보드 행의 같은 칸과 같은 판정이다(race.ts `notDeployed`) */
   notDeployed: boolean;
   /** 지표 공개에 동의한 팀만 숫자를 노출한다 */
   metricsPublic: boolean;
@@ -331,6 +339,11 @@ export type PublicEntry = {
  * ⚠️ **지표는 전일까지만 보여준다.** 실시간으로 열면 경쟁팀이 남의 유입을
  * 분 단위로 추적할 수 있고, 그게 곧 어뷰징 유인이 된다(PLN8 조사·정의서와 같은 이유).
  * 그래서 오늘 날짜 행은 합계에서 뺀다.
+ *
+ * ⚠️ **숫자는 그 팀의 레이스 구간과 검수 필터로 센다** — 리더보드 롤업과 같은
+ * 규칙이다(race-read.ts `raceDailyWhere`, 2026-09-26). 전에는 측정 시작부터 전부
+ * 더해서, s2 랜딩 방문까지 든 이 화면의 숫자가 리더보드의 같은 팀보다 컸다.
+ * 레이스 전이면 숫자가 없다(최근 7일도 레이스 전 날은 0).
  */
 export async function loadPublicEntry(
   entryId: string,
@@ -346,6 +359,7 @@ export async function loadPublicEntry(
       stage: true,
       status: true,
       team: { select: { name: true } },
+      raceStartedAt: true,
       hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
       consents: {
         where: { type: "metrics_public" },
@@ -366,11 +380,14 @@ export async function loadPublicEntry(
     그러면 한국 시간 자정부터 오전 9시 사이에 **어제치가 통째로 빠져**
     최근 7일 그래프의 끝 칸이 비고 누적도 하루만큼 적게 나왔다.
   */
-  const today = seoulDateOnly(devNow());
+  const now = devNow();
+  const today = seoulDateOnly(now);
 
-  const daily = metricsPublic
+  /* 레이스 구간을 어제까지로 자른 것 — 남는 날이 없으면 셀 것이 없다 */
+  const race = metricsPublic ? capBefore(await loadTeamRace(entryId, now), today) : null;
+  const daily = race
     ? await prisma.metricDaily.findMany({
-        where: { entryId, metricDate: { lt: today } },
+        where: raceDailyWhere(entryId, race),
         orderBy: { metricDate: "asc" },
         select: { metricDate: true, validVisitors: true, signups: true },
       })
@@ -436,9 +453,12 @@ export async function loadPublicEntry(
     serviceUrl: entry.serviceUrl,
     stage: entry.stage,
     status: entry.status,
-    notDeployed:
-      entry.hostname?.deployStatus !== DeployStatus.active ||
-      entry.hostname.ownershipVerifiedAt === null,
+    /*
+      리더보드 행과 같은 판정이다(race.ts `notDeployed`) — 레이스 전 팀도 미배포다.
+      전에는 주소만 봐서, 연동을 끝낸 s1~s3 팀이 리더보드에서는 「미배포」, 여기서는
+      「✓ 검증됨」·순위로 보였다(2026-09-26 리뷰 지적).
+    */
+    notDeployed: notDeployed(entry, now),
     metricsPublic,
     metrics:
       asOf === null

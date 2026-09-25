@@ -36,6 +36,9 @@ import {
   setSandboxCredits,
   sleepNextSeason,
   unparkTeam,
+  restoreRaceStarts,
+  saveRaceStarts,
+  type SavedRaceStart,
 } from "../../src/lib/dev-sandbox";
 import { devToday, setDevToday } from "../../src/lib/dev-clock";
 import { setDevHubKey } from "../../src/lib/dev-hub";
@@ -82,6 +85,8 @@ type Json = Prisma.InputJsonValue;
 type Snap = {
   phase: SeasonPhase;
   featureFlags: unknown;
+  /* 픽스처·스테이지 줄이 레이스 시작을 심는다(2026-09-26 팀별 집계). 옛 save에는 없다 */
+  raceStarts?: SavedRaceStart[];
   stages: { stageKey: string; opensAt: string | null; closesAt: string | null }[];
   entry: { id: string; stage: EntryStage; status: EntryStatus };
   today: string | null;
@@ -165,6 +170,7 @@ if (mode === "save") {
   const snap: Snap = {
     phase: season.phase,
     featureFlags: season.featureFlags,
+    raceStarts: await saveRaceStarts(season.id),
     stages: stages.map((s) => ({
       stageKey: s.stageKey,
       opensAt: s.opensAt?.toISOString() ?? null,
@@ -213,6 +219,8 @@ if (mode === "save") {
 
   await sleepNextSeason(season.id);
   await setMetricsFixture({ seasonId: season.id, kind: "none" });
+  /* 픽스처가 심은 레이스 시작을 떠 둔 값으로 — 「none」도 s4 달력 시작일을 심는다 */
+  await restoreRaceStarts(season.id, snap.raceStarts);
   await prisma.entryLead.deleteMany({
     where: { entryId: snap.entry.id, contactHash: { startsWith: "dev-lead-" } },
   });

@@ -1,4 +1,6 @@
 import { apiOk } from "@/lib/api";
+import { parseFeatureFlags } from "@/lib/feature-flags";
+import { withLeaderboardOpen } from "@/lib/race-read";
 import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
 
 /*
@@ -27,7 +29,12 @@ export async function GET() {
       phase: season.phase,
       startsAt: season.startsAt,
       endsAt: season.endsAt,
-      featureFlags: season.featureFlags,
+      /*
+        화면과 같은 값을 준다 — 파싱한 플래그에서 `leaderboard`는 「지금 여는가」다
+        (플래그 켜짐 그리고 레이스를 시작한 팀이 있음, race-read.ts, 2026-09-26).
+        날것을 주면 아직 닫힌 리더보드를 열린 것으로 읽는다.
+      */
+      featureFlags: await withLeaderboardOpen(season, parseFeatureFlags(season.featureFlags)),
     },
     cta: resolveLandingCta(season),
   });

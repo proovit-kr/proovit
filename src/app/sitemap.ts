@@ -3,6 +3,7 @@ import type { MetadataRoute } from "next";
 import { TERMS } from "@/content/terms";
 import { parseFeatureFlags } from "@/lib/feature-flags";
 import { listPublicEntries } from "@/lib/public-read";
+import { withLeaderboardOpen } from "@/lib/race-read";
 import { getCurrentSeason, isRacingOrLater } from "@/lib/season";
 
 /*
@@ -14,6 +15,8 @@ import { getCurrentSeason, isRacingOrLater } from "@/lib/season";
   주소를 우리가 먼저 색인해 달라고 내미는** 꼴이 된다 — soft 404로 잡히고,
   나중에 진짜로 열렸을 때 신뢰를 깎아 먹는다.
   그래서 같은 술어(`isRacingOrLater`)와 같은 파서(`parseFeatureFlags`)를 부른다.
+  리더보드는 플래그만이 아니라 「레이스를 시작한 팀이 있는가」까지 본다 — 접근 판정과
+  같은 `withLeaderboardOpen`을 거친다(race-read.ts, 2026-09-26).
 
   `canAccess()`를 그대로 못 쓰는 이유는 그쪽이 뷰어(세션)를 전제하기 때문이다.
   사이트맵에는 뷰어가 없다 — 「로그인 안 한 사람에게 열려 있나」만 묻는다.
@@ -61,7 +64,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   if (!season) return staticPages;
 
-  const flags = parseFeatureFlags(season.featureFlags);
+  const flags = await withLeaderboardOpen(season, parseFeatureFlags(season.featureFlags));
   const racing = isRacingOrLater(season.phase);
 
   const seasonPages: MetadataRoute.Sitemap = [

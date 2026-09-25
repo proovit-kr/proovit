@@ -46,6 +46,9 @@ export function devToday(): Date | null {
 /**
  * 시각 판정의 「지금」. **판정에만 쓴다** — 무언가 일어난 때를 적는
  * 타임스탬프(`submittedAt`·`appliedAt` 등)는 진짜 지금이어야 한다.
+ *
+ * 예외 하나: `entries.race_started_at`은 적는 값이면서 판정의 기준(s4 주차·레이스
+ * 구간)이라 이것으로 적는다(submission-store `saveStage`, 2026-09-26).
  */
 export function devNow(): Date {
   return devToday() ?? new Date();

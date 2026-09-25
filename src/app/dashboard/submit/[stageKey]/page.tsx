@@ -153,7 +153,8 @@ export default async function Page({
       conversion: conversionRate(applicants, metrics.validVisitors) ?? "—",
     };
   } else if (stageKey === StageKey.s4) {
-    const { from, to } = weekRange(row.opensAt, row.week);
+    /* 주차는 팀의 레이스 시작부터 센다(`row.weekBase`, 2026-09-26) */
+    const { from, to } = weekRange(row.weekBase, row.week);
     const metrics = await loadStageMetrics(entryId, from, to);
     props.s4 = {
       weeks: Array.from({ length: row.week }, (_, i) => {
@@ -238,12 +239,13 @@ export default async function Page({
 
   마감은 **실제 마감**이다(유동 게이트 — submission.ts `stageWindows`). 시안의
   날짜는 달력 주차 그대로라, s1은 시안 10.04가 아니라 1차 심사 마감(10.11)을,
-  s3은 2차 심사 마감을 적는다. s4는 그 주차의 끝이다(`weekDue`).
+  s3은 2차 심사 마감을 적는다. s4는 그 주차의 끝이다(`weekDue`) — 주차는 팀의
+  레이스 시작부터 7일씩이다(`row.weekBase`, 2026-09-26 수연 지시).
 */
 function metaLines(row: StageRow, now: Date): string[] {
   const lines: string[] = [];
   const closes =
-    row.stageKey === StageKey.s4 ? weekDue(row.opensAt, row.week, row.closesAt) : row.closesAt;
+    row.stageKey === StageKey.s4 ? weekDue(row.weekBase, row.week, row.closesAt) : row.closesAt;
   if (closes) {
     const due = formatDeadline(closes);
     const left = dDay(closes, now);

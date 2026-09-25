@@ -12,13 +12,15 @@
   일이라 손으로 누르면 중간에 어긋난 상태로 재게 된다(lb-state.mts와 같은 이유).
 
   ③만 `setSandboxCurrentStage(s4)`를 같이 부른다. 그래야 둘이 생긴다 —
-    ① 리더보드 플래그가 켜져 히어로 CTA 「리더보드 보기」가 나온다.
+    ① 리더보드가 열려 히어로 CTA 「리더보드 보기」가 나온다. 2026-09-26부터 여는 것은
+       플래그가 아니라 플래그 **그리고** 레이스 시작이다(race.ts) — 스테이지 줄과
+       뒤의 집계 픽스처가 둘 다 플래그를 켜 두고 참가팀에 레이스 시작을 심는다.
     ② **오늘이 s4 안이라고 가정**해 s4가 지금 도는 스테이지가 된다(시안 ③의
        라임 카드). 일정은 건드리지 않는다 — 움직이는 것은 오늘뿐이다
        (2026-09-21 수연 지시, `src/lib/dev-clock.ts`).
 
-  ⚠️ `restore`를 빠뜨리면 다음 사람이 픽스처를 정본으로 착각한다. 리더보드
-  플래그는 s4 전까지 꺼 두는 것이 기본값이다.
+  ⚠️ `restore`를 빠뜨리면 다음 사람이 픽스처를 정본으로 착각한다. 레이스 시작도
+  떠 두고 되돌린다 — 남으면 리더보드가 열린 채로 남는다.
 
   ⚠️ **`save`는 지금 들어 있는 것을 그대로 뜬다 — 그게 남의 픽스처여도 그렇다.**
   2026-09-21에 지난 세션이 흘린 픽스처 일정을 떠서 `restore`가 그걸 되돌려
@@ -38,9 +40,12 @@ import { prisma } from "../../src/lib/prisma";
 import { setDevToday } from "../../src/lib/dev-clock";
 import {
   checkDevSandbox,
+  restoreRaceStarts,
+  saveRaceStarts,
   setMetricsFixture,
   setSandboxCurrentStage,
   setSandboxPhase,
+  type SavedRaceStart,
 } from "../../src/lib/dev-sandbox";
 
 const check = checkDevSandbox();
@@ -81,7 +86,12 @@ if (mode === "save") {
   writeFileSync(
     SNAP,
     JSON.stringify(
-      { phase: season.phase, featureFlags: season.featureFlags, stages },
+      {
+        phase: season.phase,
+        featureFlags: season.featureFlags,
+        raceStarts: await saveRaceStarts(season.id),
+        stages,
+      },
       null,
       2,
     ),
@@ -91,7 +101,7 @@ if (mode === "save") {
   printStages(stages);
 } else if (mode in PHASE) {
   await setSandboxPhase({ seasonId: season.id, phase: PHASE[mode] });
-  /* ③만 — 플래그를 켜고 오늘이 s4 안이라고 가정한다(일정은 그대로) */
+  /* ③만 — 리더보드를 열고(레이스 시작·플래그) 오늘이 s4 안이라고 가정한다(일정은 그대로) */
   if (mode === "racing") {
     await setSandboxCurrentStage({ seasonId: season.id, stage: StageKey.s4 });
     await setMetricsFixture({ seasonId: season.id, kind: "race", keepStageDates: true });
@@ -101,6 +111,8 @@ if (mode === "save") {
   const snap = JSON.parse(readFileSync(SNAP, "utf8")) as {
     phase: SeasonPhase;
     featureFlags: unknown;
+    /* 옛 save에는 없다 — 그때는 전부 지운다(`restoreRaceStarts`) */
+    raceStarts?: SavedRaceStart[];
     stages: {
       stageKey: string;
       opensAt: string | null;
@@ -109,6 +121,8 @@ if (mode === "save") {
   };
   /* 픽스처가 만든 스냅샷·일별 지표를 먼저 걷어낸다. 일정은 아무도 안 옮긴다 */
   await setMetricsFixture({ seasonId: season.id, kind: "none", keepStageDates: true });
+  /* 픽스처·스테이지 줄이 심은 레이스 시작을 떠 둔 값으로 */
+  await restoreRaceStarts(season.id, snap.raceStarts);
   /* 가정한 오늘도 끈다 — 안 끄면 다음 사람이 옮겨진 오늘을 진짜로 본다 */
   setDevToday(null);
 

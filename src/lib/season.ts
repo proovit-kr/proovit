@@ -3,6 +3,7 @@ import { cache } from "react";
 import { SeasonPhase, type Season } from "@/generated/prisma/client";
 import { parseFeatureFlags } from "@/lib/feature-flags";
 import { toHeaderSeason, type PublicHeaderInput } from "@/lib/header-state";
+import { withLeaderboardOpen } from "@/lib/race-read";
 import { phaseAtLeast } from "@/lib/season-phase";
 
 import { prisma } from "./prisma";
@@ -40,7 +41,7 @@ export function resolveLandingCta(season: Season): LandingCta {
 }
 
 /**
- * 공개 헤더에 넘길 **시즌 축**. `<NavBar season={publicHeaderSeason(season)} />`.
+ * 공개 헤더에 넘길 **시즌 축**. `<NavBar season={await publicHeaderSeason(season)} />`.
  *
  * 한 줄로 묶어 두는 이유는 **빠뜨리지 않기 위해서**다. 화면마다 같은 다섯 줄을
  * 손으로 적으면 새 화면이 생길 때마다 하나씩 어긋난다(실제로 이 리포에서
@@ -53,12 +54,16 @@ export function resolveLandingCta(season: Season): LandingCta {
  * 헤더 CTA를 상태별로 가르는 것은 2026-09-06에 한 번 되돌렸다가(시즌 상세
  * 화면의 버튼 설명을 헤더 문구로 잘못 읽었다) 「헤더 상태별 시안 v1.0」이
  * 오면서 다시 갈랐다 — 이번에는 판정표가 시안에 있다(header-state.ts).
+ *
+ * `flags.leaderboard`는 날것의 플래그가 아니라 **「지금 리더보드를 여는가」**다
+ * (race-read.ts `withLeaderboardOpen` — 플래그 켜짐 그리고 레이스를 시작한 팀이
+ * 있음, 2026-09-26). 그래서 async다 — 가장 이른 레이스 시작을 읽는다.
  */
-export function publicHeaderSeason(
+export async function publicHeaderSeason(
   season: Season | null,
-): PublicHeaderInput["season"] {
+): Promise<PublicHeaderInput["season"]> {
   if (!season) return null;
-  const flags = parseFeatureFlags(season.featureFlags);
+  const flags = await withLeaderboardOpen(season, parseFeatureFlags(season.featureFlags));
   return {
     kind: toHeaderSeason(season.phase),
     slug: season.slug,

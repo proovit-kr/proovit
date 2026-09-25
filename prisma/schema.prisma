@@ -758,6 +758,13 @@ model Entry {
   /// 이 칸을 비워 둔다(2026-08-13 종결본).
   appliedAt DateTime? @map("applied_at") @db.Timestamptz(6)
 
+  /// 레이스 시작 — 이 팀이 s3을 **처음** 제출한 때(2026-09-26 수연 지시 「팀별 집계로 바꿔」).
+  /// 리더보드 집계 구간이 [이날(서울 날짜), s5 마감]이고 s4 주차도 여기서부터 센다.
+  /// 비어 있으면 레이스 전이다 — 리더보드에 「미배포」·지표 0으로 선다.
+  /// s3 제출 행의 submitted_at은 재제출 때 덮이므로 따로 둔다. 다시 내도 안 바뀐다.
+  /// 판정은 lib/race.ts, 쓰는 곳은 submission-store `saveStage` 하나다.
+  raceStartedAt DateTime? @map("race_started_at") @db.Timestamptz(6)
+
   season Season @relation(fields: [seasonId], references: [id])
   team   Team   @relation(fields: [teamId], references: [id])
   track  Track? @relation(fields: [trackId], references: [id])
@@ -898,7 +905,12 @@ model Submission {
   id       String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   entryId  String           @map("entry_id") @db.Uuid
   stageKey StageKey         @map("stage_key")
-  /// 주차. stages의 s4 행 opens_at부터 7일씩 끊어 센다. 단발 제출 넷은 0.
+  /// 주차. 팀이 레이스를 시작한 날(entries.race_started_at, 서울) 0시부터 7일씩
+  /// 끊어 센다. 레이스 전이면 stages의 s4 행 opens_at부터다(lib/race.ts
+  /// `raceWeekBase`, 2026-09-26). 단발 제출 넷은 0.
+  /// 옛 규칙: 「stages의 s4 행 opens_at부터 7일씩 끊어 센다.」
+  /// → 2026-09-26 뒤집음: 집계가 팀별이 되어(수연 지시 「팀별 집계로 바꿔」)
+  /// s3을 낸 순간 s4가 열리고 그날이 1주차다.
   week     Int              @default(0) @db.SmallInt
   status   SubmissionStatus @default(draft)
   payload  Json             @default("{}")
