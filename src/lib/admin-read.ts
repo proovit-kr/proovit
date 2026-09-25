@@ -5,6 +5,7 @@ import {
   EntryStatus,
   LeadStatus,
   SubmissionStatus,
+  type SeasonPhase,
 } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { devNow } from "@/lib/dev-clock";
@@ -572,11 +573,13 @@ export async function loadAdminLeads(
 export type AdminSeasonView = {
   id: string;
   title: string;
-  phase: string;
+  phase: SeasonPhase;
   startsAt: Date | null;
   endsAt: Date | null;
   stages: { stageKey: string; isGate: boolean; opensAt: Date | null; closesAt: Date | null }[];
   tracks: { id: string; name: string }[];
+  /** 페이즈 일정(`season_schedules`) — 크론이 읽는 표. 운영 콘솔 「페이즈 일정」 칸 */
+  schedules: { phase: SeasonPhase; startsAt: Date; appliedAt: Date | null; note: string | null }[];
   featureFlags: Record<string, unknown>;
   scoringConfig: unknown;
 };
@@ -602,6 +605,7 @@ export async function loadAdminSeason(seasonId: string): Promise<AdminSeasonView
         select: { stageKey: true, isGate: true, opensAt: true, closesAt: true },
       },
       tracks: { orderBy: { createdAt: "asc" }, select: { id: true, name: true } },
+      schedules: { select: { phase: true, startsAt: true, appliedAt: true, note: true } },
     },
   });
   if (!season) return null;

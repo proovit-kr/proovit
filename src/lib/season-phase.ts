@@ -97,3 +97,150 @@ export function isRecruitingOrLater(phase: SeasonPhase): boolean {
 export function isRacingOrLater(phase: SeasonPhase): boolean {
   return phaseAtLeast(phase, SeasonPhase.racing);
 }
+
+/*
+  ─────────────────────────────────────────────────────────────
+  페이즈 자동 전환 — 크론(`/api/v1/cron/phase`)이 부르는 계획.
+
+  2026-09-25 수연 지시 「페이즈 전환 — 자동 전환 크론 개발해줘」. 정본은
+  `season_schedules`다(ADR-010, PRD FR-C1). 여기는 **무엇을 할지만** 정하고
+  DB는 `phase-schedule.ts`가 쓴다.
+
+  ⚠️ **뒤로는 절대 안 간다.** 예정 시각이 지난 행이라도 그 페이즈가 지금과
+  같거나 앞이면 건너뛴다. 운영자가 수동으로 앞당겼거나(모집을 일찍 닫음)
+  되돌린 뒤라는 뜻이고, 그 판단을 크론이 덮으면 수동 전환이 1분짜리가 된다.
+  ─────────────────────────────────────────────────────────────
+*/
+
+/** 운영 콘솔이 일정을 받는 페이즈 — draft는 시작점이라 전환 대상이 아니다 */
+export const SCHEDULE_PHASES = [
+  SeasonPhase.pre_apply,
+  SeasonPhase.recruiting,
+  SeasonPhase.racing,
+  SeasonPhase.awarded,
+  SeasonPhase.archived,
+] as const;
+
+/** 크론이 건너뛴 행의 `note`. 운영 콘솔이 이 값으로 잠긴 「이미 넘어감」을 가른다 */
+export const PHASE_SKIP_NOTE = "이미 지난 페이즈라 건너뜀";
+
+/** 예정 시각이 지났고 아직 처리 안 된(`applied_at` 빈) 일정 행 */
+export type DueScheduleRow = { id: string; phase: SeasonPhase; startsAt: Date };
+
+export type PhaseStep =
+  | { kind: "apply"; row: DueScheduleRow; from: SeasonPhase; to: SeasonPhase }
+  /** `current`는 계획이 그 자리에서 가정한 시즌 페이즈 — 건너뛸 때도 이것을 다시 확인한다 */
+  | { kind: "skip"; row: DueScheduleRow; current: SeasonPhase };
+
+/**
+ * 한 시즌의 밀린 일정 행을 전진(apply)과 건너뜀(skip)으로 가른다.
+ *
+ * 시각 순으로 훑으며 지금보다 뒤 페이즈일 때만 전진한다. 여러 행이 한꺼번에
+ * 밀려 있으면(크론이 멈췄다 살아난 경우) 차례로 전진해 마지막 것이 최종
+ * 페이즈다 — 한 번에 건너뛰지 않는 것은 전환마다 감사 로그가 한 줄씩 남아야
+ * 「언제 무엇이 열렸나」를 나중에 되짚을 수 있어서다.
+ */
+export function planPhaseTransitions(
+  current: SeasonPhase,
+  due: readonly DueScheduleRow[],
+): { steps: PhaseStep[]; final: SeasonPhase } {
+  /* 같은 시각이면 페이즈 순서로 — 입력 순서에 결과가 흔들리지 않게 */
+  const rows = [...due].sort(
+    (a, b) =>
+      a.startsAt.getTime() - b.startsAt.getTime() ||
+      PHASE_RANK[a.phase] - PHASE_RANK[b.phase],
+  );
+  const steps: PhaseStep[] = [];
+  let phase = current;
+  for (const row of rows) {
+    if (PHASE_RANK[row.phase] > PHASE_RANK[phase]) {
+      steps.push({ kind: "apply", row, from: phase, to: row.phase });
+      phase = row.phase;
+    } else {
+      steps.push({ kind: "skip", row, current: phase });
+    }
+  }
+  return { steps, final: phase };
+}
+
+/**
+ * 운영 콘솔 「페이즈 일정」 저장 전 검사. 통과하면 null, 막히면 문구.
+ *
+ *   rows     저장 뒤 모양(전환된 행 포함) — 페이즈 순서대로 시각이 늘어야 한다
+ *   changed  이번에 바뀐 페이즈
+ *
+ * ⚠️ 바뀐 행이 **이미 지난 시각이고 지금보다 뒤 페이즈**면 막는다. 저장하는
+ * 순간 다음 크론(15분 안)이 전환한다 — 연도 오타 하나로 운영 페이즈가 넘어간다.
+ * 지금 넘기려면 「페이즈 수동 전환」이 그 자리다(내가 정함, 수연 확인 대기).
+ * 지금과 같거나 앞 페이즈의 지난 시각은 받는다 — 크론이 건너뛰기만 하고,
+ * 사전 신청 시작처럼 기록으로 남겨 둘 값일 수 있다(header-read의 전환율 기간).
+ */
+export function phaseScheduleError(args: {
+  rows: readonly { phase: SeasonPhase; startsAt: Date | null }[];
+  changed: readonly SeasonPhase[];
+  current: SeasonPhase;
+  now: Date;
+}): string | null {
+  const filled = args.rows
+    .filter((r): r is { phase: SeasonPhase; startsAt: Date } => r.startsAt !== null)
+    .sort((a, b) => PHASE_RANK[a.phase] - PHASE_RANK[b.phase]);
+  for (const [i, row] of filled.entries()) {
+    const prev = filled[i - 1];
+    if (prev && prev.startsAt >= row.startsAt) {
+      return `${row.phase} 시각이 ${prev.phase}보다 늦어야 합니다.`;
+    }
+  }
+
+  for (const phase of args.changed) {
+    const at = args.rows.find((r) => r.phase === phase)?.startsAt ?? null;
+    if (at && at <= args.now && PHASE_RANK[phase] > PHASE_RANK[args.current]) {
+      return `${phase} 시각이 이미 지났습니다. 지금 넘기려면 페이즈 수동 전환을 써 주세요.`;
+    }
+  }
+  return null;
+}
+
+/** 저장된 일정 행 — `applied_at`이 있으면 크론·수동 전환이 이미 처리한 행이다 */
+export type SavedScheduleRow = { phase: SeasonPhase; startsAt: Date; appliedAt: Date | null };
+
+/**
+ * 운영 콘솔 「페이즈 일정」 저장 계획 — admin-store `setPhaseSchedule`이 DB에
+ * 쓰기 전에 부른다. 막히면 문구, 통과하면 이번에 바뀐 페이즈(페이즈 순).
+ *
+ *   before    저장된 행 전부(처리된 행 포함)
+ *   incoming  이번에 받은 칸. 빠진 페이즈는 그대로 두고, null은 비운다
+ *
+ * ⚠️ **처리된 행(`applied_at`)은 못 바꾼다** — 이미 일어난 일의 기록이다. 같은
+ * 값으로 다시 보내는 것은 바뀐 것으로 치지 않는다. 그래도 순서 검사에는 넣는다 —
+ * 전환된 모집 시작보다 이른 레이스 시작은 받지 않는다.
+ */
+export function planPhaseSchedule(args: {
+  before: readonly SavedScheduleRow[];
+  incoming: readonly { phase: SeasonPhase; startsAt: Date | null }[];
+  current: SeasonPhase;
+  now: Date;
+}): { ok: false; message: string } | { ok: true; changed: SeasonPhase[] } {
+  const before = new Map(args.before.map((r) => [r.phase, r]));
+  const incoming = new Map(args.incoming.map((r) => [r.phase, r.startsAt]));
+  const time = (d: Date | null | undefined) => d?.getTime() ?? null;
+
+  for (const [phase, at] of incoming) {
+    const b = before.get(phase);
+    if (b?.appliedAt && time(b.startsAt) !== time(at)) {
+      return { ok: false, message: `${phase}는 이미 전환돼 바꿀 수 없습니다.` };
+    }
+  }
+  const changed = SCHEDULE_PHASES.filter(
+    (phase) => incoming.has(phase) && time(before.get(phase)?.startsAt) !== time(incoming.get(phase)),
+  );
+  if (changed.length === 0) return { ok: false, message: "바뀐 일정이 없습니다." };
+
+  const rows = SCHEDULE_PHASES.map((phase) => ({
+    phase,
+    startsAt: incoming.has(phase)
+      ? (incoming.get(phase) ?? null)
+      : (before.get(phase)?.startsAt ?? null),
+  }));
+  const error = phaseScheduleError({ rows, changed, current: args.current, now: args.now });
+  return error ? { ok: false, message: error } : { ok: true, changed };
+}

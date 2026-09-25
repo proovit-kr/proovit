@@ -15,7 +15,9 @@ import {
   Prisma,
 } from "@/generated/prisma/client";
 import { REASON_MIN } from "@/lib/admin";
+import { fmtStamp } from "@/lib/header-state";
 import { prisma } from "@/lib/prisma";
+import { planPhaseSchedule } from "@/lib/season-phase";
 
 /*
   운영자 쓰기.
@@ -33,7 +35,8 @@ export type AdminActionResult =
   | { ok: false; message: string };
 
 type AuditInput = {
-  actorId: string;
+  /** 사람이 아니면(페이즈 크론) null — 감사 로그 화면에 「system」으로 뜬다 */
+  actorId: string | null;
   /** judge_pass / disqualify / refund 처럼 동사로 적는다 */
   action: string;
   targetType: string;
@@ -47,8 +50,11 @@ type AuditInput = {
  *
  * `tx`를 받는 이유는 강제하기 위해서다 — 인자로 prisma 전역을 넘길 수도 있지만,
  * 그러면 "로그를 깜빡한 쓰기"가 조용히 통과한다.
+ *
+ * 페이즈 크론(`phase-schedule.ts`)도 이것을 쓴다 — 수동 전환과 자동 전환이
+ * 같은 모양(`season.phase`, meta from/to)으로 남아야 한 표에서 이어 읽힌다.
  */
-async function writeAudit(
+export async function writeAudit(
   tx: Prisma.TransactionClient,
   input: AuditInput,
 ): Promise<void> {
@@ -152,6 +158,119 @@ export async function setSeasonPhase(args: {
     });
   });
 
+  return { ok: true };
+}
+
+/** 읽은 뒤 저장하기 전에 크론이 먼저 전환한 행이 있다 — 트랜잭션을 되돌리는 신호 */
+class ScheduleRaced extends Error {}
+
+/**
+ * 페이즈 일정 — 크론(`/api/v1/cron/phase`)이 읽는 `season_schedules`를 고친다.
+ *
+ * 시안에 없는 칸이다(seasons/page.tsx 머리 주석). 크론은 이 표만 읽는데 행을
+ * 넣을 화면이 없어 SQL로만 넣을 수 있었다(2026-09-25 수연 지시로 크론을 만들며 더함).
+ *
+ * 다섯 줄을 한 트랜잭션으로 쓴다 — 스테이지 일정과 같은 이유다. 반만 저장되면
+ * 크론이 어긋난 순서 그대로 돈다.
+ *
+ *   · 빠진 페이즈는 그대로 둔다. null은 비운다(전환 안 된 행을 지운다).
+ *   · 전환된 행(`applied_at`)은 못 바꾼다 — 이미 일어난 일의 기록이다.
+ *     그래서 수동으로 되돌린 페이즈를 크론으로 다시 넘길 길은 없다. 그때는
+ *     「페이즈 수동 전환」을 한 번 더 쓴다.
+ *   무엇이 바뀌었고 받아도 되는지는 순수 함수 `planPhaseSchedule`(season-phase.ts)이 정한다.
+ *
+ * ⚠️ **`seasons.starts_at`(개막)은 건드리지 않는다.** racing 행은 레이스 시작
+ * (모집 마감 다음 분)이고, 개막은 s1 시작이라 그보다 한 주 앞이다 — 랜딩이
+ * 「09.28 개막」과 「10.04 마감」을 따로 적고(Landing.tsx), 개발 바 픽스처가
+ * `starts_at`을 s1 시작으로 쓴다(dev-sandbox `scheduleStageDates`). 처음에는
+ * racing 행을 저장하면 개막도 맞췄는데 그러면 개막이 한 주 밀려 뺐다
+ * (2026-09-26 리뷰 지적). 개막을 넣을 칸은 아직 없다(수연 확인 대기).
+ */
+export async function setPhaseSchedule(args: {
+  seasonId: string;
+  rows: { phase: SeasonPhase; startsAt: Date | null }[];
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { seasonId, reason, actorId } = args;
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+
+  const season = await prisma.season.findUnique({
+    where: { id: seasonId },
+    select: {
+      phase: true,
+      schedules: { select: { id: true, phase: true, startsAt: true, appliedAt: true } },
+    },
+  });
+  if (!season) return { ok: false, message: "시즌을 찾을 수 없습니다." };
+
+  /* 크론과 같은 「지금」으로 잰다 — 개발에서 옮긴 오늘 기준으로 지난 시각을 막는다 */
+  const { devNow } = await import("@/lib/dev-clock");
+  const plan = planPhaseSchedule({
+    before: season.schedules,
+    incoming: args.rows,
+    current: season.phase,
+    now: devNow(),
+  });
+  if (!plan.ok) return { ok: false, message: plan.message };
+  const { changed } = plan;
+
+  const before = new Map(season.schedules.map((s) => [s.phase, s]));
+  const incoming = new Map(args.rows.map((r) => [r.phase, r.startsAt]));
+  /* 감사 로그 표의 「from→to」 칸에 그대로 읽히게 — 「racing 10.28 00:00」 */
+  const label = (phase: SeasonPhase, at: Date | null | undefined) =>
+    `${phase} ${at ? fmtStamp(at) : "비어 있음"}`;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const phase of changed) {
+        const b = before.get(phase);
+        const at = incoming.get(phase) ?? null;
+        if (!b) {
+          if (at) await tx.seasonSchedule.create({ data: { seasonId, phase, startsAt: at } });
+          continue;
+        }
+        /* 전환 안 된 행만 고친다. 읽은 뒤에 크론이 먼저 전환했으면 0건이다 */
+        const done = at
+          ? await tx.seasonSchedule.updateMany({
+              where: { id: b.id, appliedAt: null },
+              data: { startsAt: at },
+            })
+          : await tx.seasonSchedule.deleteMany({ where: { id: b.id, appliedAt: null } });
+        if (done.count === 0) throw new ScheduleRaced();
+      }
+      await writeAudit(tx, {
+        actorId,
+        action: "season.schedule",
+        targetType: "season",
+        targetId: seasonId,
+        reason: reason.trim(),
+        meta: {
+          from: changed.map((p) => label(p, before.get(p)?.startsAt)).join(", "),
+          to: changed.map((p) => label(p, incoming.get(p))).join(", "),
+          rows: changed.map((p) => ({
+            phase: p,
+            from: before.get(p)?.startsAt.toISOString() ?? null,
+            to: incoming.get(p)?.toISOString() ?? null,
+          })),
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof ScheduleRaced) {
+      return { ok: false, message: "방금 전환된 행이 있습니다. 새로고침한 뒤 다시 저장해 주세요." };
+    }
+    /*
+      없던 페이즈를 둘이 동시에 만들면 @@unique([seasonId, phase])에 걸린다.
+      읽은 뒤에 남이 먼저 저장한 것이라 위와 같은 안내로 돌려준다.
+    */
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { ok: false, message: "방금 다른 저장이 있었습니다. 새로고침한 뒤 다시 저장해 주세요." };
+    }
+    throw error;
+  }
   return { ok: true };
 }
 

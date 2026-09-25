@@ -71,3 +71,67 @@
   font-size: 14px;
   background-position: right 12px center;
 }
+
+/*
+  시안에 없는 줄 — 페이즈 일정(page.tsx 머리 주석). 스테이지 줄(`.stgrow`)의
+  모양을 따른다: 키 · 이름 · 시각 · 비우기 · 상태.
+*/
+.schrow {
+  display: grid;
+  grid-template-columns: 96px 1fr 220px 72px 150px;
+  grid-template-areas: "key name at clear state";
+  gap: 10px;
+  align-items: center;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.schrow:last-of-type {
+  border-bottom: 0;
+}
+
+.schrow .schKey {
+  grid-area: key;
+}
+
+.schrow .schName {
+  grid-area: name;
+}
+
+.schrow .schAt {
+  grid-area: at;
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 14px;
+}
+
+/* 전환된 행은 읽기 전용이다 — 이미 일어난 일의 기록 */
+.schrow .schAt:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 시안 `.atbl .btn-ghost`의 작은 버튼 크기를 빌린다 */
+.schrow .clear {
+  grid-area: clear;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.schrow .schState {
+  grid-area: state;
+  justify-self: start;
+  white-space: nowrap;
+}
+
+/* 폰에서는 두 줄로 — 키 · 이름 · 상태 / 시각 · 비우기 */
+@media (max-width: 760px) {
+  .schrow {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "key name state"
+      "at at clear";
+  }
+}

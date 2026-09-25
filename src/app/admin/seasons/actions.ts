@@ -4,21 +4,25 @@ import { revalidatePath } from "next/cache";
 
 import { SeasonPhase } from "@/generated/prisma/enums";
 import { canAccess, getSessionUser, loadAccessContext } from "@/lib/access";
+import { parseKstInput } from "@/lib/admin";
 import {
   addTrack,
+  setPhaseSchedule,
   setSeasonFlag,
   setSeasonPhase,
   setStageDates,
 } from "@/lib/admin-store";
 import { prisma } from "@/lib/prisma";
+import { SCHEDULE_PHASES } from "@/lib/season-phase";
 
 /*
-  시즌 관리의 쓰기 넷 — `op` 하나로 가른다.
+  시즌 관리의 쓰기 다섯 — `op` 하나로 가른다.
 
-    stages  스테이지 일정 다섯 줄
-    flag    기능 플래그 하나
-    track   트랙 추가
-    phase   페이즈 수동 전환(예외 경로 — 정본은 크론, ADR-010)
+    stages    스테이지 일정 다섯 줄
+    flag      기능 플래그 하나
+    track     트랙 추가
+    schedule  페이즈 일정(크론이 읽는 `season_schedules`)
+    phase     페이즈 수동 전환(예외 경로 — 정본은 크론, ADR-010)
 
   전부 사유가 필수이고 감사 로그와 한 트랜잭션이다(admin-store.ts).
 
@@ -109,6 +113,28 @@ export async function saveSeason(
     result = await addTrack({
       seasonId, name: String(formData.get("name") ?? ""), reason, actorId: user.id,
     });
+  } else if (op === "schedule") {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(String(formData.get("schedule") ?? "[]"));
+    } catch {
+      return { message: "잘못된 요청입니다." };
+    }
+    if (!Array.isArray(raw)) return { message: "잘못된 요청입니다." };
+    const rows: { phase: SeasonPhase; startsAt: Date | null }[] = [];
+    for (const r of raw as { phase?: unknown; at?: unknown }[]) {
+      const phase = SCHEDULE_PHASES.find((p) => p === r?.phase);
+      if (!phase || rows.some((x) => x.phase === phase)) {
+        return { message: "잘못된 요청입니다." };
+      }
+      const at = String(r.at ?? "").trim();
+      const startsAt = at ? parseKstInput(at) : null;
+      if (at && !startsAt) {
+        return { message: `${phase} 시각은 「2026-10-28 00:00」처럼 적어 주세요.` };
+      }
+      rows.push({ phase, startsAt });
+    }
+    result = await setPhaseSchedule({ seasonId, rows, reason, actorId: user.id });
   } else if (op === "phase") {
     const raw = String(formData.get("phase") ?? "");
     const phase = (Object.values(SeasonPhase) as string[]).includes(raw)
