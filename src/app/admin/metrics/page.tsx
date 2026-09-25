@@ -46,6 +46,7 @@ const CANDIDATE_TAKE = 500;
 /*
   빈 상태의 롤업 줄. 「정상 작동 중」만 시안 문구이고, 나머지는 시안에 없다 —
   내가 정함(수연 확인 대기). 롤업이 쉬면(idle) 줄을 뺀다 — 대시보드 부제와 같다.
+  지연이면 danger 색으로 칠하는 것도 대시보드 부제와 같다(2026-09-26 수연 결정).
 */
 function rollupLine(health: RollupHealth): string | null {
   if (health.kind === "idle") return null;
@@ -147,11 +148,11 @@ export default async function Page() {
     죽은 것을 「평온함」으로 읽는다.
   */
   const rollup = seasonId ? await loadRollupState(seasonId) : null;
-  const line = rollup
-    ? rollupLine(
-        rollupHealth({ ...rollup, now: new Date(), lateMinutes: ROLLUP_LATE_MIN }),
-      )
+  const health = rollup
+    ? rollupHealth({ ...rollup, now: new Date(), lateMinutes: ROLLUP_LATE_MIN })
     : null;
+  const line = health ? rollupLine(health) : null;
+  const late = health !== null && health.kind !== "idle" && health.late;
 
   return (
     <>
@@ -162,7 +163,7 @@ export default async function Page() {
         /* 시안 ② — 리더보드 빈 상태와 같은 상자(`.lb-empty`) */
         <div className={c.lbEmpty} data-probe="metrics-empty" data-state="empty">
           <div className={c.big}>검토할 플래그 없음</div>
-          {line && <p>{line}</p>}
+          {line && <p style={late ? { color: "var(--danger)" } : undefined}>{line}</p>}
         </div>
       ) : (
         <table className={c.atbl} data-probe="metrics" data-state="q">
