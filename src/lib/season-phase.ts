@@ -56,7 +56,8 @@ export function isRecruiting(phase: SeasonPhase): boolean {
 /**
  * 시즌 본편이 돌아가는 구간. 게이트 심사 기간도 여기 든다 —
  * 제출만 잠기고 대시보드·리더보드는 그대로 살아 있어야 한다.
- * 스테이지별 제출 창은 `stages.opens_at`·`closes_at`이 따로 판정한다.
+ * 스테이지별 제출 창은 `stages` 일정에서 낸 실제 창(submission.ts
+ * `stageWindows`, 유동 게이트)과 진도가 따로 판정한다.
  */
 export function isRacing(phase: SeasonPhase): boolean {
   return phase === SeasonPhase.racing;

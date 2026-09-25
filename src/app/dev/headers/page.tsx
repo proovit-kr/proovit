@@ -53,7 +53,12 @@ const PUB: { id: string; season: HeaderSeason; user: HeaderUser; initial?: strin
   { id: "P11", season: "stage", user: "admin", initial: "A", on: BOARD },
 ];
 
-/* ── 참가자 헤더: 시안 표본 일정(시즌 1, 09.28 개막) ── */
+/*
+  ── 참가자 헤더: 시안 표본 일정(시즌 1, 09.28 개막) ──
+  ⚠️ 달력을 그대로 넣는다. 진열장은 시안 칸(「마감 10.18, D-4」)을 재현하는 자리라
+  실제 창(submission.ts `participantStages`)을 거치지 않는다. 실제 창을 거친 판정은
+  header-state.test.ts가 본다.
+*/
 const STAGES: StageInfo[] = [
   { key: StageKey.s1, name: "아이디어 등록과 고도화", isGate: false, opensAt: KST("2026-09-28T00:00:00"), closesAt: KST("2026-10-04T23:59:00") },
   { key: StageKey.s2, name: "랜딩과 수요조사", isGate: true, opensAt: KST("2026-10-05T00:00:00"), closesAt: KST("2026-10-11T23:59:00") },

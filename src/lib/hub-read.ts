@@ -18,6 +18,7 @@ import { splitFeedback } from "@/lib/judgments-view";
 import { prisma } from "@/lib/prisma";
 import { loadLeaderboard } from "@/lib/public-read";
 import { isRacing } from "@/lib/season-phase";
+import { stageWindows } from "@/lib/submission";
 
 /*
   허브가 그릴 **재료를 모으는 곳.** 판정은 hub-state.ts(순수), 그리기는
@@ -190,16 +191,20 @@ async function stageDraft(entryId: string, stageKey: StageKey) {
 
 /**
  * 그 스테이지의 마감. 참가 기록이 없는 화면(시안 h10)도 이것만 따로 읽는다.
+ *
+ * **실제 마감**이다(유동 게이트, 2026-09-25 수연 지시 — submission.ts
+ * `stageWindows`). 게이트가 아닌 스테이지는 뒤 게이트의 마감이라 s1은 1차 심사
+ * 마감이 된다. 한 줄을 알려면 뒤 게이트를 봐야 해서 그 시즌 스테이지를 다 읽는다.
  */
 export async function stageDueAt(
   seasonId: string,
   stageKey: StageKey,
 ): Promise<Date | null> {
-  const stage = await prisma.stage.findUnique({
-    where: { seasonId_stageKey: { seasonId, stageKey } },
-    select: { closesAt: true },
+  const stages = await prisma.stage.findMany({
+    where: { seasonId },
+    select: { stageKey: true, isGate: true, opensAt: true, closesAt: true },
   });
-  return stage?.closesAt ?? null;
+  return stageWindows(stages)[stageKey]?.closesAt ?? null;
 }
 
 /*
@@ -324,7 +329,11 @@ export async function loadHubAxes(viewer: ViewerState): Promise<{
       : Promise.resolve(0),
   ]);
 
-  /* 「지금 스테이지」의 정의는 헤더와 한 곳이다 — 창이 열린 것 중 마지막 */
+  /*
+    「지금 스테이지」의 정의는 운영자 헤더와 한 곳이다 — **달력**으로 창이 열린 것
+    중 마지막. 유동 게이트에서도 이 축이 가르는 h6/h15는 s5 창이고, s5는 달력으로
+    열리므로(submission.ts `stageWindows`) 실제 창과 답이 같다.
+  */
   const now = currentStage(
     stages.map((s) => ({
       key: s.stageKey,
