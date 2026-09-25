@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { canManageTeam, guardPage, toAccessContext } from "@/lib/access";
-import { isRacing } from "@/lib/season-phase";
 import {
-  JOIN_DEADLINE_NOTE,
   joinClosedCode,
+  joinDeadlineNote,
   MAX_TEAM_SIZE,
+  soloConfirmable,
   TEAM_FAILURE_MESSAGE,
 } from "@/lib/team";
-import { loadTeamPanel } from "@/lib/team-store";
+import { loadJoinWindow, loadTeamPanel } from "@/lib/team-store";
 
 import hub from "../hub.module.css";
 import { TeamPanel } from "./TeamPanel";
@@ -36,6 +36,11 @@ import { TeamPanel } from "./TeamPanel";
   합류가 마감된 팀(s2를 낸 뒤, 또는 모집·레이스 밖 · 2026-09-25)에는 초대 상자
   대신 그 사유를 세운다. 판정은 서버 액션과 같은 `joinClosedCode`이고 문구만
   내려보낸다. 레이스 중 열려 있으면 살아 있는 초대 밑에 「s2를 내면 닫힌다」를 붙인다.
+  → 2026-09-26 뒤집음: s2 제출이 아니라 **s1 달력 마감**에서 닫힌다(수연 지시 「절대
+  날짜로」). 재료는 액션·초대 조회·수락과 같은 `loadJoinWindow`로 읽고, 열려 있을
+  때 붙는 안내는 그 날짜를 적는다(`joinDeadlineNote` — 「팀원 합류는 10.18 23:59까지예요.」).
+  마감 뒤 혼자 남은 비솔로 팀에는 마감 상자에 「개인 참가로 확정」을 둔다
+  (`soloConfirmable` — 서버 액션이 같은 함수로 다시 본다).
 
   머리(`.hb-h1`·`.hb-sub`)와 행동 상자(`.act`)·요약 카드(`.hb-sum`)는 참가자
   화면이 공유하는 시안 클래스라 hub.module.css의 것을 그대로 쓴다.
@@ -57,16 +62,24 @@ export default async function Page() {
   const { viewer, access } = await guardPage("dashboardTeam", "/dashboard/team");
   if (!viewer.team || !viewer.entry || !viewer.user) notFound();
 
-  const panel = await loadTeamPanel(viewer.team.id);
+  const [panel, joinWindow] = await Promise.all([
+    loadTeamPanel(viewer.team.id),
+    viewer.season ? loadJoinWindow(viewer.season) : null,
+  ]);
   if (!panel) notFound();
 
   /* 화면이 폼을 그릴지 정하는 판정. 서버 액션이 같은 함수를 다시 부른다 */
   const manage = canManageTeam(toAccessContext(viewer));
-  /* 초대 발급·재발송도 같다 — actions.ts의 `joinClosed`가 같은 규칙을 다시 본다 */
-  const closed = viewer.season
-    ? joinClosedCode(viewer.season.phase, viewer.entry)
+  /* 초대 발급·재발송도 같다 — actions.ts의 `joinState`가 같은 재료·같은 규칙을 다시 본다 */
+  const closed = joinWindow
+    ? joinClosedCode(joinWindow, viewer.entry)
     : "JOIN_PHASE_CLOSED";
-  const racing = viewer.season !== null && isRacing(viewer.season.phase);
+  /* 개인 참가 확정도 같다 — store(`confirmSolo`)가 같은 함수로 트랜잭션 안에서 다시 본다 */
+  const solo = soloConfirmable({
+    closed,
+    memberCount: panel.members.length,
+    isSolo: panel.isSolo,
+  });
 
   return (
     <>
@@ -102,7 +115,8 @@ export default async function Page() {
         full={panel.full}
         canManage={access.ok && manage.ok}
         joinClosed={closed ? TEAM_FAILURE_MESSAGE[closed] : null}
-        joinNote={!closed && racing ? JOIN_DEADLINE_NOTE : null}
+        joinNote={closed || !joinWindow ? null : joinDeadlineNote(joinWindow)}
+        canConfirmSolo={access.ok && manage.ok && solo}
         viewerId={viewer.user.id}
         viewerIsLeader={viewer.team.isLeader}
       />

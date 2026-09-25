@@ -22,15 +22,13 @@ import {
 } from "@/generated/prisma/enums";
 import { canSubmitStage, guardPage, toAccessContext } from "@/lib/access";
 import { devNow } from "@/lib/dev-clock";
+import { formatDay, formatDeadline, formatMoment } from "@/lib/kst-format";
 import { paymentPane } from "@/lib/payment";
 import { loadPaymentIntegration } from "@/lib/payment-store";
 import { prisma } from "@/lib/prisma";
 import {
   conversionRate,
   dDay,
-  formatDay,
-  formatDeadline,
-  formatMoment,
   isStageKey,
   paneBadge,
   tabTail,

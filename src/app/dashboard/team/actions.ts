@@ -14,14 +14,19 @@ import {
 import { validateInviteEmail } from "@/lib/apply";
 import { sendTeamInvite } from "@/lib/mail";
 import {
+  inviteValidUntil,
+  type JoinClosedCode,
   joinClosedCode,
+  type JoinWindow,
   TEAM_FAILURE_MESSAGE,
   type TeamFailureCode,
 } from "@/lib/team";
 import {
+  confirmSolo,
   createInvite,
   findPendingInvite,
   loadIdeaTitle,
+  loadJoinWindow,
   removeMember,
   revokeInvite,
   transferLeader,
@@ -60,11 +65,31 @@ import {
   발급·재발송은 수락과 **같은 규칙**(`joinClosedCode`)으로 막는다 — 모집·레이스
   중에, s2를 내기 전까지다. 막지 않으면 받는 쪽이 링크를 눌러 「합류할 수 없어요」를
   보게 되는 메일이 나간다. 취소는 막지 않는다 — 남은 초대를 치우는 일이다.
+  → 2026-09-26 뒤집음: s2 제출이 아니라 **s1 달력 마감**까지다(수연 지시 「절대
+  날짜로」). 재료도 수락과 같은 `loadJoinWindow`로 읽는다.
+
+  메일의 「유효 기한」은 초대 만료와 합류 마감 중 이른 쪽이다(team.ts
+  `inviteValidUntil`, 2026-09-26). 만료(발급 + 7일)만 적으면 10.15에 보낸 메일이
+  「10월 22일까지」를 말하는데 합류는 10.18 23:59에 닫힌다.
+
+  ## 마감 뒤 혼자 남은 팀은 개인 참가로 확정한다(2026-09-26)
+
+  합류가 s1 달력 마감으로 닫혔는데 혼자 남은 비솔로 팀은 팀 구성을 끝낼 길이
+  없었다 — 허브는 「팀 구성하기」로 이 화면에 보내는데 누를 것이 없었다. 그 자리에
+  「개인 참가로 확정」(`op=solo`)을 둔다. 판정은 team.ts `soloConfirmable` 하나를
+  화면과 store가 같이 부른다. 내가 정함(수연 확인 대기).
 */
 
 export type TeamState = {
   /** 성공 안내. 화면이 토스트로 알린다 */
-  done?: "invited" | "resent" | "revoked" | "transferred" | "removed" | "left";
+  done?:
+    | "invited"
+    | "resent"
+    | "revoked"
+    | "transferred"
+    | "removed"
+    | "left"
+    | "solo";
   /** 실패 문구. 필드에 붙지 않는 오류다 */
   message?: string;
   /** 초대 이메일 칸에 붙는 오류. 모달이 열린 채로 보여 준다 */
@@ -141,8 +166,8 @@ async function run(
   switch (op) {
     case "invite": {
       /* 주소 검증보다 먼저 — 마감된 팀에 「주소가 틀렸다」부터 말하지 않는다 */
-      const closed = joinClosed(viewer);
-      if (closed) return fail(closed);
+      const join = await joinState(viewer);
+      if (join.closed) return fail(join.closed);
 
       /*
         본인 주소인지 보려면 세션의 이메일이 필요하다. `loadViewerState`는
@@ -174,7 +199,7 @@ async function run(
       const sent = await mail(viewer, {
         email,
         code: created.code,
-        expiresAt: created.expiresAt,
+        validUntil: inviteValidUntil(created.expiresAt, join.window),
       });
       return sent
         ? { done: "invited" }
@@ -183,16 +208,17 @@ async function run(
 
     case "resend": {
       if (!target) return fail("INVITE_NOT_FOUND");
-      const closed = joinClosed(viewer);
-      if (closed) return fail(closed);
+      const join = await joinState(viewer);
+      if (join.closed) return fail(join.closed);
       const invite = await findPendingInvite(teamId, target);
       if (!invite) return fail("INVITE_NOT_FOUND");
       if (!invite.email) return { message: INVITE_WITHOUT_EMAIL };
 
+      /* 이 변경 전에 7일로 발급된 초대도 다시 보낼 때는 마감과 견준 날짜를 적는다 */
       const sent = await mail(viewer, {
         email: invite.email,
         code: invite.code,
-        expiresAt: invite.expiresAt,
+        validUntil: inviteValidUntil(invite.expiresAt, join.window),
       });
       return sent ? { done: "resent" } : { message: MAIL_FAILED };
     }
@@ -226,6 +252,14 @@ async function run(
       return { done: "left" };
     }
 
+    case "solo": {
+      /* 합류가 닫힌 사유를 발급과 같은 재료로 읽는다 — 열려 있으면 store가 거절한다 */
+      const join = await joinState(viewer);
+      const confirmed = await confirmSolo(teamId, join.closed);
+      if (!confirmed.ok) return fail(confirmed.code);
+      return { done: "solo" };
+    }
+
     default:
       return { message: "알 수 없는 요청입니다." };
   }
@@ -234,15 +268,24 @@ async function run(
 /**
  * 이 팀이 지금 팀원을 받는가 — 팀 화면(page.tsx)이 폼을 가를 때와 같은 판정이다.
  * 세션이 준 팀의 참가(`viewer.entry`)만 본다. 없으면 받을 곳도 없다.
+ * 열려 있으면 메일의 기한을 적을 수 있게 합류 기간(`window`)도 같이 준다.
  *
  * 요청을 받은 때의 진도로 본다(트랜잭션 밖). 팀장이 s2 제출과 초대를 같은 순간에
  * 누르면 받을 수 없는 초대 메일이 한 통 나갈 수 있지만, 수락(`acceptInvite`)이
  * 다시 보므로 잘못 붙지는 않는다. 발급(`createInviteIn`) 안으로 옮겨도 행을
  * 잠그지 않는 한 그 틈은 남고, 재발송은 그 함수를 지나지도 않는다.
+ *
+ * → 2026-09-26 뒤집음: 진도가 아니라 요청을 받은 때의 **시각**으로 본다(s1 달력
+ * 마감, `loadJoinWindow`). 틈은 그대로다 — s1 마감 직전에 누르면 받을 수 없는
+ * 초대 메일이 한 통 나갈 수 있고, 수락이 다시 보므로 잘못 붙지는 않는다.
  */
-function joinClosed(viewer: ViewerState): TeamFailureCode | null {
-  if (!viewer.season || !viewer.entry) return "JOIN_PHASE_CLOSED";
-  return joinClosedCode(viewer.season.phase, viewer.entry);
+async function joinState(
+  viewer: ViewerState,
+): Promise<{ closed: JoinClosedCode } | { closed: null; window: JoinWindow }> {
+  if (!viewer.season || !viewer.entry) return { closed: "JOIN_PHASE_CLOSED" };
+  const window = await loadJoinWindow(viewer.season);
+  const closed = joinClosedCode(window, viewer.entry);
+  return closed ? { closed } : { closed: null, window };
 }
 
 /**
@@ -253,7 +296,7 @@ function joinClosed(viewer: ViewerState): TeamFailureCode | null {
  */
 async function mail(
   viewer: ViewerState,
-  invite: { email: string; code: string; expiresAt: Date },
+  invite: { email: string; code: string; validUntil: Date },
 ): Promise<boolean> {
   if (!viewer.user || !viewer.team || !viewer.entry || !viewer.season) {
     return false;
@@ -267,7 +310,7 @@ async function mail(
       ideaTitle: ideaTitle ?? viewer.team.name,
       seasonTitle: viewer.season.title,
       code: invite.code,
-      expiresAt: invite.expiresAt,
+      validUntil: invite.validUntil,
     });
     if (!sent.ok) {
       console.error(

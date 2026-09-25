@@ -10,8 +10,8 @@ import { findMyEntry } from "@/lib/apply-store";
 import { loadPublicNav } from "@/lib/header-read";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
-import { isJoinPhase, TEAM_FAILURE_MESSAGE } from "@/lib/team";
-import { findInvite } from "@/lib/team-store";
+import { isJoinPhase, joinWindowClosed, TEAM_FAILURE_MESSAGE } from "@/lib/team";
+import { findInvite, loadJoinWindow } from "@/lib/team-store";
 
 import { ApplyDone } from "./ApplyDone";
 import { ApplyForm } from "./ApplyForm";
@@ -41,6 +41,9 @@ import styles from "./apply.module.css";
     합류         — 합류 페이즈(`isJoinPhase` — 모집·레이스)에 **초대 코드를 들고 온
                    사람**. 팀별로 s2 제출 전까지다(`joinClosedCode`, findInvite가
                    사유로 돌려준다). 합류 액션(join-actions)도 같은 두 함수를 본다.
+                   → 2026-09-26 뒤집음: 팀별 진도가 아니라 **s1 달력 마감까지**다
+                   (수연 지시 「절대 날짜로」). findInvite가 수락과 같은
+                   `loadJoinWindow`로 마감을 읽어 판정한다.
   그래서 레이스 중에는 **신청 폼을 절대 그리지 않는다.** 코드가 죽었거나 합류가
   마감됐으면 사유만 말한다 — 모집 중처럼 「직접 참가 신청」으로 내려보내면 닫힌 폼에
   닿는다. 코드 없이 오면 모집 아님 화면 그대로다.
@@ -77,6 +80,19 @@ export default async function ApplyPage({
     신청은 닫혔지만 합류는 열린 때 초대 링크로 온 사람(지금은 레이스 중). 페이즈는
     합류 액션과 같은 `isJoinPhase`로 본다 — 따로 적으면 한쪽만 넓어진다. 팀이 아직
     받는지는 로그인 뒤에 findInvite가 초대가 가리키는 팀의 진도로 판정한다.
+
+    → 2026-09-26: 진도가 아니라 s1 달력 마감이다(findInvite → `loadJoinWindow`).
+    마감은 시즌 전체의 날짜라 로그인 앞에서도 알 수 있지만 여기서는 끊지 않는다 —
+    위의 「받지 않습니다」 화면은 모집·사전 신청을 말해서, 레이스 중 초대받은 사람에게
+    틀린 안내가 된다. 로그인 뒤 ③이 「s1 마감까지만」을 그대로 말한다. 내가 정함(수연
+    확인 대기).
+    → 2026-09-26 뒤집음(리뷰 지적): **로그인 앞에서 끊는다.** 마감이 지났는데 로그인
+    (처음이면 소셜 가입과 약관 동의)부터 시키면, 다 마친 사람이 「합류 기간이 끝났다」를
+    본다 — 받는 기간이 아님을 로그인 앞에 두는 이 화면의 원칙(머리 주석)과 같다.
+    막힌 것은 「받지 않습니다」 화면의 재사용이었으므로, 그 화면이 아니라 ③의 사유
+    화면과 같은 모양의 한 줄 화면(`JoinBlocked`)을 쓴다. 판정은 시즌 전체의 사유만
+    보는 `joinWindowClosed`다 — 초대 코드는 풀지 않는다(마감 뒤에는 어느 코드든 같다).
+    내가 정함(수연 확인 대기).
   */
   const lateJoin =
     season !== null &&
@@ -123,6 +139,14 @@ export default async function ApplyPage({
         <Footer />
       </main>
     );
+  }
+
+  /* 레이스 중 초대 링크 — 합류 기간이 이미 끝났으면 로그인 앞에서 말한다(위 lateJoin 주석) */
+  const lateClosed = lateJoin
+    ? joinWindowClosed(await loadJoinWindow(season))
+    : null;
+  if (lateClosed) {
+    return <JoinBlocked message={TEAM_FAILURE_MESSAGE[lateClosed]} />;
   }
 
   /* 초대 코드는 로그인을 거쳐 돌아올 때까지 들고 가야 한다 */
@@ -257,6 +281,28 @@ export default async function ApplyPage({
 
         <ApplyForm defaultTeamName={profile?.teamMembers[0]?.team.name ?? ""} />
       </div>
+    </main>
+  );
+}
+
+/*
+  합류를 받을 수 없을 때의 한 줄 화면 — 로그인 앞(레이스 중 합류 기간이 끝났을 때).
+  ③에서 코드가 막혔을 때 레이스 중 모양(제목 「팀에 합류하기」 + 사유 한 줄, 폼 없음)과
+  같다. 「받지 않습니다」 화면은 모집·사전 신청을 안내해서 여기 쓰지 않는다.
+*/
+function JoinBlocked({ message }: { message: string }) {
+  return (
+    <main className={`page ${styles.page}`}>
+      <div className={`container container--narrow grow ${styles.wrap}`}>
+        <div className={styles.head}>
+          <Logo />
+          <h1 className={styles.title}>팀에 합류하기</h1>
+          <p className={styles.lead}>
+            <span>{message}</span>
+          </p>
+        </div>
+      </div>
+      <Footer />
     </main>
   );
 }

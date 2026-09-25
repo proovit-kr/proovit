@@ -19,13 +19,16 @@ import { acceptInvite } from "@/lib/team-store";
 
   ✅ **합류는 모집 기간이 끝나도 s2 제출 전까지 받는다**(2026-09-25 수연 지시,
   PRD FR-B3 · OPEN-6 지각 참가). 그 전에는 신청과 같이 모집 기간에만 받았다.
+  → 2026-09-26 뒤집음: s2 제출이 아니라 **s1 달력 마감까지**다(수연 지시 「절대
+  날짜로」 · team.ts 「합류 기간」).
 
   판정이 두 겹이다.
     ① 페이즈 — 모집·레이스가 아니면 여기서 끊는다(`isJoinPhase`). 문구는 신청과 같다.
        /apply 화면도 같은 함수로 합류 폼을 연다.
-    ② 팀의 진도·상태 — `acceptInvite`가 트랜잭션 안에서 `inviteFailure`로 본다
-       (그 안의 `joinClosedCode`). 초대가 가리키는 팀의 참가를 읽어야 해서 액션이
-       아니라 store에 있다. 진도는 모집 중에도 본다 — s2를 낸 팀은 닫힌다.
+    ② s1 달력 마감·팀의 상태 — `acceptInvite`가 트랜잭션 안에서 `inviteFailure`로
+       본다(그 안의 `joinClosedCode`). 초대가 가리키는 팀의 참가와 s1 마감
+       (`loadJoinWindow`)을 읽어야 해서 액션이 아니라 store에 있다.
+       (2026-09-26 전에는 진도였다 — 모집 중에도 s2를 낸 팀은 닫혔다.)
 
   ⚠️ **새 참가 신청은 여전히 모집 기간에만 받는다**(submitApply의 `resolveLandingCta`).
   레이스 중에 초대 링크로 팀을 새로 만드는 길은 없다 — 합류는 이미 있는 팀에만 붙는다.

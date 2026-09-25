@@ -7,13 +7,13 @@ import {
   SubmissionStatus,
 } from "@/generated/prisma/enums";
 import { passedGate, stageReachable } from "@/lib/access-policy";
+import { deadlineParts, formatDeadline } from "@/lib/kst-format";
 import {
   S1DraftSchema,
   S1Schema,
   S3Schema,
   currentWeek,
   dDay,
-  formatDeadline,
   guideIncomplete,
   paneBadge,
   participantStages,
@@ -386,6 +386,27 @@ describe("마감 표기", () => {
   it("23:59 마감은 그대로, 자정 마감은 전날 24:00", () => {
     expect(formatDeadline(KST("2026-10-18T23:59"))).toBe("10.18 23:59");
     expect(formatDeadline(KST("2026-11-17T00:00"))).toBe("11.16 24:00");
+  });
+  /* 메일(「2026년 10월 18일 24:00」)이 같은 규칙을 쓰도록 조각으로 준다 — 해가 바뀌어도 전날이다 */
+  it("마감 조각도 자정이면 전날 24:00이다", () => {
+    expect(deadlineParts(KST("2026-10-19T00:00"))).toEqual({
+      year: "2026",
+      month: "10",
+      day: "18",
+      time: "24:00",
+    });
+    expect(deadlineParts(KST("2027-01-01T00:00"))).toEqual({
+      year: "2026",
+      month: "12",
+      day: "31",
+      time: "24:00",
+    });
+    expect(deadlineParts(KST("2026-10-18T23:59"))).toEqual({
+      year: "2026",
+      month: "10",
+      day: "18",
+      time: "23:59",
+    });
   });
   it("D-day는 서울 달력으로 센다", () => {
     expect(dDay(KST("2026-10-18T23:59"), KST("2026-10-14T21:00"))).toBe("D-4");

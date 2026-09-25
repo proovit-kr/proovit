@@ -644,6 +644,11 @@ function Onboarding() {
   (`resolveLandingCta`). 레이스 중에는 초대 링크로 온 합류만 받는다 — 팀별로 s2
   제출 전까지다(2026-09-25, `team.ts`의 `joinClosedCode`). 그래서 코드 없이 이
   버튼을 누르면 「받지 않습니다」 화면에 닿는다. 새 신청을 레이스 중에 열지는 따로 정한다.
+  → 2026-09-26: 합류는 팀별 진도가 아니라 s1 달력 마감까지로 바뀌었다(수연 지시
+  「절대 날짜로」). 경고줄의 s1 마감(`stageDueAt`)은 유동 게이트의 실제 마감이라
+  합류 마감과 다른 날일 수 있다. 그래서 합류 쪽 문구가 「s1 마감」이라는 이름을
+  버리고 「팀원 합류는 …까지」로 부른다(team.ts `JOIN_CLOSED` 주석) — 이 경고줄은
+  유동 게이트 결정대로 둔다.
 */
 async function Late({ seasonId }: { seasonId: string }) {
   const head = HUB_HEAD.late;
