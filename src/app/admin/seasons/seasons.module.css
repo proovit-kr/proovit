@@ -126,6 +126,18 @@
   white-space: nowrap;
 }
 
+/*
+  시안에 없는 줄 — 개막(레이스 시작)과 s1 시작이 어긋났다는 경고(SeasonPanel).
+  글자 크기·줄 높이는 `.fld .hint`, 색은 운영 콘솔의 다른 경고 줄(알림 발송 뒤
+  남은 말)과 같은 `--warn`이다.
+*/
+.schWarn {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--warn);
+}
+
 /* 폰에서는 두 줄로 — 키 · 이름 · 상태 / 시각 · 비우기 */
 @media (max-width: 760px) {
   .schrow {

@@ -215,6 +215,10 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
     ⚠️ 끝나면 닫지 **않는다**. 2026-08-27까지 `isRacing`이라 시상 발표와 동시에
     잠겼는데, 관전이 가장 몰리는 때가 그때다. 시안의 리더보드 세 번째 상태
     (시즌 종료, FINAL 배너)도 이 화면이 시즌 뒤에 살아 있다는 전제다.
+
+    `flag`가 보는 `leaderboard`는 날것의 플래그가 아니라 「지금 여는가」다 — 플래그
+    켜짐 그리고 레이스를 시작한 팀이 있음. 판정은 race.ts `leaderboardOpen` 하나이고
+    컨텍스트를 만드는 쪽(access.ts `loadViewerState`)이 덮어 온다(2026-09-26).
   */
   leaderboard: { auth: "public", flag: "leaderboard", phase: isRacingOrLater },
   /** 참가작 공개 페이지. 레이스 전에는 보여줄 것이 없다. 끝난 뒤에는 남는다 */
@@ -227,7 +231,8 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
     ⚠️ 이 정책은 화면·액션이 부르지 않는다(테스트만 부른다). /apply 화면과
     submitApply는 `resolveLandingCta`로, 초대 합류는 `team.ts`의 `isJoinPhase`·
     `joinClosedCode`로 직접 가른다. 합류는 레이스 중에도 열린다(팀별로 s2 제출
-    전까지 · 2026-09-25 수연 지시) — 그래서 여기를 고쳐도 /apply는 안 바뀐다.
+    전까지 · 2026-09-25 수연 지시 → 2026-09-26 s1 달력 마감까지로 바뀜, 수연 지시
+    「절대 날짜로」) — 그래서 여기를 고쳐도 /apply는 안 바뀐다.
   */
   apply: { auth: "user", phase: isRecruiting, write: true },
   /** 골든패스 진입점. 탈락·실격 팀도 들어와야 소명·테스터로 갈 수 있다 */

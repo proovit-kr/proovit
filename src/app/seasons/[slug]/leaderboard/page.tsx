@@ -16,6 +16,7 @@ import type {
 } from "@/lib/public-read";
 import { loadPublicNav } from "@/lib/header-read";
 import { fmtYMD } from "@/lib/header-state";
+import { loadFirstRaceStart } from "@/lib/race-read";
 
 import { RowLink } from "./RowLink";
 import { FirstRollup, ROLLUP_MINUTES, UpdatedAt } from "./UpdatedAt";
@@ -340,10 +341,17 @@ export default async function Page({
     레이스 전에는 `canAccess`가 409(STAGE_LOCKED)를 준다. 시안에 잠김 화면이
     없으므로 그 자리를 404로 보낸다 — 플래그가 꺼졌을 때와 같은 결과다.
     2026-09-20 수연 결정(시안에 없는 상태를 지운다).
+
+    아직 아무 팀도 레이스를 시작하지 않았을 때도 여기서 404다 — 접근 판정이 보는
+    플래그가 이미 「공개 중인가」로 바뀌어 온다(race-read.ts `withLeaderboardOpen`,
+    2026-09-26).
   */
   if (!access.ok) notFound();
 
-  const board = await loadLeaderboard(season.id);
+  const [board, firstRaceAt] = await Promise.all([
+    loadLeaderboard(season.id),
+    loadFirstRaceStart(season.id),
+  ]);
   const ranked = board.rows.some((row) => row.rank !== null);
 
   /*
@@ -410,13 +418,12 @@ export default async function Page({
               {/*
                 기준 시각은 표를 읽은 때다(`loadedAt`). 화면에서 `Date.now()`를
                 부를 수 없어서다 — 위 `UpdatedAt`과 같은 이유다.
+
+                격자의 시작은 **가장 이른 레이스 시작**이다(2026-09-26 — 집계가
+                팀별이 되어 s4 달력 시작일은 더 이상 집계가 시작되는 때가 아니다).
               */}
               <FirstRollup
-                iso={
-                  season.stages
-                    .find((stage) => stage.stageKey === "s4")
-                    ?.opensAt?.toISOString() ?? null
-                }
+                iso={firstRaceAt?.toISOString() ?? null}
                 renderedAt={board.loadedAt}
               />
             </div>

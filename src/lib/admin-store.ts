@@ -16,8 +16,19 @@ import {
 } from "@/generated/prisma/client";
 import { REASON_MIN } from "@/lib/admin";
 import { fmtStamp } from "@/lib/header-state";
+import {
+  LATE_ENTRY_BLOCK_MESSAGE,
+  LATE_PASS_LENGTH,
+  LATE_PASS_PREFIX,
+  lateEntryBlock,
+  latePassExpiry,
+  latePassHint,
+  latePassPendingWhere,
+} from "@/lib/late-entry";
+import { loadLateEntryDeadline } from "@/lib/late-entry-store";
 import { prisma } from "@/lib/prisma";
 import { planPhaseSchedule } from "@/lib/season-phase";
+import { generateCode } from "@/lib/team-store";
 
 /*
   운영자 쓰기.
@@ -113,6 +124,142 @@ export async function setEntryStatus(args: {
   return { ok: true };
 }
 
+export type CreateLatePassResult =
+  | { ok: true; code: string; expiresAt: Date }
+  | { ok: false; message: string };
+
+/**
+ * 지각 편입 링크 만들기 — 참가 관리의 「지각 편입」 칸(시안에 없는 칸).
+ *
+ * 2026-09-26 수연 지시 「문의가 오면 운영자가 수동 편입하는 화면과 로직」 · PRD OPEN-6.
+ * 참가 행이 아니라 1회용 링크를 만드는 이유는 schema.prisma의 LateEntryPass 주석이다.
+ *
+ * 만들 수 있는 때는 참가자 쪽이 받아 주는 때와 **같은 판정**(`lateEntryBlock`)이다 —
+ * 만들어 봐야 받지 않는 링크를 건네지 않는다. 기한은 min(7일, s1 달력 마감).
+ *
+ * 링크 행과 감사 로그가 한 트랜잭션이다(파일 머리 주석). 로그에는 코드 일부만 남긴다
+ * (`latePassHint`) — 지우지 않는 기록에 살아 있는 링크를 통째로 담지 않는다.
+ * 메일은 보내지 않는다. 운영자가 문의가 온 채널로 링크를 직접 보낸다.
+ */
+export async function createLatePass(args: {
+  seasonId: string;
+  reason: string;
+  actorId: string;
+}): Promise<CreateLatePassResult> {
+  const { seasonId, actorId } = args;
+  const reason = args.reason.trim();
+  if (reason.length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+
+  const season = await prisma.season.findUnique({
+    where: { id: seasonId },
+    select: { phase: true },
+  });
+  if (!season) return { ok: false, message: "시즌을 찾을 수 없습니다." };
+
+  /* 참가자 쪽 판정과 같은 「지금」(dev-clock.ts) — 개발에서 옮긴 오늘로 잰다 */
+  const { devNow } = await import("@/lib/dev-clock");
+  const now = devNow();
+  const deadline = await loadLateEntryDeadline(seasonId);
+  const block = lateEntryBlock(season.phase, deadline, now);
+  if (block) return { ok: false, message: LATE_ENTRY_BLOCK_MESSAGE[block] };
+  const expiresAt = latePassExpiry(now, deadline);
+
+  /*
+    코드 충돌은 만들기 전에 피한다 — 초대 발급(team-store `createInviteIn`)과 같은
+    이유다. 트랜잭션 안에서 P2002를 받으면 감사 로그까지 통째로 되돌아간다.
+    최종 방어선은 유니크 제약이고, 27^8이라 부딪힐 일은 실질적으로 없다.
+  */
+  let code = generateCode(LATE_PASS_PREFIX, LATE_PASS_LENGTH);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const taken = await prisma.lateEntryPass.findUnique({
+      where: { code },
+      select: { id: true },
+    });
+    if (!taken) break;
+    code = generateCode(LATE_PASS_PREFIX, LATE_PASS_LENGTH);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const pass = await tx.lateEntryPass.create({
+      data: { seasonId, code, reason, createdBy: actorId, expiresAt },
+      select: { id: true },
+    });
+    await writeAudit(tx, {
+      actorId,
+      action: "entry.late_pass",
+      targetType: "late_entry_pass",
+      targetId: pass.id,
+      reason,
+      /* 감사 로그 화면의 대상 칸은 `meta.target`을 먼저 읽는다(admin-read `loadAuditLines`) */
+      meta: {
+        target: `편입 링크 ${latePassHint(code)}`,
+        code: latePassHint(code),
+        expiresAt: expiresAt.toISOString(),
+      },
+    });
+  });
+
+  return { ok: true, code, expiresAt };
+}
+
+/** 취소하려던 링크가 그사이 대기가 아니게 됐다 — 트랜잭션을 되돌리는 신호 */
+class LatePassNotPending extends Error {}
+
+/**
+ * 지각 편입 링크 취소. **대기 중인 링크만** — 쓰인 링크는 이미 참가가 됐고, 그걸
+ * 무르는 것은 참가 상태 전환(`setEntryStatus`)이다. 기한이 지난 링크는 이미 못 쓴다.
+ *
+ * 「대기」의 조건은 참가자가 링크를 쓸 때와 같다(`latePassPendingWhere`). 조건부로
+ * 한 번에 쓰므로, 참가자가 같은 순간에 제출하면 둘 중 한쪽만 된다.
+ */
+export async function revokeLatePass(args: {
+  seasonId: string;
+  passId: string;
+  reason: string;
+  actorId: string;
+}): Promise<AdminActionResult> {
+  const { seasonId, passId, actorId } = args;
+  const reason = args.reason.trim();
+  if (reason.length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
+  }
+
+  /* 시즌을 같이 본다 — id만 믿으면 헤더에서 고른 시즌 밖의 링크를 건드린다 */
+  const pass = await prisma.lateEntryPass.findFirst({
+    where: { id: passId, seasonId },
+    select: { code: true },
+  });
+  if (!pass) return { ok: false, message: "편입 링크를 찾을 수 없습니다." };
+
+  const { devNow } = await import("@/lib/dev-clock");
+  const now = devNow();
+  try {
+    await prisma.$transaction(async (tx) => {
+      const { count } = await tx.lateEntryPass.updateMany({
+        where: { id: passId, ...latePassPendingWhere(now) },
+        data: { revokedAt: new Date() },
+      });
+      if (count === 0) throw new LatePassNotPending();
+      await writeAudit(tx, {
+        actorId,
+        action: "entry.late_pass_revoke",
+        targetType: "late_entry_pass",
+        targetId: passId,
+        reason,
+        meta: { target: `편입 링크 ${latePassHint(pass.code)}` },
+      });
+    });
+  } catch (error) {
+    if (error instanceof LatePassNotPending) {
+      return { ok: false, message: "이미 사용됐거나 취소됐거나 기한이 지난 링크입니다." };
+    }
+    throw error;
+  }
+  return { ok: true };
+}
+
 /**
  * 시즌 페이즈 수동 전환.
  *
@@ -179,12 +326,17 @@ class ScheduleRaced extends Error {}
  *     「페이즈 수동 전환」을 한 번 더 쓴다.
  *   무엇이 바뀌었고 받아도 되는지는 순수 함수 `planPhaseSchedule`(season-phase.ts)이 정한다.
  *
- * ⚠️ **`seasons.starts_at`(개막)은 건드리지 않는다.** racing 행은 레이스 시작
- * (모집 마감 다음 분)이고, 개막은 s1 시작이라 그보다 한 주 앞이다 — 랜딩이
- * 「09.28 개막」과 「10.04 마감」을 따로 적고(Landing.tsx), 개발 바 픽스처가
- * `starts_at`을 s1 시작으로 쓴다(dev-sandbox `scheduleStageDates`). 처음에는
- * racing 행을 저장하면 개막도 맞췄는데 그러면 개막이 한 주 밀려 뺐다
- * (2026-09-26 리뷰 지적). 개막을 넣을 칸은 아직 없다(수연 확인 대기).
+ * **racing 행을 저장하면 `seasons.starts_at`(개막)도 같은 값으로 옮긴다** — 같은
+ * 트랜잭션이고, 감사 로그 meta에 `startsAt` from/to가 남는다. 기획 문서 순서가
+ * 「모집 마감 → 개막 = 레이스 시작 = s1 시작」이라서다(2026-09-26 수연 결정. PRD
+ * 2장 타임라인 「모집 8/31~9/27 마감 → 킥오프~레이스 9/28~」, PLN3 3.2 지각 참가
+ * 「racing(s1 구간) × applied」). 모집과 s1은 겹치지 않는다. racing 행을 비우면
+ * 개막은 그대로 둔다. 무엇을 옮길지는 `planPhaseSchedule`이 정한다.
+ *   → 2026-09-26 뒤집음: 「개막은 건드리지 않는다. racing 행은 모집 마감 다음
+ *   분이고 개막(s1 시작)은 그보다 한 주 앞」이라고 적고 개막 맞추기를 뺐었다.
+ *   시안 ver4 본편의 「참가 신청 마감 10.04 23:59」(= s1 마감일)를 근거로 삼았는데,
+ *   그 날짜가 기획과 어긋난 시안 날짜였다. 개발 바 픽스처(dev-sandbox
+ *   `scheduleStageDates`)가 `starts_at`을 s1 시작으로 쓰는 것은 이제 같은 말이다.
  */
 export async function setPhaseSchedule(args: {
   seasonId: string;
@@ -201,6 +353,7 @@ export async function setPhaseSchedule(args: {
     where: { id: seasonId },
     select: {
       phase: true,
+      startsAt: true,
       schedules: { select: { id: true, phase: true, startsAt: true, appliedAt: true } },
     },
   });
@@ -213,15 +366,23 @@ export async function setPhaseSchedule(args: {
     incoming: args.rows,
     current: season.phase,
     now: devNow(),
+    kickoff: season.startsAt,
   });
   if (!plan.ok) return { ok: false, message: plan.message };
-  const { changed } = plan;
+  const { changed, kickoff } = plan;
 
   const before = new Map(season.schedules.map((s) => [s.phase, s]));
   const incoming = new Map(args.rows.map((r) => [r.phase, r.startsAt]));
   /* 감사 로그 표의 「from→to」 칸에 그대로 읽히게 — 「racing 10.28 00:00」 */
-  const label = (phase: SeasonPhase, at: Date | null | undefined) =>
-    `${phase} ${at ? fmtStamp(at) : "비어 있음"}`;
+  const stamp = (at: Date | null | undefined) => (at ? fmtStamp(at) : "비어 있음");
+  const label = (phase: SeasonPhase, at: Date | null | undefined) => `${phase} ${stamp(at)}`;
+  /* 개막을 같이 옮겼으면 같은 칸에 한 조각 더 — 「racing 09.28 00:00, 개막 09.28 00:00」 */
+  const fromLabels = changed.map((p) => label(p, before.get(p)?.startsAt));
+  const toLabels = changed.map((p) => label(p, incoming.get(p)));
+  if (kickoff) {
+    fromLabels.push(`개막 ${stamp(kickoff.from)}`);
+    toLabels.push(`개막 ${stamp(kickoff.to)}`);
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -241,6 +402,9 @@ export async function setPhaseSchedule(args: {
           : await tx.seasonSchedule.deleteMany({ where: { id: b.id, appliedAt: null } });
         if (done.count === 0) throw new ScheduleRaced();
       }
+      if (kickoff) {
+        await tx.season.update({ where: { id: seasonId }, data: { startsAt: kickoff.to } });
+      }
       await writeAudit(tx, {
         actorId,
         action: "season.schedule",
@@ -248,13 +412,21 @@ export async function setPhaseSchedule(args: {
         targetId: seasonId,
         reason: reason.trim(),
         meta: {
-          from: changed.map((p) => label(p, before.get(p)?.startsAt)).join(", "),
-          to: changed.map((p) => label(p, incoming.get(p))).join(", "),
+          from: fromLabels.join(", "),
+          to: toLabels.join(", "),
           rows: changed.map((p) => ({
             phase: p,
             from: before.get(p)?.startsAt.toISOString() ?? null,
             to: incoming.get(p)?.toISOString() ?? null,
           })),
+          ...(kickoff
+            ? {
+                startsAt: {
+                  from: kickoff.from?.toISOString() ?? null,
+                  to: kickoff.to.toISOString(),
+                },
+              }
+            : {}),
         },
       });
     });

@@ -27,7 +27,7 @@ import styles from "./NavBar.module.css";
   `resolvePublicHeader`(header-state.ts)가 정하고 여기서는 그리기만 한다.
 
   판정에 필요한 축이 둘인데 오는 길이 다르다.
-    시즌  서버가 안다. 페이지가 `publicHeaderSeason(season)`으로 만들어 내려준다.
+    시즌  서버가 안다. 페이지가 `await publicHeaderSeason(season)`으로 만들어 내려준다.
     유저  두 갈래다.
           · 동적 화면(리더보드·시즌 상세·참가작)은 이미 세션을 읽었으므로
             `viewer`로 내려준다.
@@ -78,7 +78,7 @@ export function Logo({
 export type { HeaderViewer };
 
 export interface NavBarProps {
-  /** 시즌 축. `publicHeaderSeason(season)`이 만든다 */
+  /** 시즌 축. `publicHeaderSeason(season)`이 만든다(리더보드는 「여는가」, race-read.ts) */
   season: PublicHeaderInput["season"];
   /**
    * 유저 축. `undefined`면 클라이언트가 `/api/v1/me`로 채운다(랜딩·정적 문서).

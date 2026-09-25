@@ -1,0 +1,71 @@
+/*
+  참가 관리 — 시안 `#scr-adm-entries`에 없는 칸 「지각 편입」(LatePassPanel)만 둔다.
+  표·버튼·옮겨 적는 상자는 공용 부품(`console.module.css`의 `.atbl`, 허브의 `.keybox`)을
+  그대로 쓰고, 여기서는 자리만 잡는다.
+
+  ⚠️ 셀렉터를 겹치지 않는다(`.a .b` 금지). 다른 모듈이 가진 클래스에 걸면 해시가
+  갈려 아무것도 안 잡는다(AGENTS.md 「죽은 CSS 검사」).
+*/
+
+/* 표와 편입 칸 사이 — 편입 칸은 표 아래에 선다 */
+.late {
+  margin-top: 28px;
+}
+
+/* 버튼 · 기한 한 줄 — 시즌 관리의 「페이즈 수동 전환」 줄과 같은 모양 */
+.lateRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.lateNote {
+  font-size: 13px;
+  color: var(--faint);
+}
+
+/* 못 만드는 때의 이유 한 줄 */
+.lateBlocked {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.lateKey {
+  margin-top: 14px;
+}
+
+/* 링크가 길어 폰에서 상자를 밀지 않게 어디서든 끊는다 */
+.lateUrl {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+/* 시안 `.keybox .cp` — 복사 버튼을 오른쪽 끝으로 민다(측정 연동과 같다) */
+.cp {
+  margin-left: auto;
+}
+
+.lateTbl {
+  margin-top: 14px;
+}
+
+/* 사유는 문장이라 접지 않고 폭만 묶는다(감사 로그도 사유를 펼쳐 둔다) */
+.lateReason {
+  max-width: 320px;
+  white-space: normal;
+}
+
+.lateActs {
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* 사유 모달 안의 한 줄 — ReasonModal의 `extra` 자리 */
+.lateModalNote {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--faint);
+}

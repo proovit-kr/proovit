@@ -31,11 +31,11 @@ import {
   hasPastEntry,
   loadHub,
   loadHubAxes,
-  stageDueAt,
   type HubStep,
   type HubView,
 } from "@/lib/hub-read";
 import { resolveHubPane } from "@/lib/hub-state";
+import { stageDueAt } from "@/lib/stage-read";
 import { isRacing, isRecruiting } from "@/lib/season-phase";
 
 import { CopyLink } from "./CopyLink";
@@ -199,7 +199,13 @@ function Warn({ view }: { view: HubView }) {
   }
 }
 
-/** 시안 h10의 경고줄. 참가 기록이 있든 없든 같은 한 줄이다 */
+/**
+ * 시안 h10의 경고줄. 참가 기록이 있든 없든 같은 한 줄이다.
+ *
+ * `dueAt`은 s1 **제출 기한**(stage-read `stageDueAt`, 유동 게이트 실제 마감)이다 —
+ * 지각 편입 링크가 닫히는 s1 달력 마감(late-entry-store `loadLateEntryDeadline`)과
+ * 다른 날짜다(2026-09-26, stage-read.ts 머리 주석).
+ */
 function LateBar({ dueAt }: { dueAt: Date | null }) {
   return (
     <div className={`${styles.wbar} ${styles.wbarWarn}`}>
@@ -535,7 +541,7 @@ function Body({ view }: { view: HubView }) {
           <div className={styles.cards}>
             {/*
               시안이 값 자체를 흐리게 둔다. 미배포 팀에는 집계가 쌓일 수 없어
-              (`public-read.ts`의 `notDeployed`) 0과 「-」가 값이 아니라 자리다.
+              (`race.ts`의 `notDeployed`) 0과 「-」가 값이 아니라 자리다.
             */}
             <Card className={styles.kpi}>
               <small>{HUB_LABEL.validUsers}</small>
@@ -644,6 +650,14 @@ function Onboarding() {
   (`resolveLandingCta`). 레이스 중에는 초대 링크로 온 합류만 받는다 — 팀별로 s2
   제출 전까지다(2026-09-25, `team.ts`의 `joinClosedCode`). 그래서 코드 없이 이
   버튼을 누르면 「받지 않습니다」 화면에 닿는다. 새 신청을 레이스 중에 열지는 따로 정한다.
+  → 2026-09-26: 합류는 팀별 진도가 아니라 s1 달력 마감까지로 바뀌었다(수연 지시
+  「절대 날짜로」). 경고줄의 s1 마감(`stageDueAt`)은 유동 게이트의 실제 마감이라
+  합류 마감과 다른 날일 수 있다. 그래서 합류 쪽 문구가 「s1 마감」이라는 이름을
+  버리고 「팀원 합류는 …까지」로 부른다(team.ts `JOIN_CLOSED` 주석) — 이 경고줄은
+  유동 게이트 결정대로 둔다.
+  → 2026-09-26: 레이스 중 링크 없이 이 버튼을 누르면 「모집이 끝났습니다」 화면에 닿고,
+  거기서 운영팀에 문의한다 — 문의가 오면 운영자가 1회용 편입 링크를 건넨다(수연 지시 ·
+  PRD OPEN-6, late-entry.ts). 링크 없이 레이스 중 새 신청을 열지는 않는다.
 */
 async function Late({ seasonId }: { seasonId: string }) {
   const head = HUB_HEAD.late;

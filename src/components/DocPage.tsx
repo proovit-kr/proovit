@@ -115,7 +115,7 @@ export async function DocPage({
 
   return (
     <main className="page">
-      <NavBar season={publicHeaderSeason(season)}
+      <NavBar season={await publicHeaderSeason(season)}
       />
       <div className={`${styles.wrap} ${styles.doc} grow`}>
         <nav className={styles.toc} aria-label="목차">

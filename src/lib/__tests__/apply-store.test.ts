@@ -9,24 +9,44 @@
     1. 초대 **레코드**는 접수와 같은 트랜잭션 안이다
     2. 초대 **메일**은 그 밖이고, 실패해도 접수가 살아남는다
     3. 연락처(users.phone)는 더 이상 건드리지 않는다
+  그리고 지각 편입 링크(2026-09-26) — 레이스 중에는 링크가 있어야만 받고, 링크는
+  접수와 같은 트랜잭션에서 조건부로 쓴다.
 
   ⚠️ 목을 빠뜨려도 진짜 메일이 나가지 않는다 — mail.ts가 NODE_ENV!==production이면
   보내지 않는다. 그래도 여기서는 명시적으로 목을 세운다.
 */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/prisma", () => ({ prisma: { $transaction: vi.fn() } }));
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    $transaction: vi.fn(),
+    /* 지각 편입 링크 판정(late-entry-store `loadApplyGate`)이 읽는 둘 — 링크와 s1 달력 마감 */
+    lateEntryPass: { findUnique: vi.fn() },
+    stage: { findUnique: vi.fn() },
+  },
+}));
+/*
+  개발용 시계 파일이 남아 있어도 흔들리지 않게 「지금」을 박는다 — 레이스 첫 주(s1 구간
+  안, 09.30 12:00 KST). 편입은 s1 구간 안에서만 받는다(late-entry-store `loadLateEntryDeadline`).
+*/
+vi.mock("@/lib/dev-clock", () => ({
+  devNow: () => new Date("2026-09-30T03:00:00Z"),
+}));
 vi.mock("@/lib/season", () => ({
   getCurrentSeason: vi.fn(),
   resolveLandingCta: vi.fn(),
 }));
 vi.mock("@/lib/mail", () => ({ sendTeamInvite: vi.fn() }));
-vi.mock("@/lib/team-store", () => ({ createInviteIn: vi.fn() }));
+vi.mock("@/lib/team-store", () => ({
+  createInviteIn: vi.fn(),
+  loadJoinWindow: vi.fn(),
+}));
 
+import { SeasonPhase } from "@/generated/prisma/enums";
 import { sendTeamInvite } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
-import { createInviteIn } from "@/lib/team-store";
+import { createInviteIn, loadJoinWindow } from "@/lib/team-store";
 import { submitApplication } from "@/lib/apply-store";
 
 const USER = {
@@ -55,8 +75,13 @@ function makeTx() {
       create: vi.fn().mockResolvedValue({ id: "team-1", name: "리틀포션" }),
       update: vi.fn().mockResolvedValue({ id: "team-1", name: "리틀포션" }),
     },
-    entry: { create: vi.fn().mockResolvedValue({ id: "entry-1" }) },
+    entry: {
+      /* 이번 시즌에 이미 다른 팀으로 참가 중인가 — 기본은 아니다 */
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({ id: "entry-1" }),
+    },
     consent: { createMany: vi.fn().mockResolvedValue({ count: 2 }) },
+    lateEntryPass: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     user: { update: vi.fn() },
   };
 }
@@ -85,6 +110,12 @@ beforeEach(() => {
     expiresAt: new Date("2026-09-28T00:00:00Z"),
   });
   vi.mocked(sendTeamInvite).mockResolvedValue({ ok: true, skipped: true });
+  /* 기본은 s1 마감이 잠정(비어 있음)인 모집 중 — 메일의 기한은 만료 그대로다 */
+  vi.mocked(loadJoinWindow).mockResolvedValue({
+    phase: SeasonPhase.recruiting,
+    s1ClosesAt: null,
+    now: new Date("2026-09-21T00:00:00Z"),
+  });
 });
 
 describe("혼자 참가", () => {
@@ -171,8 +202,37 @@ describe("팀 참가", () => {
         ideaTitle: "1인 카페 레시피 구독",
         seasonTitle: "시즌 1",
         code: "ACDEFGHJ",
+        validUntil: new Date("2026-09-28T00:00:00Z"),
       }),
     );
+  });
+
+  /*
+    메일의 「유효 기한」은 만료와 합류 마감(s1 달력 마감) 중 이른 쪽이다(2026-09-26).
+    모집 중에 보낸 초대도 레이스로 넘어가 s1 마감에 닫힌다 — 팀 관리 화면과 같은 규칙.
+  */
+  it("s1 마감이 만료보다 앞이면 메일은 s1 마감을 기한으로 적는다", async () => {
+    const s1ClosesAt = new Date("2026-09-27T14:59:00Z");
+    vi.mocked(loadJoinWindow).mockResolvedValue({
+      phase: SeasonPhase.recruiting,
+      s1ClosesAt,
+      now: new Date("2026-09-21T00:00:00Z"),
+    });
+
+    await submitApplication(USER, FORM, CONSENT, CONTEXT);
+
+    expect(sendTeamInvite).toHaveBeenCalledWith(
+      expect.objectContaining({ validUntil: s1ClosesAt }),
+    );
+  });
+
+  it("합류 기간을 못 읽어도 접수는 살아 있다", async () => {
+    vi.mocked(loadJoinWindow).mockRejectedValue(new Error("DB 끊김"));
+
+    const result = await submitApplication(USER, FORM, CONSENT, CONTEXT);
+
+    expect(result).toEqual({ ok: true, entryId: "entry-1" });
+    expect(sendTeamInvite).not.toHaveBeenCalled();
   });
 
   it("발송이 실패해도 접수는 살아 있다", async () => {
@@ -287,5 +347,158 @@ describe("동의 로그", () => {
       data: unknown[];
     };
     expect(arg.data).toHaveLength(2);
+  });
+});
+
+describe("지각 편입 링크", () => {
+  const CODE = "LTEACDEFGHJ";
+  /* 목의 devNow와 같은 시각 */
+  const NOW = new Date("2026-09-30T03:00:00Z");
+  /* s1 달력 마감 10.04 23:59 KST — 편입 기한이자 링크 기한의 상한 */
+  const S1_END = new Date("2026-10-04T14:59:00Z");
+  const PASS = {
+    seasonId: "season-1",
+    usedAt: null,
+    revokedAt: null,
+    expiresAt: S1_END,
+  };
+
+  beforeEach(() => {
+    vi.mocked(getCurrentSeason).mockResolvedValue({
+      id: "season-1",
+      title: "시즌 1",
+      phase: "racing",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(resolveLandingCta).mockReturnValue({ kind: "LEADERBOARD" } as any);
+    vi.mocked(prisma.lateEntryPass.findUnique).mockResolvedValue(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      PASS as any,
+    );
+    vi.mocked(prisma.stage.findUnique).mockResolvedValue(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { closesAt: S1_END } as any,
+    );
+  });
+
+  it("레이스 중 유효한 링크면 접수하고, 같은 트랜잭션에서 링크를 쓴다", async () => {
+    const result = await submitApplication(USER, FORM, CONSENT, CONTEXT, CODE);
+
+    expect(result).toEqual({ ok: true, entryId: "entry-1" });
+    expect(tx.lateEntryPass.updateMany).toHaveBeenCalledTimes(1);
+    const arg = vi.mocked(tx.lateEntryPass.updateMany).mock.calls[0]?.[0] as {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    };
+    /* 대기 중일 때만 — 두 탭 동시 제출의 방어선 */
+    expect(arg.where).toMatchObject({
+      code: CODE,
+      seasonId: "season-1",
+      usedAt: null,
+      revokedAt: null,
+      /* 만료 전일 때만 — 목의 devNow */
+      expiresAt: { gt: NOW },
+    });
+    expect(arg.data).toMatchObject({ usedBy: "user-1", entryId: "entry-1" });
+  });
+
+  it("링크는 참가 행이 생긴 뒤, 같은 트랜잭션 클라이언트로 쓴다", async () => {
+    await submitApplication(USER, FORM, CONSENT, CONTEXT, CODE);
+
+    const entryAt = vi.mocked(tx.entry.create).mock.invocationCallOrder[0];
+    const claimAt = vi.mocked(tx.lateEntryPass.updateMany).mock.invocationCallOrder[0];
+    expect(claimAt).toBeGreaterThan(entryAt ?? Infinity);
+  });
+
+  it("다른 탭이 먼저 썼으면 접수를 되돌리고 그 사유를 말한다", async () => {
+    tx.lateEntryPass.updateMany.mockResolvedValue({ count: 0 });
+    /* 다시 읽으면 이미 쓰인 링크다 */
+    vi.mocked(prisma.lateEntryPass.findUnique)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .mockResolvedValueOnce(PASS as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .mockResolvedValueOnce({ ...PASS, usedAt: new Date() } as any);
+
+    const result = await submitApplication(USER, FORM, CONSENT, CONTEXT, CODE);
+
+    expect(result.ok === false && result.code).toBe("LATE_PASS_USED");
+    /* 트랜잭션이 예외로 끝났다 — 메일도 나가지 않는다 */
+    expect(sendTeamInvite).not.toHaveBeenCalled();
+  });
+
+  it("이미 다른 팀의 팀원으로 참가 중이면 막고, 링크는 쓰지 않는다", async () => {
+    tx.entry.findFirst.mockResolvedValue({ id: "entry-other" });
+
+    const result = await submitApplication(USER, FORM, CONSENT, CONTEXT, CODE);
+
+    expect(result.ok === false && result.code).toBe("ALREADY_APPLIED");
+    /* 조회는 팀장 여부가 아니라 소속으로 본다 — 합류(acceptInvite)와 같은 조건 */
+    expect(tx.entry.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          seasonId: "season-1",
+          team: { members: { some: { userId: "user-1" } } },
+        },
+      }),
+    );
+    expect(tx.entry.create).not.toHaveBeenCalled();
+    expect(tx.lateEntryPass.updateMany).not.toHaveBeenCalled();
+    expect(sendTeamInvite).not.toHaveBeenCalled();
+  });
+
+  it("편입 기한은 s1 행의 달력 마감이다 — 유동 게이트의 실제 마감이 아니다", async () => {
+    await submitApplication(USER, FORM, CONSENT, CONTEXT, CODE);
+
+    /* 한 행만 읽는다. 실제 마감(stage-read `stageDueAt`)이면 시즌 스테이지를 다 읽는다 */
+    expect(prisma.stage.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { seasonId_stageKey: { seasonId: "season-1", stageKey: "s1" } },
+      }),
+    );
+  });
+
+  it("s1 구간이 끝났으면 링크가 살아 있어도 받지 않는다", async () => {
+    /* s1 달력 마감이 지금보다 앞이다 — 허브의 s1 제출 기한(1차 게이트)은 남았어도 닫는다 */
+    vi.mocked(prisma.stage.findUnique).mockResolvedValue(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { closesAt: new Date(NOW.getTime() - 1) } as any,
+    );
+
+    const result = await submitApplication(USER, FORM, CONSENT, CONTEXT, CODE);
+
+    expect(result.ok === false && result.code).toBe("LATE_PASS_CLOSED");
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("죽은 링크면 트랜잭션을 열지 않는다", async () => {
+    vi.mocked(prisma.lateEntryPass.findUnique).mockResolvedValue(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { ...PASS, revokedAt: new Date() } as any,
+    );
+
+    const result = await submitApplication(USER, FORM, CONSENT, CONTEXT, CODE);
+
+    expect(result.ok === false && result.code).toBe("LATE_PASS_REVOKED");
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("레이스 중 링크 없이 오면 여전히 NOT_RECRUITING이다", async () => {
+    const result = await submitApplication(USER, FORM, CONSENT, CONTEXT);
+
+    expect(result.ok === false && result.code).toBe("NOT_RECRUITING");
+    expect(prisma.lateEntryPass.findUnique).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("모집 중이면 링크를 들고 와도 보지 않는다 — 평소 신청이다", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(resolveLandingCta).mockReturnValue({ kind: "APPLY" } as any);
+
+    const result = await submitApplication(USER, FORM, CONSENT, CONTEXT, CODE);
+
+    expect(result).toEqual({ ok: true, entryId: "entry-1" });
+    expect(prisma.lateEntryPass.findUnique).not.toHaveBeenCalled();
+    expect(tx.lateEntryPass.updateMany).not.toHaveBeenCalled();
   });
 });

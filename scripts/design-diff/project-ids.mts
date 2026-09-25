@@ -37,7 +37,11 @@ const entries = await prisma.entry.findMany({
 });
 
 const live = entries.find((e) => e.team.name === "리틀포션");
-/* 판정 기준은 화면과 같다 — public-read.ts의 `notDeployed` */
+/*
+  화면의 판정(race.ts `notDeployed`)은 주소 확인에 더해 레이스 전(s3 미제출)도
+  미배포로 본다(2026-09-26). 여기서는 주소 쪽만 본다 — 대조 ②는 주소가 없는 팀이라
+  레이스 시작과 무관하게 미배포이고, 집계 픽스처가 모든 팀에 레이스 시작을 심는다.
+*/
 const undeployed = entries.find(
   (e) => e.hostname === null || e.hostname.ownershipVerifiedAt === null,
 );

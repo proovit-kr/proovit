@@ -15,6 +15,7 @@ import {
   type JudgingFailureCode,
 } from "@/lib/judging";
 import { prisma } from "@/lib/prisma";
+import { raceEndAt, teamRaceWindow } from "@/lib/race";
 
 /*
   심사 판정 저장. **서버 전용이다.**
@@ -101,7 +102,15 @@ export async function loadJudgingBoard(
           select: {
             id: true,
             team: { select: { name: true } },
-            metricDaily: { select: { signups: true, validVisitors: true } },
+            raceStartedAt: true,
+            metricDaily: {
+              select: {
+                metricDate: true,
+                signups: true,
+                validVisitors: true,
+                manualReviewPassed: true,
+              },
+            },
           },
         },
         judgments: {
@@ -130,18 +139,36 @@ export async function loadJudgingBoard(
       : Promise.resolve([]),
   ]);
 
+  /* 레이스 끝 — 2차 요약의 유효 이용자를 리더보드와 같은 구간으로 센다(아래) */
+  const raceEnd = raceEndAt(stages);
   const rows: JudgingRow[] = [
     ...submissions.map((row) => {
       const payload = (row.payload ?? {}) as { channels?: unknown };
       const evidence = row.evidenceUrls.length;
       const sum = (k: "signups" | "validVisitors") =>
         row.entry.metricDaily.reduce((a, m) => a + m[k], 0);
+      /*
+        2차(s5)의 유효 이용자는 **레이스 누적**이다 — 그 팀의 레이스 구간·검수 통과한
+        날만(race.ts, 2026-09-26). 리더보드의 같은 팀과 숫자가 달라지면 안 된다.
+        1차(s2)의 유효 신청은 레이스 전의 수요 신호라 전부 센다.
+      */
+      const race = teamRaceWindow({ startedAt: row.entry.raceStartedAt, endsAt: raceEnd, now });
+      const raceVisitors = race
+        ? row.entry.metricDaily
+            .filter(
+              (m) =>
+                m.manualReviewPassed &&
+                m.metricDate >= race.firstDay &&
+                m.metricDate <= race.lastDay,
+            )
+            .reduce((a, m) => a + m.validVisitors, 0)
+        : 0;
       const summary =
         gate.stageKey === StageKey.s2
           ? `유효 신청 ${sum("signups")}, 채널 ${
               Array.isArray(payload.channels) ? payload.channels.length : 0
             }, 증빙 ${evidence}건`
-          : `유효 이용자 ${sum("validVisitors")}, 증빙 ${evidence}건`;
+          : `유효 이용자 ${raceVisitors}, 증빙 ${evidence}건`;
       return {
         entryId: row.entry.id,
         teamName: row.entry.team.name,

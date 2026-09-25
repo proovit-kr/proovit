@@ -63,7 +63,7 @@ export default async function Page({
 
   return (
     <main className="page">
-      <NavBar season={publicHeaderSeason(season)}
+      <NavBar season={await publicHeaderSeason(season)}
       />
       <div className={`${styles.wrap} grow`}>
         <h1 className={styles.title}>{copy.title}</h1>

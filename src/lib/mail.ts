@@ -35,6 +35,7 @@
  * 메일을 쏘는 길을 남기지 않기 위해서다.
  */
 
+import { deadlineParts } from "@/lib/kst-format";
 import { formatInviteCode } from "@/lib/team";
 
 const ENDPOINT = "https://api.resend.com/emails";
@@ -295,7 +296,7 @@ export async function sendLeadWelcome(params: {
   });
 }
 
-/** 초대 만료일을 한국 시각으로. 메일은 서버 시간대를 믿을 수 없어 못박는다. */
+/** 날짜를 한국 시각으로. 메일은 서버 시간대를 믿을 수 없어 못박는다. */
 function kstDate(value: Date): string {
   return new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
@@ -303,6 +304,18 @@ function kstDate(value: Date): string {
     month: "long",
     day: "numeric",
   }).format(value);
+}
+
+/**
+ * 마감을 한국 시각으로 — 「2026년 10월 18일 23:59」. 자정 마감은 **전날 24:00**이다
+ * (제출 화면 `formatDeadline`과 같은 규칙, kst-format.ts `deadlineParts`).
+ *
+ * 초대 메일의 기한이 날짜만이던 때(`kstDate`)는 합류 마감이 자정(10.19 00:00)이면
+ * 「10월 19일까지」가 되어 하루를 더 주는 것처럼 읽혔다(2026-09-26 리뷰 지적).
+ */
+function kstDeadline(value: Date): string {
+  const part = deadlineParts(value);
+  return `${part.year}년 ${Number(part.month)}월 ${Number(part.day)}일 ${part.time}`;
 }
 
 /**
@@ -327,13 +340,18 @@ export async function sendTeamInvite(params: {
   ideaTitle: string;
   seasonTitle: string;
   code: string;
-  expiresAt: Date;
+  /**
+   * 「유효 기한」에 적는 시각 — 초대 만료와 합류 마감(s1 달력 마감) 중 이른 쪽
+   * (team.ts `inviteValidUntil`). 만료만 적으면 합류가 먼저 닫혀도 메일은 더 늦은
+   * 날을 말한다(2026-09-26).
+   */
+  validUntil: Date;
 }): Promise<MailResult> {
   const { email, inviterNickname, teamName, ideaTitle, seasonTitle, code: rawCode } =
     params;
   /* 사람이 읽는 모양으로(PRV-LP-7F3K). 주소에 넣어도 normalize가 하이픈을 뗀다 */
   const code = formatInviteCode(rawCode);
-  const until = kstDate(params.expiresAt);
+  const until = kstDeadline(params.validUntil);
   const url = `${siteUrl()}/apply?invite=${encodeURIComponent(code)}`;
 
   const text = [

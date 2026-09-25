@@ -192,8 +192,9 @@ describe("공개 헤더 — 조합기 MAP.pub", () => {
   });
 
   /*
-    리더보드 플래그는 시즌1에서 s4 시작 전까지 꺼진다(2026-09-20 수연 지시).
-    그동안 헤더에는 리더보드로 가는 길이 하나도 없어야 한다 — 화면이 404라서다.
+    리더보드가 닫혀 있는 동안(2026-09-26부터: 플래그가 꺼졌거나 아직 레이스를 시작한
+    팀이 없을 때 — race.ts `leaderboardOpen`) 헤더에는 리더보드로 가는 길이 하나도
+    없어야 한다 — 화면이 404라서다. 헤더가 받는 `leaderboard`는 그 판정을 거친 값이다.
   */
   it("리더보드가 꺼진 시즌이면 헤더에 진입점이 없다", () => {
     for (const season of SEASONS) {
@@ -535,6 +536,14 @@ describe("운영자 헤더 — A1~A7", () => {
     expect(flat(m.queues[0].segs)).toBe("신청 24 팀 목표 20~40 마감 09.27");
     expect(m.queues[1]).toMatchObject({ tone: "w" });
     expect(flat(m.queues[1].segs)).toBe("온보딩 미완료 3 팀");
+  });
+
+  it("A2 마감 — 레이스 전환(= 개막)이 00:00이면 전날을 적는다(랜딩과 같은 날)", () => {
+    const m = adm({
+      phase: SeasonPhase.recruiting,
+      recruitDeadline: new Date("2026-09-28T00:00:00+09:00"),
+    });
+    expect(flat(m.queues[0].segs)).toBe("신청 24 팀 목표 20~40 마감 09.27");
   });
 
   it("A3 스테이지 진행 — 지금 스테이지 배지에 도트, 대기열 1개", () => {

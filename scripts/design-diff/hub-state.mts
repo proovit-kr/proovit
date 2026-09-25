@@ -29,12 +29,15 @@ import {
 import {
   checkDevSandbox,
   HUB_PLANS,
+  restoreRaceStarts,
+  saveRaceStarts,
   setMetricsFixture,
   setSandboxHub,
   setSandboxStage,
   sleepNextSeason,
   unparkTeam,
   type HubKey,
+  type SavedRaceStart,
 } from "../../src/lib/dev-sandbox";
 import { devToday, setDevToday } from "../../src/lib/dev-clock";
 import { setDevHubKey } from "../../src/lib/dev-hub";
@@ -157,6 +160,8 @@ if (mode === "save") {
         team: TEAM,
         phase: season.phase,
         featureFlags: season.featureFlags,
+        /* 픽스처·스테이지 줄이 레이스 시작을 심는다(2026-09-26 팀별 집계) */
+        raceStarts: await saveRaceStarts(season.id),
         stages,
         entry: { id: entry.id, stage: entry.stage, status: entry.status },
         /* 픽스처가 「오늘」을 옮긴다(raceStage) — 떠 두고 되돌린다 */
@@ -182,6 +187,8 @@ if (mode === "save") {
   const snap = JSON.parse(readFileSync(SNAP, "utf8")) as {
     phase: SeasonPhase;
     featureFlags: unknown;
+    /* 옛 save에는 없다 — 그때는 전부 지운다(`restoreRaceStarts`) */
+    raceStarts?: SavedRaceStart[];
     stages: { stageKey: string; opensAt: string | null; closesAt: string | null }[];
     entry: { id: string; stage: EntryStage; status: EntryStatus };
     today: string | null;
@@ -201,6 +208,8 @@ if (mode === "save") {
 
   /* 픽스처가 만든 스냅샷·일별 지표·수상을 먼저 걷어낸다 */
   await setMetricsFixture({ seasonId: season.id, kind: "none" });
+  /* 픽스처가 심은 레이스 시작을 떠 둔 값으로 — 「none」도 s4 달력 시작일을 심는다 */
+  await restoreRaceStarts(season.id, snap.raceStarts);
 
   /* 실격 판(h14)이 남긴 제재도 걷는다 — 헤더가 계속 붉은 띠를 문다 */
   await prisma.sanction.deleteMany({

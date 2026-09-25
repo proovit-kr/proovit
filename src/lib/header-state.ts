@@ -305,8 +305,13 @@ export type PublicHeaderInput = {
     title: string;
     /*
       ⚠️ `leaderboard`가 꺼져 있으면 **모든 화면에서 리더보드 진입점을 숨긴다**
-      (2026-09-20 수연 지시 — 시즌1은 s4 시작 전까지 끈다). 화면은 접근 판정에서
-      이미 404가 되므로(access-policy), 링크만 남으면 눌러서 404를 만나게 된다.
+      (2026-09-20 수연 지시). 화면은 접근 판정에서 이미 404가 되므로
+      (access-policy), 링크만 남으면 눌러서 404를 만나게 된다.
+
+      이 값은 날것의 플래그가 아니라 「지금 여는가」다 — 플래그 켜짐 그리고 레이스를
+      시작한 팀이 있음(race.ts `leaderboardOpen`, 2026-09-26). 옛 운영 「시즌1은 s4
+      시작 전까지 플래그를 끈다」(09-20)를 이 판정이 대신한다 — 첫 팀이 s3을 내는
+      순간 열린다. 만드는 쪽은 season.ts `publicHeaderSeason`이다.
     */
     flags: { notifications: boolean; leaderboard: boolean };
   } | null;
@@ -510,6 +515,7 @@ export type DashboardHeaderInput = {
     startsAt: Date | null;
     /** 시상 발표 시각으로 쓴다(D3 게이트 2 「발표 11.03 내」) */
     endsAt: Date | null;
+    /** `leaderboard`는 「지금 여는가」다(공개 헤더의 같은 칸 주석) */
     flags: { notifications: boolean; leaderboard: boolean };
   };
   team: { name: string; members: number };
@@ -929,7 +935,7 @@ export type AdminHeaderInput = {
   /** 셀렉트에 올릴 시즌들. 최신순 */
   seasons: { id: string; title: string; phase: SeasonPhase }[];
   stages: StageInfo[];
-  /** 참가 신청 마감(레이스 전환 예정 시각) */
+  /** 참가 신청 마감 — 레이스 전환(= 개막) 예정 시각. 00:00이면 전날로 적는다 */
   recruitDeadline: Date | null;
   queues: {
     leads: number;
@@ -1014,8 +1020,15 @@ export function resolveAdminHeader(input: AdminHeaderInput): AdminHeaderModel {
         { text: "신청 " }, n(queues.entries), { text: "팀 " },
         { text: `목표 ${RECRUIT_TARGET}`, faint: true },
       ];
+      /*
+        레이스 전환이 00:00이면 전날이 마지막 날이다(`lastDayOf`) — 랜딩의 「09.27 마감」과
+        같은 날로 적는다. 그대로 적으면 이 헤더만 「마감 09.28」로 하루 늦게 읽혔다(2026-09-26).
+      */
       if (input.recruitDeadline) {
-        segs.push({ text: "마감", faint: true }, { text: fmtMD(input.recruitDeadline), num: true });
+        segs.push(
+          { text: "마감", faint: true },
+          { text: fmtMD(lastDayOf(input.recruitDeadline)), num: true },
+        );
       }
       const list: AdminQueue[] = [{ tone: "l", href: "/admin/entries", segs }];
       if (queues.onboardingIncomplete > 0) {

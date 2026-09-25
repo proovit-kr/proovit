@@ -8,14 +8,19 @@ import {
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { applyConsentRows, hashIp } from "@/lib/apply-store";
+import { devNow } from "@/lib/dev-clock";
 import {
   INVITE_ALPHABET,
   INVITE_CODE_LENGTH,
   INVITE_CODE_PREFIX,
   INVITE_TTL_DAYS,
   inviteFailure,
+  type JoinClosedCode,
+  type JoinWindow,
+  joinWindowFrom,
   MAX_TEAM_SIZE,
   normalizeInviteCode,
+  soloConfirmable,
   type TeamFailureCode,
 } from "@/lib/team";
 
@@ -138,10 +143,16 @@ export async function loadTeamPanel(teamId: string): Promise<TeamPanel | null> {
  * `randomInt`를 쓴다 — `Math.random()`은 예측 가능해서, 남의 팀 코드를 맞혀
  * 팀에 들어가는 길이 생긴다. 코드 하나로 팀 소속이 결정되므로 인증 토큰과
  * 같은 급으로 다룬다.
+ *
+ * 접두사와 길이를 받는 이유: 지각 편입 링크(late-entry.ts)가 같은 문자표·같은
+ * 생성기를 쓰되 접두사로 갈린다(2026-09-26). 기본값이 초대 코드다.
  */
-export function generateCode(): string {
-  let code = INVITE_CODE_PREFIX;
-  for (let i = 0; i < INVITE_CODE_LENGTH; i += 1) {
+export function generateCode(
+  prefix: string = INVITE_CODE_PREFIX,
+  length: number = INVITE_CODE_LENGTH,
+): string {
+  let code = prefix;
+  for (let i = 0; i < length; i += 1) {
     code += INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)];
   }
   return code;
@@ -324,9 +335,67 @@ export async function transferLeader(
   return { ok: true };
 }
 
+/**
+ * 개인 참가로 확정 — 합류가 s1 달력 마감으로 닫혔는데 혼자 남은 팀(team.ts
+ * `soloConfirmable`, 2026-09-26). `isSolo`를 켜면 「팀 구성 완료」가 된다(access.ts).
+ *
+ * 인원과 `isSolo`는 트랜잭션 안에서 다시 읽는다 — 화면을 그린 뒤 누가 들어왔거나
+ * 이미 확정됐을 수 있다. 합류 마감(`closed`)은 부르는 쪽이 `loadJoinWindow`로 읽은
+ * 값이다(팀 관리 액션). 남은 초대는 건드리지 않는다 — 마감 뒤라 받을 수 없고,
+ * 운영자가 s1 마감을 뒤로 옮겨 다시 열리면 그대로 쓰면 된다.
+ */
+export async function confirmSolo(
+  teamId: string,
+  closed: JoinClosedCode | null,
+): Promise<TeamActionResult> {
+  return prisma.$transaction(async (tx) => {
+    const team = await tx.team.findUnique({
+      where: { id: teamId },
+      select: { isSolo: true, _count: { select: { members: true } } },
+    });
+    if (
+      !team ||
+      !soloConfirmable({
+        closed,
+        memberCount: team._count.members,
+        isSolo: team.isSolo,
+      })
+    ) {
+      return { ok: false, code: "SOLO_UNAVAILABLE" } as const;
+    }
+    await tx.team.update({ where: { id: teamId }, data: { isSolo: true } });
+    return { ok: true } as const;
+  });
+}
+
 // ═════════════════════════════════════════════════════════════
 // 합류 — 초대받은 쪽
 // ═════════════════════════════════════════════════════════════
+
+/**
+ * 합류 기간의 재료 — 시즌 페이즈, s1 달력 마감, 판정 시각(2026-09-26, team.ts
+ * `JoinWindow`). 팀 관리 화면·액션과 초대 조회(`findInvite`)·수락(`acceptInvite`)이
+ * **전부 이것 하나로** 읽는다 — 따로 읽으면 한쪽만 유동 게이트의 실제 마감
+ * (`stageDueAt`)이나 진짜 시계를 집어, 화면과 수락이 다른 날에 닫힌다.
+ *
+ * s1 행의 `closes_at` **원값**이다. `stageWindows`를 거치지 않는다 — 거치면 s1이
+ * 1차 심사 마감까지 늘어난다. 시각은 개발 시계(`devNow`)를 따른다.
+ * 행에서 s1을 고르는 일은 순수 함수 `joinWindowFrom`(team.ts)이 한다 — 여기서
+ * 행만 읽어 넘겨야 그 선택을 테스트가 고정할 수 있다(2026-09-26 리뷰 지적).
+ *
+ * `db`는 수락이 트랜잭션 안에서 읽을 때 넘긴다. 페이즈는 호출하는 쪽이 읽은
+ * 시즌 값을 그대로 쓴다.
+ */
+export async function loadJoinWindow(
+  season: { id: string; phase: SeasonPhase },
+  db: Prisma.TransactionClient = prisma,
+): Promise<JoinWindow> {
+  const stages = await db.stage.findMany({
+    where: { seasonId: season.id },
+    select: { stageKey: true, closesAt: true },
+  });
+  return joinWindowFrom(stages, season.phase, devNow());
+}
 
 export type InviteLookup =
   | {
@@ -347,30 +416,34 @@ export type InviteLookup =
  * 판정은 `acceptInvite`와 같은 순수 함수(`inviteFailure`)가 한다 — 화면이 말한
  * 사유와 제출 뒤의 사유가 달라지지 않게. 여기서는 합류할 사람을 몰라
  * 「이미 팀원」은 보지 않는다(이미 참가 중인 사람은 화면이 먼저 걸러 낸다).
+ * 합류 기간(s1 달력 마감)도 수락과 같은 `loadJoinWindow`로 읽는다.
  */
 export async function findInvite(
   rawCode: string,
   season: { id: string; phase: SeasonPhase },
 ): Promise<InviteLookup> {
   const code = normalizeInviteCode(rawCode);
-  const invite = await prisma.teamInvitation.findUnique({
-    where: { inviteCode: code },
-    select: {
-      status: true,
-      expiresAt: true,
-      team: {
-        select: {
-          name: true,
-          _count: { select: { members: true } },
-          entries: {
-            where: { seasonId: season.id },
-            select: { ideaTitle: true, stage: true, status: true },
-            take: 1,
+  const [invite, joinWindow] = await Promise.all([
+    prisma.teamInvitation.findUnique({
+      where: { inviteCode: code },
+      select: {
+        status: true,
+        expiresAt: true,
+        team: {
+          select: {
+            name: true,
+            _count: { select: { members: true } },
+            entries: {
+              where: { seasonId: season.id },
+              select: { ideaTitle: true, status: true },
+              take: 1,
+            },
           },
         },
       },
-    },
-  });
+    }),
+    loadJoinWindow(season),
+  ]);
 
   const entry = invite?.team.entries[0] ?? null;
   const failure = inviteFailure(
@@ -381,7 +454,8 @@ export async function findInvite(
       entry,
       alreadyMember: false,
     },
-    season.phase,
+    joinWindow,
+    /* 만료는 진짜 지금으로 잰다 — team.ts `inviteFailure`의 「시계가 둘」 */
     new Date(),
   );
   /* 뒤의 둘은 타입을 좁히는 줄이다 — 없으면 inviteFailure가 이미 INVITE_NOT_FOUND를 냈다 */
@@ -411,6 +485,11 @@ export async function findInvite(
  * 좁힌다. 행을 잠그지는 않는다 — s2 제출과 같은 순간에 겹치면 한 명이 붙을 수
  * 있고, 그건 받아들인다(내가 정함, 수연 확인 대기). 페이즈는 호출하는 쪽이 읽은
  * 시즌 값을 그대로 쓴다.
+ *
+ * → 2026-09-26 뒤집음: 진도가 아니라 **s1 달력 마감**으로 닫는다(수연 지시 「절대
+ * 날짜로」). 트랜잭션 안에서 읽는 것은 팀의 상태와 s1 마감(`loadJoinWindow(…, tx)`)이고,
+ * 마감 판정은 그 순간의 개발 시계로 한다. 운영자가 같은 순간에 팀을 실격시키거나
+ * s1 마감을 옮기면 한 명이 붙을 수 있고, 그건 여전히 받아들인다.
  */
 export async function acceptInvite(
   user: { id: string },
@@ -438,13 +517,14 @@ export async function acceptInvite(
               members: { select: { userId: true } },
               entries: {
                 where: { seasonId },
-                select: { id: true, stage: true, status: true },
+                select: { id: true, status: true },
                 take: 1,
               },
             },
           },
         },
       });
+      const joinWindow = await loadJoinWindow(season, tx);
 
       /* findInvite와 같은 함수·같은 순서다. 다른 것은 「이미 팀원」을 본다는 것뿐 */
       const entry = invite?.team.entries[0] ?? null;
@@ -456,7 +536,8 @@ export async function acceptInvite(
           entry,
           alreadyMember: invite.team.members.some((m) => m.userId === user.id),
         },
-        season.phase,
+        joinWindow,
+        /* 만료는 진짜 지금으로 잰다 — team.ts `inviteFailure`의 「시계가 둘」 */
         new Date(),
       );
       /* 기한이 지난 초대는 여기서 닫는다 — 조회(findInvite)는 읽기만 한다 */

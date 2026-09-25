@@ -7,7 +7,9 @@ import {
 } from "@/generated/prisma/enums";
 import { AI_CHECKS, BUILDERS, LAUNCH_CHECKS } from "@/content/submission";
 import { EVIDENCE_COUNT_MAX, EVIDENCE_KEY_MAX } from "@/lib/evidence";
+import { formatDay } from "@/lib/kst-format";
 import { seoulDateOnly } from "@/lib/measure";
+import { raceWeekBase } from "@/lib/race";
 
 /*
   제출의 **순수** 절반 — 길이·형식 규칙과 화면이 판을 읽는 규칙. 화면(클라이언트)도
@@ -362,7 +364,9 @@ export type StageState = {
   stageKey: StageKey;
   /**
    * **달력** 시작일(`stages.opens_at` 그대로). 열림 판정에는 쓰지 않는다 — 그건
-   * `open`이다. s4 주차의 기산일이라 남긴다(`currentWeek`·`weekRange`).
+   * `open`이다. s4 주차의 기산일은 이것이 아니라 팀의 레이스 시작이다
+   * (submission-store `StageRow.weekBase`, 2026-09-26). 레이스 전이면 그 자리를
+   * 이 값이 대신한다(race.ts `raceWeekBase`).
    */
   opensAt: Date | null;
   /** **실제** 마감(`stageWindows`). 게이트가 아닌 스테이지는 뒤 게이트의 마감이다 */
@@ -516,14 +520,21 @@ export function stageRowState(input: {
  * 말이 된다. 운영자 헤더는 달력(시즌 권장 일정)을 그대로 받는다.
  *
  * s4는 주간 반복이라 그 주차의 끝을 마감으로 둔다(`weekDue`, 제출 화면 「이번 주
- * 마감」과 같은 값). 주차는 달력 시작일로 센다.
+ * 마감」과 같은 값). 주차는 **팀의 레이스 시작부터 7일씩** 센다(2026-09-26 수연 지시,
+ * race.ts `raceWeekBase`) — 시작 전이면 s4 달력 시작일로 센다. 옛 규칙 「주차는 달력
+ * 시작일로 센다」는 레이스 집계를 s4 달력에 고정한 09-06 결정을 따른 것이라 같이 뒤집었다.
  *
  * header-state.ts가 아니라 여기 두는 이유 — 그 파일은 공개 헤더(NavBar·랜딩,
  * 클라이언트)도 읽어서, 이 파일(zod 스키마)을 끌어가면 모든 화면 번들이 무거워진다.
  */
 export function participantStages<
   T extends { key: StageKey; isGate: boolean; opensAt: Date | null; closesAt: Date | null },
->(stages: readonly T[], now: Date): T[] {
+>(
+  stages: readonly T[],
+  now: Date,
+  /** 이 팀의 레이스 시작(`entries.race_started_at`). 시작 전이면 null */
+  raceStartedAt: Date | null = null,
+): T[] {
   const windows = stageWindows(
     stages.map((s) => ({
       stageKey: s.key,
@@ -535,9 +546,10 @@ export function participantStages<
   return stages.map((s) => {
     const win = windows[s.key];
     if (!win) return s;
+    const base = raceWeekBase(raceStartedAt, s.opensAt);
     const closesAt =
       s.key === StageKey.s4
-        ? weekDue(s.opensAt, currentWeek(s.opensAt, now), win.closesAt)
+        ? weekDue(base, currentWeek(base, now), win.closesAt)
         : win.closesAt;
     return { ...s, opensAt: win.opensAt, closesAt };
   });
@@ -603,47 +615,11 @@ export function paneBadge(
 
 const DAY_MS = 86_400_000;
 
-/**
- * 마감 표기 — 시안 `마감 10.04 23:59`·`집계 확정 11.01 24:00`.
- *
- * 자정에 닫히는 마감은 **전날 24:00**으로 적는다. 「11.17 00:00」은 하루를 더
- * 주는 것처럼 읽히고, 시안도 그 자리를 24:00으로 썼다.
- */
-export function formatDeadline(at: Date): string {
-  const part = seoulParts(at);
-  if (part.hour === "00" && part.minute === "00") {
-    const prev = seoulParts(new Date(at.getTime() - DAY_MS));
-    return `${prev.month}.${prev.day} 24:00`;
-  }
-  return `${part.month}.${part.day} ${part.hour}:${part.minute}`;
-}
-
-/** 시각 표기 — 시안 `제출 이윤서, 10.02 21:14` */
-export function formatMoment(at: Date): string {
-  const part = seoulParts(at);
-  return `${part.month}.${part.day} ${part.hour}:${part.minute}`;
-}
-
-/** 날짜만 — 시안 s2의 `10.05~10.10` */
-export function formatDay(at: Date): string {
-  const part = seoulParts(at);
-  return `${part.month}.${part.day}`;
-}
-
-function seoulParts(at: Date): Record<string, string> {
-  return Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Seoul",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(at)
-      .map((p) => [p.type, p.value]),
-  );
-}
+/*
+  마감·시각 표기(`formatDeadline`·`formatMoment`·`formatDay`)는 kst-format.ts로
+  옮겼다(2026-09-26). 표기만 필요한 쪽(team.ts)이 이 파일을 끌어오면 클라이언트
+  번들에 제출 스키마와 콘텐츠가 따라갈 수 있어서다.
+*/
 
 /**
  * 남은 날 — 시안 `D-4`. 서울 달력으로 센다(마감일 − 오늘). 자정 마감은
@@ -658,19 +634,23 @@ export function dDay(closesAt: Date, now: Date): string | null {
 }
 
 /**
- * 지금이 s4의 몇 주차인가. 스테이지 시작일로부터 몇 번째 7일 구간인지가 곧
- * 주차다 — 참가팀이 고르지 않는다. 시작일이 비어 있으면 1주차로 둔다.
+ * 지금이 s4의 몇 주차인가. 기산일로부터 몇 번째 7일 구간인지가 곧 주차다 —
+ * 참가팀이 고르지 않는다. 주차는 1부터다(기산일 전이어도 1주차). 기산일이 비어
+ * 있으면 1주차로 둔다.
+ *
+ * 기산일은 **팀의 레이스 시작**이다(2026-09-26 수연 지시, race.ts `raceWeekBase`) —
+ * 레이스 전이면 s4 달력 시작일. 옛 기산일은 언제나 s4 달력 시작일이었다.
  */
-export function currentWeek(opensAt: Date | null, now: Date): number {
-  if (!opensAt) return 1;
-  const days = Math.floor((now.getTime() - opensAt.getTime()) / DAY_MS);
+export function currentWeek(base: Date | null, now: Date): number {
+  if (!base) return 1;
+  const days = Math.floor((now.getTime() - base.getTime()) / DAY_MS);
   return Math.max(1, Math.floor(days / 7) + 1);
 }
 
-/** 그 주차의 구간. 주간 지표를 그 구간으로만 센다 */
-export function weekRange(opensAt: Date | null, week: number) {
-  if (!opensAt) return { from: null, to: null };
-  const from = new Date(opensAt.getTime() + (week - 1) * 7 * DAY_MS);
+/** 그 주차의 구간. 주간 지표를 그 구간으로만 센다. `base`는 `currentWeek`와 같다 */
+export function weekRange(base: Date | null, week: number) {
+  if (!base) return { from: null, to: null };
+  const from = new Date(base.getTime() + (week - 1) * 7 * DAY_MS);
   const to = new Date(from.getTime() + 7 * DAY_MS - 60_000);
   return { from, to };
 }
@@ -683,11 +663,11 @@ export function weekRange(opensAt: Date | null, week: number) {
  * 끝이다. 제출 화면과 참가자 헤더가 같은 값을 쓴다 — 내가 정함(수연 확인 대기).
  */
 export function weekDue(
-  opensAt: Date | null,
+  base: Date | null,
   week: number,
   closesAt: Date | null,
 ): Date | null {
-  const { to } = weekRange(opensAt, week);
+  const { to } = weekRange(base, week);
   if (!to) return closesAt;
   if (!closesAt) return to;
   return to.getTime() < closesAt.getTime() ? to : closesAt;

@@ -76,7 +76,7 @@ export const loadHeaderViewer = cache(async function loadHeaderViewer(): Promise
  */
 export async function loadPublicNav() {
   const [season, viewer] = await Promise.all([getCurrentSeason(), loadHeaderViewer()]);
-  return { season: publicHeaderSeason(season), viewer };
+  return { season: await publicHeaderSeason(season), viewer };
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -127,7 +127,7 @@ export async function loadDashboardHeader(
 
   const now = devNow();
   const gateKey = entry.stage === EntryStage.s5 ? StageKey.s5 : StageKey.s2;
-  const [seasonRow, stages, unread, gateSubmission, sanction, finalSnapshot, members, store] =
+  const [seasonRow, stages, unread, gateSubmission, sanction, finalSnapshot, members, store, race] =
     await Promise.all([
       prisma.season.findUnique({
         where: { id: season.id },
@@ -160,6 +160,8 @@ export async function loadDashboardHeader(
       }),
       prisma.teamMember.count({ where: { teamId: team.id } }),
       cookies(),
+      /* s4 주차의 기산일 — 팀의 레이스 시작(race.ts `raceWeekBase`) */
+      prisma.entry.findUnique({ where: { id: entry.id }, select: { raceStartedAt: true } }),
     ]);
 
   const nextSeasonRow = seasonRow ? await loadNextSeason({ id: season.id, createdAt: seasonRow.createdAt }) : null;
@@ -180,8 +182,11 @@ export async function loadDashboardHeader(
     team: { name: team.name, members },
     entry: { stage: entry.stage, status: entry.status },
     onboardingComplete: isOnboardingComplete(viewer.onboarding),
-    /* 실제 창(유동 게이트, submission.ts `participantStages`). 운영자 헤더는 달력 그대로다 */
-    stages: participantStages(stages, now),
+    /*
+      실제 창(유동 게이트, submission.ts `participantStages`). 운영자 헤더는 달력 그대로다.
+      s4 마감(그 주차의 끝)은 팀의 레이스 시작부터 센다 — 제출 화면 「이번 주 마감」과 같은 값.
+    */
+    stages: participantStages(stages, now, race?.raceStartedAt ?? null),
     gateSubmittedAt: gateSubmission?.submittedAt ?? null,
     reviewSlaHours: REVIEW_SLA_HOURS,
     finalRank: finalSnapshot?.rank ?? null,
@@ -338,6 +343,7 @@ export async function loadAdminHeader(viewer: ViewerState): Promise<AdminHeaderM
     season: { id: season.id, title: season.title, phase: season.phase, startsAt: season.startsAt, endsAt: season.endsAt },
     seasons: seasons.map((s) => ({ id: s.id, title: s.title, phase: s.phase })),
     stages,
+    /* racing 행이 없으면 개막으로 — 개막 = 레이스 시작이라 같은 순간이다(2026-09-26 수연 결정) */
     recruitDeadline: recruitSchedule?.startsAt ?? season.startsAt,
     queues: {
       leads,

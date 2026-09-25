@@ -8,6 +8,7 @@ import { guardPage } from "@/lib/access";
 import { devNow } from "@/lib/dev-clock";
 import { loadAdminSummary } from "@/lib/admin-read";
 import { fmtDday, fmtStamp } from "@/lib/header-state";
+import { rollupHealth } from "@/lib/race";
 
 import hub from "../dashboard/hub.module.css";
 import c from "./console.module.css";
@@ -39,18 +40,35 @@ const NUM = new Intl.NumberFormat("ko-KR");
  */
 const ROLLUP_LATE_MIN = 30;
 
-function minutesAgo(at: Date): number {
-  return Math.max(0, Math.round((Date.now() - at.getTime()) / 60_000));
-}
-
 /*
   시안 부제 「시즌 1, 자동 집계 정상, 마지막 롤업 6분 전」.
   롤업이 한 번도 안 돌았으면(레이스 전) 그렇다고 적는다 — 「정상」이라 쓰면 거짓이다.
+
+  롤업이 돌아야 하는 때는 **가장 이른 레이스 시작**이다(2026-09-26 팀별 집계 —
+  race.ts `rollupHealth`). 레이스가 시작됐는데 한도가 지나도록 스냅샷이 없으면 그것도
+  지연이다. 두 문구(「첫 롤업 대기」·「첫 롤업 없음」)는 시안에 없다 — 내가 정함
+  (수연 확인 대기).
+
+  시각은 진짜 지금이다 — 롤업 시각(`updated_at`)과 레이스 시작이 진짜 시각이다.
 */
-function subline(title: string, lastRollupAt: Date | null): string {
-  if (!lastRollupAt) return `${title}, 롤업 전`;
-  const m = minutesAgo(lastRollupAt);
-  return `${title}, 자동 집계 ${m > ROLLUP_LATE_MIN ? "지연" : "정상"}, 마지막 롤업 ${m}분 전`;
+function subline(
+  title: string,
+  lastRollupAt: Date | null,
+  firstRaceStartAt: Date | null,
+): string {
+  const health = rollupHealth({
+    firstRaceStartAt,
+    lastRollupAt,
+    now: new Date(),
+    lateMinutes: ROLLUP_LATE_MIN,
+  });
+  if (health.kind === "idle") return `${title}, 롤업 전`;
+  if (health.kind === "first") {
+    return health.late
+      ? `${title}, 자동 집계 지연, 첫 롤업 없음`
+      : `${title}, 첫 롤업 대기`;
+  }
+  return `${title}, 자동 집계 ${health.late ? "지연" : "정상"}, 마지막 롤업 ${health.minutes}분 전`;
 }
 
 /*
@@ -81,7 +99,9 @@ export default async function Page() {
     <>
       <h2 className={hub.h1}>운영 대시보드</h2>
       <p className={hub.sub} style={{ marginBottom: "20px" }}>
-        {summary.season ? subline(summary.season.title, summary.lastRollupAt) : "시즌 없음"}
+        {summary.season
+          ? subline(summary.season.title, summary.lastRollupAt, summary.firstRaceStartAt)
+          : "시즌 없음"}
       </p>
 
       {/*

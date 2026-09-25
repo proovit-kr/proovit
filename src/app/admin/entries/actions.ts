@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { EntryStatus } from "@/generated/prisma/enums";
 import { canAccess, loadAccessContext, getSessionUser } from "@/lib/access";
-import { setEntryStatus } from "@/lib/admin-store";
+import { createLatePass, revokeLatePass, setEntryStatus } from "@/lib/admin-store";
+import { fmtMDHM } from "@/lib/header-state";
 
 /*
   참가 상태 변경.
@@ -56,4 +57,59 @@ export async function changeEntryStatus(
   /* 상태는 참가자 화면(허브·사이드바·헤더)과 공개 리더보드에도 걸린다 */
   revalidatePath("/", "layout");
   return { done: Date.now() };
+}
+
+/*
+  지각 편입 링크 — 참가 관리의 「지각 편입」 칸(시안에 없는 칸, LatePassPanel).
+  2026-09-26 수연 지시 · PRD OPEN-6. `op` 하나로 가른다.
+
+    create  1회용 편입 링크를 만든다
+    revoke  대기 중인 링크를 취소한다
+
+  위 상태 변경과 같은 두 겹이다 — 여기서 `canAccess("adminEntries")`를 다시 보고,
+  사유·기간·대기 여부는 store가 다시 본다(admin-store `createLatePass`·`revokeLatePass`).
+*/
+
+export type LatePassActionState = {
+  message?: string;
+  done?: number;
+  /** 방금 만든 링크. 주소는 화면이 서버가 정한 origin으로 조립한다(page.tsx `latePassOrigin`) */
+  created?: { code: string; expires: string };
+};
+
+export async function manageLatePass(
+  _prev: LatePassActionState,
+  formData: FormData,
+): Promise<LatePassActionState> {
+  const user = await getSessionUser();
+  if (!user) return { message: "로그인이 풀렸습니다." };
+
+  const permission = canAccess("adminEntries", await loadAccessContext());
+  if (!permission.ok) return { message: permission.message };
+
+  const op = String(formData.get("op") ?? "");
+  const seasonId = String(formData.get("seasonId") ?? "");
+  const reason = String(formData.get("reason") ?? "");
+  if (!seasonId) return { message: "잘못된 요청입니다." };
+
+  if (op === "create") {
+    const result = await createLatePass({ seasonId, reason, actorId: user.id });
+    if (!result.ok) return { message: result.message };
+    revalidatePath("/admin/entries");
+    return {
+      done: Date.now(),
+      created: { code: result.code, expires: fmtMDHM(result.expiresAt) },
+    };
+  }
+
+  if (op === "revoke") {
+    const passId = String(formData.get("passId") ?? "");
+    if (!passId) return { message: "잘못된 요청입니다." };
+    const result = await revokeLatePass({ seasonId, passId, reason, actorId: user.id });
+    if (!result.ok) return { message: result.message };
+    revalidatePath("/admin/entries");
+    return { done: Date.now() };
+  }
+
+  return { message: "잘못된 요청입니다." };
 }

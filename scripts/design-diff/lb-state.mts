@@ -13,6 +13,9 @@
   `save`가 지금의 페이즈·플래그·스테이지 날짜를 먼저 적어 두고 `restore`가
   그대로 되돌린다. 지금 dev DB에 들어 있는 것은 수연의 임시 일정이다.
 
+  레이스 시작도 뜬다(2026-09-26 팀별 집계). 리더보드는 레이스를 시작한 팀이 있어야
+  열리고(race.ts), 픽스처가 참가팀 전부에 그 값을 심는다(dev-sandbox `fixtureRaceStart`).
+
   ⚠️ **반드시 .env.development.local로 돌린다.** `.env`는 운영 DB다
   (consent-session.mts와 같은 가드).
 */
@@ -28,8 +31,11 @@ import {
 import { prisma } from "../../src/lib/prisma";
 import {
   checkDevSandbox,
+  restoreRaceStarts,
+  saveRaceStarts,
   setMetricsFixture,
   setSandboxPhase,
+  type SavedRaceStart,
 } from "../../src/lib/dev-sandbox";
 
 const check = checkDevSandbox();
@@ -114,6 +120,7 @@ if (mode === "save") {
       {
         phase: season.phase,
         featureFlags: season.featureFlags,
+        raceStarts: await saveRaceStarts(season.id),
         stages,
         hostnames,
       },
@@ -130,7 +137,7 @@ if (mode === "save") {
     seasonId: season.id,
     phase: mode === "race" ? SeasonPhase.racing : SeasonPhase.awarded,
   });
-  /* 픽스처가 리더보드 플래그를 켜고 스테이지 날짜도 옮긴다 */
+  /* 픽스처가 리더보드 플래그를 켜고 스테이지 날짜와 레이스 시작도 옮긴다 */
   await setMetricsFixture({ seasonId: season.id, kind: mode });
   await fakeHostnames(season.id);
   console.log(`${mode}로 바꿈`);
@@ -138,6 +145,8 @@ if (mode === "save") {
   const snap = JSON.parse(readFileSync(SNAP, "utf8")) as {
     phase: SeasonPhase;
     featureFlags: unknown;
+    /* 옛 save에는 없다 — 그때는 전부 지운다(`restoreRaceStarts`) */
+    raceStarts?: SavedRaceStart[];
     stages: {
       stageKey: string;
       opensAt: string | null;
@@ -152,6 +161,8 @@ if (mode === "save") {
   };
   /* 픽스처가 만든 스냅샷·일별 지표·수상을 먼저 걷어낸다 */
   await setMetricsFixture({ seasonId: season.id, kind: "none" });
+  /* 픽스처가 심은 레이스 시작을 떠 둔 값으로 — 「none」도 s4 달력 시작일을 심는다 */
+  await restoreRaceStarts(season.id, snap.raceStarts);
 
   /* 내가 만든 hostname은 지우고, 원래 있던 것은 값을 되돌린다 */
   const kept = snap.hostnames.map((h) => h.entryId);

@@ -75,8 +75,10 @@ export type HubInput = {
   onboardingComplete: boolean;
   /**
    * 측정 연동이 끝났는가. **리더보드의 「미배포」와 같은 판정이다**
-   * (`public-read.ts`의 `notDeployed`, access.ts의 `measurementReady`) —
+   * (`race.ts`의 `notDeployed`, access.ts의 `measurementReady`) —
    * 그래서 시안 h13이 「리더보드에 미배포로 표시되고」라고 말할 수 있다.
+   * 리더보드 쪽은 2026-09-26부터 「레이스 전(s3 미제출)」도 미배포로 세지만,
+   * 이 판(h13)은 s4 진도 — s3을 낸 뒤 — 에서만 나오므로 둘이 같은 말을 한다.
    */
   measurementReady: boolean;
   /**

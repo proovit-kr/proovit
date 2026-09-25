@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
+import { Clauses } from "@/components/Clauses";
 import { Field, Input } from "@/components/Field";
 import { Modal } from "@/components/Modal";
 import { Card } from "@/components/Surface";
@@ -46,7 +47,18 @@ import styles from "./team.module.css";
 
   레이스 중 열려 있으면 살아 있는 초대 밑에 `joinNote`(s2를 내면 닫힌다)를 붙인다 —
   메일의 기한은 7일인데 그보다 먼저 죽을 수 있어서다. 이것도 시안에 없다.
+  → 2026-09-26: 닫히는 때가 s1 달력 마감이 되어 안내가 날짜를 적는다(「팀원 합류는
+  10.18 23:59까지예요.」 · team.ts `joinDeadlineNote`). 자리는 그대로다.
+
+  마감 뒤 혼자 남은 비솔로 팀(`canConfirmSolo`, 2026-09-26)은 마감 상자에
+  「개인 참가로 확정」을 단다 — 없으면 팀 구성을 끝낼 길이 없는데 허브는 계속 이
+  화면으로 보낸다. 받을 수 없는 초대가 남아 있어도 확정할 수 있어야 해서, 마감
+  상자는 **초대가 남아 있어도** 세운다. 그때 초대 칸 밑의 사유는 상자가 이미
+  말했으므로 떼어 낸다. 상자·버튼 문구와 배치는 시안에 없다 — 내가 정함(수연 확인 대기).
 */
+
+/* 허브 h10(late)의 행동 상자가 약속한 일 — 「개인 참가로 확정하면 …」 */
+const SOLO_HINT = "개인 참가로 확정하면 바로 다음 단계로 갈 수 있어요.";
 
 type MemberView = {
   userId: string;
@@ -90,6 +102,7 @@ export function TeamPanel({
   canManage,
   joinClosed,
   joinNote,
+  canConfirmSolo,
   viewerId,
   viewerIsLeader,
 }: {
@@ -102,8 +115,10 @@ export function TeamPanel({
   canManage: boolean;
   /** 합류가 마감됐으면 그 사유 문구. 서버가 `joinClosedCode`로 판정해 내린다 */
   joinClosed: string | null;
-  /** 열려 있지만 곧 닫힐 수 있을 때 살아 있는 초대 밑에 붙이는 안내(레이스 중) */
+  /** 열려 있을 때 살아 있는 초대 밑에 붙이는 합류 마감 안내(레이스 중, 마감이 정해졌을 때) */
   joinNote: string | null;
+  /** 개인 참가로 확정할 수 있는가. 서버가 `soloConfirmable`로 판정해 내린다 */
+  canConfirmSolo: boolean;
   viewerId: string;
   viewerIsLeader: boolean;
 }) {
@@ -129,11 +144,14 @@ export function TeamPanel({
   useEffect(() => {
     if (state.done === "invited" && !state.message) show("초대 메일을 보냈어요");
     if (state.done === "resent") show("초대 메일을 다시 보냈어요");
+    if (state.done === "solo") show("개인 참가로 확정했어요");
   }, [state, show]);
 
   const leader = members.find((m) => m.isLeader);
   const others = members.filter((m) => !m.isLeader);
   const solo = members.length < 2;
+  /* 합류가 닫혔으면 초대가 남아 있어도 사유 상자를 세운다(머리 주석) */
+  const closedBox = canManage && !full && joinClosed !== null;
 
   const copy = async (code: string) => {
     try {
@@ -186,12 +204,31 @@ export function TeamPanel({
       </Card>
 
       {/* ── 초대(② 개인 참가) ─────────────────────────────── */}
-      {canManage && !full && !invite && joinClosed ? (
-        <div className={`${hub.act} ${styles.actGap}`}>
+      {closedBox ? (
+        <div
+          className={`${hub.act} ${canConfirmSolo ? hub.hero : ""} ${styles.actGap}`}
+        >
           <div>
             <h3>팀원 초대가 마감됐어요</h3>
-            <p>{joinClosed}</p>
+            <p>
+              <Clauses
+                text={canConfirmSolo ? `${joinClosed} ${SOLO_HINT}` : joinClosed}
+              />
+            </p>
           </div>
+          {canConfirmSolo ? (
+            <Button
+              type="submit"
+              name="op"
+              value="solo"
+              variant="primary"
+              className={hub.actBtn}
+              disabled={pending}
+              formNoValidate
+            >
+              개인 참가로 확정
+            </Button>
+          ) : null}
         </div>
       ) : canManage && !full && !invite ? (
         <div className={`${hub.act} ${hub.hero} ${styles.actGap}`}>
@@ -211,7 +248,10 @@ export function TeamPanel({
       ) : null}
 
       {invite ? (
-        <Field label="초대 대기" hint={joinClosed ?? joinNote ?? undefined}>
+        <Field
+          label="초대 대기"
+          hint={closedBox ? undefined : (joinClosed ?? joinNote ?? undefined)}
+        >
           <div className={hub.keybox}>
             {invite.email ?? formatInviteCode(invite.code)}
             {joinClosed ? (

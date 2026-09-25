@@ -21,7 +21,8 @@ import { SCHEDULE_PHASES } from "@/lib/season-phase";
     stages    스테이지 일정 다섯 줄
     flag      기능 플래그 하나
     track     트랙 추가
-    schedule  페이즈 일정(크론이 읽는 `season_schedules`)
+    schedule  페이즈 일정(크론이 읽는 `season_schedules`). racing 행은 개막
+              (`seasons.starts_at`)도 같이 옮긴다(admin-store `setPhaseSchedule`)
     phase     페이즈 수동 전환(예외 경로 — 정본은 크론, ADR-010)
 
   전부 사유가 필수이고 감사 로그와 한 트랜잭션이다(admin-store.ts).
