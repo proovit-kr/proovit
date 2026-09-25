@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { devNow } from "@/lib/dev-clock";
 import { loadFirstRaceStart } from "@/lib/race-read";
+import { rollupHalt } from "@/lib/rollup";
 import {
   formatLatePassCode,
   lateEntryBlock,
@@ -54,6 +55,8 @@ export type AdminSummary = {
    * 아무 팀도 s3을 안 냈으면 null. 「지연」 판정의 기준이다(race.ts `rollupHealth`).
    */
   firstRaceStartAt: Date | null;
+  /** 롤업이 쉬는 시즌인가(레이스·시상 페이즈 밖, 순위 확정 뒤). 쉬면 「지연」을 판정하지 않는다 */
+  rollupHalted: boolean;
   /**
     다음 게이트. 시안의 「다음 게이트 배치」 카드가 쓴다 — 마감이 지나지 않은
     게이트 중 가장 이른 것이다. 없으면 null(시즌 전이거나 둘 다 끝났다).
@@ -286,6 +289,33 @@ export async function loadLastRollup(seasonId: string): Promise<Date | null> {
 export const ROLLUP_EVERY_MIN = 15;
 
 /**
+ * 롤업이 멈췄는지 — 주기(15분)를 두 번 넘기면 지연으로 본다.
+ * 내가 정함(수연 확인 대기): 시안은 「정상」 한 판만 그렸다.
+ */
+export const ROLLUP_LATE_MIN = 30;
+
+/**
+ * 롤업 상태를 가를 재료 셋 — race.ts `rollupHealth`에 그대로 넘긴다.
+ * 지표 검토의 빈 상태가 쓴다. 대시보드는 요약(`loadAdminSummary`)에 같은 값을 싣는다.
+ */
+export async function loadRollupState(seasonId: string): Promise<{
+  halted: boolean;
+  lastRollupAt: Date | null;
+  firstRaceStartAt: Date | null;
+}> {
+  const season = await prisma.season.findUniqueOrThrow({
+    where: { id: seasonId },
+    select: { id: true, phase: true },
+  });
+  const [halt, lastRollupAt, firstRaceStartAt] = await Promise.all([
+    rollupHalt(season),
+    loadLastRollup(seasonId),
+    loadFirstRaceStart(seasonId),
+  ]);
+  return { halted: halt !== null, lastRollupAt, firstRaceStartAt };
+}
+
+/**
  * 운영 대시보드 숫자. **헤더의 시즌 셀렉트와 같은 시즌**을 본다(`viewer.season`).
  * 한때 「가장 최근에 만든 시즌」을 따로 골라서, 다음 시즌 초안을 만들어 두면
  * 헤더는 시즌 1인데 대시보드만 시즌 2를 읽었다.
@@ -310,6 +340,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
       openMetricFlags: 0,
       lastRollupAt: null,
       firstRaceStartAt: null,
+      rollupHalted: true,
       nextGate: null,
       recentAudit: [],
     };
@@ -335,6 +366,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
     lastRollup,
     recentAudit,
     firstRaceStartAt,
+    halt,
   ] = await Promise.all([
       prisma.entry.groupBy({
         by: ["status"],
@@ -403,6 +435,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
         select: AUDIT_SELECT,
       }),
       loadFirstRaceStart(season.id),
+      rollupHalt(season),
 ]);
 
   const count = (status: EntryStatus) =>
@@ -427,6 +460,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
     openMetricFlags,
     lastRollupAt: lastRollup,
     firstRaceStartAt,
+    rollupHalted: halt !== null,
     /*
       마감이 안 지난 게이트 중 가장 이른 것. 마감이 비어 있는 게이트는 일정이
       아직 안 잡힌 것이라 뒤로 미룬다 — 날짜 없는 게이트를 「다음」으로 내세우면
