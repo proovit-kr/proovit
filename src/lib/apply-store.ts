@@ -13,9 +13,12 @@ import {
   validateInviteEmail,
   type ApplyFieldErrors,
 } from "@/lib/apply";
+import { devNow } from "@/lib/dev-clock";
+import { LATE_PASS_MESSAGE, type LatePassFailureCode } from "@/lib/late-entry";
+import { claimLatePassIn, loadApplyGate } from "@/lib/late-entry-store";
 import { sendTeamInvite } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
-import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
+import { getCurrentSeason } from "@/lib/season";
 import { inviteValidUntil } from "@/lib/team";
 import { createInviteIn, loadJoinWindow } from "@/lib/team-store";
 
@@ -26,7 +29,8 @@ import { createInviteIn, loadJoinWindow } from "@/lib/team-store";
   이 파일이 하는 일은 한 문장이다: 팀을 만들고 · 참가를 만들고 · 동의를 기록하고
   · (팀 참가면) 초대를 만든다. 넷이 한 트랜잭션이어야 하는 이유는 동의 때문이다.
   참가만 생기고 동의 로그가 빠지면 "동의 없이 수집한 개인정보"가 되고, 그 입증
-  책임이 우리에게 있다.
+  책임이 우리에게 있다. 지각 편입 링크로 온 신청이면 그 링크를 쓰는 일도 같은
+  트랜잭션에 든다(2026-09-26, late-entry-store `claimLatePassIn`).
 
   ⚠️ **초대 메일은 그 트랜잭션 밖이다.** 아래 submitApplication의 주석 참고.
 
@@ -39,7 +43,18 @@ import { createInviteIn, loadJoinWindow } from "@/lib/team-store";
 export type ApplyFailureCode =
   | "NOT_RECRUITING"
   | "ALREADY_APPLIED"
-  | "CONSENT_REQUIRED";
+  | "CONSENT_REQUIRED"
+  /* 지각 편입 링크로 온 신청 — 링크가 죽었다(late-entry.ts) */
+  | LatePassFailureCode;
+
+/**
+ * 편입 링크를 조건부로 쓰지 못했다 — 그사이 다른 탭이 먼저 썼거나 운영자가 취소했다.
+ * 트랜잭션을 되돌리는 신호다(참가·팀·동의가 같이 사라진다).
+ */
+class LatePassTaken extends Error {}
+
+/** 이번 시즌에 이미 다른 팀으로 참가 중이다 — 트랜잭션을 되돌리는 신호 */
+class AlreadyEntered extends Error {}
 
 export type ApplyResult =
   | { ok: true; entryId: string }
@@ -133,6 +148,11 @@ export async function submitApplication(
   },
   consent: Record<string, boolean>,
   context: ApplyContext,
+  /**
+   * 지각 편입 링크의 코드(`/apply?late=`). 모집 중에는 보지 않는다 — 링크 없이도
+   * 열려 있다. 모집이 아닐 때 이것이 유효해야만 접수한다(`loadApplyGate`).
+   */
+  lateCode: string | null = null,
 ): Promise<ApplyResult> {
   const parsed = ApplySchema.safeParse(raw);
   const errors: ApplyFieldErrors = parsed.success
@@ -167,23 +187,48 @@ export async function submitApplication(
   }
 
   /*
-    모집 기간 판정은 랜딩 CTA와 **같은 함수**를 쓴다. 랜딩은 "신청하기"를 띄우는데
-    /apply는 닫혀 있는(혹은 그 반대인) 상태가 생기면 안 된다.
+    받는 기간 판정은 참가 신청 화면과 **같은 함수**(`loadApplyGate`)다. 모집 중이면
+    평소 신청, 모집이 아니면 유효한 지각 편입 링크가 있을 때만 받는다. 모집 판정은
+    그 안에서 랜딩 CTA와 같은 `resolveLandingCta`를 쓴다 — 랜딩은 "신청하기"를
+    띄우는데 /apply는 닫혀 있는(혹은 그 반대인) 상태가 생기면 안 된다.
   */
   const season = await getCurrentSeason();
-  if (!season || resolveLandingCta(season).kind !== "APPLY") {
-    return {
-      ok: false,
-      code: "NOT_RECRUITING",
-      message: "지금은 참가 신청을 받고 있지 않습니다.",
-    };
+  const gate = await loadApplyGate(season, lateCode);
+  if (!season || gate.kind === "closed") {
+    const failure = gate.kind === "closed" ? gate.failure : null;
+    return failure
+      ? { ok: false, code: failure, message: LATE_PASS_MESSAGE[failure] }
+      : {
+          ok: false,
+          code: "NOT_RECRUITING",
+          message: "지금은 참가 신청을 받고 있지 않습니다.",
+        };
   }
+  /* 링크를 쓸 때의 판정 시각. 판정과 같은 시계다(dev-clock.ts) */
+  const now = devNow();
 
   const ipHash = hashIp(context.ip);
   const userAgent = context.userAgent?.slice(0, 500) ?? null;
 
   try {
     const created = await prisma.$transaction(async (tx) => {
+      /*
+        ⚠️ 이번 시즌에 이미 참가 중인 사람(다른 팀의 팀원이어도)은 받지 않는다 —
+        합류(team-store `acceptInvite`)와 같은 조회다. 한 사람이 두 팀에 있으면 상호
+        테스터 배정과 지표 제외가 무너지고 두 번 시상 대상이 된다. 아래 유니크
+        (@@unique([seasonId, teamId]))는 **같은 팀**의 중복만 막는다.
+
+        화면(page.tsx `findMyEntry`)도 막지만 믿지 않는다. 서버 액션은 직접 부를 수
+        있고, 레이스 중에는 합류도 열려 있어(2026-09-25) 편입 폼을 연 채 다른 탭에서
+        초대를 수락할 수 있다(2026-09-26 리뷰 지적). 편입 링크를 쓰기 전에 막으므로
+        링크는 대기로 남는다.
+      */
+      const mine = await tx.entry.findFirst({
+        where: { seasonId: season.id, team: { members: { some: { userId: user.id } } } },
+        select: { id: true },
+      });
+      if (mine) throw new AlreadyEntered();
+
       /*
         팀은 시즌을 넘어 유지된다(용어 정의: 팀 ≠ 참가). 이미 팀장인 팀이 있으면
         새로 만들지 않고 그 팀으로 참가한다 — 시즌2에 나갈 때 팀이 하나 더 생기면
@@ -221,6 +266,23 @@ export async function submitApplication(
         },
         select: { id: true },
       });
+
+      /*
+        지각 편입 링크로 온 신청이면 링크를 여기서 쓴다 — 참가와 **같은 트랜잭션**.
+        위의 판정과 이 쓰기 사이에 다른 탭이 먼저 쓰거나 운영자가 취소할 수 있어서,
+        대기 중일 때만 바뀌는 조건부 쓰기로 한 번 더 본다. 0건이면 전부 되돌린다.
+        참가 자체는 평소 신청과 똑같다 — 별도 「지각」 상태를 두지 않는다(PRD OPEN-6).
+      */
+      if (gate.kind === "late") {
+        const claimed = await claimLatePassIn(tx, {
+          code: gate.code,
+          seasonId: season.id,
+          userId: user.id,
+          entryId: entry.id,
+          now,
+        });
+        if (!claimed) throw new LatePassTaken();
+      }
 
       /*
         동의는 참가에 붙여 남긴다(entryId). 같은 사람이 시즌2에 다시 신청하면
@@ -304,6 +366,23 @@ export async function submitApplication(
 
     return { ok: true, entryId: created.entryId };
   } catch (error) {
+    /*
+      링크를 먼저 빼앗겼다. 무엇 때문인지 다시 읽어 그 사유로 안내한다 — 다른 탭이
+      썼으면 「이미 사용됨」, 운영자가 취소했으면 「취소됨」.
+    */
+    if (error instanceof AlreadyEntered) {
+      return {
+        ok: false,
+        code: "ALREADY_APPLIED",
+        message: "이번 시즌에 이미 참가 중입니다.",
+      };
+    }
+    if (error instanceof LatePassTaken) {
+      const again = await loadApplyGate(season, lateCode);
+      const failure =
+        again.kind === "closed" && again.failure ? again.failure : "LATE_PASS_USED";
+      return { ok: false, code: failure, message: LATE_PASS_MESSAGE[failure] };
+    }
     /*
       @@unique([seasonId, teamId])의 최종 방어선. 같은 사람이 두 탭에서 동시에
       제출하면 조회와 생성 사이를 빠져나갈 수 있다. 이미 신청된 것은 오류가

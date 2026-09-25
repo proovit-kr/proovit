@@ -49,7 +49,17 @@ import styles from "./ApplyForm.module.css";
 const INITIAL: ApplyState = {};
 const EMPTY = emptyConsent(APPLY_CONSENTS);
 
-export function ApplyForm({ defaultTeamName }: { defaultTeamName: string }) {
+export function ApplyForm({
+  defaultTeamName,
+  lateCode,
+}: {
+  defaultTeamName: string;
+  /**
+   * 지각 편입 링크의 코드(`/apply?late=`). 레이스 중 링크로 온 사람에게만 page.tsx가
+   * 넘긴다. 폼은 평소 신청서(시안 ①) 그대로이고 이 값만 숨은 칸으로 싣는다.
+   */
+  lateCode?: string;
+}) {
   const [state, formAction, pending] = useActionState(submitApply, INITIAL);
   const [consent, setConsent] = useState<ConsentState>(EMPTY);
   const [showMissing, setShowMissing] = useState(false);
@@ -77,6 +87,8 @@ export function ApplyForm({ defaultTeamName }: { defaultTeamName: string }) {
           {state.message}
         </p>
       ) : null}
+
+      {lateCode ? <input type="hidden" name="late" value={lateCode} /> : null}
 
       <Field label="트랙 선택">
         {/*

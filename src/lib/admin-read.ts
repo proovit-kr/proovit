@@ -10,6 +10,14 @@ import {
 import { prisma } from "@/lib/prisma";
 import { devNow } from "@/lib/dev-clock";
 import { loadFirstRaceStart } from "@/lib/race-read";
+import {
+  formatLatePassCode,
+  lateEntryBlock,
+  latePassStatus,
+  type LateEntryBlock,
+  type LatePassStatus,
+} from "@/lib/late-entry";
+import { loadLateEntryDeadline } from "@/lib/late-entry-store";
 
 /*
   운영자 콘솔의 조회.
@@ -530,6 +538,77 @@ export async function loadAdminEntries(
       lastSubmittedAt: entry.submissions[0]?.submittedAt ?? null,
     };
   });
+}
+
+export type AdminLatePassRow = {
+  id: string;
+  /** 저장된 코드 — 링크를 만들 때 쓴다 */
+  code: string;
+  /** 사람이 읽는 모양 `LTE-XY7K-3MPQ` */
+  label: string;
+  createdAt: Date;
+  expiresAt: Date;
+  status: LatePassStatus;
+  /** 쓰였으면 그 신청으로 생긴 팀 */
+  teamName: string | null;
+  reason: string;
+};
+
+export type AdminLatePassBoard = {
+  /** 지금 링크를 못 만드는 사유. null이면 만들 수 있다 */
+  block: LateEntryBlock | null;
+  /** s1 달력 마감(s1 구간의 끝) — 편입이 닫히는 때이자 링크 기한의 상한 */
+  deadline: Date | null;
+  rows: AdminLatePassRow[];
+};
+
+/** 참가 관리의 「최근 링크」에 올리는 수. 문의로만 생기는 링크라 이만하면 한 시즌이 다 든다 */
+const LATE_PASS_RECENT = 20;
+
+/**
+ * 참가 관리의 「지각 편입」 칸(시안에 없는 칸) — 지금 링크를 만들 수 있는가와 최근 링크.
+ * 만들 수 있는지는 admin-store `createLatePass`와 같은 `lateEntryBlock`이 가른다.
+ */
+export async function loadLatePassBoard(
+  seasonId: string,
+  now: Date,
+): Promise<AdminLatePassBoard> {
+  const [season, deadline, passes] = await Promise.all([
+    prisma.season.findUnique({ where: { id: seasonId }, select: { phase: true } }),
+    loadLateEntryDeadline(seasonId),
+    prisma.lateEntryPass.findMany({
+      where: { seasonId },
+      orderBy: { createdAt: "desc" },
+      take: LATE_PASS_RECENT,
+      select: {
+        id: true,
+        code: true,
+        reason: true,
+        createdAt: true,
+        expiresAt: true,
+        usedAt: true,
+        revokedAt: true,
+        entry: { select: { team: { select: { name: true } } } },
+      },
+    }),
+  ]);
+
+  const block = season ? lateEntryBlock(season.phase, deadline, now) : "PHASE_CLOSED";
+  return {
+    block,
+    deadline,
+    rows: passes.map((p) => ({
+      id: p.id,
+      code: p.code,
+      label: formatLatePassCode(p.code),
+      createdAt: p.createdAt,
+      expiresAt: p.expiresAt,
+      /* 기간이 끝났으면 기한이 남았어도 「만료」— 참가자 판정(`latePassFailure`)과 같게 */
+      status: latePassStatus(p, now, block),
+      teamName: p.entry?.team.name ?? null,
+      reason: p.reason,
+    })),
+  };
 }
 
 export type AdminLeadRow = {

@@ -2,14 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { LinkButton } from "@/components/Button";
-import { Footer } from "@/components/Footer";
+import { AnchorButton, LinkButton } from "@/components/Button";
+import { Clauses } from "@/components/Clauses";
+import { CONTACT, Footer } from "@/components/Footer";
 import { Logo, NavBar } from "@/components/NavBar";
-import { requireUser } from "@/lib/access";
+import { getSessionUser, requireUser } from "@/lib/access";
 import { findMyEntry } from "@/lib/apply-store";
 import { loadPublicNav } from "@/lib/header-read";
+import { LATE_PASS_MESSAGE } from "@/lib/late-entry";
+import { loadApplyGate } from "@/lib/late-entry-store";
 import { prisma } from "@/lib/prisma";
-import { getCurrentSeason, resolveLandingCta } from "@/lib/season";
+import { getCurrentSeason } from "@/lib/season";
+import { isRacing } from "@/lib/season-phase";
 import { isJoinPhase, joinWindowClosed, TEAM_FAILURE_MESSAGE } from "@/lib/team";
 import { findInvite, loadJoinWindow } from "@/lib/team-store";
 
@@ -22,13 +26,15 @@ import styles from "./apply.module.css";
 /*
   참가 신청 — 회원이 참가자가 되는 자리다.
 
-  화면이 네 갈래이고, 그중 둘이 시안에 있다:
+  화면이 여섯 갈래이고, 그중 둘이 시안에 있다:
     받는 기간이 아니다        → 로그인을 요구하기 전에 먼저 말한다 (시안 없음)
+      레이스 중이면           → 운영팀에 문의하는 길을 준다 (시안 없음, PRD OPEN-6)
+    죽은 편입 링크를 들고 왔다 → 사유만 말한다, 로그인 전 (시안 없음)
     초대 코드를 들고 왔다     → 합류 폼 (시안 없음)
     이미 신청했다             → 시안 ② 신청 완료
-    그 외                     → 시안 ① 작성
+    그 외                     → 시안 ① 작성 (모집 중, 또는 레이스 중 유효한 편입 링크)
 
-  시안에 없는 둘은 아직 옛 골격(로고 + 좁은 기둥 + 푸터) 그대로다. 시안에 있는
+  시안에 없는 것들은 아직 옛 골격(로고 + 좁은 기둥 + 푸터) 그대로다. 시안에 있는
   둘만 공개 헤더와 `.ap-wrap` 기둥으로 옮겼고 푸터가 없다 — 시안 `#scr-apply`에
   `.pub-foot`이 없다.
 
@@ -37,16 +43,18 @@ import styles from "./apply.module.css";
   초대 메일의 링크도 여기다(`mail.ts`의 `/apply?invite=`).
 
   ✅ **받는 기간이 신청과 합류에서 다르다**(2026-09-25 수연 지시 · PRD FR-B3).
-    새 참가 신청 — 모집 구간에만. submitApply와 같은 판정(`resolveLandingCta`)이다.
+    새 참가 신청 — 모집 구간에만. 레이스 중에는 운영자가 준 **지각 편입 링크**
+                   (`?late=`)를 들고 온 사람만(2026-09-26 수연 지시 · PRD OPEN-6).
+                   submitApply와 같은 판정(`loadApplyGate`)이다.
     합류         — 합류 페이즈(`isJoinPhase` — 모집·레이스)에 **초대 코드를 들고 온
                    사람**. 팀별로 s2 제출 전까지다(`joinClosedCode`, findInvite가
                    사유로 돌려준다). 합류 액션(join-actions)도 같은 두 함수를 본다.
                    → 2026-09-26 뒤집음: 팀별 진도가 아니라 **s1 달력 마감까지**다
                    (수연 지시 「절대 날짜로」). findInvite가 수락과 같은
                    `loadJoinWindow`로 마감을 읽어 판정한다.
-  그래서 레이스 중에는 **신청 폼을 절대 그리지 않는다.** 코드가 죽었거나 합류가
-  마감됐으면 사유만 말한다 — 모집 중처럼 「직접 참가 신청」으로 내려보내면 닫힌 폼에
-  닿는다. 코드 없이 오면 모집 아님 화면 그대로다.
+  그래서 레이스 중에는 **편입 링크 없이는 신청 폼을 절대 그리지 않는다.** 코드가
+  죽었거나 합류가 마감됐으면 사유만 말한다 — 모집 중처럼 「직접 참가 신청」으로
+  내려보내면 닫힌 폼에 닿는다. 코드 없이 오면 모집 아님 화면 그대로다.
 
   ⚠️ access-policy의 `apply` 정책은 이 화면도 액션도 부르지 않는다(테스트만 부른다).
   위 두 기간은 여기서 직접 가르므로, 그 정책을 고쳐도 이 화면은 안 바뀐다.
@@ -67,15 +75,33 @@ export const metadata: Metadata = {
 export default async function ApplyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ done?: string; invite?: string }>;
+  searchParams: Promise<{
+    done?: string | string[];
+    invite?: string | string[];
+    late?: string | string[];
+  }>;
 }) {
   const params = await searchParams;
-  const inviteCode = params.invite?.trim() ?? "";
+  /*
+    `?late=a&late=b`처럼 키가 반복되면 Next가 배열로 준다 — 그대로 `.trim()`을 부르면
+    화면이 500으로 죽는다. 문자열 하나일 때만 코드로 받고, 아니면 코드 없이 온 것이다.
+  */
+  const one = (v: string | string[] | undefined) =>
+    typeof v === "string" ? v.trim() : "";
+  const inviteCode = one(params.invite);
+  const lateCode = one(params.late);
 
   const season = await getCurrentSeason();
-  /* 새 참가 신청 — 신청 액션(apply-store)과 같은 판정이다 */
-  const applyOpen =
-    season !== null && resolveLandingCta(season).kind === "APPLY";
+  /*
+    새 참가 신청 — 신청 액션(apply-store)과 **같은 함수**(`loadApplyGate`)다.
+      open    모집 중. 편입 링크를 들고 와도 평소 신청이다
+      late    레이스 중인데 유효한 편입 링크를 들고 왔다
+      closed  받지 않는다. `failure`가 있으면 링크가 죽은 사유
+    초대 코드를 들고 왔으면 편입 링크는 보지 않는다 — 초대 흐름은 그대로 둔다.
+  */
+  const gate = await loadApplyGate(season, inviteCode ? null : lateCode);
+  const applyOpen = gate.kind === "open";
+  const lateOpen = gate.kind === "late";
   /*
     신청은 닫혔지만 합류는 열린 때 초대 링크로 온 사람(지금은 레이스 중). 페이즈는
     합류 액션과 같은 `isJoinPhase`로 본다 — 따로 적으면 한쪽만 넓어진다. 팀이 아직
@@ -100,7 +126,82 @@ export default async function ApplyPage({
     isJoinPhase(season.phase) &&
     inviteCode !== "";
 
-  if (!season || (!applyOpen && !lateJoin)) {
+  if (!season || (!applyOpen && !lateJoin && !lateOpen)) {
+    const deadLink = season && gate.kind === "closed" ? gate.failure : null;
+    const racing = season !== null && isRacing(season.phase);
+
+    /*
+      죽은 편입 링크를 들고 왔거나 레이스 중이면, **로그인한 사람이 이미 참가 중일 때
+      신청 완료 판**을 그린다. 링크로 신청을 마친 사람이 그 링크로 되돌아오고
+      (actions.ts의 redirect) — 방금 자기가 쓴 링크를 「이미 사용됨」이라고 들으면
+      신청이 안 된 줄 안다. 레이스 중의 참가자에게 아래 「운영팀에 문의」를 보이지
+      않으려는 것도 같다.
+    */
+    if (season && (deadLink || racing)) {
+      const viewer = await getSessionUser();
+      const mine = viewer ? await findMyEntry(viewer.id, season.id) : null;
+      if (mine) {
+        return <DoneScreen teamName={mine.team.name} ideaTitle={mine.ideaTitle} />;
+      }
+    }
+
+    /*
+      죽은 편입 링크(없음·사용됨·취소됨·만료·기간 아님) — 사유만 말하고 폼은 없다.
+      로그인 앞에 두는 이유는 아래 「받는 기간 아님」과 같다.
+    */
+    if (deadLink) {
+      return (
+        <main className={`page ${styles.page}`}>
+          <div className={`container container--narrow grow ${styles.wrap}`}>
+            <div className={styles.head}>
+              <Logo />
+              <h1 className={styles.title}>편입 링크로 참가할 수 없습니다</h1>
+              <p className={styles.lead}>
+                {/* 두 문장짜리 사유가 있다 — 문장 끝에서만 끊는다(AGENTS.md 줄바꿈 검사) */}
+                <Clauses text={LATE_PASS_MESSAGE[deadLink]} />
+              </p>
+            </div>
+          </div>
+          <Footer />
+        </main>
+      );
+    }
+
+    /*
+      레이스 중에 링크 없이 왔다 — 대시보드의 지각 판(시안 h10)의 「팀 구성하기」도
+      여기로 온다. 새 신청은 열지 않지만(PRD OPEN-6, 문을 여는 것은 운영자의 편입
+      링크뿐) 막다른 길로 두지 않고 **문의하는 길**을 준다. 아래 「모집이 시작되면」·
+      「사전 신청」은 모집 전의 말이라 레이스 중에는 틀리다(2026-09-26 리뷰 지적).
+      시안에 없는 화면이다. 문안은 내가 정함(윤서 확인 대기) — 편입 링크가 나가는지는
+      s1 구간이 남았는지에 달려 있어서 「보내 드린다」고 약속하지 않고 「확인해 알려 드린다」로 둔다.
+    */
+    if (racing) {
+      return (
+        <main className={`page ${styles.page}`}>
+          <div className={`container container--narrow grow ${styles.wrap}`}>
+            <div className={styles.head}>
+              <Logo />
+              <h1 className={styles.title}>모집이 끝났습니다</h1>
+              <p className={styles.lead}>
+                <span>레이스가 이미 시작되어 새 참가 신청은 받지 않습니다.</span>
+                <span>
+                  {/* 두 문장이다 — 문장 끝에서만 끊는다(AGENTS.md 줄바꿈 검사) */}
+                  <Clauses text="지금 참가하고 싶으시면 운영팀에 문의해 주세요. 참가할 수 있는지 확인해 알려드립니다." />
+                </span>
+              </p>
+              <AnchorButton href={`mailto:${CONTACT}`} size="lg" className={styles.cta}>
+                운영팀에 문의하기
+              </AnchorButton>
+              <p className={styles.ctaNote}>
+                메일 앱이 열리지 않으면 {CONTACT}로 보내 주세요.
+              </p>
+            </div>
+          </div>
+          <Footer />
+        </main>
+      );
+    }
+
     return (
       <main className={`page ${styles.page}`}>
         <div className={`container container--narrow grow ${styles.wrap}`}>
@@ -149,33 +250,28 @@ export default async function ApplyPage({
     return <JoinBlocked message={TEAM_FAILURE_MESSAGE[lateClosed]} />;
   }
 
-  /* 초대 코드는 로그인을 거쳐 돌아올 때까지 들고 가야 한다 */
+  /* 초대 코드·편입 링크는 로그인을 거쳐 돌아올 때까지 들고 가야 한다 */
   const user = await requireUser(
-    inviteCode ? `/apply?invite=${encodeURIComponent(inviteCode)}` : "/apply",
+    inviteCode
+      ? `/apply?invite=${encodeURIComponent(inviteCode)}`
+      : gate.kind === "late"
+        ? `/apply?late=${encodeURIComponent(gate.code)}`
+        : "/apply",
   );
 
   const existing = await findMyEntry(user.id, season.id);
   if (existing) {
     /*
-      ② 신청 완료 — 시안 `#scr-apply[data-state="done"]`.
-
-      옛 화면은 접수 내역을 `<dl>`로 늘어놓고 밑에 「운영에 문의」까지 달았다.
-      시안은 ✓ · 제목 · 다음 걸음 한 줄 · 요약 카드 셋 · 대시보드 버튼이 전부다.
-      빠진 값(접수 시각·한 줄 소개·1인 팀 표기)은 ApplyDone 주석에 적어 뒀다.
+      이미 이번 시즌에 참가 중이면 편입 링크를 들고 왔어도 여기서 끝난다 — 링크는
+      쓰이지 않고 대기로 남는다(운영자가 목록에서 취소할 수 있다).
     */
-    const nav = await loadPublicNav();
     return (
-      <main className={`page ${styles.page}`}>
-        <NavBar {...nav} />
-        <div className={`${styles.apWrap} grow`}>
-          <ApplyDone
-            teamName={existing.team.name}
-            ideaTitle={existing.ideaTitle}
-            /* 초대 코드를 들고 왔는데 이미 참가 중이면 그 사유를 말한다 */
-            inviteConflict={inviteCode ? true : undefined}
-          />
-        </div>
-      </main>
+      <DoneScreen
+        teamName={existing.team.name}
+        ideaTitle={existing.ideaTitle}
+        /* 초대 코드를 들고 왔는데 이미 참가 중이면 그 사유를 말한다 */
+        inviteConflict={inviteCode ? true : undefined}
+      />
     );
   }
 
@@ -242,10 +338,10 @@ export default async function ApplyPage({
 
   /*
     여기부터는 새 참가 신청이다. 레이스 중(`lateJoin`)에는 초대 코드가 늘 있어서
-    위에서 끝난다 — 모집 구간이 아닌데 여기 닿는 길은 없다. 그래도 한 줄로
-    막아 둔다: 위 갈래를 고치다 새면 레이스 중에 신청 폼이 그려진다.
+    위에서 끝난다 — 모집 구간도 유효한 편입 링크도 아닌데 여기 닿는 길은 없다.
+    그래도 한 줄로 막아 둔다: 위 갈래를 고치다 새면 레이스 중에 신청 폼이 그려진다.
   */
-  if (!applyOpen) notFound();
+  if (!applyOpen && !lateOpen) notFound();
 
   /* 이미 팀장인 팀이 있으면 그 이름을 채워둔다(팀은 시즌을 넘어 유지된다) */
   const profile = await prisma.user.findUnique({
@@ -267,6 +363,10 @@ export default async function ApplyPage({
 
     ⚠️ 연락처(`users.phone`)를 더는 읽지 않는다 — 시안에 그 칸이 없다
     (09-21 수연 결정). 근거는 `lib/apply.ts` 머리 주석에 있다.
+
+    편입 링크로 왔어도 **같은 폼**이다 — 팀명·아이디어·동의를 본인이 직접 쓴다
+    (운영자가 대신 만들지 않는 이유가 동의다, schema.prisma LateEntryPass 주석).
+    코드만 숨은 칸으로 싣는다. 경고 배너는 신청 뒤 대시보드의 지각 판(h10)이 그린다.
   */
   const nav = await loadPublicNav();
 
@@ -279,7 +379,43 @@ export default async function ApplyPage({
           아이디어만 있으면 참여할 수 있어요. 5분이면 끝나요.
         </p>
 
-        <ApplyForm defaultTeamName={profile?.teamMembers[0]?.team.name ?? ""} />
+        <ApplyForm
+          defaultTeamName={profile?.teamMembers[0]?.team.name ?? ""}
+          lateCode={gate.kind === "late" ? gate.code : undefined}
+        />
+      </div>
+    </main>
+  );
+}
+
+/**
+ * ② 신청 완료 — 시안 `#scr-apply[data-state="done"]`.
+ *
+ * 옛 화면은 접수 내역을 `<dl>`로 늘어놓고 밑에 「운영에 문의」까지 달았다.
+ * 시안은 ✓ · 제목 · 다음 걸음 한 줄 · 요약 카드 셋 · 대시보드 버튼이 전부다.
+ * 빠진 값(접수 시각·한 줄 소개·1인 팀 표기)은 ApplyDone 주석에 적어 뒀다.
+ *
+ * 부르는 자리가 둘이라(이미 참가 중 · 방금 쓴 편입 링크로 돌아옴) 한 벌로 둔다.
+ */
+async function DoneScreen({
+  teamName,
+  ideaTitle,
+  inviteConflict,
+}: {
+  teamName: string;
+  ideaTitle: string;
+  inviteConflict?: boolean;
+}) {
+  const nav = await loadPublicNav();
+  return (
+    <main className={`page ${styles.page}`}>
+      <NavBar {...nav} />
+      <div className={`${styles.apWrap} grow`}>
+        <ApplyDone
+          teamName={teamName}
+          ideaTitle={ideaTitle}
+          inviteConflict={inviteConflict}
+        />
       </div>
     </main>
   );

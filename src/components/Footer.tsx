@@ -30,7 +30,8 @@ export async function Footer() {
   「유효 이용자 기준」은 시안이 규칙 제4조로 보내는데, 우리 규칙서에서 그 정의는
   별표 1(지표 정의)이다.
 */
-const CONTACT = "help@proovit.kr";
+/** 문의 주소. 참가 신청 화면의 「운영팀에 문의」도 이것을 쓴다(apply/page.tsx) */
+export const CONTACT = "help@proovit.kr";
 const INSTAGRAM = "https://www.instagram.com/proovit_kr/";
 
 function SeasonFooter() {
