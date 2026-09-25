@@ -949,6 +949,10 @@ const MIN_MS = 60_000;
  * 시즌이 제 일정대로 끝난 모양. 시작일에서 한 주씩 끊고 s5 마감만 시즌
  * 종료일에 맞춘다 — 수연의 임시 일정(s1 10.12 ~ s5 11.16 24:00)이 그 모양이다.
  * 시작일이 없으면 옮길 근거가 없으니 그대로 둔다.
+ *
+ * 시작일(`starts_at`)을 s1 시작으로 쓰는 것은 기획 순서 그대로다 — 개막 = 레이스
+ * 시작 = s1 시작(2026-09-26 수연 결정). 운영 콘솔이 racing 행을 저장하면 개막도
+ * 같이 옮긴다(admin-store `setPhaseSchedule`).
  */
 function scheduleStageDates(startsAt: Date | null, endsAt: Date | null) {
   if (!startsAt) return [];

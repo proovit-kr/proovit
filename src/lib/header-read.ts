@@ -343,6 +343,7 @@ export async function loadAdminHeader(viewer: ViewerState): Promise<AdminHeaderM
     season: { id: season.id, title: season.title, phase: season.phase, startsAt: season.startsAt, endsAt: season.endsAt },
     seasons: seasons.map((s) => ({ id: s.id, title: s.title, phase: s.phase })),
     stages,
+    /* racing 행이 없으면 개막으로 — 개막 = 레이스 시작이라 같은 순간이다(2026-09-26 수연 결정) */
     recruitDeadline: recruitSchedule?.startsAt ?? season.startsAt,
     queues: {
       leads,

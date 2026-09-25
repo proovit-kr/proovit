@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { SeasonPhase } from "@/generated/prisma/enums";
 import { kstInputValue, parseKstInput } from "@/lib/admin";
-import { phaseScheduleError, planPhaseSchedule, planPhaseTransitions } from "@/lib/season-phase";
+import {
+  kickoffMismatch,
+  phaseScheduleError,
+  planPhaseSchedule,
+  planPhaseTransitions,
+} from "@/lib/season-phase";
 
 const KST = (s: string) => new Date(`${s}+09:00`);
 const row = (id: string, phase: SeasonPhase, at: string) => ({ id, phase, startsAt: KST(at) });
@@ -207,8 +212,9 @@ describe("planPhaseSchedule — 운영 콘솔 「페이즈 일정」 저장 계�
         ],
         current: SeasonPhase.pre_apply,
         now,
+        kickoff: null,
       }),
-    ).toEqual({ ok: true, changed: [SeasonPhase.racing] });
+    ).toMatchObject({ ok: true, changed: [SeasonPhase.racing] });
   });
 
   it("전환 안 된 행을 비우는 것도 바뀐 것이다", () => {
@@ -218,8 +224,9 @@ describe("planPhaseSchedule — 운영 콘솔 「페이즈 일정」 저장 계�
         incoming: [at(SeasonPhase.racing, null)],
         current: SeasonPhase.pre_apply,
         now,
+        kickoff: null,
       }),
-    ).toEqual({ ok: true, changed: [SeasonPhase.racing] });
+    ).toMatchObject({ ok: true, changed: [SeasonPhase.racing] });
   });
 
   it("바뀐 것이 없으면 막는다", () => {
@@ -229,6 +236,7 @@ describe("planPhaseSchedule — 운영 콘솔 「페이즈 일정」 저장 계�
         incoming: [at(SeasonPhase.racing, "2026-10-28T00:00:00"), at(SeasonPhase.awarded, null)],
         current: SeasonPhase.pre_apply,
         now,
+        kickoff: null,
       }),
     ).toEqual({ ok: false, message: "바뀐 일정이 없습니다." });
   });
@@ -240,6 +248,7 @@ describe("planPhaseSchedule — 운영 콘솔 「페이즈 일정」 저장 계�
         incoming: [at(SeasonPhase.pre_apply, "2026-09-02T00:00:00")],
         current: SeasonPhase.pre_apply,
         now,
+        kickoff: null,
       }),
     ).toEqual({ ok: false, message: "pre_apply는 이미 전환돼 바꿀 수 없습니다." });
   });
@@ -251,6 +260,7 @@ describe("planPhaseSchedule — 운영 콘솔 「페이즈 일정」 저장 계�
         incoming: [at(SeasonPhase.pre_apply, null)],
         current: SeasonPhase.pre_apply,
         now,
+        kickoff: null,
       }),
     ).toMatchObject({ ok: false, message: expect.stringMatching(/이미 전환돼/) });
   });
@@ -265,8 +275,9 @@ describe("planPhaseSchedule — 운영 콘솔 「페이즈 일정」 저장 계�
         ],
         current: SeasonPhase.pre_apply,
         now,
+        kickoff: null,
       }),
-    ).toEqual({ ok: true, changed: [SeasonPhase.recruiting] });
+    ).toMatchObject({ ok: true, changed: [SeasonPhase.recruiting] });
   });
 
   it("전환된 행과의 순서도 본다 — 받지 않은 칸도 저장된 값으로 센다", () => {
@@ -276,6 +287,7 @@ describe("planPhaseSchedule — 운영 콘솔 「페이즈 일정」 저장 계�
         incoming: [at(SeasonPhase.racing, "2026-09-19T00:00:00")],
         current: SeasonPhase.recruiting,
         now,
+        kickoff: null,
       }),
     ).toEqual({ ok: false, message: "racing 시각이 recruiting보다 늦어야 합니다." });
   });
@@ -287,8 +299,123 @@ describe("planPhaseSchedule — 운영 콘솔 「페이즈 일정」 저장 계�
         incoming: [at(SeasonPhase.racing, "2026-09-25T11:00:00")],
         current: SeasonPhase.recruiting,
         now,
+        kickoff: null,
       }),
     ).toMatchObject({ ok: false, message: expect.stringMatching(/이미 지났습니다/) });
+  });
+});
+
+/*
+  2026-09-26 수연 결정 — 기획 문서 순서대로 「모집 마감 → 개막 = 레이스 시작 =
+  s1 시작」. racing 행을 저장하면 `seasons.starts_at`(개막)도 같은 값으로 옮긴다.
+*/
+describe("planPhaseSchedule — racing 행을 저장하면 개막도 옮긴다", () => {
+  const now = KST("2026-09-25T12:00:00");
+  const saved = (phase: SeasonPhase, at: string) => ({ phase, startsAt: KST(at), appliedAt: null });
+  const at = (phase: SeasonPhase, s: string | null) => ({ phase, startsAt: s ? KST(s) : null });
+
+  it("racing 시각을 넣으면 개막을 그 값으로 옮긴다 — from은 지금 개막", () => {
+    expect(
+      planPhaseSchedule({
+        before: [saved(SeasonPhase.racing, "2026-10-05T00:00:00")],
+        incoming: [at(SeasonPhase.racing, "2026-09-28T00:00:00")],
+        current: SeasonPhase.recruiting,
+        now,
+        kickoff: KST("2026-10-12T00:00:00"),
+      }),
+    ).toEqual({
+      ok: true,
+      changed: [SeasonPhase.racing],
+      kickoff: { from: KST("2026-10-12T00:00:00"), to: KST("2026-09-28T00:00:00") },
+    });
+  });
+
+  it("개막이 비어 있어도 채운다", () => {
+    expect(
+      planPhaseSchedule({
+        before: [],
+        incoming: [at(SeasonPhase.racing, "2026-09-28T00:00:00")],
+        current: SeasonPhase.recruiting,
+        now,
+        kickoff: null,
+      }),
+    ).toMatchObject({ ok: true, kickoff: { from: null, to: KST("2026-09-28T00:00:00") } });
+  });
+
+  it("racing 행을 비우면 개막은 그대로 둔다", () => {
+    expect(
+      planPhaseSchedule({
+        before: [saved(SeasonPhase.racing, "2026-09-28T00:00:00")],
+        incoming: [at(SeasonPhase.racing, null)],
+        current: SeasonPhase.recruiting,
+        now,
+        kickoff: KST("2026-09-28T00:00:00"),
+      }),
+    ).toEqual({ ok: true, changed: [SeasonPhase.racing], kickoff: null });
+  });
+
+  it("racing 행을 안 건드린 저장은 개막을 안 건드린다 — 둘이 어긋나 있어도", () => {
+    expect(
+      planPhaseSchedule({
+        before: [saved(SeasonPhase.racing, "2026-09-28T00:00:00")],
+        incoming: [
+          at(SeasonPhase.racing, "2026-09-28T00:00:00"),
+          at(SeasonPhase.awarded, "2026-11-03T00:00:00"),
+        ],
+        current: SeasonPhase.recruiting,
+        now,
+        kickoff: KST("2026-10-12T00:00:00"),
+      }),
+    ).toEqual({ ok: true, changed: [SeasonPhase.awarded], kickoff: null });
+  });
+
+  it("개막이 이미 그 값이면 옮길 것이 없다", () => {
+    expect(
+      planPhaseSchedule({
+        before: [saved(SeasonPhase.racing, "2026-10-05T00:00:00")],
+        incoming: [at(SeasonPhase.racing, "2026-09-28T00:00:00")],
+        current: SeasonPhase.recruiting,
+        now,
+        kickoff: KST("2026-09-28T00:00:00"),
+      }),
+    ).toEqual({ ok: true, changed: [SeasonPhase.racing], kickoff: null });
+  });
+
+  it("막힌 저장은 개막도 안 옮긴다", () => {
+    expect(
+      planPhaseSchedule({
+        before: [],
+        incoming: [at(SeasonPhase.racing, "2026-09-25T11:00:00")],
+        current: SeasonPhase.recruiting,
+        now,
+        kickoff: KST("2026-10-12T00:00:00"),
+      }),
+    ).not.toHaveProperty("kickoff");
+  });
+});
+
+describe("kickoffMismatch — 개막(레이스 시작)과 s1 시작이 어긋났나", () => {
+  it("같은 시각이면 맞다", () => {
+    expect(
+      kickoffMismatch({ racing: KST("2026-09-28T00:00:00"), s1Opens: KST("2026-09-28T00:00:00") }),
+    ).toBe(false);
+  });
+
+  it("시안 날짜대로 레이스를 s1 마감 다음 분에 두면 어긋난다", () => {
+    expect(
+      kickoffMismatch({ racing: KST("2026-10-05T00:00:00"), s1Opens: KST("2026-09-28T00:00:00") }),
+    ).toBe(true);
+  });
+
+  it("같은 날이라도 시각이 다르면 어긋난다 — 그 사이는 모집 중인데 s1이 열려 있다", () => {
+    expect(
+      kickoffMismatch({ racing: KST("2026-09-28T09:00:00"), s1Opens: KST("2026-09-28T00:00:00") }),
+    ).toBe(true);
+  });
+
+  it("한쪽이 비어 있으면 견줄 것이 없다", () => {
+    expect(kickoffMismatch({ racing: null, s1Opens: KST("2026-09-28T00:00:00") })).toBe(false);
+    expect(kickoffMismatch({ racing: KST("2026-09-28T00:00:00"), s1Opens: null })).toBe(false);
   });
 });
 

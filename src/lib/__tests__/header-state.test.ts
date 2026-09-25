@@ -538,6 +538,14 @@ describe("운영자 헤더 — A1~A7", () => {
     expect(flat(m.queues[1].segs)).toBe("온보딩 미완료 3 팀");
   });
 
+  it("A2 마감 — 레이스 전환(= 개막)이 00:00이면 전날을 적는다(랜딩과 같은 날)", () => {
+    const m = adm({
+      phase: SeasonPhase.recruiting,
+      recruitDeadline: new Date("2026-09-28T00:00:00+09:00"),
+    });
+    expect(flat(m.queues[0].segs)).toBe("신청 24 팀 목표 20~40 마감 09.27");
+  });
+
   it("A3 스테이지 진행 — 지금 스테이지 배지에 도트, 대기열 1개", () => {
     const m = adm();
     expect(m.variant).toBe("A3");

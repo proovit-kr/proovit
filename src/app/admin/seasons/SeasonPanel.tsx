@@ -4,6 +4,7 @@ import { useActionState, useState, type ReactNode } from "react";
 
 import { Badge, type BadgeTone } from "@/components/Badge";
 import { Button } from "@/components/Button";
+import { Clauses } from "@/components/Clauses";
 import { Field, Input, Select, SwitchRow } from "@/components/Field";
 import { Card, Chip } from "@/components/Surface";
 import { SeasonPhase } from "@/generated/prisma/enums";
@@ -41,21 +42,24 @@ export type ScheduleRow = {
   /** `<input type="datetime-local">` 값(KST). 비었으면 "" */
   at: string;
   state: "applied" | "skipped" | "reached" | "late" | "pending" | "empty";
-  /** 전환 시각 「10.05 00:00」 */
+  /** 전환 시각 「09.28 00:00」 */
   stamp?: string;
 };
 
 /*
   페이즈 일정의 줄 이름 — 운영 화면이라 명사형. 줄마다 **그 페이즈가 시작되는
-  시각**이다. racing 행은 레이스 시작이고, 랜딩·운영 헤더는 그 1분 전을 참가
-  신청 마감으로 적는다 — 23:59 마감이면 00:00을 넣는다. 개막(`seasons.starts_at`,
-  s1 시작)과는 다른 날이다(admin-store `setPhaseSchedule` 주석).
+  시각**이다. racing 행은 개막이고 레이스 시작이며 s1 시작이다(2026-09-26 수연
+  결정, 기획 문서 순서 — admin-store `setPhaseSchedule` 주석). 저장하면 개막
+  (`seasons.starts_at`)도 같이 옮겨지고, 랜딩·운영 헤더는 그 1분 전을 참가 신청
+  마감으로 적는다 — 9/27 23:59 마감이면 9/28 00:00을 넣는다.
+    → 2026-09-26 뒤집음: 「레이스 시작(모집 마감 다음 분)」이라 부르고 개막과는
+    다른 날이라고 적었었다. 시안 날짜(참가 신청 마감 = s1 마감일)를 따른 것이었다.
   줄 이름은 내가 정함(수연 확인 대기).
 */
 const SCHEDULE_NAME: Record<string, string> = {
   pre_apply: "사전 신청 시작",
   recruiting: "참가 모집 시작",
-  racing: "레이스 시작(모집 마감 다음 분)",
+  racing: "개막(레이스·s1 시작)",
   awarded: "시상 발표",
   archived: "아카이브",
 };
@@ -95,6 +99,7 @@ export function SeasonPanel({
   stages,
   tracks,
   schedule,
+  kickoffWarning,
   flags,
   config,
 }: {
@@ -103,6 +108,8 @@ export function SeasonPanel({
   stages: Stage[];
   tracks: { id: string; name: string }[];
   schedule: ScheduleRow[];
+  /** 개막(레이스 시작)과 s1 시작이 어긋났을 때의 경고 한 줄(page.tsx). 맞으면 null */
+  kickoffWarning: string | null;
   flags: Flags;
   config: ReactNode;
 }) {
@@ -273,6 +280,12 @@ export function SeasonPanel({
             );
           })}
         </Card>
+        {/* 저장은 막지 않고 알리기만 한다(season-phase `kickoffMismatch`) */}
+        {kickoffWarning ? (
+          <p role="status" className={styles.schWarn} data-probe="kickoff-warning">
+            <Clauses text={kickoffWarning} />
+          </p>
+        ) : null}
         {scheduleDirty ? (
           <div className={styles.saveRow}>
             <Button
