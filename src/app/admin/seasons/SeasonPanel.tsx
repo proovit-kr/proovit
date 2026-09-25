@@ -234,7 +234,7 @@ export function SeasonPanel({
       </Field>
 
       {/* 시안에 없는 칸 — page.tsx 머리 주석 */}
-      <Field label="페이즈 일정" note="KST, 15분 단위로 크론이 전환">
+      <Field label="페이즈 일정" note="15분 단위로 크론이 전환">
         <Card style={{ padding: "8px 18px" }} data-probe="schedule">
           {schedule.map((row, i) => {
             const st = SCHEDULE_STATE[row.state];
