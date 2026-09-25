@@ -45,13 +45,15 @@ const CANDIDATE_TAKE = 500;
 
 /*
   빈 상태의 롤업 줄. 「정상 작동 중」만 시안 문구이고, 나머지는 시안에 없다 —
-  내가 정함(수연 확인 대기). 롤업이 쉬면(idle) 줄을 뺀다 — 대시보드 부제와 같다.
+  내가 정함(2026-09-26 수연이 맡김). 모든 줄이 시안 문구의 틀
+  「자동 집계 <상태>, <시각>.」을 따른다.
+  롤업이 쉬면(idle) 줄을 뺀다 — 대시보드 부제와 같다.
   지연이면 danger 색으로 칠하는 것도 대시보드 부제와 같다(2026-09-26 수연 결정).
 */
 function rollupLine(health: RollupHealth): string | null {
   if (health.kind === "idle") return null;
   if (health.kind === "first") {
-    return health.late ? "자동 집계 지연, 첫 롤업 없음." : "첫 롤업 대기.";
+    return health.late ? "자동 집계 지연, 첫 롤업 없음." : "자동 집계 정상 작동 중, 첫 롤업 대기.";
   }
   if (health.late) return `자동 집계 지연, 마지막 롤업 ${health.minutes}분 전.`;
   const next = Math.max(0, ROLLUP_EVERY_MIN - (health.minutes % ROLLUP_EVERY_MIN));

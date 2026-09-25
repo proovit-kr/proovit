@@ -47,7 +47,8 @@ const NUM = new Intl.NumberFormat("ko-KR");
 
   롤업이 돌아야 하는 때는 **가장 이른 레이스 시작**이다(2026-09-26 팀별 집계).
   레이스가 시작됐는데 한도가 지나도록 스냅샷이 없으면 그것도 지연이다. 「첫 롤업
-  대기」·「첫 롤업 없음」은 시안에 없다 — 내가 정함(수연 확인 대기).
+  대기」·「첫 롤업 없음」은 시안에 없다 — 내가 정함(2026-09-26 수연이 맡김). 모든 줄이
+  「리더보드 롤업 정상|지연, <시각>」 한 틀이다.
 
   시각은 진짜 지금이다 — 롤업 시각(`updated_at`)과 레이스 시작이 진짜 시각이다.
 
@@ -57,7 +58,7 @@ const NUM = new Intl.NumberFormat("ko-KR");
 function subline(health: RollupHealth): string | null {
   if (health.kind === "idle") return null;
   if (health.kind === "first") {
-    return health.late ? "리더보드 롤업 지연, 첫 롤업 없음" : "리더보드 첫 롤업 대기";
+    return health.late ? "리더보드 롤업 지연, 첫 롤업 없음" : "리더보드 롤업 정상, 첫 롤업 대기";
   }
   return `리더보드 롤업 ${health.late ? "지연" : "정상"}, 마지막 ${health.minutes}분 전`;
 }
