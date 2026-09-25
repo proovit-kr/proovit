@@ -329,23 +329,24 @@ describe("rollupHealth — 운영 대시보드 「지연」", () => {
   const minutesBefore = (m: number) => new Date(now.getTime() - m * 60_000);
 
   it("레이스를 시작한 팀이 없으면 돌 일이 없다", () => {
-    expect(rollupHealth({ firstRaceStartAt: null, lastRollupAt: null, now, lateMinutes: late })).toEqual({
+    expect(rollupHealth({ halted: false, firstRaceStartAt: null, lastRollupAt: null, now, lateMinutes: late })).toEqual({
       kind: "idle",
     });
   });
 
   it("레이스가 시작됐는데 롤업이 없으면 가장 이른 시작에서 센다", () => {
     expect(
-      rollupHealth({ firstRaceStartAt: minutesBefore(10), lastRollupAt: null, now, lateMinutes: late }),
+      rollupHealth({ halted: false, firstRaceStartAt: minutesBefore(10), lastRollupAt: null, now, lateMinutes: late }),
     ).toEqual({ kind: "first", late: false });
     expect(
-      rollupHealth({ firstRaceStartAt: minutesBefore(45), lastRollupAt: null, now, lateMinutes: late }),
+      rollupHealth({ halted: false, firstRaceStartAt: minutesBefore(45), lastRollupAt: null, now, lateMinutes: late }),
     ).toEqual({ kind: "first", late: true });
   });
 
   it("롤업이 돈 적이 있으면 마지막 롤업에서 센다", () => {
     expect(
       rollupHealth({
+        halted: false,
         firstRaceStartAt: minutesBefore(600),
         lastRollupAt: minutesBefore(6),
         now,
@@ -354,6 +355,7 @@ describe("rollupHealth — 운영 대시보드 「지연」", () => {
     ).toEqual({ kind: "ran", late: false, minutes: 6 });
     expect(
       rollupHealth({
+        halted: false,
         firstRaceStartAt: minutesBefore(600),
         lastRollupAt: minutesBefore(31),
         now,
@@ -365,11 +367,30 @@ describe("rollupHealth — 운영 대시보드 「지연」", () => {
   it("시작 시각이 아직 안 왔으면 돌 일이 없다(개발 시계)", () => {
     expect(
       rollupHealth({
+        halted: false,
         firstRaceStartAt: KST("2026-11-02T00:00"),
         lastRollupAt: null,
         now,
         lateMinutes: late,
       }),
+    ).toEqual({ kind: "idle" });
+  });
+
+  it("롤업이 쉬는 시즌이면 스냅샷이 낡아도 지연이 아니다", () => {
+    expect(
+      rollupHealth({
+        halted: true,
+        firstRaceStartAt: minutesBefore(600),
+        lastRollupAt: minutesBefore(118),
+        now,
+        lateMinutes: late,
+      }),
+    ).toEqual({ kind: "idle" });
+  });
+
+  it("레이스를 시작한 팀이 없으면 픽스처 스냅샷이 있어도 판정하지 않는다", () => {
+    expect(
+      rollupHealth({ halted: false, firstRaceStartAt: null, lastRollupAt: minutesBefore(118), now, lateMinutes: late }),
     ).toEqual({ kind: "idle" });
   });
 });

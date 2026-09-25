@@ -6,7 +6,7 @@ import { LinkButton } from "@/components/Button";
 import { Card } from "@/components/Surface";
 import { guardPage } from "@/lib/access";
 import { devNow } from "@/lib/dev-clock";
-import { loadAdminSummary } from "@/lib/admin-read";
+import { loadAdminSummary, ROLLUP_LATE_MIN } from "@/lib/admin-read";
 import { fmtDday, fmtStamp } from "@/lib/header-state";
 import { rollupHealth } from "@/lib/race";
 
@@ -34,41 +34,40 @@ export const metadata: Metadata = {
 
 const NUM = new Intl.NumberFormat("ko-KR");
 
-/**
- * 롤업이 멈췄는지 — 주기(15분)를 두 번 넘기면 지연으로 본다.
- * 내가 정함(수연 확인 대기): 시안은 「정상」 한 판만 그렸다.
- */
-const ROLLUP_LATE_MIN = 30;
-
 /*
-  시안 부제 「시즌 1, 자동 집계 정상, 마지막 롤업 6분 전」.
-  롤업이 한 번도 안 돌았으면(레이스 전) 그렇다고 적는다 — 「정상」이라 쓰면 거짓이다.
+  시안 부제는 「시즌 1, 자동 집계 정상, 마지막 롤업 6분 전」이다. 두 군데를 바꿨다
+  (2026-09-26 수연 결정).
+    · 「자동 집계」 → 「리더보드 롤업」. 카드 바로 위라 아래 네 숫자를 롤업한다는
+      뜻으로 읽혔다. 카드는 열 때마다 DB에서 바로 세고, 롤업이 쓰는 것은 리더보드
+      순위뿐이다.
+    · 시즌명을 뺐다. 헤더의 시즌 셀렉트와 겹친다.
 
-  롤업이 돌아야 하는 때는 **가장 이른 레이스 시작**이다(2026-09-26 팀별 집계 —
-  race.ts `rollupHealth`). 레이스가 시작됐는데 한도가 지나도록 스냅샷이 없으면 그것도
-  지연이다. 두 문구(「첫 롤업 대기」·「첫 롤업 없음」)는 시안에 없다 — 내가 정함
-  (수연 확인 대기).
+  롤업이 돌 때가 아니면(race.ts `rollupHealth`의 idle) 부제를 통째로 뺀다. 그동안
+  마지막 롤업이 낡는 것은 지연이 아닌데, 시각만 보면 「지연」이 떴다.
+
+  롤업이 돌아야 하는 때는 **가장 이른 레이스 시작**이다(2026-09-26 팀별 집계).
+  레이스가 시작됐는데 한도가 지나도록 스냅샷이 없으면 그것도 지연이다. 「첫 롤업
+  대기」·「첫 롤업 없음」은 시안에 없다 — 내가 정함(수연 확인 대기).
 
   시각은 진짜 지금이다 — 롤업 시각(`updated_at`)과 레이스 시작이 진짜 시각이다.
 */
-function subline(
-  title: string,
-  lastRollupAt: Date | null,
-  firstRaceStartAt: Date | null,
-): string {
+function subline(summary: {
+  rollupHalted: boolean;
+  lastRollupAt: Date | null;
+  firstRaceStartAt: Date | null;
+}): string | null {
   const health = rollupHealth({
-    firstRaceStartAt,
-    lastRollupAt,
+    halted: summary.rollupHalted,
+    firstRaceStartAt: summary.firstRaceStartAt,
+    lastRollupAt: summary.lastRollupAt,
     now: new Date(),
     lateMinutes: ROLLUP_LATE_MIN,
   });
-  if (health.kind === "idle") return `${title}, 롤업 전`;
+  if (health.kind === "idle") return null;
   if (health.kind === "first") {
-    return health.late
-      ? `${title}, 자동 집계 지연, 첫 롤업 없음`
-      : `${title}, 첫 롤업 대기`;
+    return health.late ? "리더보드 롤업 지연, 첫 롤업 없음" : "리더보드 첫 롤업 대기";
   }
-  return `${title}, 자동 집계 ${health.late ? "지연" : "정상"}, 마지막 롤업 ${health.minutes}분 전`;
+  return `리더보드 롤업 ${health.late ? "지연" : "정상"}, 마지막 ${health.minutes}분 전`;
 }
 
 /*
@@ -94,15 +93,19 @@ export default async function Page() {
   const summary = await loadAdminSummary(viewer.season?.id ?? null);
   const today = devNow();
   const gate = summary.nextGate;
+  const line = summary.season ? subline(summary) : "시즌 없음";
 
   return (
     <>
-      <h2 className={hub.h1}>운영 대시보드</h2>
-      <p className={hub.sub} style={{ marginBottom: "20px" }}>
-        {summary.season
-          ? subline(summary.season.title, summary.lastRollupAt, summary.firstRaceStartAt)
-          : "시즌 없음"}
-      </p>
+      {/* 부제가 빠지면 카드까지의 간격을 제목이 대신 띄운다 */}
+      <h2 className={hub.h1} style={line ? undefined : { marginBottom: "20px" }}>
+        운영 대시보드
+      </h2>
+      {line && (
+        <p className={hub.sub} style={{ marginBottom: "20px" }}>
+          {line}
+        </p>
+      )}
 
       {/*
         시안 `.kpi` — 넉 장. 「사전 신청 리드」에 KPI 1이라 적는 것도 시안 그대로다.
