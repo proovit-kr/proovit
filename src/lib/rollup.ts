@@ -1,11 +1,13 @@
-import { SeasonPhase, StageKey } from "@/generated/prisma/enums";
+import { SeasonPhase } from "@/generated/prisma/enums";
 import { seoulDateOnly } from "@/lib/measure";
 import { prisma } from "@/lib/prisma";
 import { devNow } from "@/lib/dev-clock";
+import { raceDailyWhere } from "@/lib/race-read";
+import { raceEndAt, teamRaceWindow } from "@/lib/race";
 import { rankProvisional } from "@/lib/rollup-rank";
 
 /*
-  리더보드 롤업 — 레이스 기간의 지표를 모아 `leaderboard_snapshots`를 갱신한다.
+  리더보드 롤업 — 팀마다 제 레이스 기간의 지표를 모아 `leaderboard_snapshots`를 갱신한다.
 
   15분마다 밖에서 부른다(`/api/v1/cron/rollup`). 화면은 이 표만 읽고 순위를
   계산하지 않는다 — 그 원칙이 public-read.ts와 리더보드 화면 주석에 있다.
@@ -44,19 +46,18 @@ export type RollupResult = {
 };
 
 /*
-  집계 구간 — 레이스 기간이다. s4가 열린 때부터 s5 마감까지, 그리고 지금까지.
-  s4부터인 것은 트래픽이 그때부터 쌓이기 때문이고(2026-09-06 수연 결정),
-  「첫 갱신까지」 카운트다운도 같은 시각을 기준으로 삼는다.
+  집계 구간 — **팀마다 다르다.** 그 팀이 s3을 처음 낸 때(`entries.race_started_at`)부터
+  s5 마감까지, 그리고 지금까지. 판정은 race.ts `teamRaceWindow` 하나다.
+
+  옛 정의: 「s4가 열린 때부터 s5 마감까지 — 모든 팀 같은 구간. s4부터인 것은 트래픽이
+  그때부터 쌓이기 때문이고(2026-09-06 수연 결정), 「첫 갱신까지」 카운트다운도 같은
+  시각을 기준으로 삼는다.」
+  → 2026-09-26 뒤집음(수연 지시 「팀별 집계로 바꿔」): 유동 게이트(09-25)로 s3을 내면
+  s4가 바로 열려서 「s4 달력 시작일」이 팀의 실제 레이스 시작과 어긋난다. PRD 2장은
+  「빨리 배포한 팀이 측정 기간을 길게 가져간다」고 적고, 기획 문서에는 「레이스 기간」의
+  정의가 없었다 — 09-06의 기준은 이 주석 하나뿐이었다. 「첫 갱신까지」는 이제 가장
+  이른 레이스 시작을 센다(리더보드 화면).
 */
-function raceWindow(
-  stages: { stageKey: StageKey; opensAt: Date | null; closesAt: Date | null }[],
-  now: Date,
-): { from: Date; to: Date } | null {
-  const from = stages.find((s) => s.stageKey === StageKey.s4)?.opensAt ?? null;
-  if (!from || from > now) return null;
-  const s5Closes = stages.find((s) => s.stageKey === StageKey.s5)?.closesAt ?? null;
-  return { from, to: s5Closes && s5Closes < now ? s5Closes : now };
-}
 
 /**
  * 롤업 한 번. 지금 순위를 다시 매겨 오늘 자 스냅샷에 덮어쓴다.
@@ -76,7 +77,7 @@ export async function runRollup(args: {
     select: {
       phase: true,
       stages: {
-        select: { stageKey: true, opensAt: true, closesAt: true },
+        select: { stageKey: true, closesAt: true },
       },
     },
   });
@@ -87,11 +88,6 @@ export async function runRollup(args: {
     season.phase !== SeasonPhase.awarded
   ) {
     return { seasonId, snapshotDate: null, ranked: 0, skipped: "not-racing" };
-  }
-
-  const window = raceWindow(season.stages, now);
-  if (!window) {
-    return { seasonId, snapshotDate: null, ranked: 0, skipped: "no-race-window" };
   }
 
   /*
@@ -114,25 +110,39 @@ export async function runRollup(args: {
   */
   const entries = await prisma.entry.findMany({
     where: { seasonId },
-    select: { id: true, appliedAt: true, createdAt: true },
+    select: { id: true, appliedAt: true, createdAt: true, raceStartedAt: true },
   });
   if (entries.length === 0) {
     return { seasonId, snapshotDate: null, ranked: 0, skipped: "no-entries" };
   }
 
+  /* 팀마다 제 구간. 레이스 전 팀은 null — 순위에는 서되 지표가 0이다(race.ts 머리 주석) */
+  const endsAt = raceEndAt(season.stages);
+  const windows = new Map(
+    entries.map((e) => [
+      e.id,
+      teamRaceWindow({ startedAt: e.raceStartedAt, endsAt, now }),
+    ]),
+  );
+  const racing = [...windows].flatMap(([entryId, win]) => (win ? [{ entryId, win }] : []));
+  /* 아무 팀도 레이스를 시작하지 않았으면 셀 것이 없다 — 옛 「s4 전」 자리다 */
+  if (racing.length === 0) {
+    return { seasonId, snapshotDate: null, ranked: 0, skipped: "no-race-window" };
+  }
+
   /*
-    유효 이용자와 매출 합. 구간은 레이스 기간이다.
+    유효 이용자와 매출 합. 구간은 **그 팀의** 레이스 기간이다 — 팀마다 조건 하나씩
+    OR로 묶어 한 번에 읽는다(참가팀이 열 단위라 조건이 길지 않다).
 
     ⚠️ 어뷰징 검수에서 통과하지 못한 날은 뺀다(`manual_review_passed=false`).
     그 칸은 abuse_flags가 걸린 행에만 의미가 있고, 기본값이 true라 검수에 안 걸린
     날은 그대로 들어온다. 검수 중인 숫자를 순위에 얹으면 그게 곧 분쟁이 된다.
+    조건은 race-read.ts `raceDailyWhere` 하나다 — 참가작 상세·허브가 같은 것을 쓴다.
   */
   const sums = await prisma.metricDaily.groupBy({
     by: ["entryId"],
     where: {
-      entryId: { in: entries.map((e) => e.id) },
-      metricDate: { gte: seoulDateOnly(window.from), lte: seoulDateOnly(window.to) },
-      manualReviewPassed: true,
+      OR: racing.map(({ entryId, win }) => raceDailyWhere(entryId, win)),
     },
     _sum: { validVisitors: true, revenue: true },
   });
@@ -151,6 +161,22 @@ export async function runRollup(args: {
   );
 
   const snapshotDate = seoulDateOnly(now);
+
+  /*
+    무엇을 기준으로 줄을 세웠는지 — 파일 머리 주석. 구간은 **그 팀의** 것이고, 레이스
+    전 팀은 구간이 없다(null).
+  */
+  const breakdown = (row: (typeof ranked)[number]) => {
+    const win = windows.get(row.entryId) ?? null;
+    return {
+      basis: "valid_visitors",
+      provisional: true,
+      validVisitors: row.validVisitors,
+      revenue: row.revenue.toString(),
+      windowFrom: win?.from.toISOString() ?? null,
+      windowTo: win?.to.toISOString() ?? null,
+    };
+  };
 
   /*
     한 트랜잭션으로 쓴다. 중간에 끊기면 어떤 팀은 새 순위, 어떤 팀은 옛 순위인
@@ -185,28 +211,14 @@ export async function runRollup(args: {
             찍으면 화면에 없는 사실이 뜬다.
           */
           isAwardEligible: true,
-          scoreBreakdown: {
-            basis: "valid_visitors",
-            provisional: true,
-            validVisitors: row.validVisitors,
-            revenue: row.revenue.toString(),
-            windowFrom: window.from.toISOString(),
-            windowTo: window.to.toISOString(),
-          },
+          scoreBreakdown: breakdown(row),
         },
         update: {
           rank: i + 1,
           validVisitorsTotal: row.validVisitors,
           revenueTotal: row.revenue,
           isAwardEligible: true,
-          scoreBreakdown: {
-            basis: "valid_visitors",
-            provisional: true,
-            validVisitors: row.validVisitors,
-            revenue: row.revenue.toString(),
-            windowFrom: window.from.toISOString(),
-            windowTo: window.to.toISOString(),
-          },
+          scoreBreakdown: breakdown(row),
         },
       }),
     ),

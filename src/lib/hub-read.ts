@@ -17,6 +17,7 @@ import type { HubPane } from "@/lib/hub-state";
 import { splitFeedback } from "@/lib/judgments-view";
 import { prisma } from "@/lib/prisma";
 import { loadLeaderboard } from "@/lib/public-read";
+import { loadRaceTotals } from "@/lib/race-read";
 import { isRacing } from "@/lib/season-phase";
 import { stageWindows } from "@/lib/submission";
 
@@ -232,7 +233,13 @@ async function loadExtra(
   return out;
 }
 
-/** 그 참가작의 누적 지표. 리더보드에 행이 없을 때도 쓴다 */
+/**
+ * 그 참가작의 측정 시작부터의 누적 — **1차 게이트(s2)가 본 숫자**다(h4·h12).
+ *
+ * ⚠️ 레이스 판(race·undeployed·s5·gate2·awarded·readonly·archived)은 이것을 쓰지 않는다 — 그쪽
+ * 숫자는 리더보드 롤업과 같은 레이스 구간·검수 필터를 거친다(race-read.ts
+ * `loadRaceTotals`, 2026-09-26). 같은 팀의 숫자가 허브와 리더보드에서 다르면 안 된다.
+ */
 async function totals(entryId: string) {
   const sum = await prisma.metricDaily.aggregate({
     where: { entryId },
@@ -513,7 +520,7 @@ export async function loadHub(
           where: { entryId: entry.id },
           select: { hostname: true },
         }),
-        totals(entry.id),
+        loadRaceTotals(entry.id),
       ]);
       return {
         pane,
@@ -528,7 +535,7 @@ export async function loadHub(
     case "gate2": {
       const [{ row }, sum, seasonRow, extra] = await Promise.all([
         myRow(season.id, entry.id),
-        totals(entry.id),
+        loadRaceTotals(entry.id),
         prisma.season.findUnique({
           where: { id: season.id },
           select: { endsAt: true },
@@ -549,7 +556,7 @@ export async function loadHub(
     case "awarded": {
       const [{ row, teams }, sum] = await Promise.all([
         myRow(season.id, entry.id),
-        totals(entry.id),
+        loadRaceTotals(entry.id),
       ]);
       return {
         pane,
@@ -568,7 +575,7 @@ export async function loadHub(
       const [{ row, teams }, sum, stages, submitted, judgments] =
         await Promise.all([
           myRow(season.id, entry.id),
-          totals(entry.id),
+          loadRaceTotals(entry.id),
           prisma.stage.findMany({
             where: { seasonId: season.id },
             select: { stageKey: true, isGate: true },
@@ -659,12 +666,12 @@ export async function loadHub(
     case "undeployed": {
       /*
         ⚠️ **숫자를 0으로 박지 않는다.** 시안 h13이 0과 「-」를 적은 것은
-        미배포 팀에 집계가 쌓일 수 없기 때문이지(`public-read.ts`의
+        미배포 팀에 집계가 쌓일 수 없기 때문이지(`race.ts`의
         `notDeployed`) 화면이 0을 쓰기 때문이 아니다. 읽어서 그린다.
       */
       const [{ row }, sum] = await Promise.all([
         myRow(season.id, entry.id),
-        totals(entry.id),
+        loadRaceTotals(entry.id),
       ]);
       return {
         pane,
@@ -685,7 +692,7 @@ export async function loadHub(
     case "s5": {
       const [{ row }, sum, extra] = await Promise.all([
         myRow(season.id, entry.id),
-        totals(entry.id),
+        loadRaceTotals(entry.id),
         loadExtra(entry.id),
       ]);
       return {

@@ -149,6 +149,13 @@ export async function saveStageAction(
   revalidatePath(`/dashboard/submit/${stageKey}`);
   /* 제출은 대시보드의 결론(nextAction)과 사이드바의 링크를 바꾼다 */
   if (intent === "submit") revalidatePath("/dashboard", "layout");
+  /*
+    s3 첫 제출로 팀의 레이스가 시작됐다 — 리더보드가 열릴 수 있다(첫 팀이면 닫혀
+    있던 진입점이 전부 나타난다, race.ts `leaderboardOpen`). 랜딩은 정적 렌더라
+    다음 재생성까지 옛 헤더를 들고 있으므로 전체를 다시 뜨게 한다 — 운영 콘솔의
+    페이즈 전환 액션과 같은 이유다. 팀마다 한 번뿐이다.
+  */
+  if (saved.raceStarted) revalidatePath("/", "layout");
   return { done: intent === "draft" ? "draft" : "submitted", ...echo };
 }
 

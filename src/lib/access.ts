@@ -21,6 +21,7 @@ import { apiFail } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { parseFeatureFlags, type FeatureFlags } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
+import { withLeaderboardOpen } from "@/lib/race-read";
 import { getCurrentSeason } from "@/lib/season";
 
 /*
@@ -135,6 +136,12 @@ export type ViewerState = {
     slug: string;
     title: string;
     phase: SeasonPhase;
+    /**
+     * `leaderboard`는 날것의 플래그가 아니라 「지금 리더보드를 여는가」다 —
+     * 플래그 켜짐 그리고 레이스를 시작한 팀이 있음(race-read.ts
+     * `withLeaderboardOpen`, 2026-09-26). 접근 판정(`leaderboard` 라우트)과
+     * 대시보드 D7이 이 값을 본다.
+     */
     flags: FeatureFlags;
   } | null;
   team: { id: string; name: string; isLeader: boolean } | null;
@@ -161,6 +168,8 @@ const EMPTY_ONBOARDING: OnboardingProgress = {
  *
  * ⚠️ 비로그인이면 쿼리가 시즌 하나로 끝난다. 랜딩의 관전 트래픽이 대부분
  * 비로그인이라 이 단락이 중요하다(`/api/v1/me`가 쿠키부터 보는 것과 같은 이유).
+ * 레이스 이후에는 가장 이른 레이스 시작 하나가 더 붙는다(리더보드 공개 판정,
+ * 2026-09-26) — 같은 요청의 헤더도 읽는 값이라 캐시로 한 번이다.
  */
 export const loadViewerState = cache(
   async function loadViewerState(): Promise<ViewerState> {
@@ -169,13 +178,18 @@ export const loadViewerState = cache(
       getCurrentSeason(),
     ]);
 
+    /*
+      리더보드 공개 판정에 가장 이른 레이스 시작이 든다 — 레이스 이후 페이즈에서
+      플래그가 켜져 있을 때만 한 번 더 읽는다(race-read.ts). 같은 요청의 헤더·페이지와
+      캐시를 나눠 쓴다.
+    */
     const seasonState = season
       ? {
           id: season.id,
           slug: season.slug,
           title: season.title,
           phase: season.phase,
-          flags: parseFeatureFlags(season.featureFlags),
+          flags: await withLeaderboardOpen(season, parseFeatureFlags(season.featureFlags)),
         }
       : null;
 

@@ -426,6 +426,11 @@ set -a; source .env.development.local; set +a; npx prisma migrate deploy
 순위는 **유효 이용자 누적** 순이다(잠정). 심사 기준서의 최종 산식 S는 증빙 검증
 뒤 확정 단계에서 쓰고, 확정된 시즌은 롤업이 건드리지 않는다.
 
+집계 구간은 **팀마다 다르다** — 그 팀이 s3을 처음 낸 때(`entries.race_started_at`)부터
+s5 마감까지다(2026-09-26). 리더보드는 플래그가 켜져 있고 레이스를 시작한 팀이 하나라도
+있으면 열린다. 판정은 `src/lib/race.ts` 한 곳이고, 한 팀의 숫자를 보여 주는 화면은
+전부 그 구간과 같은 검수 필터(`race-read.ts`)를 쓴다.
+
 ## 페이즈 자동 전환
 
 **15분마다**(롤업과 같은 격자) Vercel 크론이 `/api/v1/cron/phase`를 부른다. `season_schedules`에서 시각이

@@ -967,6 +967,50 @@ function scheduleStageDates(startsAt: Date | null, endsAt: Date | null) {
   });
 }
 
+/**
+ * 픽스처 팀의 레이스 시작(2026-09-26 팀별 집계).
+ *
+ * **s4 달력 시작일**이 기본이다 — 옛 규칙(모든 팀이 s4 달력 시작일부터)과 같은 값이라
+ * 「첫 갱신까지」·s4 주차의 끝·주간 지표 구간이 전과 같게 선다. 스테이지 줄로 「오늘」이
+ * s1~s3이면 이 시각이 아직 안 와서 리더보드가 닫혀 있다(옛 「s4 전까지 플래그 끔」과
+ * 같은 화면).
+ *
+ * 지표를 깔았으면(`firstDay`, 서울 날짜) 그날까지 **7일씩 당긴다** — 참가작 상세와
+ * 롤업이 레이스 구간 안의 날만 세므로, 시작이 첫날보다 늦으면 시안 숫자(누적·7일
+ * 추세)가 잘려 나온다. 7일 단위로 당기는 것은 주 경계를 s4 달력에 맞춰 두려는 것이다
+ * — 주차 번호만 늘고 「이번 주 마감」은 그대로다. 제출 판(`setSandboxSubmit`)은 시안이
+ * 1·2주차를 그려서 그 팀만 s4 달력 시작일로 되돌린다.
+ */
+function fixtureRaceStart(s4Opens: Date | null, firstDay: Date | null, today: Date): Date {
+  /* 서울 날짜(UTC 자정 Date) → 그날 0시(서울) */
+  const kstMidnight = (day: Date) => new Date(day.getTime() - 9 * 3_600_000);
+  const floor = firstDay ? kstMidnight(firstDay) : null;
+  let start = s4Opens ?? floor ?? kstMidnight(today);
+  while (floor && start.getTime() > floor.getTime()) {
+    start = new Date(start.getTime() - WEEK_MS);
+  }
+  return start;
+}
+
+/**
+ * 리더보드 플래그를 켜는 쓰기 한 건 — **켜기만 하고 끄지 않는다**(2026-09-26).
+ *
+ * 플래그는 이제 비상용 끄기다(race.ts `leaderboardOpen`). 그런데 dev DB의 플래그는
+ * 09-20 방침(「s4 전까지 끈다」)으로 꺼져 있을 수 있어, 개발 바로 판을 세워도
+ * 리더보드가 안 열릴 수 있다. 그래서 판을 세우는 자리(집계 픽스처·스테이지 줄)는
+ * 전부 이것으로 켜 둔다. 끄는 것은 운영 콘솔의 시즌 관리 토글로만 한다.
+ *
+ * JSONB를 통째로 덮어쓰지 않고 읽은 값에서 한 키만 고친다 — 이 함수가 모르는 키를
+ * 지워버리면 그게 제일 찾기 어려운 버그가 된다.
+ */
+function leaderboardFlagOn(seasonId: string, featureFlags: Prisma.JsonValue | null) {
+  const flags = (featureFlags ?? {}) as Prisma.InputJsonObject;
+  return prisma.season.update({
+    where: { id: seasonId },
+    data: { featureFlags: { ...flags, leaderboard: true } },
+  });
+}
+
 export async function setMetricsFixture(args: {
   seasonId: string;
   kind: MetricsFixture;
@@ -1021,9 +1065,14 @@ export async function setMetricsFixture(args: {
 
   /*
     ⚠️ 셋 다 **리더보드 플래그를 켠다.** 이 줄은 리더보드 세 상태를 보려고
-    누르는 것인데, s1~s3에서 눌렀으면 플래그가 꺼져 있어(스테이지 줄) 화면이
-    404가 된다. 「집계 전」도 마찬가지다 — 그 상태 자체가 「플래그는 켜졌고
+    누르는 것인데, dev DB의 플래그는 꺼져 있을 수 있다(2026-09-20에 「s4 전까지
+    끈다」로 꺼 두었다). 「집계 전」도 마찬가지다 — 그 상태 자체가 「판은 켜졌고
     숫자만 아직 없는」 화면이다.
+
+    옛 이유 「s1~s3에서 눌렀으면 스테이지 줄이 플래그를 꺼 두어 404가 된다」는
+    2026-09-26에 사라졌다 — 스테이지 줄은 이제 플래그를 끄지 않고(켜 두기만 한다,
+    `leaderboardFlagOn`), 리더보드를 여는 것은 플래그와 **레이스 시작**이다(race.ts
+    `leaderboardOpen`). 그래서 아래에서 레이스 시작도 같이 심는다.
   */
   const season = await prisma.season.findUniqueOrThrow({
     where: { id: seasonId },
@@ -1037,13 +1086,14 @@ export async function setMetricsFixture(args: {
         take: 1,
         select: { startsAt: true },
       },
+      /* 레이스 시작의 기준 — 아래 `fixtureRaceStart` */
+      stages: {
+        where: { stageKey: StageKey.s4 },
+        select: { opensAt: true },
+      },
     },
   });
-  const flags = season.featureFlags as Prisma.InputJsonObject | null;
-  const flagOn = prisma.season.update({
-    where: { id: seasonId },
-    data: { featureFlags: { ...(flags ?? {}), leaderboard: true } },
-  });
+  const flagOn = leaderboardFlagOn(seasonId, season.featureFlags);
 
   /*
     스테이지 날짜는 **언제나 시즌 제 일정**이다(2026-09-21 수연 지시).
@@ -1061,11 +1111,6 @@ export async function setMetricsFixture(args: {
         }),
       );
 
-  if (kind === "none" || entries.length === 0) {
-    await prisma.$transaction([...clear, ...stageDates, flagOn]);
-    return;
-  }
-
   /*
     오늘은 빼고 어제까지 14일. 화면이 전일까지만 공개하기 때문이다.
 
@@ -1074,6 +1119,39 @@ export async function setMetricsFixture(args: {
     7일」의 끝 칸이 빈 채로 대조를 돌게 된다(실제로 그랬다).
   */
   const today = seoulDateOnly(devNow());
+
+  /*
+    레이스 시작 — 픽스처의 팀은 **전부 일정대로 s3을 냈다고 본다**(개발용, 2026-09-26).
+    팀별 집계에서는 이 값이 리더보드를 열고(race.ts `leaderboardOpen`) 참가작 상세의
+    숫자 구간을 정한다(`teamRaceWindow`). 값은 `fixtureRaceStart` 주석.
+  */
+  const s4Opens =
+    (args.keepStageDates
+      ? undefined
+      : dates.find((d) => d.stageKey === StageKey.s4)?.opensAt) ??
+    season.stages[0]?.opensAt ??
+    null;
+  /*
+    ⚠️ **시즌 전체에** 쓴다 — 실격·탈락·포기 팀도. 활성 팀만 쓰면 비활성 팀에 남은
+    옛 값(마이그레이션이 채운 09월의 진짜 제출 시각 등)이 시즌의 「가장 이른 레이스
+    시작」이 되어, 리더보드 공개·「첫 갱신까지」·운영 대시보드 「지연」이 그 값을 본다
+    (race-read `loadFirstRaceStart`는 상태를 거르지 않는다, 2026-09-26 리뷰 지적).
+  */
+  const raceStart = prisma.entry.updateMany({
+    where: { seasonId },
+    data: {
+      raceStartedAt: fixtureRaceStart(
+        s4Opens,
+        kind === "none" ? null : new Date(today.getTime() - DAYS * 86_400_000),
+        today,
+      ),
+    },
+  });
+
+  if (kind === "none" || entries.length === 0) {
+    await prisma.$transaction([...clear, ...stageDates, flagOn, raceStart]);
+    return;
+  }
 
   const daily = entries.flatMap((entry, index) =>
     Array.from({ length: 14 }, (_, day) => {
@@ -1211,6 +1289,7 @@ export async function setMetricsFixture(args: {
     ...clear,
     ...stageDates,
     flagOn,
+    raceStart,
     prisma.award.createMany({ data: awards, skipDuplicates: true }),
     prisma.metricDaily.createMany({ data: daily, skipDuplicates: true }),
     prisma.leaderboardSnapshot.createMany({
@@ -1219,28 +1298,6 @@ export async function setMetricsFixture(args: {
     }),
     prisma.consent.createMany({ data: consents }),
   ]);
-}
-
-/**
- * 리더보드 플래그 한 칸만 바꾼다.
- *
- * JSONB를 통째로 덮어쓰지 않고 읽어서 한 키만 고친다 — 이 함수가 모르는 키를
- * 지워버리면 그게 제일 찾기 어려운 버그가 된다.
- */
-async function setLeaderboardFlag(
-  tx: Prisma.TransactionClient,
-  seasonId: string,
-  on: boolean,
-): Promise<void> {
-  const season = await tx.season.findUniqueOrThrow({
-    where: { id: seasonId },
-    select: { featureFlags: true },
-  });
-  const flags = (season.featureFlags ?? {}) as Prisma.InputJsonObject;
-  await tx.season.update({
-    where: { id: seasonId },
-    data: { featureFlags: { ...flags, leaderboard: on } },
-  });
 }
 
 /*
@@ -1255,10 +1312,21 @@ async function setLeaderboardFlag(
   연 날 **정오**로 잡는다. 자정은 `opensAt`과 같은 순간이라 경계 판정
   (`opensAt <= now`)이 구현마다 갈릴 수 있다 — 하루 안쪽이면 그 다툼이 없다.
 
-  **리더보드 플래그는 그대로 같이 옮긴다**(2026-09-20 수연 지시). 시즌1은 s4
-  시작 전까지 플래그를 끄기로 했으므로(`leaderboard-flag-off-until-s4`),
-  s4·s5를 고르면 켜지고 s1~s3을 고르면 꺼진다 — 스테이지만 옮기면 바가 말하는
-  상태와 화면이 어긋난다.
+  옛 규칙: 「**리더보드 플래그는 그대로 같이 옮긴다**(2026-09-20 수연 지시). 시즌1은
+  s4 시작 전까지 플래그를 끄기로 했으므로, s4·s5를 고르면 켜지고 s1~s3을 고르면
+  꺼진다.」
+  → 2026-09-26 뒤집음: 리더보드는 이제 플래그 켜짐 **그리고** 레이스를 시작한 팀이
+  있을 때 열린다(race.ts `leaderboardOpen`, 수연 지시 「팀별 집계로 바꿔」). 플래그는
+  비상용 끄기라 이 줄은 **켜 두기만 하고 끄지 않는다** — 어느 스테이지를 골라도 켜진
+  채로 남는다(`leaderboardFlagOn`; s1~s3·s5는 집계 픽스처가, s4는 아래에서 켠다).
+  dev DB 플래그가 09-20 방침대로 꺼져 있어도 s4만 눌러 리더보드가 열리게 하려는
+  것이다. 열고 닫는 것은 **레이스 시작**이 한다 — 「모두 일정대로 간다」로 본다.
+    s1~s3  아무 팀도 s3을 안 냈다 → 레이스 시작을 지운다(리더보드 닫힘)
+    s4     일정대로 s4 달력 시작일에 s3을 냈다 → 그 시각(깔린 지표가 있으면 그
+           첫날까지 7일씩 당긴 시각, 집계 픽스처와 같은 규칙)으로 쓴다
+    s5     집계 픽스처(레이스 운영중)가 심는다
+  s1~s3에서 지우는 것은 그 주차에 진짜로 s3을 내 보면 리더보드가 열리는 것을 볼 수
+  있게 하려는 것이다(제출 액션이 레이스 시작을 채운다).
 */
 export async function setSandboxCurrentStage(args: {
   seasonId: string;
@@ -1303,14 +1371,92 @@ export async function setSandboxCurrentStage(args: {
   }
 
   /*
-    ⚠️ **플래그는 픽스처 뒤에 쓴다.** `setMetricsFixture`는 무엇을 부르든 리더보드
-    플래그를 켠다(그 줄은 리더보드 상태를 보려고 누르는 자리라서다). 먼저 꺼 두면
-    바로 뒤에서 도로 켜져, s1~s3을 골라도 「리더보드 보기」가 남았다
-    (2026-09-21 수연 지적). 스테이지 줄이 마지막에 말한다.
+    ⚠️ **레이스 시작은 픽스처 뒤에 쓴다.** `setMetricsFixture`는 무엇을 부르든 레이스
+    시작을 심는다(그 줄은 리더보드 상태를 보려고 누르는 자리라서다). 먼저 지우면 바로
+    뒤에서 도로 심어진다 — 옛 플래그 줄에서 2026-09-21에 수연이 잡은 것과 같은 순서
+    문제다. 스테이지 줄이 마지막에 말한다.
   */
-  await prisma.$transaction(async (tx) => {
-    await setLeaderboardFlag(tx, args.seasonId, at >= KEYS.indexOf(StageKey.s4));
+  if (at < KEYS.indexOf(StageKey.s4)) {
+    await prisma.entry.updateMany({
+      where: { seasonId: args.seasonId },
+      data: { raceStartedAt: null },
+    });
+  } else if (args.stage === StageKey.s4) {
+    /*
+      집계 픽스처와 같은 규칙이다(`fixtureRaceStart`) — s4 달력 시작일, 깔린 지표가
+      있으면 그 첫날까지 7일씩 당긴다. 없는 팀만 채우지 않고 **전부** 다시 쓴다:
+      마이그레이션이 옛 s3 제출 시각으로 채운 값(09월의 진짜 시각)이 남으면 s4
+      주차가 「7주차」처럼 튄다.
+    */
+    /*
+      상태를 거르지 않고 **시즌 전체에** 쓴다 — 집계 픽스처의 같은 줄 주석. 플래그도
+      여기서 켠다(위 머리 주석) — 이 스테이지만 집계 픽스처를 안 불러서다.
+    */
+    const [first, season] = await Promise.all([
+      prisma.metricDaily.aggregate({
+        where: { entry: { seasonId: args.seasonId } },
+        _min: { metricDate: true },
+      }),
+      prisma.season.findUniqueOrThrow({
+        where: { id: args.seasonId },
+        select: { featureFlags: true },
+      }),
+    ]);
+    await prisma.$transaction([
+      prisma.entry.updateMany({
+        where: { seasonId: args.seasonId },
+        data: {
+          raceStartedAt: fixtureRaceStart(
+            stage.opensAt,
+            first._min.metricDate ?? null,
+            seoulDateOnly(devNow()),
+          ),
+        },
+      }),
+      leaderboardFlagOn(args.seasonId, season.featureFlags),
+    ]);
+  }
+}
+
+/** 대조 스크립트의 `save`가 떠 두는 레이스 시작 한 줄 */
+export type SavedRaceStart = { entryId: string; raceStartedAt: string | null };
+
+/**
+ * 시즌의 레이스 시작을 떠 둔다 — 집계 픽스처와 스테이지 줄이 이 칸을 쓰므로
+ * (2026-09-26 팀별 집계) 상태 스크립트가 `restoreRaceStarts`로 되돌린다.
+ */
+export async function saveRaceStarts(seasonId: string): Promise<SavedRaceStart[]> {
+  assertSandbox();
+  const rows = await prisma.entry.findMany({
+    where: { seasonId },
+    select: { id: true, raceStartedAt: true },
   });
+  return rows.map((r) => ({
+    entryId: r.id,
+    raceStartedAt: r.raceStartedAt?.toISOString() ?? null,
+  }));
+}
+
+/**
+ * 떠 둔 레이스 시작으로 되돌린다. 떠 둔 것이 없으면(이 칸이 생기기 전의 save)
+ * 전부 지운다 — 그때는 레이스 시작이라는 칸 자체가 없었다.
+ */
+export async function restoreRaceStarts(
+  seasonId: string,
+  saved: SavedRaceStart[] | undefined,
+): Promise<void> {
+  assertSandbox();
+  await prisma.$transaction([
+    prisma.entry.updateMany({ where: { seasonId }, data: { raceStartedAt: null } }),
+    ...(saved ?? [])
+      .filter((r) => r.raceStartedAt !== null)
+      .map((r) =>
+        prisma.entry.updateMany({
+          where: { id: r.entryId, seasonId },
+          data: { raceStartedAt: new Date(r.raceStartedAt as string) },
+        }),
+      ),
+  ]);
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -1705,7 +1851,7 @@ export async function setSandboxHub(args: {
     ⚠️ **미배포 팀에는 집계가 없다**(시안 h13의 0과 「-」). 공용 픽스처는
     참가팀 전부에 일별 지표와 스냅샷을 깔아서, 그대로 두면 연동이 안 끝난
     팀이 순위를 달고 나온다 — 운영에서는 일어날 수 없는 모양이다
-    (`public-read.ts`의 `notDeployed`가 같은 조건을 본다).
+    (`race.ts`의 `notDeployed`가 같은 조건을 본다).
   */
   if (!plan.verified) {
     await prisma.$transaction([
@@ -2323,6 +2469,21 @@ export async function setSandboxSubmit(args: {
   if (!leader) throw new Error("[dev] 그 팀에 팀장이 없습니다.");
   const host = entry.hostname?.hostname ?? `dev-${entryId.slice(0, 8)}.proovit.kr`;
   const stageOf = (key: StageKey) => entry.season.stages.find((s) => s.stageKey === key);
+
+  /*
+    레이스 시작 — 시안의 s4 판은 「1주차」·「2주차」를 그린다. 주차는 팀의 레이스
+    시작부터 세므로(2026-09-26 팀별 집계) 이 팀은 **s4 달력 시작일에 s3을 낸** 것으로
+    둔다. 그래야 아래 「오늘」(이번 주 마감 이틀 전)이 1주차(2주차 판은 2주차)이고
+    「이번 주 마감」이 s4 달력의 주 경계에 선다 — 옛 규칙(주차 = s4 달력)과 같은 화면이다.
+    집계 픽스처가 심은 값(지표 첫날까지 당긴 주 경계, `fixtureRaceStart`)을 덮는다.
+    s3 판은 아직 s3을 안 냈다 — 스테이지 줄(s3)이 이미 지웠다.
+  */
+  if (pane !== "s3") {
+    await prisma.entry.update({
+      where: { id: entryId },
+      data: { raceStartedAt: stageOf(StageKey.s4)?.opensAt ?? null },
+    });
+  }
   /* 제출 시각은 마감 이틀 전 — 시안 「마감 10.04 · 제출 10.02」의 간격 */
   const submittedAt = (key: StageKey) => {
     const closes = stageOf(key)?.closesAt;

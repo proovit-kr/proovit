@@ -215,6 +215,10 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
     ⚠️ 끝나면 닫지 **않는다**. 2026-08-27까지 `isRacing`이라 시상 발표와 동시에
     잠겼는데, 관전이 가장 몰리는 때가 그때다. 시안의 리더보드 세 번째 상태
     (시즌 종료, FINAL 배너)도 이 화면이 시즌 뒤에 살아 있다는 전제다.
+
+    `flag`가 보는 `leaderboard`는 날것의 플래그가 아니라 「지금 여는가」다 — 플래그
+    켜짐 그리고 레이스를 시작한 팀이 있음. 판정은 race.ts `leaderboardOpen` 하나이고
+    컨텍스트를 만드는 쪽(access.ts `loadViewerState`)이 덮어 온다(2026-09-26).
   */
   leaderboard: { auth: "public", flag: "leaderboard", phase: isRacingOrLater },
   /** 참가작 공개 페이지. 레이스 전에는 보여줄 것이 없다. 끝난 뒤에는 남는다 */

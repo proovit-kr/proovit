@@ -48,6 +48,12 @@ export const FINAL_FORMULA = {
       floor: 20,
       items: [
         { key: "T1" as const, weight: 0.5 },
+        /*
+          T2 후반 성장 추세는 레이스 기간을 이등분해 앞뒤를 견준다(심사 기준서). 레이스
+          기간은 **팀마다 다르다** — [그 팀이 s3을 처음 낸 때, s5 마감](race.ts
+          `teamRaceWindow`, 2026-09-26 수연 지시). 계산 코드는 아직 없다 — 생기면 그
+          구간을 반으로 나눈다. 여기는 운영이 적은 값을 읽기만 한다.
+        */
         { key: "T2" as const, weight: 0.3 },
         { key: "T3" as const, weight: 0.2 },
       ],

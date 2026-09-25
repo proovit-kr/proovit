@@ -75,7 +75,10 @@ export default async function Page({
   /* 헤더와 「← 리더보드」가 같은 플래그를 본다 — 한 번만 읽는다 */
   const nav = await loadPublicNav();
 
-  /* 주소가 있고 소유 검증까지 끝난 팀만 「배포됨」이다 */
+  /*
+    레이스를 시작했고(s3 제출) 주소 소유 검증까지 끝난 팀만 「배포됨」이다 —
+    리더보드 행과 같은 판정(race.ts `notDeployed`, 2026-09-26)
+  */
   const serviceUrl = entry.notDeployed ? null : entry.serviceUrl;
 
   return (

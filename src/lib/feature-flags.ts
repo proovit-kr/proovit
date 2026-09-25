@@ -16,7 +16,14 @@ import { z } from "@/lib/z";
   없으면 서비스가 성립하지 않는 것"이 갈린다 — 아래 기본값이 그 구분이다.
 */
 export const featureFlagsSchema = z.object({
-  /** 공개 리더보드. 서비스의 얼굴이라 기본 켜짐 */
+  /**
+   * 공개 리더보드. 서비스의 얼굴이라 기본 켜짐.
+   *
+   * ⚠️ 2026-09-26부터 **비상용 끄기**다. 리더보드는 이 플래그가 켜져 있고 레이스를
+   * 시작한 팀(s3 제출)이 하나라도 있을 때 열린다(race.ts `leaderboardOpen`). 화면과
+   * 접근 판정이 받는 `flags.leaderboard`는 그 판정을 거친 값이고(race-read.ts
+   * `withLeaderboardOpen`), 날것은 운영 콘솔의 시즌 관리 토글만 읽는다.
+   */
   leaderboard: z.boolean().default(true),
   /** 인앱 알림센터 */
   notifications: z.boolean().default(true),

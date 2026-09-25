@@ -9,6 +9,7 @@ import {
 } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { devNow } from "@/lib/dev-clock";
+import { loadFirstRaceStart } from "@/lib/race-read";
 
 /*
   운영자 콘솔의 조회.
@@ -40,6 +41,11 @@ export type AdminSummary = {
   openMetricFlags: number;
   /** 마지막으로 롤업이 돈 시각. 한 번도 안 돌았으면 null */
   lastRollupAt: Date | null;
+  /**
+   * 가장 이른 레이스 시작 — 롤업이 돌기 시작해야 하는 때(2026-09-26 팀별 집계).
+   * 아무 팀도 s3을 안 냈으면 null. 「지연」 판정의 기준이다(race.ts `rollupHealth`).
+   */
+  firstRaceStartAt: Date | null;
   /**
     다음 게이트. 시안의 「다음 게이트 배치」 카드가 쓴다 — 마감이 지나지 않은
     게이트 중 가장 이른 것이다. 없으면 null(시즌 전이거나 둘 다 끝났다).
@@ -295,6 +301,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
       openAppeals: 0,
       openMetricFlags: 0,
       lastRollupAt: null,
+      firstRaceStartAt: null,
       nextGate: null,
       recentAudit: [],
     };
@@ -319,6 +326,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
     gates,
     lastRollup,
     recentAudit,
+    firstRaceStartAt,
   ] = await Promise.all([
       prisma.entry.groupBy({
         by: ["status"],
@@ -386,6 +394,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
         take: 5,
         select: AUDIT_SELECT,
       }),
+      loadFirstRaceStart(season.id),
 ]);
 
   const count = (status: EntryStatus) =>
@@ -409,6 +418,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
     openAppeals,
     openMetricFlags,
     lastRollupAt: lastRollup,
+    firstRaceStartAt,
     /*
       마감이 안 지난 게이트 중 가장 이른 것. 마감이 비어 있는 게이트는 일정이
       아직 안 잡힌 것이라 뒤로 미룬다 — 날짜 없는 게이트를 「다음」으로 내세우면
