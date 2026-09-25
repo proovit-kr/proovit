@@ -2,7 +2,8 @@
   접근 판정·대시보드 분기 검증 — PLN3 화면정의서를 그대로 돌린다.
     3.1 「정상 흐름」 9행    → nextAction
     3.2 「예외 조합」        → canAccess
-  여기에 기본 규약(401·403·404·409)과 제출 진도 조건을 더해 56케이스다.
+  여기에 기본 규약(401·403·404·409)과 제출 진도 조건(유동 게이트 포함)을 더해
+  60케이스다.
 
   돌리는 법:  npm test
   DB를 건드리지 않는다 — 판정이 순수 함수라 환경변수도 필요 없다.
@@ -23,6 +24,8 @@ import {
   canLeaveTeam,
   canManageTeam,
   canSubmitStage,
+  passedGate,
+  stageReachable,
   type AccessContext,
 } from "@/lib/access-policy";
 import { featureFlagsSchema } from "@/lib/feature-flags";
@@ -419,6 +422,70 @@ check(
   ),
   "ALLOW",
 );
+
+/*
+  유동 게이트(2026-09-25 수연 지시) — 가운데 스테이지(s2~s4)의 「열림」은 달력이
+  아니라 진도가 정한다. 제출 탭의 「예정」(stageReachable)과 제출 권한
+  (canSubmitStage)이 같은 표를 봐야 한다 — 갈리면 열린 탭에서 제출이 거절되거나,
+  「예정」 탭인데 제출이 된다.
+*/
+it("stageReachable — 진도로 닿는 스테이지", () => {
+  const S = EntryStage;
+  expect(stageReachable(S.s1, S.applied)).toBe(true);
+  expect(stageReachable(S.s2, S.applied)).toBe(false);
+  /* s1을 내면 s2 달력 주차를 기다리지 않는다 */
+  expect(stageReachable(S.s2, S.s1)).toBe(true);
+  /* 1차 심사 대기 — s2 자신은 닿고(재제출) s3은 닿지 않는다 */
+  expect(stageReachable(S.s2, S.s2)).toBe(true);
+  expect(stageReachable(S.s3, S.s2)).toBe(false);
+  /* 통과하면 진도가 s3 — s3과 s4가 함께 닿는다(옛 전제표 그대로) */
+  expect(stageReachable(S.s3, S.s3)).toBe(true);
+  expect(stageReachable(S.s4, S.s3)).toBe(true);
+  expect(stageReachable(S.s5, S.s3)).toBe(false);
+  expect(stageReachable(S.s5, S.s4)).toBe(true);
+  /* 지난 스테이지는 계속 닿는다 — 마감은 창이 따로 본다 */
+  expect(stageReachable(S.s1, S.s5)).toBe(true);
+});
+
+it("stageReachable과 canSubmitStage가 같은 표를 본다(팀장·active)", () => {
+  const keys = [EntryStage.s1, EntryStage.s2, EntryStage.s3, EntryStage.s4, EntryStage.s5];
+  for (const stage of Object.values(EntryStage)) {
+    for (const key of keys) {
+      const permission = canSubmitStage(key, ctx({ phase: SeasonPhase.racing, stage }));
+      expect([key, stage, permission.ok]).toEqual([key, stage, stageReachable(key, stage)]);
+    }
+  }
+});
+
+/*
+  게이트를 넘었는가 — 그 게이트가 덮는 앞 스테이지를 잠그는 근거(submission.ts
+  `stageRowState`). 게이트에 멈춘 것(판정 대기)은 아직 넘지 않은 것이다.
+*/
+it("passedGate — 통과해 진도가 게이트 다음으로 올라갔는가", () => {
+  const S = EntryStage;
+  expect(passedGate(S.s1, S.s2)).toBe(false);
+  expect(passedGate(S.s2, S.s2)).toBe(false);
+  expect(passedGate(S.s3, S.s2)).toBe(true);
+  expect(passedGate(S.s5, S.s2)).toBe(true);
+  expect(passedGate(S.s4, S.s5)).toBe(false);
+  expect(passedGate(S.s5, S.s5)).toBe(false);
+  expect(passedGate(S.completed, S.s5)).toBe(true);
+});
+
+it("막힌 이유에 따라 문구가 갈린다 — 심사 대기와 이전 단계", () => {
+  const waiting = canSubmitStage(
+    EntryStage.s3,
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s2 }),
+  );
+  expect(waiting.ok ? null : waiting.message).toBe("심사 결과가 나온 뒤에 제출할 수 있습니다.");
+  const behind = canSubmitStage(
+    EntryStage.s3,
+    ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1 }),
+  );
+  expect(behind.ok ? null : behind.message).toBe(
+    "s3 제출은 이전 단계를 마친 팀만 할 수 있습니다.",
+  );
+});
 
 // ═════════════════════════════════════════════════════════════
 // PLN3 3.1 「정상 흐름」 9행 — nextAction

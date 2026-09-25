@@ -88,6 +88,48 @@ export function isAwaitingGate(stage: EntryStage): boolean {
   return GATE_STAGES.includes(stage);
 }
 
+/**
+ * 진도가 sN을 왜 막는가. 막지 않으면 null.
+ *   "gate"          전제가 게이트이고 그 판정을 기다리는 중(심사 대기)
+ *   "prerequisite"  전제 단계를 아직 못 마쳤다
+ * `canSubmitStage`가 둘을 다른 문구로 알리고, `stageReachable`은 null인지만 본다.
+ */
+function progressBlock(
+  stageKey: EntryStage,
+  stage: EntryStage,
+): "gate" | "prerequisite" | null {
+  const prerequisite = SUBMIT_PREREQUISITE[stageKey];
+  if (isAwaitingGate(prerequisite) && stage === prerequisite) return "gate";
+  if (!stageAtLeast(stage, prerequisite)) return "prerequisite";
+  return null;
+}
+
+/**
+ * 진도로 이 스테이지에 닿았는가 — 제출 전제(`SUBMIT_PREREQUISITE`)를 넘었고
+ * 그 전제가 게이트 판정 대기가 아닐 것.
+ *
+ * 유동 게이트(2026-09-25 수연 지시 「제출하면 바로 다음 단계가 열리도록」)에서
+ * 가운데 스테이지(s2~s4)의 「열림」은 달력이 아니라 이것이 정한다 — 달력은 창의
+ * 양 끝(개막·마지막 스테이지)과 마감만 본다(submission.ts `stageWindows`).
+ * 제출 화면의 탭 「예정」과 제출 권한(`canSubmitStage`)이 같은 판정을 쓴다.
+ *
+ * ⚠️ 게이트 1 통과가 진도를 s3으로 올리므로(judging.ts `PASS_ADVANCES_TO`)
+ * s4는 s3을 내기 전에도 닿는다. 옛 전제표 그대로다(API v0.2 §8).
+ */
+export function stageReachable(stageKey: EntryStage, stage: EntryStage): boolean {
+  return progressBlock(stageKey, stage) === null;
+}
+
+/**
+ * 진도가 이 게이트를 넘었는가 — 통과해 진도가 게이트 다음으로 올라갔다
+ * (judging.ts `PASS_ADVANCES_TO`). 게이트 판정이 끝났다는 뜻이라, 그 게이트가
+ * 덮는 앞 스테이지를 잠그는 근거가 된다(submission.ts `stageRowState`).
+ * 게이트에 멈춰 있으면(판정 대기) 아직 넘지 않았다.
+ */
+export function passedGate(stage: EntryStage, gate: EntryStage): boolean {
+  return STAGE_RANK[stage] > STAGE_RANK[gate];
+}
+
 /** PLN3 2장 카탈로그의 화면 하나에 대응한다. 라우트 문자열을 키로 쓰지 않는 이유는 오타가 조용히 통과하기 때문이다. */
 export type RouteKey =
   // 공개
@@ -452,9 +494,13 @@ export function canSubmitStage(
 
     잠그는 것은 다음 스테이지뿐이고 **게이트 스테이지 자신의 재제출은 열어둔다**
     (보완 재제출이 정상 경로다 · `revision_due_at`이 마감을 따로 본다).
+
+    판정 자체는 `progressBlock` 하나다 — 탭의 「예정」(`stageReachable`)과 여기가
+    같은 표를 보고, 여기는 막힌 이유에 따라 문구만 가른다.
   */
   const prerequisite = SUBMIT_PREREQUISITE[stageKey];
-  if (isAwaitingGate(prerequisite) && ctx.entry.stage === prerequisite) {
+  const block = progressBlock(stageKey, ctx.entry.stage);
+  if (block === "gate") {
     return {
       ok: false,
       code: "STAGE_LOCKED",
@@ -474,9 +520,10 @@ export function canSubmitStage(
     stageKey 자신으로 비교하면 `applied` 팀이 s1을 못 내 첫 제출이 통째로 막힌다.
 
     같거나 지난 것은 열어둔다 — 재제출이 정상 경로다(PLN3 2장 「재제출」).
-    마감 이후 잠금은 `stages.closes_at`·`revision_due_at`이 따로 판정한다.
+    시각 잠금(안 열림·마감)은 실제 창(submission.ts `stageWindows`)과
+    `revision_due_at`으로 submission-store가 따로 판정한다.
   */
-  if (!stageAtLeast(ctx.entry.stage, prerequisite)) {
+  if (block === "prerequisite") {
     return {
       ok: false,
       code: "STAGE_LOCKED",

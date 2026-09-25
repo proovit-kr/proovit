@@ -37,6 +37,7 @@ import {
   type HeaderUser,
   type StageInfo,
 } from "@/lib/header-state";
+import { participantStages } from "@/lib/submission";
 
 // ── 시각 표기 ─────────────────────────────────────────────────
 describe("시각 표기(KST)", () => {
@@ -428,6 +429,67 @@ describe("참가자 헤더 — 조합기 MAP.app", () => {
   it("탈락·실격도 아카이브에서는 D6", () => {
     expect(dash({ phase: SeasonPhase.archived, entry: { stage: EntryStage.s2, status: EntryStatus.eliminated } }).variant).toBe("D6");
     expect(dash({ phase: SeasonPhase.archived, entry: { stage: EntryStage.s2, status: EntryStatus.disqualified } }).variant).toBe("D6");
+  });
+});
+
+/*
+  실제 창(유동 게이트, 2026-09-25) — header-read가 참가자 헤더에 넘기는 일정은
+  달력이 아니라 submission.ts `participantStages`를 거친 것이다. 위 조합기는 시안
+  칸(달력)을 그대로 재현하므로, 실제로 참가자가 보는 값은 여기서 본다.
+*/
+describe("참가자 헤더 — 실제 창(유동 게이트)", () => {
+  const live = (now: Date, over: Partial<DashboardHeaderInput> = {}) =>
+    dash({ now, stages: participantStages(STAGES, now), ...over });
+  const at = (iso: string) => new Date(`${iso}+09:00`);
+
+  it("D1 온보딩 중 — s1 마감은 1차 심사 마감이다", () => {
+    const m = live(at("2026-10-08T10:00:00"), {
+      entry: { stage: EntryStage.applied, status: EntryStatus.active },
+      onboardingComplete: false,
+    });
+    expect(m.variant).toBe("D1");
+    expect(m.banner.time).toEqual([{ text: "s1 마감 10.11" }]);
+  });
+
+  it("D2 s1 — 달력 마감(10.04)이 지나도 1차 마감까지 센다", () => {
+    const m = live(at("2026-10-08T10:00:00"), {
+      entry: { stage: EntryStage.applied, status: EntryStatus.active },
+    });
+    expect(m.banner).toMatchObject({ tone: "base", stage: "s1 아이디어 등록" });
+    expect(m.banner.time).toEqual([{ text: "마감 10.11, D-3" }]);
+  });
+
+  it("D2 s2 — s1을 내면 달력 주차 전에도 s2 마감을 센다", () => {
+    const m = live(at("2026-09-30T10:00:00"), {
+      entry: { stage: EntryStage.s1, status: EntryStatus.active },
+    });
+    expect(m.banner).toMatchObject({ stage: "s2 수요조사" });
+    expect(m.banner.time).toEqual([{ text: "마감 10.11, D-11" }]);
+  });
+
+  it("D2 s3 — 2차 심사 마감이고, 자정 마감은 전날로 적는다", () => {
+    const m = live(at("2026-10-14T10:00:00"));
+    expect(m.banner).toMatchObject({ stage: "s3 빌드와 배포" });
+    expect(m.banner.time).toEqual([{ text: "마감 11.01, D-18" }]);
+    const last = live(at("2026-11-01T09:00:00"));
+    expect(last.banner.tone).toBe("urgent");
+    expect(last.banner.time).toEqual([{ text: "마감 11.01, D-day 24:00" }]);
+  });
+
+  it("D2 s4 — 그 주차의 끝이 마감이다", () => {
+    const m = live(at("2026-10-20T10:00:00"), {
+      entry: { stage: EntryStage.s4, status: EntryStatus.active },
+    });
+    expect(m.banner).toMatchObject({ stage: "s4 유저 유입" });
+    expect(m.banner.time).toEqual([{ text: "마감 10.25, D-5" }]);
+  });
+
+  it("D4 — s5는 달력으로 열린다(그 전에는 s4 판)", () => {
+    const s4 = { entry: { stage: EntryStage.s4, status: EntryStatus.active } };
+    expect(live(at("2026-10-25T10:00:00"), s4).variant).toBe("D2");
+    const m = live(at("2026-10-28T10:00:00"), s4);
+    expect(m.variant).toBe("D4");
+    expect(m.banner.time).toEqual([{ text: "집계 확정 11.01 24:00" }]);
   });
 });
 

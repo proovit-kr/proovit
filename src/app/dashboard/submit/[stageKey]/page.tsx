@@ -34,6 +34,8 @@ import {
   isStageKey,
   paneBadge,
   tabTail,
+  visitRange,
+  weekDue,
   weekRange,
 } from "@/lib/submission";
 import { toForm } from "@/lib/submission-fields";
@@ -100,6 +102,10 @@ export default async function Page({
   /*
     경고줄 — 정책 문구, 아니면 진도·팀장 문구. 아직 안 열린 판은 잠긴 것으로
     이미 보이므로 진도 문구를 겹쳐 올리지 않는다.
+
+    유동 게이트(2026-09-25)부터 달력이 여는 판은 첫·마지막뿐이라, 가운데 판이
+    잠겨 있으면 이 줄이 「이전 단계를 마친 팀만」·「심사 결과가 나온 뒤에」로
+    이유를 말한다.
   */
   const warning = !access.ok
     ? access.message
@@ -112,13 +118,14 @@ export default async function Page({
     title: SUBMIT_PANE[stageKey].title,
     chip: SUBMIT_PANE[stageKey].chip,
     gate: row.isGate,
-    badge: paneBadge(row, now),
+    badge: paneBadge(row),
     meta: metaLines(row, now),
     info: stageKey in SUBMIT_INFO ? SUBMIT_INFO[stageKey as keyof typeof SUBMIT_INFO] : null,
     who: whoLine(row),
     actions: actionsOf(row, { leader, canWrite }),
     canWrite,
-    notOpen: row.lockedReason === "STAGE_NOT_OPEN",
+    /* 「예정」 판(달력이든 진도든 아직 안 닿았고 마감 전) — 빈 파일 칸에 「없음」을 적지 않는다 */
+    notOpen: !row.open,
     defaults: toForm(stageKey, row.submission?.payload, row.submission?.evidenceUrls),
   };
 
@@ -128,17 +135,19 @@ export default async function Page({
       chargeTypeLocked: overview.chargeTypeLocked,
     };
   } else if (stageKey === StageKey.s2) {
+    /*
+      방문은 **측정 시작부터** 1차 심사 마감까지 센다(from=null). 유동 게이트에서는
+      s1을 일찍 낸 팀이 s2 달력 주차 전에 랜딩을 올리고, 그 방문도 수요 신호다
+      (「빨리 배포한 팀이 측정 기간을 길게 가져간다」 — PRD 2장).
+    */
     const [metrics, leads] = await Promise.all([
-      loadStageMetrics(entryId, row.opensAt, row.closesAt),
+      loadStageMetrics(entryId, null, row.closesAt),
       loadVerifiedLeads(entryId),
     ]);
     /* 리드를 따로 세지 못한 구간에서는 집계된 가입 수가 같은 값을 든다(허브와 같다) */
     const applicants = leads || metrics.signups;
     props.s2 = {
-      range:
-        row.opensAt && row.closesAt
-          ? `${formatDay(row.opensAt)}~${formatDay(new Date(row.closesAt.getTime() - 60_000))}`
-          : "",
+      range: visitRange(metrics.firstDate, row.closesAt, now),
       visitors: metrics.hasData ? fmt(metrics.validVisitors) : "—",
       leads: metrics.hasData || applicants > 0 ? fmt(applicants) : "—",
       conversion: conversionRate(applicants, metrics.validVisitors) ?? "—",
@@ -196,7 +205,7 @@ export default async function Page({
 
       <nav className={styles.tabs} aria-label="스테이지">
         {overview.stages.map((stage) => {
-          const tail = tabTail(stage, now);
+          const tail = tabTail(stage);
           const on = stage.stageKey === stageKey;
           return (
             <Link
@@ -226,12 +235,18 @@ export default async function Page({
     s3  마감 10.18 23:59, D-4 · 임시저장 진수연, 10.15 02:11
     s4  이번 주 마감 10.25 23:59, D-2 · 주차는 시스템이 지정해요
     s5  집계 확정 11.01 24:00
+
+  마감은 **실제 마감**이다(유동 게이트 — submission.ts `stageWindows`). 시안의
+  날짜는 달력 주차 그대로라, s1은 시안 10.04가 아니라 1차 심사 마감(10.11)을,
+  s3은 2차 심사 마감을 적는다. s4는 그 주차의 끝이다(`weekDue`).
 */
 function metaLines(row: StageRow, now: Date): string[] {
   const lines: string[] = [];
-  if (row.closesAt) {
-    const due = formatDeadline(row.closesAt);
-    const left = dDay(row.closesAt, now);
+  const closes =
+    row.stageKey === StageKey.s4 ? weekDue(row.opensAt, row.week, row.closesAt) : row.closesAt;
+  if (closes) {
+    const due = formatDeadline(closes);
+    const left = dDay(closes, now);
     if (row.stageKey === StageKey.s5) lines.push(`집계 확정 ${due}`);
     else if (row.stageKey === StageKey.s4) {
       lines.push(`이번 주 마감 ${due}${left ? `, ${left}` : ""}`);
@@ -301,10 +316,14 @@ function actionsOf(
 ): StageActions {
   if (!ctx.leader) return { kind: "none" };
   if (row.lockedReason === "STAGE_LOCKED") {
+    /*
+      게이트가 아닌 판이 잠기는 것은 그 판을 덮는 게이트의 판정이 끝났을 때뿐이다
+      (submission.ts `stageRowState`). 미통과 팀은 이 화면을 못 보므로 통과 뒤다.
+    */
     return {
       kind: "locked",
       label:
-        row.judgment === JudgmentResult.pass
+        row.judgment === JudgmentResult.pass || !row.isGate
           ? SUBMIT_BUTTONS.lockedPass
           : SUBMIT_BUTTONS.lockedJudging,
     };
