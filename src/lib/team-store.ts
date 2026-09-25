@@ -143,10 +143,16 @@ export async function loadTeamPanel(teamId: string): Promise<TeamPanel | null> {
  * `randomInt`를 쓴다 — `Math.random()`은 예측 가능해서, 남의 팀 코드를 맞혀
  * 팀에 들어가는 길이 생긴다. 코드 하나로 팀 소속이 결정되므로 인증 토큰과
  * 같은 급으로 다룬다.
+ *
+ * 접두사와 길이를 받는 이유: 지각 편입 링크(late-entry.ts)가 같은 문자표·같은
+ * 생성기를 쓰되 접두사로 갈린다(2026-09-26). 기본값이 초대 코드다.
  */
-export function generateCode(): string {
-  let code = INVITE_CODE_PREFIX;
-  for (let i = 0; i < INVITE_CODE_LENGTH; i += 1) {
+export function generateCode(
+  prefix: string = INVITE_CODE_PREFIX,
+  length: number = INVITE_CODE_LENGTH,
+): string {
+  let code = prefix;
+  for (let i = 0; i < length; i += 1) {
     code += INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)];
   }
   return code;

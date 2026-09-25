@@ -61,13 +61,26 @@ export async function submitApply(
     evidence: formData.get("consent-evidence") === "on",
   };
 
+  /*
+    지각 편입 링크의 코드 — 화면이 링크를 판정해 통과했을 때만 숨은 칸으로 싣는다.
+    그래도 믿지 않는다: 받는 기간 판정은 저장이 화면과 같은 함수로 다시 한다
+    (apply-store `submitApplication` → late-entry-store `loadApplyGate`).
+  */
+  const lateCode = String(formData.get("late") ?? "").trim() || null;
+
   const requestHeaders = await headers();
   const forwarded = requestHeaders.get("x-forwarded-for");
 
-  const result = await submitApplication(user, values, consent, {
-    ip: forwarded?.split(",")[0]?.trim() ?? requestHeaders.get("x-real-ip"),
-    userAgent: requestHeaders.get("user-agent"),
-  });
+  const result = await submitApplication(
+    user,
+    values,
+    consent,
+    {
+      ip: forwarded?.split(",")[0]?.trim() ?? requestHeaders.get("x-real-ip"),
+      userAgent: requestHeaders.get("user-agent"),
+    },
+    lateCode,
+  );
 
   if (!result.ok) {
     return {
@@ -82,6 +95,12 @@ export async function submitApply(
     접수 뒤에는 이 화면으로 돌아오지 않는다. 대시보드(DEV4)가 아직 없어서
     같은 주소로 보내되, 이미 신청한 사람에게는 페이지가 접수 완료 화면을 그린다.
     redirect()는 예외를 던져 흐름을 끊으므로 try 안에 두지 않는다.
+
+    편입 링크로 왔으면 그 링크로 돌아간다. 레이스 중의 맨 `/apply`는 로그인 전에
+    「받지 않습니다」를 그리지만, 방금 쓴 링크로 오면 페이지가 로그인한 사람의 참가를
+    보고 신청 완료 판을 그린다(page.tsx의 죽은 링크 갈래).
   */
-  redirect("/apply?done=1");
+  redirect(
+    lateCode ? `/apply?late=${encodeURIComponent(lateCode)}` : "/apply?done=1",
+  );
 }

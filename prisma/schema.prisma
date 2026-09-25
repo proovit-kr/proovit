@@ -404,6 +404,9 @@ model User {
   ipBlocks             IpBlocklist[]
   decidedSanctions     Sanction[]
   respondedAppeals     Appeal[]
+  /// 운영자가 만든 지각 편입 링크 · 참가자가 쓴 지각 편입 링크(LateEntryPass 주석)
+  issuedLatePasses     LateEntryPass[]       @relation("LatePassIssuer")
+  usedLatePasses       LateEntryPass[]       @relation("LatePassUser")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -641,6 +644,7 @@ model Season {
   testers     TesterAssignment[]
   awards      Award[]
   creditOffers CreditOffer[]
+  latePasses  LateEntryPass[]
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -789,6 +793,8 @@ model Entry {
   consents      Consent[]
   testerOf      TesterAssignment[]    @relation("TesterEntry")
   testedBy      TesterAssignment[]    @relation("TargetEntry")
+  /// 이 참가를 연 지각 편입 링크. 평소 신청이면 없다 — 참가 자체는 똑같다(OPEN-6)
+  latePass      LateEntryPass?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -798,6 +804,54 @@ model Entry {
   @@index([seasonId, stage])
   @@index([seasonId, status])
   @@map("entries")
+}
+
+/// 지각 편입 링크 — 모집이 끝난 뒤 문의해 온 사람에게 운영자가 주는 1회용 신청 링크.
+///
+/// 근거: PRD OPEN-6(2026-08-24 확정) 「시스템의 별도 "지각" 상태·자동 마감 연장
+/// 로직은 두지 않고, 문의 접수 시 운영자가 수동으로 해당 팀을 시즌에 편입」,
+/// 2026-09-26 수연 지시 「문의가 오면 운영자가 수동 편입하는 화면과 로직」.
+///
+/// 운영자가 참가 행을 직접 만들지 않고 링크를 주는 이유: 참가 동의(지표 공개·증빙
+/// 제출)는 본인이 해야 한다 — 팀장의 동의도 팀원 것을 대신하지 못하는데(D2) 운영자의
+/// 클릭이 참가자 것을 대신할 수는 없다. 링크를 받은 사람이 평소 신청서를 직접 쓰며
+/// 동의한다. 내가 정함(수연 확인 대기).
+///
+/// 그래서 **「지각」 상태가 아니다.** 이 행은 「누가 왜 문을 열어 줬나」의 기록이고,
+/// 링크로 생긴 참가는 평소 신청과 똑같이 stage=applied로 시작한다.
+model LateEntryPass {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seasonId  String   @map("season_id") @db.Uuid
+  /// 링크의 `?late=` 값. 초대 코드와 문자표·생성기가 같고 접두사만 다르다(late-entry.ts)
+  code      String   @unique @db.VarChar(12)
+  /// 운영자 사유 — 문의 채널·접수 일시. 감사 로그에도 같은 문장이 남는다.
+  /// ⚠️ 문의자의 이름·이메일·연락처를 적지 않는다 — 탈퇴 익명화가 이 칸과
+  /// audit_logs.reason을 지우지 않아 파기 약속을 못 지킨다(화면 안내도 그렇게 한다)
+  reason    String
+  /// 만든 운영자. 계정이 지워져도 링크 기록은 남는다(SET NULL) — 운영자 기록 칸
+  /// (compliance_violations·ip_blocklist의 created_by, audit_logs.actor_id)과 같다
+  createdBy String?  @map("created_by") @db.Uuid
+  /// min(만든 때 + 7일, s1 달력 마감). 계산은 late-entry.ts `latePassExpiry`
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+
+  /// 쓴 시각·쓴 사람·그 신청으로 생긴 참가. 셋은 같은 트랜잭션에서 함께 채워진다
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  usedBy    String?   @map("used_by") @db.Uuid
+  entryId   String?   @unique @map("entry_id") @db.Uuid
+  /// 운영자가 취소한 시각. 쓰인 링크는 취소하지 않는다 — 그건 참가 상태 전환이다
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  issuer User?  @relation("LatePassIssuer", fields: [createdBy], references: [id])
+  user   User?  @relation("LatePassUser", fields: [usedBy], references: [id])
+  entry  Entry? @relation(fields: [entryId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  /// 참가 관리의 「최근 링크」가 시즌별 최신순으로 읽는다
+  @@index([seasonId, createdAt])
+  @@map("late_entry_passes")
 }
 
 model Deposit {
