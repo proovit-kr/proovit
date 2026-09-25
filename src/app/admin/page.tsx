@@ -8,7 +8,7 @@ import { guardPage } from "@/lib/access";
 import { devNow } from "@/lib/dev-clock";
 import { loadAdminSummary, ROLLUP_LATE_MIN } from "@/lib/admin-read";
 import { fmtDday, fmtStamp } from "@/lib/header-state";
-import { rollupHealth } from "@/lib/race";
+import { rollupHealth, type RollupHealth } from "@/lib/race";
 
 import hub from "../dashboard/hub.module.css";
 import c from "./console.module.css";
@@ -50,19 +50,11 @@ const NUM = new Intl.NumberFormat("ko-KR");
   대기」·「첫 롤업 없음」은 시안에 없다 — 내가 정함(수연 확인 대기).
 
   시각은 진짜 지금이다 — 롤업 시각(`updated_at`)과 레이스 시작이 진짜 시각이다.
+
+  지연이면 줄을 danger 색으로 칠한다(2026-09-26 수연 결정). 시안은 「정상」 한 판만
+  그려 muted였고, 그대로 두면 멈춘 롤업이 정상과 같은 회색이라 눈에 안 띈다.
 */
-function subline(summary: {
-  rollupHalted: boolean;
-  lastRollupAt: Date | null;
-  firstRaceStartAt: Date | null;
-}): string | null {
-  const health = rollupHealth({
-    halted: summary.rollupHalted,
-    firstRaceStartAt: summary.firstRaceStartAt,
-    lastRollupAt: summary.lastRollupAt,
-    now: new Date(),
-    lateMinutes: ROLLUP_LATE_MIN,
-  });
+function subline(health: RollupHealth): string | null {
   if (health.kind === "idle") return null;
   if (health.kind === "first") {
     return health.late ? "리더보드 롤업 지연, 첫 롤업 없음" : "리더보드 첫 롤업 대기";
@@ -93,7 +85,15 @@ export default async function Page() {
   const summary = await loadAdminSummary(viewer.season?.id ?? null);
   const today = devNow();
   const gate = summary.nextGate;
-  const line = summary.season ? subline(summary) : "시즌 없음";
+  const health = rollupHealth({
+    halted: summary.rollupHalted,
+    firstRaceStartAt: summary.firstRaceStartAt,
+    lastRollupAt: summary.lastRollupAt,
+    now: new Date(),
+    lateMinutes: ROLLUP_LATE_MIN,
+  });
+  const line = summary.season ? subline(health) : "시즌 없음";
+  const late = health.kind !== "idle" && health.late;
 
   return (
     <>
@@ -102,7 +102,10 @@ export default async function Page() {
         운영 대시보드
       </h2>
       {line && (
-        <p className={hub.sub} style={{ marginBottom: "20px" }}>
+        <p
+          className={hub.sub}
+          style={{ marginBottom: "20px", color: late ? "var(--danger)" : undefined }}
+        >
           {line}
         </p>
       )}
