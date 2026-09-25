@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 
 import { guardPage } from "@/lib/access";
-import { loadLastRollup, ROLLUP_EVERY_MIN } from "@/lib/admin-read";
+import { loadRollupState, ROLLUP_EVERY_MIN, ROLLUP_LATE_MIN } from "@/lib/admin-read";
 import { fmtMD } from "@/lib/header-state";
 import { prisma } from "@/lib/prisma";
+import { rollupHealth, type RollupHealth } from "@/lib/race";
 
 import hub from "../../dashboard/hub.module.css";
 import c from "../console.module.css";
@@ -19,8 +20,9 @@ import { channelHhi, flagReasons } from "./rules";
 
   ⚠️ 시안은 상태 토글(① 큐 3건 / ② 빈 상태)로 둘을 보여주지만 여기서는 **실제
   데이터로 갈린다.** 걸린 줄이 없으면 빈 상태다. 빈 상태의 「다음 롤업 n분 후」는
-  마지막 롤업에서 주기(15분)로 센다 — 롤업이 멈추면 「정상」이라 쓰지 않도록
-  대시보드 부제가 지연을 알린다.
+  마지막 롤업에서 주기(15분)로 센다. 롤업 상태는 대시보드 부제와 같은 판정
+  (race.ts `rollupHealth`)을 따른다 — 롤업이 쉬는 동안에는 적지 않고, 멈췄으면
+  「정상」 대신 「지연」이라 쓴다.
 
   ⚠️ 조회를 admin-read.ts로 올리지 않았다. 이 규칙은 이 화면에서만 쓰고,
   올리는 순간 다른 화면이 같은 이름으로 다른 기준을 기대하게 된다.
@@ -41,9 +43,18 @@ const NUM = new Intl.NumberFormat("ko-KR");
  */
 const CANDIDATE_TAKE = 500;
 
-/** 사람이 볼 때 「방금」인지 아닌지가 판단 재료다 */
-function minutesAgo(at: Date): number {
-  return Math.max(0, Math.round((Date.now() - at.getTime()) / 60_000));
+/*
+  빈 상태의 롤업 줄. 「정상 작동 중」만 시안 문구이고, 나머지는 시안에 없다 —
+  내가 정함(수연 확인 대기). 롤업이 쉬면(idle) 줄을 뺀다 — 대시보드 부제와 같다.
+*/
+function rollupLine(health: RollupHealth): string | null {
+  if (health.kind === "idle") return null;
+  if (health.kind === "first") {
+    return health.late ? "자동 집계 지연, 첫 롤업 없음." : "첫 롤업 대기.";
+  }
+  if (health.late) return `자동 집계 지연, 마지막 롤업 ${health.minutes}분 전.`;
+  const next = Math.max(0, ROLLUP_EVERY_MIN - (health.minutes % ROLLUP_EVERY_MIN));
+  return `자동 집계 정상 작동 중, 다음 롤업 ${next}분 후.`;
 }
 
 export default async function Page() {
@@ -135,10 +146,11 @@ export default async function Page() {
     상태에 롤업 시각을 적는 이유가 이것이다 — 둘을 못 가르면 파이프라인이
     죽은 것을 「평온함」으로 읽는다.
   */
-  const lastRollup = seasonId ? await loadLastRollup(seasonId) : null;
-
-  const nextRollupMin = lastRollup
-    ? Math.max(0, ROLLUP_EVERY_MIN - (minutesAgo(lastRollup) % ROLLUP_EVERY_MIN))
+  const rollup = seasonId ? await loadRollupState(seasonId) : null;
+  const line = rollup
+    ? rollupLine(
+        rollupHealth({ ...rollup, now: new Date(), lateMinutes: ROLLUP_LATE_MIN }),
+      )
     : null;
 
   return (
@@ -150,11 +162,7 @@ export default async function Page() {
         /* 시안 ② — 리더보드 빈 상태와 같은 상자(`.lb-empty`) */
         <div className={c.lbEmpty} data-probe="metrics-empty" data-state="empty">
           <div className={c.big}>검토할 플래그 없음</div>
-          <p>
-            {nextRollupMin !== null
-              ? `자동 집계 정상 작동 중, 다음 롤업 ${nextRollupMin}분 후.`
-              : "롤업 전, 측정이 붙고 롤업이 돌면 걸린 건만 여기에 쌓임."}
-          </p>
+          {line && <p>{line}</p>}
         </div>
       ) : (
         <table className={c.atbl} data-probe="metrics" data-state="q">

@@ -86,8 +86,12 @@ export const SCREENS = {
     ],
     text: (S) => [
       ["제목", S + ".hb-h1", '[data-probe="ad-body"] {{hub:h1}}'],
-      /* 부제의 「6분 전」은 롤업 시각이다 */
-      ["부제", S + ".hb-sub", '[data-probe="ad-body"] {{hub:sub}}', [/^시즌 1, 자동 집계 정상, 마지막 롤업 \d+분 전$/]],
+      /*
+        부제의 「6분 전」은 롤업 시각이다. 문구는 시안과 다르게 바꿨다(2026-09-26 수연
+        결정 — `src/app/admin/page.tsx`의 subline 주석). 그리고 롤업이 도는 동안(레이스를
+        시작한 팀이 있고 확정 전)에만 뜬다 — 부제까지 재려면 개발 바에서 판을 먼저 세운다.
+      */
+      ["부제", S + ".hb-sub", '[data-probe="ad-body"] {{hub:sub}}', [/^시즌 1, 자동 집계 정상, 마지막 롤업 \d+분 전$/, /^리더보드 롤업 정상, 마지막 \d+분 전$/]],
       ["KPI 라벨", S + ".kpi", "{{c:kpi}}", [/^[\d,]+$/, /이번 주$/]],
       ["게이트", S + ".ad-body > div[style*=grid] > .card:nth-child(1)", '[data-probe="adm-gate"]', [/^D-\d+$/, /^\d+$/, /대상 \d+팀/, /^s\d$/]],
       ["플래그", S + ".ad-body > div[style*=grid] > .card:nth-child(2)", '[data-probe="adm-flags"]', [/^\d+$/]],

@@ -60,6 +60,37 @@ export type RollupResult = {
 */
 
 /**
+ * 롤업이 쉬는 시즌인가 — 쉬면 그 이유, 아니면 null.
+ *
+ * 운영 대시보드·지표 검토의 「지연」 판정도 이것을 본다 — 쉬는 동안 마지막
+ * 롤업이 낡는 것은 지연이 아니다. 따로 적으면 둘이 어긋난다. 레이스를 시작한
+ * 팀이 있는지는 race.ts `rollupHealth`가 본다.
+ */
+export async function rollupHalt(season: {
+  id: string;
+  phase: SeasonPhase;
+}): Promise<"not-racing" | "finalized" | null> {
+  /* 레이스 전에는 셀 것이 없고, 아카이브된 시즌은 더 안 바뀐다 */
+  if (
+    season.phase !== SeasonPhase.racing &&
+    season.phase !== SeasonPhase.awarded
+  ) {
+    return "not-racing";
+  }
+
+  /*
+    ⚠️ 확정된 순위는 건드리지 않는다. 운영자가 증빙 검증을 마치고 확정하면
+    (`/admin/awards`) 그 표가 정본이고, 그 뒤에 롤업이 덮으면 공개된 최종 순위가
+    소리 없이 바뀐다.
+  */
+  const finalized = await prisma.leaderboardSnapshot.findFirst({
+    where: { seasonId: season.id, isFinal: true },
+    select: { id: true },
+  });
+  return finalized ? "finalized" : null;
+}
+
+/**
  * 롤업 한 번. 지금 순위를 다시 매겨 오늘 자 스냅샷에 덮어쓴다.
  *
  * 되돌아오는 값은 크론 로그에 남을 요약이다 — 언제 돌았는지, 몇 팀을 셌는지,
@@ -82,26 +113,8 @@ export async function runRollup(args: {
     },
   });
 
-  /* 레이스 전에는 셀 것이 없고, 아카이브된 시즌은 더 안 바뀐다 */
-  if (
-    season.phase !== SeasonPhase.racing &&
-    season.phase !== SeasonPhase.awarded
-  ) {
-    return { seasonId, snapshotDate: null, ranked: 0, skipped: "not-racing" };
-  }
-
-  /*
-    ⚠️ 확정된 순위는 건드리지 않는다. 운영자가 증빙 검증을 마치고 확정하면
-    (`/admin/awards`) 그 표가 정본이고, 그 뒤에 롤업이 덮으면 공개된 최종 순위가
-    소리 없이 바뀐다.
-  */
-  const finalized = await prisma.leaderboardSnapshot.findFirst({
-    where: { seasonId, isFinal: true },
-    select: { id: true },
-  });
-  if (finalized) {
-    return { seasonId, snapshotDate: null, ranked: 0, skipped: "finalized" };
-  }
+  const halt = await rollupHalt({ id: seasonId, phase: season.phase });
+  if (halt) return { seasonId, snapshotDate: null, ranked: 0, skipped: halt };
 
   /*
     실격·포기 팀도 **저장은 한다**(06 §6.3, 스키마 주석). 공개 화면이 지금

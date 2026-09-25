@@ -197,7 +197,7 @@ export function raceStartOnSave(input: {
 
 /** 운영 대시보드 부제가 말할 롤업 상태 */
 export type RollupHealth =
-  /** 레이스를 시작한 팀이 없다 — 롤업이 돌 일이 없다 */
+  /** 롤업이 돌 때가 아니다 — 레이스를 시작한 팀이 없거나, 롤업이 쉬는 시즌이다 */
   | { kind: "idle" }
   /** 레이스는 시작했는데 스냅샷이 아직 없다 */
   | { kind: "first"; late: boolean }
@@ -209,21 +209,27 @@ export type RollupHealth =
  * 롤업이 돈 적이 있으면 마지막 롤업에서, 없으면 **가장 이른 레이스 시작**에서
  * 센다(2026-09-26 — 집계가 팀별로 바뀌어 「돌아야 하는 때」가 그 시각이다).
  * 한도를 넘기면 지연이다.
+ *
+ * 롤업이 쉬는 동안(레이스·시상 페이즈 밖, 순위 확정 뒤 — rollup.ts `rollupHalt`)과
+ * 레이스를 시작한 팀이 없는 동안은 스냅샷이 있어도 판정하지 않는다. 쉬는 롤업의
+ * 마지막 시각은 낡는 게 정상이다 — 레이스 전 개발 바 픽스처에도 「지연」이 떴다.
  */
 export function rollupHealth(input: {
+  /** 롤업이 쉬는 시즌인가(rollup.ts `rollupHalt`가 이유를 주면 true) */
+  halted: boolean;
   firstRaceStartAt: Date | null;
   lastRollupAt: Date | null;
   now: Date;
   lateMinutes: number;
 }): RollupHealth {
-  const { firstRaceStartAt, lastRollupAt, now, lateMinutes } = input;
+  const { halted, firstRaceStartAt, lastRollupAt, now, lateMinutes } = input;
+  if (halted || !firstRaceStartAt || !raceStarted(firstRaceStartAt, now)) {
+    return { kind: "idle" };
+  }
   const since = (at: Date) => Math.max(0, Math.round((now.getTime() - at.getTime()) / 60_000));
   if (lastRollupAt) {
     const minutes = since(lastRollupAt);
     return { kind: "ran", late: minutes > lateMinutes, minutes };
   }
-  if (raceStarted(firstRaceStartAt, now) && firstRaceStartAt) {
-    return { kind: "first", late: since(firstRaceStartAt) > lateMinutes };
-  }
-  return { kind: "idle" };
+  return { kind: "first", late: since(firstRaceStartAt) > lateMinutes };
 }
