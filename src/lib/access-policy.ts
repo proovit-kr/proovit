@@ -179,7 +179,14 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
   projectDetail: { auth: "public", phase: isRacingOrLater },
 
   // ── 참가자 ────────────────────────────────────────────────
-  /** 참가 신청. 모집 구간에만 열린다 */
+  /*
+    **새** 참가 신청. 모집 구간에만 열린다.
+
+    ⚠️ 이 정책은 화면·액션이 부르지 않는다(테스트만 부른다). /apply 화면과
+    submitApply는 `resolveLandingCta`로, 초대 합류는 `team.ts`의 `isJoinPhase`·
+    `joinClosedCode`로 직접 가른다. 합류는 레이스 중에도 열린다(팀별로 s2 제출
+    전까지 · 2026-09-25 수연 지시) — 그래서 여기를 고쳐도 /apply는 안 바뀐다.
+  */
   apply: { auth: "user", phase: isRecruiting, write: true },
   /** 골든패스 진입점. 탈락·실격 팀도 들어와야 소명·테스터로 갈 수 있다 */
   /*

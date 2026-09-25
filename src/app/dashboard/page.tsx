@@ -640,8 +640,10 @@ function Onboarding() {
   해야 하고, 그래도 s1 마감은 남들과 같다는 것이 이 화면의 말이다.
 
   ⚠️ **버튼만 `/apply`로 간다**(h1의 참가 기록 없음과 같은 사정) — 팀을 만드는
-  곳이 참가 신청 폼이라서다. ⚠️ 지금 `/apply`는 **모집 구간에서만 열린다**
-  (`access-policy.ts`) — 레이스 중에 늦게 받아 줄 것인지는 정해진 바가 없다.
+  곳이 참가 신청 폼이라서다. ⚠️ 지금 `/apply`의 **새 신청은 모집 구간에서만 열린다**
+  (`resolveLandingCta`). 레이스 중에는 초대 링크로 온 합류만 받는다 — 팀별로 s2
+  제출 전까지다(2026-09-25, `team.ts`의 `joinClosedCode`). 그래서 코드 없이 이
+  버튼을 누르면 「받지 않습니다」 화면에 닿는다. 새 신청을 레이스 중에 열지는 따로 정한다.
 */
 async function Late({ seasonId }: { seasonId: string }) {
   const head = HUB_HEAD.late;

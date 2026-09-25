@@ -13,7 +13,11 @@ import {
 } from "@/lib/access";
 import { validateInviteEmail } from "@/lib/apply";
 import { sendTeamInvite } from "@/lib/mail";
-import { TEAM_FAILURE_MESSAGE, type TeamFailureCode } from "@/lib/team";
+import {
+  joinClosedCode,
+  TEAM_FAILURE_MESSAGE,
+  type TeamFailureCode,
+} from "@/lib/team";
 import {
   createInvite,
   findPendingInvite,
@@ -50,6 +54,12 @@ import {
 
   ⚠️ 메일이 실패해도 초대 행은 남긴다. 참가 신청과 같은 이유다 — 초대가
   살아 있으면 「재발송」이 있고, 없으면 처음부터 다시다. 실패는 문구로 알린다.
+
+  ## 합류가 마감된 팀은 초대를 못 보낸다(2026-09-25)
+
+  발급·재발송은 수락과 **같은 규칙**(`joinClosedCode`)으로 막는다 — 모집·레이스
+  중에, s2를 내기 전까지다. 막지 않으면 받는 쪽이 링크를 눌러 「합류할 수 없어요」를
+  보게 되는 메일이 나간다. 취소는 막지 않는다 — 남은 초대를 치우는 일이다.
 */
 
 export type TeamState = {
@@ -130,6 +140,10 @@ async function run(
 
   switch (op) {
     case "invite": {
+      /* 주소 검증보다 먼저 — 마감된 팀에 「주소가 틀렸다」부터 말하지 않는다 */
+      const closed = joinClosed(viewer);
+      if (closed) return fail(closed);
+
       /*
         본인 주소인지 보려면 세션의 이메일이 필요하다. `loadViewerState`는
         이메일을 내리지 않으므로(화면에 실을 일이 없다) 여기서만 따로 읽는다.
@@ -169,6 +183,8 @@ async function run(
 
     case "resend": {
       if (!target) return fail("INVITE_NOT_FOUND");
+      const closed = joinClosed(viewer);
+      if (closed) return fail(closed);
       const invite = await findPendingInvite(teamId, target);
       if (!invite) return fail("INVITE_NOT_FOUND");
       if (!invite.email) return { message: INVITE_WITHOUT_EMAIL };
@@ -213,6 +229,20 @@ async function run(
     default:
       return { message: "알 수 없는 요청입니다." };
   }
+}
+
+/**
+ * 이 팀이 지금 팀원을 받는가 — 팀 화면(page.tsx)이 폼을 가를 때와 같은 판정이다.
+ * 세션이 준 팀의 참가(`viewer.entry`)만 본다. 없으면 받을 곳도 없다.
+ *
+ * 요청을 받은 때의 진도로 본다(트랜잭션 밖). 팀장이 s2 제출과 초대를 같은 순간에
+ * 누르면 받을 수 없는 초대 메일이 한 통 나갈 수 있지만, 수락(`acceptInvite`)이
+ * 다시 보므로 잘못 붙지는 않는다. 발급(`createInviteIn`) 안으로 옮겨도 행을
+ * 잠그지 않는 한 그 틈은 남고, 재발송은 그 함수를 지나지도 않는다.
+ */
+function joinClosed(viewer: ViewerState): TeamFailureCode | null {
+  if (!viewer.season || !viewer.entry) return "JOIN_PHASE_CLOSED";
+  return joinClosedCode(viewer.season.phase, viewer.entry);
 }
 
 /**
