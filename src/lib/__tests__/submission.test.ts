@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   EntryStage,
+  EntryStatus,
   JudgmentResult,
   StageKey,
   SubmissionStatus,
@@ -14,6 +15,7 @@ import {
   S3Schema,
   currentWeek,
   dDay,
+  finalAutoSubmitTarget,
   guideIncomplete,
   paneBadge,
   participantStages,
@@ -481,5 +483,42 @@ describe("s3 — 스키마가 못 잡는 것", () => {
   it("가이드 체크는 전부 켜야 한다", () => {
     expect(guideIncomplete([true, true, false], 3)).toBe(true);
     expect(guideIncomplete([true, true, true], 3)).toBe(false);
+  });
+});
+
+describe("finalAutoSubmitTarget — s5 자동 제출 대상(FR-H6)", () => {
+  const closes = KST("2026-11-01T23:59");
+  const team = (over: Partial<Parameters<typeof finalAutoSubmitTarget>[0]> = {}) => ({
+    status: EntryStatus.active,
+    stage: EntryStage.s4,
+    raceStartedAt: KST("2026-10-14T10:00"),
+    ...over,
+  });
+
+  it("레이스 중인 팀이 버튼을 안 눌렀으면 대상이다", () => {
+    expect(finalAutoSubmitTarget(team(), closes)).toBe(true);
+  });
+
+  it("s3만 내고 주간 제출이 없어도 대상이다 — 지표는 플랫폼이 센다", () => {
+    expect(finalAutoSubmitTarget(team({ stage: EntryStage.s3 }), closes)).toBe(true);
+  });
+
+  it("배포하지 않은 팀(s3 미제출)은 아니다 — 게이트 미제출이다", () => {
+    expect(finalAutoSubmitTarget(team({ stage: EntryStage.s3, raceStartedAt: null }), closes)).toBe(false);
+  });
+
+  it("레이스 시작이 마감 뒤면(개발 시계) 아니다", () => {
+    expect(finalAutoSubmitTarget(team({ raceStartedAt: KST("2026-11-02T09:00") }), closes)).toBe(false);
+  });
+
+  it("이미 냈거나 심사가 끝난 팀은 아니다", () => {
+    expect(finalAutoSubmitTarget(team({ stage: EntryStage.s5 }), closes)).toBe(false);
+    expect(finalAutoSubmitTarget(team({ stage: EntryStage.completed }), closes)).toBe(false);
+  });
+
+  it("실격·자진 포기·탈락 팀은 아니다", () => {
+    for (const status of [EntryStatus.disqualified, EntryStatus.withdrawn, EntryStatus.eliminated]) {
+      expect(finalAutoSubmitTarget(team({ status }), closes)).toBe(false);
+    }
   });
 });

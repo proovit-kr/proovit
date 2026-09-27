@@ -1,6 +1,8 @@
 import { z } from "@/lib/z";
 
 import {
+  EntryStage,
+  EntryStatus,
   JudgmentResult,
   StageKey,
   SubmissionStatus,
@@ -9,7 +11,7 @@ import { AI_CHECKS, BUILDERS, LAUNCH_CHECKS } from "@/content/submission";
 import { EVIDENCE_COUNT_MAX, EVIDENCE_KEY_MAX } from "@/lib/evidence";
 import { formatDay } from "@/lib/kst-format";
 import { seoulDateOnly } from "@/lib/measure";
-import { raceWeekBase } from "@/lib/race";
+import { raceStarted, raceWeekBase } from "@/lib/race";
 
 /*
   제출의 **순수** 절반 — 길이·형식 규칙과 화면이 판을 읽는 규칙. 화면(클라이언트)도
@@ -344,6 +346,28 @@ export const S5DraftSchema = z.object({
 });
 
 export type S5Payload = z.infer<typeof S5Schema>;
+
+/**
+ * s5 자동 제출(FR-H6)의 대상인가 — 마감이 지나면 확인 버튼을 누르지 않은 팀의
+ * s5도 제출로 적는다(final-submit.ts). 최종 지표는 플랫폼이 세므로 팀이 낼 것이 없다.
+ *
+ *   참가 중(active)  1차 미통과·실격·자진 포기는 아니다. 실격 뒤 소명이 인용되어
+ *                    돌아오면 그때 대상이 된다(완주 기준 정의서 2-5).
+ *   레이스 시작      s5 마감 전에 s3을 냈다. 배포하지 않은 팀은 셀 지표가 없다 —
+ *                    그 팀은 게이트 미제출이다(PLN7 1-3).
+ *   s5 전            진도가 s5 이상이면 이미 냈다(`saveStage`가 진도를 올린다).
+ */
+export function finalAutoSubmitTarget(
+  entry: { status: EntryStatus; stage: EntryStage; raceStartedAt: Date | null },
+  closesAt: Date,
+): boolean {
+  return (
+    entry.status === EntryStatus.active &&
+    raceStarted(entry.raceStartedAt, closesAt) &&
+    entry.stage !== EntryStage.s5 &&
+    entry.stage !== EntryStage.completed
+  );
+}
 
 /**
  * 가이드 완료 체크가 전부 켜졌는가. 스키마로는 못 잡는다 — 체크박스는

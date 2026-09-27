@@ -51,6 +51,7 @@ import { devNow, setDevToday } from "@/lib/dev-clock";
 import { setDevHubKey } from "@/lib/dev-hub";
 import { EVIDENCE_KINDS, buildEvidenceKey, kindOfName } from "@/lib/evidence";
 import { evidenceStorage } from "@/lib/evidence-storage";
+import { runFinalAutoSubmit } from "@/lib/final-submit";
 import {
   DEV_FILE_BYTES,
   SPEC_FILES,
@@ -239,6 +240,8 @@ export async function loadSandboxState(): Promise<SandboxState> {
             stageKey: true,
             week: true,
             status: true,
+            /* 「s5 자동 제출」을 가르는 것 — 누른 사람이 없다 */
+            submittedBy: true,
             /* 심사 결과 ①~④를 가르는 것 — 게이트의 최신 판정 */
             judgments: { orderBy: { judgedAt: "desc" }, take: 1, select: { result: true } },
           },
@@ -2395,12 +2398,20 @@ export async function setSandboxPayment(args: {
   개발용 payload로 채우고 집계 픽스처와 「오늘」을 정하므로, 시안 목업 제출물·
   판정·방문자는 반드시 그 **뒤**에 얹는다.
 */
-/** s4w2 — s4를 두 주로 늘리고 1주차 제출·2주차 작성 중. s5 — s5 열림, 작성 중(h15 위에) */
-export type SubmitPane = "s3" | "s4" | "s4w2" | "s5";
+/**
+ * s4w2 — s4를 두 주로 늘리고 1주차 제출·2주차 작성 중. s5 — s5 열림, 작성 중(h15 위에).
+ * s5auto — 그 초안을 둔 채 s5 마감을 넘겨 크론과 같은 코드로 자동 제출한 판
+ */
+export type SubmitPane = "s3" | "s4" | "s4w2" | "s5" | "s5auto";
 
 /** 지금 dev DB가 그리는 제출 판. 시안 목업이 심긴 모양이 아니면 null */
 function submitPane(
-  rows: { stageKey: StageKey; week: number; status: SubmissionStatus }[],
+  rows: {
+    stageKey: StageKey;
+    week: number;
+    status: SubmissionStatus;
+    submittedBy: string | null;
+  }[],
 ): SubmitPane | null {
   const has = (stageKey: StageKey, status: SubmissionStatus, week?: number) =>
     rows.some(
@@ -2409,6 +2420,16 @@ function submitPane(
         r.status === status &&
         (week === undefined ? true : r.week >= week),
     );
+  if (
+    rows.some(
+      (r) =>
+        r.stageKey === StageKey.s5 &&
+        r.status === SubmissionStatus.submitted &&
+        r.submittedBy === null,
+    )
+  ) {
+    return "s5auto";
+  }
   if (has(StageKey.s5, SubmissionStatus.draft)) return "s5";
   if (has(StageKey.s4, SubmissionStatus.draft, 2)) return "s4w2";
   if (has(StageKey.s4, SubmissionStatus.draft, 1)) return "s4";
@@ -2425,7 +2446,8 @@ export async function setSandboxSubmit(args: {
   assertSandbox();
   const { entryId, pane } = args;
 
-  await setSandboxHub({ key: pane === "s3" ? "h5" : pane === "s5" ? "h15" : "h6", entryId });
+  const hubKey = pane === "s3" ? "h5" : pane === "s5" || pane === "s5auto" ? "h15" : "h6";
+  await setSandboxHub({ key: hubKey, entryId });
 
   /*
     dev 일정은 스테이지마다 한 주라 s4에 2주차가 없다. 「s4 2주차」는 s4 마감을 한 주
@@ -2605,8 +2627,19 @@ export async function setSandboxSubmit(args: {
   }
 
   /* s5 작성 중 — h15(s5 구간, 진도 s4)가 일정·지표·「오늘」을 앉혔다. 초안만 얹는다 */
-  if (pane === "s5") {
+  if (pane === "s5" || pane === "s5auto") {
     await put(StageKey.s5, 0, SubmissionStatus.draft, SPEC_S5);
+    if (pane === "s5") return;
+    /*
+      s5 자동 제출 — 확인 버튼을 누르지 않은 채 「오늘」을 마감 15분 뒤(크론이 늦어도
+      이 안에 돈다)로 옮기고 크론과 **같은 함수**를 이 팀 하나에만 부른다. 다른 팀은
+      건드리지 않는다. 초안이 그대로 제출로 오르고 진도가 s5가 된다(final-submit.ts).
+    */
+    const closes = stageOf(StageKey.s5)?.closesAt;
+    if (closes) {
+      setDevToday(new Date(closes.getTime() + 15 * 60_000));
+      await runFinalAutoSubmit({ now: devNow(), entryIds: [entryId] });
+    }
     return;
   }
 

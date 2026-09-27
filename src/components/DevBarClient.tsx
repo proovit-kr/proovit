@@ -69,7 +69,7 @@ type Team = {
   /** 결제 연동 화면의 판. 「결제 연동」 줄의 미등록·확인 대기·확인됨·문의형 */
   payment: "none" | "pending" | "ok" | "inq";
   /** 스테이지 제출 화면의 판. 「제출」 줄의 s3 작성 중·s4 1주차. 시안 목업이 아니면 null */
-  submit: "s3" | "s4" | "s4w2" | "s5" | null;
+  submit: "s3" | "s4" | "s4w2" | "s5" | "s5auto" | null;
   /** 혜택과 크레딧 화면의 판(시안 ①~⑦). 「크레딧」 줄이 되짚는다 */
   credits: "pend" | "locked" | "sched" | "build" | "race" | "tester" | "end" | null;
   /** 내 지표 화면의 판(시안 ①②). 「내 지표」 줄이 되짚는다 — s3 전이면 null */
@@ -743,7 +743,8 @@ export function DevBarClient({
             얹는다), 「s4 1주차」가 s4 주간 판을 만든다(h6 위에). 「s4 2주차」는 s4를
             두 주로 늘려 시안의 「1주차 제출됨 · 2주차 작성 중」을 만든다 — 다른 줄을
             누르면 일정이 한 주짜리로 돌아온다. 「s5 작성 중」은 h15(s5 구간) 위에
-            토글이 켜진 초안을 얹는다. 탭은 화면에서 누른다.
+            토글이 켜진 초안을 얹는다. 「s5 자동 제출」은 그 초안을 둔 채 「오늘」을
+            s5 마감 뒤로 옮기고 크론의 자동 제출을 이 팀에만 돌린다. 탭은 화면에서 누른다.
           */}
           <div className={styles.row}>
             <span className={styles.label}>
@@ -757,6 +758,7 @@ export function DevBarClient({
                   { pane: "s4", label: "s4 1주차" },
                   { pane: "s4w2", label: "s4 2주차" },
                   { pane: "s5", label: "s5 작성 중" },
+                  { pane: "s5auto", label: "s5 자동 제출" },
                 ].map((pick) => (
                   <PickButton
                     key={pick.pane}

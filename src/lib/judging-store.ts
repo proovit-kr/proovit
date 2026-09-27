@@ -40,6 +40,8 @@ export type JudgingRow = {
   /** 제출이 없으면 null — 마감이 지나 탈락한 팀(시안의 줄 그은 행) */
   submissionId: string | null;
   submittedAt: Date | null;
+  /** s5 마감에 플랫폼이 낸 제출(final-submit.ts) — 누른 사람이 없다 */
+  auto: boolean;
   /** 시안 「제출 요약」 — 판정에 필요한 숫자만 한 줄로 */
   summary: string;
   judgment: { result: JudgmentResult; feedback: string | null } | null;
@@ -96,6 +98,7 @@ export async function loadJudgingBoard(
       select: {
         id: true,
         submittedAt: true,
+        submittedBy: true,
         payload: true,
         evidenceUrls: true,
         entry: {
@@ -174,6 +177,7 @@ export async function loadJudgingBoard(
         teamName: row.entry.team.name,
         submissionId: row.id,
         submittedAt: row.submittedAt,
+        auto: row.submittedAt !== null && row.submittedBy === null,
         summary,
         judgment: row.judgments[0] ?? null,
       };
@@ -183,6 +187,7 @@ export async function loadJudgingBoard(
       teamName: e.team.name,
       submissionId: null,
       submittedAt: null,
+      auto: false,
       summary: "마감 경과",
       judgment: null,
     })),
