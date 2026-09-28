@@ -10,6 +10,8 @@
     s4w2  s4를 두 주로 늘려 1주차 제출됨 · 2주차 작성 중 — 시안의 s4 판
     s5  s5 열림, 토글 켜진 초안 — 시안의 s5 판
     s5auto  그 초안을 둔 채 s5 마감을 넘겨 자동 제출(FR-H6) — 시안에 없는 판
+    s2miss  s2 진행 중에 1차 마감을 넘겨 미제출 탈락(PLN7 1-3) — 허브 h11과 같은 모양
+    s5miss  s3 빌드 중(레이스 전)에 2차 마감을 넘겨 미제출 탈락
 
   판 이름은 상태를 만든 뒤 **세션 토큰 한 줄**을 찍는다 — `submit.mjs`가 그것을
   쿠키로 심어 그 팀의 제출 화면을 연다(payment-state.mts와 같은 방식).
@@ -38,9 +40,11 @@ import { evidenceStorage } from "../../src/lib/evidence-storage";
 import {
   checkDevSandbox,
   setMetricsFixture,
+  setSandboxDeadline,
   setSandboxSubmit,
   sleepNextSeason,
   unparkTeam,
+  type DeadlinePane,
   type SubmitPane,
   restoreRaceStarts,
   saveRaceStarts,
@@ -126,6 +130,8 @@ type Snap = {
 };
 
 const PANES: SubmitPane[] = ["s3", "s4", "s4w2", "s5", "s5auto"];
+/* 개발 바 「마감」 줄 — 게이트 미제출 탈락(gate-miss.ts). 제출 화면이 아니라 허브·헤더 판이다 */
+const DEADLINES: DeadlinePane[] = ["s2miss", "s5miss"];
 const mode = process.argv[2];
 
 if (mode === "save") {
@@ -198,8 +204,12 @@ if (mode === "save") {
   console.log(
     `  ${TEAM}: 페이즈 ${season.phase}, 진도 ${entry.stage}, 제출물 ${submissions.length}건`,
   );
-} else if (PANES.includes(mode as SubmitPane)) {
-  await setSandboxSubmit({ entryId: entry.id, pane: mode as SubmitPane });
+} else if (PANES.includes(mode as SubmitPane) || DEADLINES.includes(mode as DeadlinePane)) {
+  if (DEADLINES.includes(mode as DeadlinePane)) {
+    await setSandboxDeadline({ entryId: entry.id, pane: mode as DeadlinePane });
+  } else {
+    await setSandboxSubmit({ entryId: entry.id, pane: mode as SubmitPane });
+  }
   const token = crypto.randomUUID();
   await prisma.session.create({
     data: {

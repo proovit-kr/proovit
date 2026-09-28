@@ -13,6 +13,7 @@ import {
   SubmissionStatus,
 } from "@/generated/prisma/enums";
 import { isOnboardingComplete, loadViewerState, type ViewerState } from "@/lib/access";
+import { gateOf } from "@/lib/access-policy";
 import { landingVisitors } from "@/lib/ga4";
 import {
   conversionRate,
@@ -83,6 +84,12 @@ export async function loadPublicNav() {
 // 참가자 헤더
 // ═════════════════════════════════════════════════════════════
 
+/** 그 게이트의 마감이 지났는가 — 미제출 탈락의 사유를 적어도 되는가 */
+function gateClosed(stages: StageInfo[], gate: StageKey, now: Date): boolean {
+  const closes = stages.find((s) => s.key === gate)?.closesAt ?? null;
+  return closes !== null && closes.getTime() <= now.getTime();
+}
+
 /** 달력 그대로(`stages` 행). 운영자 헤더는 이것을 쓴다 — 시즌 권장 일정이다 */
 async function loadStages(seasonId: string): Promise<StageInfo[]> {
   const rows = await prisma.stage.findMany({
@@ -126,7 +133,7 @@ export async function loadDashboardHeader(
   if (!user || !season || !team || !entry) return null;
 
   const now = devNow();
-  const gateKey = entry.stage === EntryStage.s5 ? StageKey.s5 : StageKey.s2;
+  const gateKey = gateOf(entry.stage);
   const [seasonRow, stages, unread, gateSubmission, sanction, finalSnapshot, members, store, race] =
     await Promise.all([
       prisma.season.findUnique({
@@ -190,10 +197,16 @@ export async function loadDashboardHeader(
     gateSubmittedAt: gateSubmission?.submittedAt ?? null,
     reviewSlaHours: REVIEW_SLA_HOURS,
     finalRank: finalSnapshot?.rank ?? null,
-    /* 게이트 스테이지(s2·s5)에 멈춰 있을 때만 사유를 안다. 그 밖(운영자 수동 탈락)은 null */
+    /*
+      사유를 아는 때만 적는다 — 게이트 자리(s2·s5)에 멈췄으면 냈다가 떨어졌고, 그 앞
+      구간이면 게이트 마감이 지났을 때만 미제출이다(gate-miss.ts 크론). 마감 전의
+      탈락(운영자 수동)은 사유를 모른다 — null.
+    */
     elimination:
       entry.status === EntryStatus.eliminated &&
-      (entry.stage === EntryStage.s2 || entry.stage === EntryStage.s5)
+      (entry.stage === EntryStage.s2 ||
+        entry.stage === EntryStage.s5 ||
+        gateClosed(stages, gateKey, now))
         ? { gate: gateKey, submitted: gateSubmission !== null }
         : null,
     sanction: sanction

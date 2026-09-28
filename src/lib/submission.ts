@@ -370,6 +370,36 @@ export function finalAutoSubmitTarget(
 }
 
 /**
+ * 게이트 마감까지 안 내서 탈락시킬 팀인가 — PLN7 1-3 「게이트 마감까지 미제출한
+ * 팀은 크론이 자동으로 fail」. 운영규칙 제9조③ 「심사 마감까지 미제출한 팀은
+ * 미통과로 처리됨」(gate-miss.ts).
+ *
+ *   참가 중(active)만이다. 이미 떨어졌거나 실격·포기면 할 것이 없다.
+ *   진도가 그 게이트 **앞 구간**이다 — s2는 applied·s1, s5는 s3·s4. 게이트를 냈으면
+ *   진도가 게이트 자리(s2·s5)로 올라 있다(`saveStage`). s5 마감에 s2 판정을
+ *   기다리는 팀(진도 s2)은 운영자의 몫이라 건드리지 않는다.
+ *   s5는 **자동 제출 대상이 아닐 때만**이다 — 레이스를 시작한 팀은 버튼을 안
+ *   눌러도 냈다(FR-H6). 남는 것은 배포하지 않은 팀이다.
+ */
+export function gateMissTarget(
+  gate: StageKey,
+  entry: { status: EntryStatus; stage: EntryStage; raceStartedAt: Date | null },
+  closesAt: Date,
+): boolean {
+  if (entry.status !== EntryStatus.active) return false;
+  if (gate === StageKey.s2) {
+    return entry.stage === EntryStage.applied || entry.stage === EntryStage.s1;
+  }
+  if (gate === StageKey.s5) {
+    return (
+      (entry.stage === EntryStage.s3 || entry.stage === EntryStage.s4) &&
+      !finalAutoSubmitTarget(entry, closesAt)
+    );
+  }
+  return false;
+}
+
+/**
  * 가이드 완료 체크가 전부 켜졌는가. 스키마로는 못 잡는다 — 체크박스는
  * 전부 false여도 통과한다(`s3Missing`과 같은 이유).
  */

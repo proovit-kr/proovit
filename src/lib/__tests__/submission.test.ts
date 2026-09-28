@@ -7,7 +7,7 @@ import {
   StageKey,
   SubmissionStatus,
 } from "@/generated/prisma/enums";
-import { passedGate, stageReachable } from "@/lib/access-policy";
+import { gateOf, passedGate, stageReachable } from "@/lib/access-policy";
 import { deadlineParts, formatDeadline } from "@/lib/kst-format";
 import {
   S1DraftSchema,
@@ -16,6 +16,7 @@ import {
   currentWeek,
   dDay,
   finalAutoSubmitTarget,
+  gateMissTarget,
   guideIncomplete,
   paneBadge,
   participantStages,
@@ -519,6 +520,63 @@ describe("finalAutoSubmitTarget — s5 자동 제출 대상(FR-H6)", () => {
   it("실격·자진 포기·탈락 팀은 아니다", () => {
     for (const status of [EntryStatus.disqualified, EntryStatus.withdrawn, EntryStatus.eliminated]) {
       expect(finalAutoSubmitTarget(team({ status }), closes)).toBe(false);
+    }
+  });
+});
+
+describe("gateMissTarget — 게이트 미제출 탈락(PLN7 1-3)", () => {
+  const closes = KST("2026-11-01T23:59");
+  const team = (over: Partial<Parameters<typeof gateMissTarget>[1]> = {}) => ({
+    status: EntryStatus.active,
+    stage: EntryStage.s1,
+    raceStartedAt: null,
+    ...over,
+  });
+
+  it("s2 — s1까지 냈거나 아무것도 안 낸 팀", () => {
+    expect(gateMissTarget(StageKey.s2, team(), closes)).toBe(true);
+    expect(gateMissTarget(StageKey.s2, team({ stage: EntryStage.applied }), closes)).toBe(true);
+  });
+
+  it("s2 — 냈으면(진도 s2) 판정을 기다린다", () => {
+    expect(gateMissTarget(StageKey.s2, team({ stage: EntryStage.s2 }), closes)).toBe(false);
+  });
+
+  it("s5 — 배포하지 않은 팀(레이스 전)", () => {
+    expect(gateMissTarget(StageKey.s5, team({ stage: EntryStage.s3 }), closes)).toBe(true);
+  });
+
+  it("s5 — 레이스를 시작한 팀은 자동 제출 대상이라 아니다", () => {
+    const racing = team({ stage: EntryStage.s4, raceStartedAt: KST("2026-10-14T10:00") });
+    expect(gateMissTarget(StageKey.s5, racing, closes)).toBe(false);
+    expect(finalAutoSubmitTarget(racing, closes)).toBe(true);
+  });
+
+  it("s5 — 1차 판정을 기다리는 팀(진도 s2)은 운영자의 몫이다", () => {
+    expect(gateMissTarget(StageKey.s5, team({ stage: EntryStage.s2 }), closes)).toBe(false);
+  });
+
+  it("이미 탈락·실격·포기면 아니다", () => {
+    for (const status of [EntryStatus.eliminated, EntryStatus.disqualified, EntryStatus.withdrawn]) {
+      expect(gateMissTarget(StageKey.s2, team({ status }), closes)).toBe(false);
+    }
+  });
+
+  it("게이트가 아닌 스테이지는 아니다", () => {
+    expect(gateMissTarget(StageKey.s3, team({ stage: EntryStage.s2 }), closes)).toBe(false);
+  });
+});
+
+describe("gateOf — 탈락한 팀이 떨어진 게이트", () => {
+  it("s2 이하는 1차 — 냈으면 s2, 안 냈으면 applied·s1", () => {
+    for (const stage of [EntryStage.applied, EntryStage.s1, EntryStage.s2]) {
+      expect(gateOf(stage)).toBe(StageKey.s2);
+    }
+  });
+
+  it("s3 이상은 2차 — 배포 전(s3)에 s5 마감을 넘긴 팀도", () => {
+    for (const stage of [EntryStage.s3, EntryStage.s4, EntryStage.s5]) {
+      expect(gateOf(stage)).toBe(StageKey.s5);
     }
   });
 });

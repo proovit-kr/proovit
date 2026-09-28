@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { apiOk } from "@/lib/api";
 import { cronAuth } from "@/lib/cron-auth";
-import { runFinalAutoSubmit } from "@/lib/final-submit";
+import { runGateDeadlines } from "@/lib/gate-miss";
 import { runPhaseSchedule } from "@/lib/phase-schedule";
 
 /*
@@ -14,10 +14,11 @@ import { runPhaseSchedule } from "@/lib/phase-schedule";
   `lib/phase-schedule.ts`에, 판정은 `lib/season-phase.ts`에 있다.
   **뒤로는 절대 안 간다** — 수동으로 앞당기거나 되돌린 페이즈를 덮지 않는다.
 
-  같은 실행이 **s5 자동 제출**도 한다(FR-H6, 2026-09-27 수연 지시) — s5 마감이
-  지나면 확인 버튼을 누르지 않은 팀의 s5를 제출로 적는다(`lib/final-submit.ts`).
-  페이즈 전환보다 먼저 돈다. 레이스 시즌만 보므로, 밀린 일정이 같은 실행에서
-  시상으로 넘겨도 자동 제출을 놓치지 않는다.
+  같은 실행이 **게이트 마감 처리**도 한다(`lib/gate-miss.ts` `runGateDeadlines`).
+    · s5 자동 제출(FR-H6, 2026-09-27) — 확인 버튼을 안 누른 레이스 팀의 s5를 제출로
+    · 미제출 탈락(PLN7 1-3, 2026-09-28) — 게이트를 안 낸 팀을 탈락으로
+  페이즈 전환보다 먼저 돈다. 둘 다 레이스 시즌만 보므로, 밀린 일정이 같은 실행에서
+  시상으로 넘겨도 놓치지 않는다.
 
   ⚠️ **15분마다 부른다**(`vercel.json`, 롤업과 같은 15분 격자).
   처음에는 매분으로 짰는데, 매분 DB를 읽으면 Neon 컴퓨트가 자동 일시정지에
@@ -35,7 +36,7 @@ import { runPhaseSchedule } from "@/lib/phase-schedule";
   ⚠️ 인증은 롤업과 같다(`lib/cron-auth.ts`) — `CRON_SECRET`이 없으면 404,
   틀리면 401. Vercel 크론은 GET으로 부르고 헤더는 Vercel이 붙인다.
 
-  전환이나 자동 제출이 하나라도 있으면 레이아웃째 다시 그린다. 운영 콘솔 페이즈 전환 액션
+  전환·자동 제출·탈락이 하나라도 있으면 레이아웃째 다시 그린다. 운영 콘솔 페이즈 전환 액션
   (`admin/seasons/actions.ts`)과 같은 이유다 — 페이즈 하나가 화면 서른 개의
   열림/닫힘을 바꾸는데 랜딩·헤더는 정적 렌더 캐시에 남아 있다.
 */
@@ -47,12 +48,16 @@ async function handle(request: NextRequest) {
   const denied = cronAuth(request);
   if (denied) return denied;
 
-  const final = await runFinalAutoSubmit();
+  const gates = await runGateDeadlines();
   const result = await runPhaseSchedule();
-  if (result.transitions.length > 0 || final.submitted.length > 0) {
+  if (
+    result.transitions.length > 0 ||
+    gates.final.submitted.length > 0 ||
+    gates.missed.eliminated.length > 0
+  ) {
     revalidatePath("/", "layout");
   }
-  return apiOk({ ...result, final });
+  return apiOk({ ...result, ...gates });
 }
 
 /** Vercel 크론이 부르는 쪽 */

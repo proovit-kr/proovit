@@ -12,6 +12,7 @@ import {
   checkDevSandbox,
   HUB_PLANS,
   setSandboxCurrentStage,
+  setSandboxDeadline,
   setSandboxHub,
   setSandboxMeasurement,
   setSandboxPace,
@@ -30,6 +31,7 @@ import {
   type AppealPane,
   setSandboxNotifications,
   type CreditsPane,
+  type DeadlinePane,
   type MyMetricsPane,
   type JudgmentsPane,
   type HubKey,
@@ -272,6 +274,19 @@ export async function devSetNotifications(formData: FormData): Promise<void> {
     throw new Error("[dev] entryId·pane가 잘못됐습니다.");
   }
   await setSandboxNotifications({ entryId, pane: raw });
+  refresh();
+}
+
+/** 게이트 미제출 탈락의 판 — 마감을 넘기고 크론과 같은 함수를 이 팀에만 부른다 */
+export async function devSetDeadline(formData: FormData): Promise<void> {
+  guard();
+
+  const entryId = String(formData.get("entryId") ?? "");
+  const raw = String(formData.get("pane") ?? "");
+  if (!entryId || !["s2miss", "s5miss"].includes(raw)) {
+    throw new Error("[dev] entryId·pane가 잘못됐습니다.");
+  }
+  await setSandboxDeadline({ entryId, pane: raw as DeadlinePane });
   refresh();
 }
 

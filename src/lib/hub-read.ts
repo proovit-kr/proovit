@@ -1,7 +1,6 @@
 import "server-only";
 
 import {
-  EntryStage,
   EntryStatus,
   JudgmentResult,
   SanctionStage,
@@ -10,6 +9,7 @@ import {
 } from "@/generated/prisma/enums";
 import { HUB_GOLDEN_PATH, HUB_ONBOARDING, HUB_STEP_CHIP } from "@/content/hub";
 import type { ViewerState } from "@/lib/access";
+import { gateOf } from "@/lib/access-policy";
 import { addBusinessDays, APPEAL_BUSINESS_DAYS, endOfSeoulDay } from "@/lib/appeal";
 import { devNow } from "@/lib/dev-clock";
 import { conversionRate, currentStage } from "@/lib/header-state";
@@ -612,15 +612,11 @@ export async function loadHub(
     }
 
     case "missed":
-      /* 게이트는 둘뿐이고, 멈춘 자리가 곧 떨어진 자리다(header-read와 같은 규칙) */
-      return {
-        pane,
-        gate: entry.stage === EntryStage.s5 ? StageKey.s5 : StageKey.s2,
-      };
+      /* 게이트는 둘뿐이다 — s2를 통과했으면 s5에서 떨어졌다(header-read와 같은 규칙) */
+      return { pane, gate: gateOf(entry.stage) };
 
     case "gateFail": {
-      const gate =
-        entry.stage === EntryStage.s5 ? StageKey.s5 : StageKey.s2;
+      const gate = gateOf(entry.stage);
       const [judgment, numbers] = await Promise.all([
         prisma.judgment.findFirst({
           where: {

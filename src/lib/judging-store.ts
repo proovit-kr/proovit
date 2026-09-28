@@ -135,7 +135,16 @@ export async function loadJudgingBoard(
                 status: { in: [SubmissionStatus.submitted, SubmissionStatus.locked] },
               },
             },
-            stage: gate.stageKey === StageKey.s2 ? EntryStage.s1 : EntryStage.s4,
+            /*
+              게이트 앞 구간 — 안 냈으면 진도가 게이트 자리로 안 올라 있다(gate-miss.ts).
+              s2는 s1을 안 낸 팀(applied)도, s5는 배포 전(s3)인 팀도 여기다.
+            */
+            stage: {
+              in:
+                gate.stageKey === StageKey.s2
+                  ? [EntryStage.applied, EntryStage.s1]
+                  : [EntryStage.s3, EntryStage.s4],
+            },
           },
           select: { id: true, team: { select: { name: true } } },
         })
