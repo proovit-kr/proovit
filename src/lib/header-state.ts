@@ -708,8 +708,13 @@ export function resolveDashboardHeader(input: DashboardHeaderInput): DashboardHe
         /* 리더보드가 꺼져 있으면 갈 곳이 없다 — 띠만 남긴다 */
         go: boardOn ? { label: "리더보드 보기", short: "리더보드", href: board, tone: "gray" } : null,
       },
-      /* 벨 제거 — 이후 알림 대상이 없다(D7 노트) */
-      bell: null,
+      /*
+        벨을 둔다 — 시안 D7 노트는 「벨 제거 — 이후 알림 대상이 없다」인데, 운영 공지를
+        「전체」로 보내면 탈락 팀에도 가고(notify.ts `inStageTarget`, 시상 발표·다음 시즌
+        안내), 게이트 미제출 탈락 통지도 온다(gate-miss.ts). 벨이 없으면 그 알림을 볼
+        길이 없다. 점은 실격(D8)과 같은 빨간 점이다. 2026-09-28 수연 결정.
+      */
+      bell: bellOn ? { dot: input.unread > 0, red: true } : null,
     };
   }
 

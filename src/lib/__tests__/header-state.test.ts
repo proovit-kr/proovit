@@ -369,14 +369,16 @@ describe("참가자 헤더 — 조합기 MAP.app", () => {
     expect(m.banner.go?.label).toBe("시즌 2 참가 신청");
   });
 
-  it("탈락 → D7 (회색 스트립 닫기 가능, 점선 배너, 벨 없음)", () => {
+  it("탈락 → D7 (회색 스트립 닫기 가능, 점선 배너, 벨 있음 — 시안과 다름, 09-28)", () => {
     const m = dash({ entry: { stage: EntryStage.s2, status: EntryStatus.eliminated } });
     expect(m.variant).toBe("D7");
     expect(m.strip).toMatchObject({ tone: "gray", dismissible: true, link: { label: "안내 보기" } });
     expect(m.banner).toMatchObject({ tone: "elim", stage: "시즌 1 진행 중" });
     expect(m.banner.time).toEqual([{ text: "관전 모드" }]);
     expect(m.banner.go).toMatchObject({ label: "리더보드 보기", tone: "gray" });
-    expect(m.bell).toBeNull();
+    /* 전체 공지·미제출 통지가 오므로 벨을 둔다. 점은 안 읽은 게 있을 때만, 실격(D8)과 같은 빨간 점 */
+    expect(m.bell).toEqual({ dot: true, red: true });
+    expect(dash({ entry: { stage: EntryStage.s2, status: EntryStatus.eliminated }, unread: 0 }).bell).toEqual({ dot: false, red: true });
     expect(dash({ entry: { stage: EntryStage.s2, status: EntryStatus.eliminated }, stripDismissed: true }).strip).toBeNull();
     /* 사유를 알면 문구가 시안 예문이 된다 */
     const m2 = dash({ entry: { stage: EntryStage.s2, status: EntryStatus.eliminated }, elimination: { gate: StageKey.s2, submitted: false } });
