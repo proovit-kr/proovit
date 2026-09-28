@@ -51,6 +51,7 @@ import { devNow, setDevToday } from "@/lib/dev-clock";
 import { setDevHubKey } from "@/lib/dev-hub";
 import { EVIDENCE_KINDS, buildEvidenceKey, kindOfName } from "@/lib/evidence";
 import { evidenceStorage } from "@/lib/evidence-storage";
+import { runGateDeadlines } from "@/lib/gate-miss";
 import {
   DEV_FILE_BYTES,
   SPEC_FILES,
@@ -170,6 +171,8 @@ export type SandboxTeam = {
   payment: PaymentPane;
   /** 스테이지 제출 화면의 판. 「제출」 줄이 되짚는다 — 시안 목업이 심긴 판만 */
   submit: SubmitPane | null;
+  /** 게이트 미제출 탈락의 판. 「마감」 줄이 되짚는다 — 탈락이 아니면 null */
+  deadline: DeadlinePane | null;
   /** 혜택과 크레딧 화면의 판(시안 ①~⑦). 「크레딧」 줄이 되짚는다 */
   credits: CreditsPane | null;
   /** 내 지표 화면의 판(시안 ①②). 「내 지표」 줄이 되짚는다 — s3 전이면 null */
@@ -239,6 +242,8 @@ export async function loadSandboxState(): Promise<SandboxState> {
             stageKey: true,
             week: true,
             status: true,
+            /* 「s5 자동 제출」을 가르는 것 — 누른 사람이 없다 */
+            submittedBy: true,
             /* 심사 결과 ①~④를 가르는 것 — 게이트의 최신 판정 */
             judgments: { orderBy: { judgedAt: "desc" }, take: 1, select: { result: true } },
           },
@@ -354,6 +359,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
           status: entry.integration?.status ?? null,
         }),
         submit: submitPane(entry.submissions),
+        deadline: deadlinePane(entry.status, entry.stage),
         myMetrics: myMetricsPaneOf({
           stage: entry.stage,
           hasRows: entry.metricDaily.length > 0,
@@ -1632,10 +1638,14 @@ export const HUB_PLANS: Record<HubKey, HubPlan> = {
     phase: SeasonPhase.racing, stage: EntryStage.applied,
     solo: false, verified: false, raceStage: StageKey.s1, parked: true,
   },
-  /* h11 게이트 미제출 탈락 — 마감이 지나도록 s2를 안 냈다 */
+  /*
+    h11 게이트 미제출 탈락 — 마감이 지나도록 s2를 안 냈다. 진도는 s1이다 — s2를 내야
+    s2가 된다(`saveStage`). 크론(gate-miss.ts)이 떨어뜨린 팀과 같은 모양이다.
+    옛 값 s2는 「게이트 자리에 멈춰야 사유를 안다」던 헤더에 맞춘 것이었다(2026-09-28 고침).
+  */
   h11: {
     label: "11, 게이트 미제출 탈락", group: "예외",
-    phase: SeasonPhase.racing, stage: EntryStage.s2,
+    phase: SeasonPhase.racing, stage: EntryStage.s1,
     status: EntryStatus.eliminated, solo: true, verified: true,
     raceStage: StageKey.s3, unsubmit: StageKey.s2,
   },
@@ -2395,12 +2405,20 @@ export async function setSandboxPayment(args: {
   개발용 payload로 채우고 집계 픽스처와 「오늘」을 정하므로, 시안 목업 제출물·
   판정·방문자는 반드시 그 **뒤**에 얹는다.
 */
-/** s4w2 — s4를 두 주로 늘리고 1주차 제출·2주차 작성 중. s5 — s5 열림, 작성 중(h15 위에) */
-export type SubmitPane = "s3" | "s4" | "s4w2" | "s5";
+/**
+ * s4w2 — s4를 두 주로 늘리고 1주차 제출·2주차 작성 중. s5 — s5 열림, 작성 중(h15 위에).
+ * s5auto — 그 초안을 둔 채 s5 마감을 넘겨 크론과 같은 코드로 자동 제출한 판
+ */
+export type SubmitPane = "s3" | "s4" | "s4w2" | "s5" | "s5auto";
 
 /** 지금 dev DB가 그리는 제출 판. 시안 목업이 심긴 모양이 아니면 null */
 function submitPane(
-  rows: { stageKey: StageKey; week: number; status: SubmissionStatus }[],
+  rows: {
+    stageKey: StageKey;
+    week: number;
+    status: SubmissionStatus;
+    submittedBy: string | null;
+  }[],
 ): SubmitPane | null {
   const has = (stageKey: StageKey, status: SubmissionStatus, week?: number) =>
     rows.some(
@@ -2409,6 +2427,16 @@ function submitPane(
         r.status === status &&
         (week === undefined ? true : r.week >= week),
     );
+  if (
+    rows.some(
+      (r) =>
+        r.stageKey === StageKey.s5 &&
+        r.status === SubmissionStatus.submitted &&
+        r.submittedBy === null,
+    )
+  ) {
+    return "s5auto";
+  }
   if (has(StageKey.s5, SubmissionStatus.draft)) return "s5";
   if (has(StageKey.s4, SubmissionStatus.draft, 2)) return "s4w2";
   if (has(StageKey.s4, SubmissionStatus.draft, 1)) return "s4";
@@ -2418,6 +2446,56 @@ function submitPane(
   return null;
 }
 
+/**
+ * 게이트 미제출 탈락의 판(gate-miss.ts).
+ *   s2miss  s2 진행 중(h3, 진도 s1)에 s2를 안 낸 채 1차 마감을 넘겼다
+ *   s5miss  s3 빌드 중(h5, 레이스 전)에 배포를 안 한 채 2차 마감을 넘겼다
+ */
+export type DeadlinePane = "s2miss" | "s5miss";
+
+/** 탈락했고 진도가 게이트 앞 구간이면 그 판이다. 게이트 자리(s2·s5)면 냈다가 떨어졌다 */
+function deadlinePane(status: EntryStatus, stage: EntryStage): DeadlinePane | null {
+  if (status !== EntryStatus.eliminated) return null;
+  if (stage === EntryStage.applied || stage === EntryStage.s1) return "s2miss";
+  if (stage === EntryStage.s3 || stage === EntryStage.s4) return "s5miss";
+  return null;
+}
+
+/**
+ * 「마감」 줄 — 허브 판을 앉히고 「오늘」을 그 게이트 마감 15분 뒤(크론이 늦어도
+ * 이 안에 돈다)로 옮긴 뒤, 페이즈 크론과 **같은 함수**(`runGateDeadlines`)를 이 팀
+ * 하나에만 부른다. 다른 팀은 건드리지 않는다.
+ */
+export async function setSandboxDeadline(args: {
+  entryId: string;
+  pane: DeadlinePane;
+}): Promise<void> {
+  assertSandbox();
+  const { entryId, pane } = args;
+  const gate = pane === "s2miss" ? StageKey.s2 : StageKey.s5;
+
+  await setSandboxHub({ key: pane === "s2miss" ? "h3" : "h5", entryId });
+  /*
+    배포 전 팀은 레이스를 시작하지 않았다(race.ts). 집계 픽스처가 시즌 전체에 레이스
+    시작을 심을 수 있어 이 팀만 비운다 — 안 비우면 s5 자동 제출 대상이 되어 탈락하지 않는다.
+  */
+  if (pane === "s5miss") {
+    await prisma.entry.update({ where: { id: entryId }, data: { raceStartedAt: null } });
+  }
+
+  const { seasonId } = await prisma.entry.findUniqueOrThrow({
+    where: { id: entryId },
+    select: { seasonId: true },
+  });
+  const stage = await prisma.stage.findFirst({
+    where: { seasonId, stageKey: gate },
+    select: { closesAt: true },
+  });
+  if (!stage?.closesAt) throw new Error(`[dev] ${gate} 마감이 비어 있습니다.`);
+  setDevToday(new Date(stage.closesAt.getTime() + 15 * 60_000));
+  await runGateDeadlines({ now: devNow(), entryIds: [entryId] });
+}
+
 export async function setSandboxSubmit(args: {
   entryId: string;
   pane: SubmitPane;
@@ -2425,7 +2503,8 @@ export async function setSandboxSubmit(args: {
   assertSandbox();
   const { entryId, pane } = args;
 
-  await setSandboxHub({ key: pane === "s3" ? "h5" : pane === "s5" ? "h15" : "h6", entryId });
+  const hubKey = pane === "s3" ? "h5" : pane === "s5" || pane === "s5auto" ? "h15" : "h6";
+  await setSandboxHub({ key: hubKey, entryId });
 
   /*
     dev 일정은 스테이지마다 한 주라 s4에 2주차가 없다. 「s4 2주차」는 s4 마감을 한 주
@@ -2605,8 +2684,19 @@ export async function setSandboxSubmit(args: {
   }
 
   /* s5 작성 중 — h15(s5 구간, 진도 s4)가 일정·지표·「오늘」을 앉혔다. 초안만 얹는다 */
-  if (pane === "s5") {
+  if (pane === "s5" || pane === "s5auto") {
     await put(StageKey.s5, 0, SubmissionStatus.draft, SPEC_S5);
+    if (pane === "s5") return;
+    /*
+      s5 자동 제출 — 확인 버튼을 누르지 않은 채 「오늘」을 마감 15분 뒤(크론이 늦어도
+      이 안에 돈다)로 옮기고 크론과 **같은 함수**를 이 팀 하나에만 부른다. 다른 팀은
+      건드리지 않는다. 초안이 그대로 제출로 오르고 진도가 s5가 된다(final-submit.ts).
+    */
+    const closes = stageOf(StageKey.s5)?.closesAt;
+    if (closes) {
+      setDevToday(new Date(closes.getTime() + 15 * 60_000));
+      await runGateDeadlines({ now: devNow(), entryIds: [entryId] });
+    }
     return;
   }
 

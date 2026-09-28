@@ -7,6 +7,7 @@ import { Chip } from "@/components/Surface";
 import {
   PAYMENT_STATE_LABEL,
   S5_FIELDS,
+  SUBMIT_AUTO,
   SUBMIT_BUTTONS,
   SUBMIT_HEAD,
   SUBMIT_INFO,
@@ -259,7 +260,12 @@ function metaLines(row: StageRow, now: Date): string[] {
     return lines;
   }
   if (s && s.status !== SubmissionStatus.draft && s.submittedAt) {
-    lines.push(`제출 ${s.submitter ?? ""}, ${formatMoment(s.submittedAt)}`.replace(" ,", ","));
+    lines.push(
+      /* 자동 제출은 마감 시각에 이뤄진 것이라 위 「집계 확정」과 같은 표기로 적는다(24:00) */
+      s.auto
+        ? `${SUBMIT_AUTO}, ${formatDeadline(s.submittedAt)}`
+        : `제출 ${s.submitter ?? ""}, ${formatMoment(s.submittedAt)}`.replace(" ,", ","),
+    );
   } else if (s) {
     /* 임시저장한 사람은 남지 않는다(StageForm.tsx 머리 주석) */
     lines.push(`임시저장 ${formatMoment(s.updatedAt)}`);
@@ -297,7 +303,9 @@ function whoLine(row: StageRow): string {
   if (s.status === SubmissionStatus.draft || !s.submittedAt) {
     return `${SUBMIT_WHO.none}, draft 임시저장 ${formatMoment(s.updatedAt)}`;
   }
-  const base = `submitted_by ${s.submitter ?? ""}, ${formatMoment(s.submittedAt)}`;
+  const base = s.auto
+    ? `submitted_by ${SUBMIT_AUTO}, ${formatDeadline(s.submittedAt)}`
+    : `submitted_by ${s.submitter ?? ""}, ${formatMoment(s.submittedAt)}`;
   return s.status === SubmissionStatus.locked ? `${base}, locked` : base;
 }
 

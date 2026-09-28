@@ -57,6 +57,8 @@ export type StageRow = StageState & {
     submittedAt: Date | null;
     /** 제출을 누른 사람의 닉네임. 임시저장만 있으면 null */
     submitter: string | null;
+    /** s5 마감에 플랫폼이 낸 제출이다 — 누른 사람이 없다(final-submit.ts) */
+    auto: boolean;
     /** 마지막으로 저장한 때. 임시저장 표기에 쓴다 */
     updatedAt: Date;
     /** 보완 재제출 마감(원 마감 +48시간). 팀별로 다르다 */
@@ -117,6 +119,7 @@ export async function loadSubmitOverview(
         submittedAt: true,
         updatedAt: true,
         revisionDueAt: true,
+        submittedBy: true,
         submitter: { select: { nickname: true } },
         judgments: {
           orderBy: { judgedAt: "desc" },
@@ -206,6 +209,7 @@ export async function loadSubmitOverview(
             evidenceUrls: current.evidenceUrls,
             submittedAt: current.submittedAt,
             submitter: current.submitter?.nickname ?? null,
+            auto: current.submittedAt !== null && current.submittedBy === null,
             updatedAt: current.updatedAt,
             revisionDueAt: current.revisionDueAt,
           }

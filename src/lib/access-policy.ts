@@ -14,6 +14,7 @@
 import {
   EntryStage,
   EntryStatus,
+  StageKey,
   type SeasonPhase,
 } from "@/generated/prisma/client";
 import type { ApiErrorCode } from "@/lib/api";
@@ -128,6 +129,20 @@ export function stageReachable(stageKey: EntryStage, stage: EntryStage): boolean
  */
 export function passedGate(stage: EntryStage, gate: EntryStage): boolean {
   return STAGE_RANK[stage] > STAGE_RANK[gate];
+}
+
+/**
+ * 이 진도가 걸려 있는 게이트 — 탈락한 팀이 어느 게이트에서 떨어졌는가.
+ *
+ *   s2 이하   1차(s2). 냈으면 진도가 s2이고(미통과), 안 냈으면 applied·s1이다(미제출)
+ *   s3 이상   2차(s5). 1차를 통과해야 s3이 된다. 냈으면 s5, 안 냈으면 s3·s4다
+ *
+ * 옛 규칙 「진도가 s5면 s5, 아니면 s2」는 게이트 자리에 멈춘 팀(냈다가 떨어진
+ * 팀)만 맞았다. s5를 안 내고 떨어진 미배포 팀(진도 s3)이 「s2 미제출」로 읽혔다
+ * (2026-09-28, gate-miss.ts를 만들며 고침).
+ */
+export function gateOf(stage: EntryStage): StageKey {
+  return stageAtLeast(stage, EntryStage.s3) ? StageKey.s5 : StageKey.s2;
 }
 
 /** PLN3 2장 카탈로그의 화면 하나에 대응한다. 라우트 문자열을 키로 쓰지 않는 이유는 오타가 조용히 통과하기 때문이다. */

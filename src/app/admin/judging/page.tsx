@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { SUBMIT_AUTO } from "@/content/submission";
 import { guardPage } from "@/lib/access";
 import { devNow } from "@/lib/dev-clock";
 import { fmtMDHM, fmtStamp } from "@/lib/header-state";
@@ -63,7 +64,15 @@ export default async function Page({
           remaining={board.remaining}
           rows={board.rows.map((r) => ({
             ...r,
-            submittedAt: r.submittedAt ? fmtStamp(r.submittedAt) : null,
+            /*
+              자동 제출은 마감 시각이라 위 게이트 줄의 「마감」과 같은 표기로 적는다 —
+              00:00으로 적으면 마감(24:00) 뒤에 낸 것처럼 읽힌다.
+            */
+            submittedAt: r.submittedAt
+              ? r.auto
+                ? `${SUBMIT_AUTO} ${fmtMDHM(r.submittedAt)}`
+                : fmtStamp(r.submittedAt)
+              : null,
           }))}
         />
       ) : (
