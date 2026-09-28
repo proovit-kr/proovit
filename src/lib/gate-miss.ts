@@ -1,4 +1,11 @@
-import { EntryStage, EntryStatus, SeasonPhase, StageKey } from "@/generated/prisma/client";
+import { NOTI_GATE_MISSED } from "@/content/notifications";
+import {
+  EntryStage,
+  EntryStatus,
+  NotifChannel,
+  SeasonPhase,
+  StageKey,
+} from "@/generated/prisma/client";
 import { writeAudit } from "@/lib/admin-store";
 import { devNow } from "@/lib/dev-clock";
 import { runFinalAutoSubmit, type FinalAutoSubmitResult } from "@/lib/final-submit";
@@ -19,8 +26,9 @@ import { gateMissTarget } from "@/lib/submission";
   이 팀을 판정 없는 줄 「미제출, 마감 경과, 크론 자동 처리」로 그린다(judging-store의
   `missed`) — 탈락 + 감사 로그가 그 줄의 전부다. 사유는 시안 문구 「마감 미제출」.
 
-  알림은 보내지 않는다 — 시안에 문구가 없다. 허브(h11 「s2 마감이 지나 자동 미통과
-  처리됐어요」)와 헤더 띠(「s2 게이트 미제출로 …」)가 알린다. (내가 정함)
+  팀원마다 알림을 한 줄씩 남긴다(`NOTI_GATE_MISSED`, 2026-09-28 수연 확정) — 운영자
+  판정 통지와 같은 모양이다. 운영규칙 제9조③이 미통과를 통지하라고 하고, 제11조
+  이의신청 기한이 「결과 통지 후 5영업일」이라 이 발송 시각이 그 기산점이다.
 
   s5는 자동 제출(final-submit.ts)이 **먼저** 돈다(`runGateDeadlines`). 레이스를 시작한
   팀은 그때 냈고, 여기에 남는 것은 배포하지 않은 팀이다. 판정 함수도 자동 제출
@@ -49,7 +57,7 @@ const BEFORE_GATE: Partial<Record<StageKey, EntryStage[]>> = {
 };
 
 /**
- * 한 팀을 탈락시킨다. 상태·감사 로그가 한 트랜잭션이다. 읽은 때의 진도·상태
+ * 한 팀을 탈락시킨다. 상태·감사 로그·통지가 한 트랜잭션이다. 읽은 때의 진도·상태
  * 그대로일 때만 쓴다 — 그 사이 게이트를 냈으면(진도가 올랐다) 떨어뜨리지 않는다.
  * 운영자의 수동 상태 변경(admin-store `setEntryStatus`)과 같은 모양으로 남긴다.
  */
@@ -81,6 +89,24 @@ async function eliminateOne(
         stage: entry.stage,
         by: "cron",
       },
+    });
+
+    const text = NOTI_GATE_MISSED[gate === StageKey.s2 ? 1 : 2];
+    const members = await tx.teamMember.findMany({
+      where: { team: { entries: { some: { id: entry.id } } } },
+      select: { userId: true },
+    });
+    await tx.notification.createMany({
+      data: members.map((m) => ({
+        userId: m.userId,
+        type: NOTI_GATE_MISSED.type,
+        title: text.title,
+        body: text.body,
+        linkUrl: text.linkUrl,
+        channel: NotifChannel.inapp,
+        /* 통지 시각이 이의신청 기한의 기산점이다 — 판정에 쓴 개발 시계가 아니라 진짜 지금 */
+        sentAt: new Date(),
+      })),
     });
     return true;
   });
