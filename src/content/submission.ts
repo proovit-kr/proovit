@@ -49,6 +49,13 @@ export const SUBMIT_WHO = {
   none: "submitted_by 미제출",
 } as const;
 
+/**
+ * 누른 사람 대신 적는 말 — s5 마감에 플랫폼이 낸 제출(FR-H6). 시안에 없는 판이라
+ * 내가 정함(수연 확인 대기). 메타 줄 「자동 제출, 11.01 24:00」, 발자국
+ * 「submitted_by 자동 제출, 11.01 24:00」 — 시각은 s5 마감이라 「집계 확정」과 같이 적는다.
+ */
+export const SUBMIT_AUTO = "자동 제출";
+
 /** 시안 `.frm-ft .sp`의 버튼 문구 */
 export const SUBMIT_BUTTONS = {
   draft: "임시저장",

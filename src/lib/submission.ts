@@ -1,6 +1,8 @@
 import { z } from "@/lib/z";
 
 import {
+  EntryStage,
+  EntryStatus,
   JudgmentResult,
   StageKey,
   SubmissionStatus,
@@ -9,7 +11,7 @@ import { AI_CHECKS, BUILDERS, LAUNCH_CHECKS } from "@/content/submission";
 import { EVIDENCE_COUNT_MAX, EVIDENCE_KEY_MAX } from "@/lib/evidence";
 import { formatDay } from "@/lib/kst-format";
 import { seoulDateOnly } from "@/lib/measure";
-import { raceWeekBase } from "@/lib/race";
+import { raceStarted, raceWeekBase } from "@/lib/race";
 
 /*
   제출의 **순수** 절반 — 길이·형식 규칙과 화면이 판을 읽는 규칙. 화면(클라이언트)도
@@ -346,6 +348,58 @@ export const S5DraftSchema = z.object({
 export type S5Payload = z.infer<typeof S5Schema>;
 
 /**
+ * s5 자동 제출(FR-H6)의 대상인가 — 마감이 지나면 확인 버튼을 누르지 않은 팀의
+ * s5도 제출로 적는다(final-submit.ts). 최종 지표는 플랫폼이 세므로 팀이 낼 것이 없다.
+ *
+ *   참가 중(active)  1차 미통과·실격·자진 포기는 아니다. 실격 뒤 소명이 인용되어
+ *                    돌아오면 그때 대상이 된다(완주 기준 정의서 2-5).
+ *   레이스 시작      s5 마감 전에 s3을 냈다. 배포하지 않은 팀은 셀 지표가 없다 —
+ *                    그 팀은 게이트 미제출이다(PLN7 1-3).
+ *   s5 전            진도가 s5 이상이면 이미 냈다(`saveStage`가 진도를 올린다).
+ */
+export function finalAutoSubmitTarget(
+  entry: { status: EntryStatus; stage: EntryStage; raceStartedAt: Date | null },
+  closesAt: Date,
+): boolean {
+  return (
+    entry.status === EntryStatus.active &&
+    raceStarted(entry.raceStartedAt, closesAt) &&
+    entry.stage !== EntryStage.s5 &&
+    entry.stage !== EntryStage.completed
+  );
+}
+
+/**
+ * 게이트 마감까지 안 내서 탈락시킬 팀인가 — PLN7 1-3 「게이트 마감까지 미제출한
+ * 팀은 크론이 자동으로 fail」. 운영규칙 제9조③ 「심사 마감까지 미제출한 팀은
+ * 미통과로 처리됨」(gate-miss.ts).
+ *
+ *   참가 중(active)만이다. 이미 떨어졌거나 실격·포기면 할 것이 없다.
+ *   진도가 그 게이트 **앞 구간**이다 — s2는 applied·s1, s5는 s3·s4. 게이트를 냈으면
+ *   진도가 게이트 자리(s2·s5)로 올라 있다(`saveStage`). s5 마감에 s2 판정을
+ *   기다리는 팀(진도 s2)은 운영자의 몫이라 건드리지 않는다.
+ *   s5는 **자동 제출 대상이 아닐 때만**이다 — 레이스를 시작한 팀은 버튼을 안
+ *   눌러도 냈다(FR-H6). 남는 것은 배포하지 않은 팀이다.
+ */
+export function gateMissTarget(
+  gate: StageKey,
+  entry: { status: EntryStatus; stage: EntryStage; raceStartedAt: Date | null },
+  closesAt: Date,
+): boolean {
+  if (entry.status !== EntryStatus.active) return false;
+  if (gate === StageKey.s2) {
+    return entry.stage === EntryStage.applied || entry.stage === EntryStage.s1;
+  }
+  if (gate === StageKey.s5) {
+    return (
+      (entry.stage === EntryStage.s3 || entry.stage === EntryStage.s4) &&
+      !finalAutoSubmitTarget(entry, closesAt)
+    );
+  }
+  return false;
+}
+
+/**
  * 가이드 완료 체크가 전부 켜졌는가. 스키마로는 못 잡는다 — 체크박스는
  * 전부 false여도 통과한다(`s3Missing`과 같은 이유).
  */
@@ -467,8 +521,13 @@ export function windowStarted(win: StageWindow, now: Date): boolean {
  * 없어 「예정」이라 부르지 않는다 — 부르면 머리의 「마감 10.11」·버튼 「마감됨」과
  * 반대 말을 한다.
  *
- * ⚠️ `prevSubmitted` — 바로 앞 스테이지가 게이트가 아니면 **그 제출이 있어야** 열린다
- * (「제출하면 바로 다음 단계가 열린다」). 진도만으로는 모자란 자리가 s4다: 1차를
+ * ⚠️ `prevSubmitted` — 바로 앞 스테이지가 게이트가 아니면 **그 제출이 있어야** 열린다.
+ * 근거는 시즌 운영 규칙 v1.1 머리말 「고정된 일정은 두 심사 마감뿐이며, 그 사이의
+ * 스테이지는 팀별로 제출·통과 즉시 다음 단계가 열림(유동 게이트)」과 PRD 2장(같은
+ * 문장). 게이트는 통과가, 그 밖은 제출이 다음 단계를 연다. PLN3 3.2 「미배포로 레이스
+ * 진입 — stage=s3(미제출)」도 s3을 안 낸 팀이 s3에 머문다는 같은 말이다(FR-F3의
+ * 「s4 레이스 참여」는 리더보드에 「미배포」로 서는 것이지 s4 제출이 아니다).
+ * 진도만으로는 모자란 자리가 s4다: 1차를
  * 통과하면 진도가 s3이 되고(스키마 EntryStage 주석), s3을 내도 s3 그대로라 진도로는
  * s3을 냈는지 모른다. 옛 달력에서는 s4가 11.02에 모두에게 열려 이 차이가 가려졌다.
  * 진도로 닿았는데 앞 제출이 없으면 「아직 안 열림」으로 잠근다 — `canSubmitStage`는
