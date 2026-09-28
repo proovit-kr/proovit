@@ -52,3 +52,23 @@ export const NOTI_JUDGMENT = {
     },
   },
 } as const;
+
+/**
+ * 게이트 미제출 통지 — 크론이 마감까지 안 낸 팀을 탈락시킬 때 팀원마다 한 줄
+ * (gate-miss.ts). 운영규칙 제9조③ 「결과는 … 통지」, 제11조 이의신청 기한이 「결과
+ * 통지 후 5영업일」이라 이 발송이 그 기산점이다. 제목은 판정 통지와 같고, 볼 판정이
+ * 없어 허브로 보낸다. 2026-09-28 수연 확정.
+ */
+export const NOTI_GATE_MISSED = {
+  type: NOTI_JUDGMENT.type,
+  1: {
+    title: "1차 심사 결과",
+    body: "마감까지 제출이 없어 미통과 처리됐어요.",
+    linkUrl: "/dashboard",
+  },
+  2: {
+    title: "2차 심사 결과",
+    body: "마감까지 제출이 없어 미통과 처리됐어요.",
+    linkUrl: "/dashboard",
+  },
+} as const;
