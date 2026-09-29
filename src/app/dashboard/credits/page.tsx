@@ -17,9 +17,9 @@ import {
   CREDITS_UNLOCK,
   CREDIT_CARD_TEXT as T,
 } from "@/content/credits";
-import { CreditKind, EntryStage, EntryStatus } from "@/generated/prisma/enums";
+import { CreditKind, EntryStatus, StageKey } from "@/generated/prisma/enums";
 import { guardPage } from "@/lib/access";
-import { stageAtLeast } from "@/lib/access-policy";
+import { gateOf } from "@/lib/access-policy";
 import {
   type CreditCardState,
   creditBadge,
@@ -126,14 +126,17 @@ export default async function Page() {
     ? await loadCreditCenter({
         entryId: viewer.entry.id,
         seasonId: viewer.season.id,
-        stage: viewer.entry.stage,
         phase: viewer.season.phase,
+        status: viewer.entry.status,
       })
     : null;
 
   const eliminated = viewer.entry.status === EntryStatus.eliminated;
-  /* 못 넘은 게이트 — 진도가 s5에 닿았으면 2차, 아니면 1차 */
-  const failedGate = stageAtLeast(viewer.entry.stage, EntryStage.s5) ? 2 : 1;
+  /*
+    못 넘은 게이트 — 헤더·허브와 같은 규칙(access-policy `gateOf`). s5를 안 내고
+    떨어진 팀은 진도가 s3·s4인 채라 「진도가 s5면 2차」로는 1차로 읽혔다.
+  */
+  const failedGate = gateOf(viewer.entry.stage) === StageKey.s5 ? 2 : 1;
   const pane = view
     ? creditsPane({ season: view.season, eliminated, cards: view.cards })
     : null;
@@ -257,7 +260,8 @@ function Note({
     const text = (
       received.length ? CREDITS_NOTE.tester : CREDITS_NOTE.testerNone
     )
-      .replace("{gate}", String(failedGate))
+      /* 조사가 숫자를 따른다 — 「1을」·「2를」 */
+      .replace("{gate}", failedGate === 2 ? "2를" : "1을")
       .replace("{cards}", received.join(", "));
     return (
       <div

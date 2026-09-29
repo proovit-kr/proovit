@@ -1,11 +1,9 @@
 import {
   AbuseStatus,
-  CreditClaimStatus,
   CreditDelivery,
   CreditDeliveredVia,
   CreditKind,
   CreditOfferStatus,
-  CreditStatus,
   CreditUnlockEvent,
   EntryStatus,
   NotifChannel,
@@ -15,6 +13,8 @@ import {
   Prisma,
 } from "@/generated/prisma/client";
 import { REASON_MIN } from "@/lib/admin";
+import type { CreditCardState } from "@/lib/credits";
+import { issueCredit, judgeCredit } from "@/lib/credits-store";
 import { fmtStamp } from "@/lib/header-state";
 import {
   LATE_ENTRY_BLOCK_MESSAGE,
@@ -911,62 +911,15 @@ export async function uploadCreditCodes(args: {
 }
 
 /**
- * 수동 발급 — 시즌1의 정상 경로다.
+ * 수동 발급 — 시즌1의 정상 경로다. 시안 발급 현황의 「수동 발급」(→ `#mdl-reason`).
  *
  * 자동 발송은 P1이고, 그전까지는 운영자가 코드를 직접 보내고 여기서 상태를
  * 옮긴다(설계서 5장 「시즌 1 수동 대체 경로」). 참가자 화면은 자동일 때와
  * 똑같이 보인다 — 그게 이 경로가 성립하는 조건이다.
- */
-type DeliverTx = Prisma.TransactionClient;
-
-/**
- * 한 팀에 카드 하나를 발급한다(트랜잭션 안에서만). 코드 풀이면 코드 하나를 붙인다 —
- * 참가자 「받기」(credits-store `claimCredit`)와 같은 조건부 갱신으로 이중 소비를 막는다.
- * 지급 예정일이 남았으면 코드를 태우지 않고 「발급 예정」으로 둔다.
- */
-async function deliverOne(
-  tx: DeliverTx,
-  offer: { id: string; deliveryMethod: CreditDelivery; releaseDate: Date | null },
-  entryId: string,
-  via: CreditDeliveredVia,
-  now: Date,
-  today: Date,
-): Promise<{ ok: true; code: string | null; scheduled: boolean } | { ok: false; soldOut: true }> {
-  const scheduled = offer.releaseDate != null && offer.releaseDate > today;
-  let creditCodeId: string | null = null;
-  let code: string | null = null;
-  if (!scheduled && offer.deliveryMethod === CreditDelivery.code_pool) {
-    const candidate = await tx.creditCode.findFirst({
-      where: { offerId: offer.id, status: CreditStatus.issued },
-      orderBy: { createdAt: "asc" },
-      select: { id: true, code: true },
-    });
-    if (!candidate) return { ok: false, soldOut: true };
-    const taken = await tx.creditCode.updateMany({
-      where: { id: candidate.id, status: CreditStatus.issued },
-      data: { status: CreditStatus.claimed },
-    });
-    if (taken.count === 0) return { ok: false, soldOut: true };
-    creditCodeId = candidate.id;
-    code = candidate.code;
-  }
-  const status = scheduled ? CreditClaimStatus.scheduled : CreditClaimStatus.delivered;
-  const data = {
-    status,
-    claimedAt: now,
-    ...(scheduled ? {} : { deliveredAt: now, deliveredVia: via }),
-    ...(creditCodeId ? { creditCodeId } : {}),
-  };
-  await tx.creditClaim.upsert({
-    where: { offerId_entryId: { offerId: offer.id, entryId } },
-    create: { offerId: offer.id, entryId, ...data },
-    update: data,
-  });
-  return { ok: true, code, scheduled };
-}
-
-/**
- * 수동 발급 — 시안 발급 현황의 「수동 발급」(→ `#mdl-reason`).
+ *
+ * 보낼 수 있는지는 참가자 「받기」와 **같은 판정**으로 다시 잰다(credits-store
+ * `judgeCredit`). 운영 표가 「발급 가능」을 그린 칸만 보낸다 — 실격 팀, 안 열린 카드,
+ * 끝난 시즌은 버튼이 없어도 직접 부르면 나갔다(2026-09-30 감사).
  */
 export async function deliverCreditManually(args: {
   offerId: string;
@@ -979,29 +932,21 @@ export async function deliverCreditManually(args: {
     return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
   }
 
-  const [offer, claim] = await Promise.all([
-    prisma.creditOffer.findUnique({
-      where: { id: offerId },
-      select: { id: true, kind: true, deliveryMethod: true, releaseDate: true },
-    }),
-    prisma.creditClaim.findUnique({
-      where: { offerId_entryId: { offerId, entryId } },
-      select: { status: true },
-    }),
-  ]);
-  if (!offer) return { ok: false, message: "혜택을 찾을 수 없습니다." };
-  if (
-    claim &&
-    claim.status !== CreditClaimStatus.available &&
-    claim.status !== CreditClaimStatus.scheduled
-  ) {
-    return { ok: false, message: "이미 발급된 팀입니다." };
+  const judged = await judgeCredit({ entryId, offerId });
+  if (!judged.ok) return { ok: false, message: "혜택을 찾을 수 없습니다." };
+  if (judged.state !== "available") {
+    return { ok: false, message: MANUAL_REFUSAL[judged.state] ?? "지금은 보낼 수 없는 칸입니다." };
   }
 
   const { devNow } = await import("@/lib/dev-clock");
-  const now = new Date();
   const out = await prisma.$transaction(async (tx) => {
-    const r = await deliverOne(tx, offer, entryId, CreditDeliveredVia.manual, now, devNow());
+    const r = await issueCredit(tx, {
+      offer: judged.offer,
+      entryId,
+      via: CreditDeliveredVia.manual,
+      now: new Date(),
+      today: devNow(),
+    });
     if (!r.ok) return r;
     await writeAudit(tx, {
       actorId,
@@ -1009,13 +954,31 @@ export async function deliverCreditManually(args: {
       targetType: "entry",
       targetId: entryId,
       reason: reason.trim(),
-      meta: { offerId, kind: offer.kind, from: claim?.status ?? null },
+      meta: { offerId, kind: judged.offer.kind, entryId, scheduled: r.scheduled },
     });
     return r;
   });
-  if (!out.ok) return { ok: false, message: "코드 풀이 비었습니다. CSV로 코드를 먼저 올려 주세요." };
+  if (!out.ok) {
+    return {
+      ok: false,
+      message:
+        out.code === "SOLD_OUT"
+          ? "코드 풀이 비었습니다. CSV로 코드를 먼저 올려 주세요."
+          : "이미 발급된 팀입니다.",
+    };
+  }
   return { ok: true };
 }
+
+/** 「발급 가능」이 아닌 칸을 보내려 할 때 — 운영 표의 배지와 같은 말로 */
+const MANUAL_REFUSAL: Partial<Record<CreditCardState, string>> = {
+  negotiating: "협의 중인 혜택입니다. 활성으로 바꾼 뒤에 보낼 수 있습니다.",
+  locked: "잠긴 칸입니다. 조건을 채우지 않았거나 추가 발급이 멈춘 팀입니다.",
+  scheduled: "이미 발급 예정인 팀입니다.",
+  delivered: "이미 발급된 팀입니다.",
+  confirmed: "이미 발급된 팀입니다.",
+  expired: "만료된 칸입니다.",
+};
 
 /**
  * 발급 가능 팀에 일괄 발송 — 시안 「발급 가능 팀에 일괄 발송」 → `#mdl-crbatch`.
@@ -1048,12 +1011,15 @@ export async function batchDeliverCredits(args: {
     const delivered: { entryId: string; code: string | null; scheduled: boolean }[] = [];
     let soldOut = false;
     for (const entryId of args.entryIds) {
-      const had = await tx.creditClaim.findUnique({
-        where: { offerId_entryId: { offerId: offer.id, entryId } },
-        select: { status: true },
+      const r = await issueCredit(tx, {
+        offer,
+        entryId,
+        via: CreditDeliveredVia.email,
+        now,
+        today: devNow(),
       });
-      if (had && had.status !== CreditClaimStatus.available) continue;
-      const r = await deliverOne(tx, offer, entryId, CreditDeliveredVia.email, now, devNow());
+      /* 그 사이 팀이 직접 받았으면 건너뛴다 — 팀당 1회는 issueCredit이 지킨다 */
+      if (!r.ok && r.code === "ALREADY_CLAIMED") continue;
       if (!r.ok) {
         soldOut = true;
         break;

@@ -1,3 +1,4 @@
+import type { Prisma } from "@/generated/prisma/client";
 import {
   CreditClaimStatus,
   CreditDelivery,
@@ -19,11 +20,13 @@ import { stageAtLeast } from "@/lib/access-policy";
 import {
   CLAIM_STATUS_LABEL,
   CREDIT_CARDS,
+  CREDIT_CARD_BY_KIND,
   type CreditCardState,
   type CreditFailureCode,
   type CreditSeason,
   type FallbackItem,
   type UnlockProgress,
+  claimRefusal,
   creditCardState,
   creditSeason,
   isAwardCard,
@@ -34,6 +37,7 @@ import {
 } from "@/lib/credits";
 import { devNow } from "@/lib/dev-clock";
 import { prisma } from "@/lib/prisma";
+import { notDeployed } from "@/lib/race";
 
 /*
   혜택·크레딧 저장. **서버 전용이다** — 규칙은 credits.ts에 있다.
@@ -57,40 +61,48 @@ import { prisma } from "@/lib/prisma";
  *
  * ⚠️ 넷을 각각 다른 곳에서 읽는다 — 진도 하나로 접으면 틀린다.
  *
- *   s1 제출     `submissions`의 s1이 draft를 벗어났는가(그 `submitted_at`). 진도
+ *   s1 제출     `submissions`의 s1을 **낸 적이 있는가**(그 `submitted_at`). 진도
  *               (stage)는 게이트를 통과해야 오르므로 "냈다"를 진도로 판정할 수 없다.
+ *               상태(submitted)로 읽지 않는다 — 낸 뒤 임시 저장하면 draft로 돌아가는데,
+ *               제출 저장소는 그때도 `submitted_at`을 지킨다(「임시 저장은 제출 기록을
+ *               지우지 않는다」). 상태로 읽던 때는 받기 전의 C1이 다시 잠겼다.
  *   게이트 1 통과 게이트는 s2다(access-policy GATE_STAGES). 통과하면 진도가 s3으로
  *               전진하므로 진도로 읽는다 — 전진 자체가 통과의 근거다. 때는 s2의
- *               통과 판정(`judged_at`)이고, 판정 행이 없으면 때를 모른 채 연다.
- *   배포 검증    `hostnames.ownership_verified_at`. 진도가 s3이어도 검증은 안 끝나
- *               있을 수 있다. 지표를 세는 근거가 이 값이라 여기서도 같은 값을 쓴다.
+ *               **마지막** 판정이고, 그게 통과가 아니면 번복된 것이다(판정은 새 행으로
+ *               쌓이고 진도는 뒤로 안 내린다, judging-store). 판정 행이 아예 없으면
+ *               때를 모른 채 연다.
+ *   배포 검증    레이스를 시작했고(s3 제출) 측정 주소가 확인됐다 — race.ts
+ *               `notDeployed`의 반대. 리더보드·참가작 상세와 같은 정의다. 측정 연동만
+ *               보던 때는 온보딩에서 검증을 끝낸 팀이 모집 중부터 C3을 받을 수 있었다
+ *               (2026-09-30 감사). 때는 둘 중 늦은 쪽이다.
  *   최종 확정    시상 기록이 생겼는가(`awarded_at`). 상금 규정이 붙는 카드라 「심사가
  *               끝났다」가 아니라 「이 팀이 받는다」가 조건이다.
  */
-export async function loadUnlockProgress(
-  entryId: string,
-  stage: EntryStage,
-): Promise<UnlockProgress> {
-  const [s1, gate, hostname, award] = await Promise.all([
+export async function loadUnlockProgress(entryId: string): Promise<UnlockProgress> {
+  const [entry, s1, gate, award] = await Promise.all([
+    prisma.entry.findUniqueOrThrow({
+      where: { id: entryId },
+      select: {
+        stage: true,
+        raceStartedAt: true,
+        hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
+      },
+    }),
     prisma.submission.findFirst({
       where: {
         entryId,
         stageKey: StageKey.s1,
-        status: { in: [SubmissionStatus.submitted, SubmissionStatus.locked] },
+        OR: [
+          { submittedAt: { not: null } },
+          { status: { in: [SubmissionStatus.submitted, SubmissionStatus.locked] } },
+        ],
       },
       select: { submittedAt: true, updatedAt: true },
     }),
     prisma.judgment.findFirst({
-      where: {
-        submission: { entryId, stageKey: StageKey.s2 },
-        result: JudgmentResult.pass,
-      },
+      where: { submission: { entryId, stageKey: StageKey.s2 } },
       orderBy: { judgedAt: "desc" },
-      select: { judgedAt: true },
-    }),
-    prisma.hostname.findUnique({
-      where: { entryId },
-      select: { ownershipVerifiedAt: true },
+      select: { result: true, judgedAt: true },
     }),
     prisma.award.findFirst({
       where: { entryId, awardedAt: { not: null } },
@@ -98,17 +110,37 @@ export async function loadUnlockProgress(
     }),
   ]);
 
-  /* 때를 모르는 사건은 EPOCH — 「열렸다」는 사실만 남기고 날짜는 안 그린다 */
-  const gate1Passed = stageAtLeast(stage, EntryStage.s3)
-    ? (gate?.judgedAt ?? UNKNOWN_AT)
-    : null;
-
   return {
     s1Submitted: s1 ? (s1.submittedAt ?? s1.updatedAt) : null,
-    gate1Passed,
-    deployVerified: hostname?.ownershipVerifiedAt ?? null,
+    gate1Passed: gate1PassedAt(entry.stage, gate),
+    deployVerified: deployVerifiedAt(entry, devNow()),
     finalConfirmed: award?.awardedAt ?? null,
   };
+}
+
+/** 게이트 1을 넘은 때. 진도가 s3에 못 닿았거나 마지막 판정이 통과가 아니면 null */
+export function gate1PassedAt(
+  stage: EntryStage,
+  last: { result: JudgmentResult; judgedAt: Date } | null,
+): Date | null {
+  if (!stageAtLeast(stage, EntryStage.s3)) return null;
+  /* 때를 모르는 사건은 EPOCH — 「열렸다」는 사실만 남기고 날짜는 안 그린다 */
+  if (!last) return UNKNOWN_AT;
+  return last.result === JudgmentResult.pass ? last.judgedAt : null;
+}
+
+/** 배포가 검증된 때 — 레이스 시작과 주소 확인 중 늦은 쪽. 미배포면 null */
+export function deployVerifiedAt(
+  entry: {
+    raceStartedAt: Date | null;
+    hostname: { deployStatus: DeployStatus; ownershipVerifiedAt: Date | null } | null;
+  },
+  now: Date,
+): Date | null {
+  if (notDeployed(entry, now)) return null;
+  const started = entry.raceStartedAt as Date;
+  const verified = entry.hostname?.ownershipVerifiedAt as Date;
+  return started > verified ? started : verified;
 }
 
 /** 일어났지만 언제인지 모르는 사건의 자리. 화면은 이 날짜를 안 그린다 */
@@ -184,10 +216,10 @@ export type CreditCenterView = {
 export async function loadCreditCenter(args: {
   entryId: string;
   seasonId: string;
-  stage: EntryStage;
   phase: SeasonPhase;
+  status: EntryStatus;
 }): Promise<CreditCenterView> {
-  const { entryId, seasonId, stage, phase } = args;
+  const { entryId, seasonId, phase, status } = args;
   const season = creditSeason(phase);
 
   const [offers, claims, progress, award] = await Promise.all([
@@ -220,7 +252,7 @@ export async function loadCreditCenter(args: {
         creditCode: { select: { code: true } },
       },
     }),
-    loadUnlockProgress(entryId, stage),
+    loadUnlockProgress(entryId),
     prisma.award.findFirst({
       where: { entryId, awardedAt: { not: null } },
       select: { rank: true, prizeDesc: true, awardedAt: true },
@@ -247,6 +279,7 @@ export async function loadCreditCenter(args: {
       claimStatus: claim?.status ?? null,
       unlocked,
       season,
+      active: status === EntryStatus.active,
     });
 
     /*
@@ -306,13 +339,182 @@ export async function loadCreditCenter(args: {
 
 export type CreditResult = { ok: true } | { ok: false; code: CreditFailureCode };
 
+/** 발급에 필요한 카드 값 — 받기·수동 발급·일괄 발송이 같은 것을 든다 */
+export type IssueOffer = {
+  id: string;
+  kind: CreditKind;
+  deliveryMethod: CreditDelivery;
+  releaseDate: Date | null;
+};
+
+/**
+ * 한 팀·한 카드의 지금 상태 — 화면·운영 칸과 **같은 재료로** 다시 잰다.
+ *
+ * 받기와 수동 발급은 화면이 버튼을 그렸다는 사실을 믿지 않는다. 그렇다고 따로
+ * 판정하면 둘이 갈라진다 — 받기가 DB의 `unlock_event`(운영자가 바꿀 수 있다)를 보고
+ * 화면은 카탈로그를 보던 때, 「발급 가능」 카드가 거절되고 시상 발표 뒤의 카드가
+ * 받아졌다(2026-09-30 감사). 그래서 여기서 `creditCardState`를 그대로 부른다.
+ *
+ * 카드가 그 팀의 시즌 것이 아니면 없는 것으로 본다 — 폼의 offerId는 손으로 바꿀 수 있다.
+ */
+export async function judgeCredit(args: {
+  entryId: string;
+  offerId: string;
+}): Promise<
+  | { ok: true; offer: IssueOffer; state: CreditCardState; active: boolean }
+  | { ok: false; code: "NOT_FOUND" }
+> {
+  const { entryId, offerId } = args;
+  const [offer, entry, claim] = await Promise.all([
+    prisma.creditOffer.findUnique({
+      where: { id: offerId },
+      select: {
+        id: true,
+        seasonId: true,
+        kind: true,
+        status: true,
+        deliveryMethod: true,
+        releaseDate: true,
+        season: { select: { phase: true } },
+      },
+    }),
+    prisma.entry.findUnique({
+      where: { id: entryId },
+      select: { seasonId: true, status: true },
+    }),
+    prisma.creditClaim.findUnique({
+      where: { offerId_entryId: { offerId, entryId } },
+      select: { status: true },
+    }),
+  ]);
+  if (!offer || !entry || offer.seasonId !== entry.seasonId) {
+    return { ok: false, code: "NOT_FOUND" };
+  }
+
+  const progress = await loadUnlockProgress(entryId);
+  const active = entry.status === EntryStatus.active;
+  const state = creditCardState({
+    kind: offer.kind,
+    offerStatus: offer.status,
+    claimStatus: claim?.status ?? null,
+    /* 조건은 카탈로그의 것이다 — 운영 편집 카드의 unlock_event가 아니다(화면과 같게) */
+    unlocked: isUnlocked(CREDIT_CARD_BY_KIND[offer.kind].unlockEvent, progress),
+    season: creditSeason(offer.season.phase),
+    active,
+  });
+  return {
+    ok: true,
+    offer: {
+      id: offer.id,
+      kind: offer.kind,
+      deliveryMethod: offer.deliveryMethod,
+      releaseDate: offer.releaseDate,
+    },
+    state,
+    active,
+  };
+}
+
+/**
+ * 코드 풀에서 하나를 집는다(트랜잭션 안에서만).
+ *
+ * 조건부 갱신이 곧 잠금이다 — 같은 행을 노린 다른 트랜잭션은 count 0을 받고
+ * 물러난다. 물러난 쪽은 **다음 코드로 다시 집는다.** 한 번 만에 포기하던 때는 받기와
+ * 일괄 발송이 겹치면 코드가 남아 있어도 「소진」으로 멈췄다(2026-09-30 감사).
+ */
+async function takeCode(
+  tx: Prisma.TransactionClient,
+  offerId: string,
+): Promise<{ id: string; code: string } | null> {
+  const tried: string[] = [];
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const candidate = await tx.creditCode.findFirst({
+      where: { offerId, status: CreditStatus.issued, id: { notIn: tried } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, code: true },
+    });
+    if (!candidate) return null;
+    const taken = await tx.creditCode.updateMany({
+      where: { id: candidate.id, status: CreditStatus.issued },
+      data: { status: CreditStatus.claimed },
+    });
+    if (taken.count === 1) return candidate;
+    tried.push(candidate.id);
+  }
+  return null;
+}
+
+/**
+ * 한 팀에 카드 하나를 발급한다(트랜잭션 안에서만) — 받기·수동 발급·일괄 발송의 공통 몸통.
+ *
+ * 코드 풀이면 코드 하나를 붙인다. 지급 예정일이 남았으면 코드를 태우지 않고
+ * 「발급 예정」으로 둔다 — 유효기간이 지급 시점부터 도는 탓이다(설계서 2장 「빌드
+ * 시작 시점 지급」).
+ *
+ * **팀당 1회는 여기서 막는다.** 클레임 행을 「행이 없거나 발급 가능인 채」일 때만
+ * 옮긴다(`updateMany`+조건, 없으면 `createMany`+`skipDuplicates`). 팀원 둘이 같은
+ * 순간에 누르면 둘째는 유일 제약에서 기다렸다가 물러나고, 집어 둔 코드는 되돌린다.
+ * 앞에서 행을 읽고 판단하던 때는 둘 다 통과해 코드가 두 개 나갔다.
+ */
+export async function issueCredit(
+  tx: Prisma.TransactionClient,
+  args: {
+    offer: IssueOffer;
+    entryId: string;
+    via: CreditDeliveredVia;
+    /** 기록하는 시각 — 진짜 지금 */
+    now: Date;
+    /** 예정일 판정 — 가정한 「오늘」(dev-clock 규칙) */
+    today: Date;
+  },
+): Promise<
+  | { ok: true; code: string | null; scheduled: boolean }
+  | { ok: false; code: "SOLD_OUT" | "ALREADY_CLAIMED" }
+> {
+  const { offer, entryId, via, now, today } = args;
+  const scheduled = offer.releaseDate != null && offer.releaseDate > today;
+
+  let taken: { id: string; code: string } | null = null;
+  if (!scheduled && offer.deliveryMethod === CreditDelivery.code_pool) {
+    taken = await takeCode(tx, offer.id);
+    if (!taken) return { ok: false, code: "SOLD_OUT" };
+  }
+
+  const data = {
+    status: scheduled ? CreditClaimStatus.scheduled : CreditClaimStatus.delivered,
+    claimedAt: now,
+    ...(scheduled ? {} : { deliveredAt: now, deliveredVia: via }),
+    ...(taken ? { creditCodeId: taken.id } : {}),
+  };
+  const moved = await tx.creditClaim.updateMany({
+    where: { offerId: offer.id, entryId, status: CreditClaimStatus.available },
+    data,
+  });
+  const reserved =
+    moved.count === 1 ||
+    (
+      await tx.creditClaim.createMany({
+        data: [{ offerId: offer.id, entryId, ...data }],
+        skipDuplicates: true,
+      })
+    ).count === 1;
+  if (!reserved) {
+    if (taken) {
+      await tx.creditCode.update({
+        where: { id: taken.id },
+        data: { status: CreditStatus.issued },
+      });
+    }
+    return { ok: false, code: "ALREADY_CLAIMED" };
+  }
+  return { ok: true, code: taken?.code ?? null, scheduled };
+}
+
 /**
  * 크레딧 받기.
  *
- * 코드 하나를 팀에 붙이고 소비 표시를 한다. **트랜잭션이 필수다** — 두 팀이
- * 같은 순간에 누르면 같은 코드가 두 번 나갈 수 있고, 그건 스폰서에게 우리가
- * 사과할 일이다. 코드 선택에 `updateMany`+조건을 쓰는 이유가 그것이다:
- * "아직 issued인 그 행"을 갱신에 성공한 쪽만 가져간다.
+ * 판정은 화면과 같은 함수로 다시 하고(`judgeCredit`), 발급은 운영자 발급과 같은
+ * 몸통으로 한다(`issueCredit`).
  *
  * 시즌1은 수동 경로로도 같은 결과가 나와야 한다(설계서 2장 「수동 대체 가능」).
  * 그래서 발송 자체는 여기서 하지 않는다 — 상태만 옮기고 실제 이메일은 운영자가
@@ -322,104 +524,26 @@ export type CreditResult = { ok: true } | { ok: false; code: CreditFailureCode }
 export async function claimCredit(args: {
   entryId: string;
   offerId: string;
-  progress: UnlockProgress;
 }): Promise<CreditResult> {
-  const { entryId, offerId, progress } = args;
-
-  const offer = await prisma.creditOffer.findUnique({
-    where: { id: offerId },
-    select: {
-      id: true,
-      kind: true,
-      status: true,
-      unlockEvent: true,
-      deliveryMethod: true,
-      releaseDate: true,
-    },
-  });
-  if (!offer) return { ok: false, code: "NOT_FOUND" };
+  const judged = await judgeCredit(args);
+  if (!judged.ok) return judged;
 
   /* 시상 카드는 여기서 받는 것이 아니다 — 시상 절차가 따로 간다 */
-  if (isAwardCard(offer.kind)) return { ok: false, code: "LOCKED" };
-  if (offer.status === CreditOfferStatus.negotiating) {
-    return { ok: false, code: "NEGOTIATING" };
-  }
-  if (offer.status === CreditOfferStatus.ended) {
-    return { ok: false, code: "ENDED" };
-  }
-  if (!isUnlocked(offer.unlockEvent, progress)) {
-    return { ok: false, code: "LOCKED" };
-  }
+  if (isAwardCard(judged.offer.kind)) return { ok: false, code: "LOCKED" };
+  const refusal = claimRefusal(judged.state, judged.active);
+  if (refusal) return { ok: false, code: refusal };
 
-  const existing = await prisma.creditClaim.findUnique({
-    where: { offerId_entryId: { offerId, entryId } },
-    select: { status: true },
-  });
-  if (existing && existing.status !== CreditClaimStatus.available) {
-    return { ok: false, code: "ALREADY_CLAIMED" };
-  }
-
-  /*
-    배포 예정일이 남았으면 코드를 아직 태우지 않는다.
-    유효기간이 지급 시점부터 도는 탓이다 — 미리 주면 참가자가 손해를 본다
-    (설계서 2장 「빌드 시작 시점 지급」).
-  */
-  /* 예정일 판정은 가정한 「오늘」로, 기록하는 시각은 진짜 지금으로(dev-clock 규칙) */
-  const now = new Date();
-  const scheduled = offer.releaseDate != null && offer.releaseDate > devNow();
-
-  const usesPool = offer.deliveryMethod === CreditDelivery.code_pool;
-
-  return prisma.$transaction(async (tx) => {
-    let creditCodeId: string | null = null;
-
-    if (!scheduled && usesPool) {
-      const candidate = await tx.creditCode.findFirst({
-        where: { offerId, status: CreditStatus.issued },
-        orderBy: { createdAt: "asc" },
-        select: { id: true },
-      });
-      if (!candidate) return { ok: false as const, code: "SOLD_OUT" as const };
-
-      /*
-        조건부 갱신이 곧 잠금이다. 같은 행을 노린 다른 트랜잭션은 count 0을 받고
-        물러난다 — SELECT ... FOR UPDATE 없이도 이중 소비가 막힌다.
-      */
-      const taken = await tx.creditCode.updateMany({
-        where: { id: candidate.id, status: CreditStatus.issued },
-        data: { status: CreditStatus.claimed },
-      });
-      if (taken.count === 0) return { ok: false as const, code: "SOLD_OUT" as const };
-      creditCodeId = candidate.id;
-    }
-
-    const status = scheduled
-      ? CreditClaimStatus.scheduled
-      : CreditClaimStatus.delivered;
-
-    await tx.creditClaim.upsert({
-      where: { offerId_entryId: { offerId, entryId } },
-      create: {
-        offerId,
-        entryId,
-        status,
-        claimedAt: now,
-        ...(scheduled ? {} : { deliveredAt: now }),
-        ...(creditCodeId ? { creditCodeId } : {}),
-        /* 시즌1 P0는 운영자가 보낸다. 자동 발송이 붙으면 email로 바뀐다 */
-        deliveredVia: scheduled ? null : CreditDeliveredVia.manual,
-      },
-      update: {
-        status,
-        claimedAt: now,
-        ...(scheduled ? {} : { deliveredAt: now }),
-        ...(creditCodeId ? { creditCodeId } : {}),
-        deliveredVia: scheduled ? null : CreditDeliveredVia.manual,
-      },
-    });
-
-    return { ok: true as const };
-  });
+  const result = await prisma.$transaction((tx) =>
+    issueCredit(tx, {
+      offer: judged.offer,
+      entryId: args.entryId,
+      /* 시즌1 P0는 운영자가 보낸다. 자동 발송이 붙으면 email로 바뀐다 */
+      via: CreditDeliveredVia.manual,
+      now: new Date(),
+      today: devNow(),
+    }),
+  );
+  return result.ok ? { ok: true } : result;
 }
 
 /**
@@ -533,6 +657,39 @@ export type AdminCreditConsole = {
 };
 
 /**
+ * 카드 상태를 운영 표의 배지 하나로. 협의 중 카드는 열려도 폴백만 보이므로
+ * (설계서) 열렸는지만 같이 적고, 못 연 칸은 참가자 화면과 달리 「잠금」으로 센다 —
+ * 운영자가 볼 것은 「지금 보낼 수 있나」다.
+ */
+function adminCell(
+  state: CreditCardState,
+  unlocked: boolean,
+): Omit<AdminClaimCell, "kind"> {
+  const cell = (label: string, tone: AdminClaimCell["tone"], dashed = false) => ({
+    label,
+    tone,
+    dashed,
+    available: state === "available",
+  });
+  switch (state) {
+    case "negotiating":
+      return unlocked ? cell("협의 중, 열림", "gray", true) : cell("잠금", "gray");
+    case "available":
+      return cell(CLAIM_STATUS_LABEL.available, "lime");
+    case "scheduled":
+      return cell(CLAIM_STATUS_LABEL.scheduled, "lime", true);
+    case "delivered":
+      return cell(CLAIM_STATUS_LABEL.delivered, "lime");
+    case "confirmed":
+      return cell(CLAIM_STATUS_LABEL.confirmed, "teal");
+    case "expired":
+      return cell(CLAIM_STATUS_LABEL.expired, "gray");
+    default:
+      return cell("잠금", "gray");
+  }
+}
+
+/**
  * 스폰서 크레딧 콘솔 한 판 — 혜택 설정 · 팀별 발급 현황.
  *
  * 발송 이력은 감사 로그가 정본이라 여기서 만들지 않는다(admin-read의 로그 조회를
@@ -541,7 +698,8 @@ export type AdminCreditConsole = {
 export async function loadAdminCreditConsole(
   seasonId: string,
 ): Promise<AdminCreditConsole> {
-  const [offers, entries] = await Promise.all([
+  const [season, offers, entries] = await Promise.all([
+    prisma.season.findUniqueOrThrow({ where: { id: seasonId }, select: { phase: true } }),
     prisma.creditOffer.findMany({
       where: { seasonId },
       select: {
@@ -572,6 +730,7 @@ export async function loadAdminCreditConsole(
         stage: true,
         status: true,
         ideaTitle: true,
+        raceStartedAt: true,
         team: { select: { name: true } },
         hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
         creditClaims: {
@@ -589,9 +748,11 @@ export async function loadAdminCreditConsole(
   /* 팀마다 언락 사건 — 클레임 행이 없는 칸을 「발급 가능」·「잠금」으로 가른다 */
   const progress = new Map(
     await Promise.all(
-      entries.map(async (e) => [e.id, await loadUnlockProgress(e.id, e.stage)] as const),
+      entries.map(async (e) => [e.id, await loadUnlockProgress(e.id)] as const),
     ),
   );
+  const creditSeasonNow = creditSeason(season.phase);
+  const now = devNow();
 
   const byId = new Map(offers.map((o) => [o.id, o]));
 
@@ -651,44 +812,22 @@ export async function loadAdminCreditConsole(
       ideaTitle: entry.ideaTitle,
       stage: entry.stage,
       status: entry.status,
-      undeployed:
-        stageAtLeast(entry.stage, EntryStage.s3) &&
-        !(entry.hostname?.deployStatus === DeployStatus.active && entry.hostname?.ownershipVerifiedAt),
+      /* 리더보드의 「미배포」와 같은 정의(race.ts). 게이트 1 전 팀은 아직 배포할 때가 아니다 */
+      undeployed: stageAtLeast(entry.stage, EntryStage.s3) && notDeployed(entry, now),
       cells: claimKinds.map((spec): AdminClaimCell => {
         const offer = offers.find((o) => o.kind === spec.kind);
         const claim = offer ? claimByOffer.get(offer.id) : undefined;
-        if (claim) {
-          return {
-            kind: spec.kind,
-            label: CLAIM_STATUS_LABEL[claim.status],
-            tone:
-              claim.status === CreditClaimStatus.confirmed
-                ? "teal"
-                : claim.status === CreditClaimStatus.expired
-                  ? "gray"
-                  : "lime",
-            dashed: claim.status === CreditClaimStatus.scheduled,
-            available: claim.status === CreditClaimStatus.available,
-          };
-        }
         const unlocked = isUnlocked(spec.unlockEvent, progress.get(entry.id)!);
-        const negotiating = !offer || offer.status === CreditOfferStatus.negotiating;
-        if (negotiating) {
-          /* 협의 중 카드는 열려도 폴백만 보인다(설계서) — 열렸는지는 같이 적는다 */
-          return { kind: spec.kind, label: unlocked ? "협의 중, 열림" : "잠금", tone: "gray", dashed: unlocked, available: false };
-        }
-        if (offer.status === CreditOfferStatus.ended) {
-          return { kind: spec.kind, label: "만료", tone: "gray", dashed: false, available: false };
-        }
-        /* 실격 팀은 추가 발급을 멈춘다 */
-        const open = unlocked && entry.status !== EntryStatus.disqualified;
-        return {
+        /* 참가자 화면과 같은 함수다 — 칸과 카드가 따로 세면 둘이 갈라진다 */
+        const state = creditCardState({
           kind: spec.kind,
-          label: open ? "발급 가능" : "잠금",
-          tone: open ? "lime" : "gray",
-          dashed: false,
-          available: open,
-        };
+          offerStatus: offer?.status ?? CreditOfferStatus.negotiating,
+          claimStatus: claim?.status ?? null,
+          unlocked,
+          season: creditSeasonNow,
+          active: entry.status === EntryStatus.active,
+        });
+        return { kind: spec.kind, ...adminCell(state, unlocked) };
       }),
       lastDeliveredAt: delivered[0] ?? null,
       /*

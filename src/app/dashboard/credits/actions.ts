@@ -5,11 +5,7 @@ import { revalidatePath } from "next/cache";
 import { CREDITS_TOAST } from "@/content/credits";
 import { canAccess, loadViewerState, toAccessContext } from "@/lib/access";
 import { CREDIT_FAILURE_MESSAGE } from "@/lib/credits";
-import {
-  claimCredit,
-  loadUnlockProgress,
-  setCreditApplied,
-} from "@/lib/credits-store";
+import { claimCredit, setCreditApplied } from "@/lib/credits-store";
 
 /*
   혜택 받기 · 적용 확인.
@@ -52,12 +48,8 @@ export async function claimCreditAction(
   const gate = await guard();
   if ("error" in gate) return { message: gate.error };
 
-  const progress = await loadUnlockProgress(gate.entry.id, gate.entry.stage);
-  const result = await claimCredit({
-    entryId: gate.entry.id,
-    offerId,
-    progress,
-  });
+  /* 열렸는지·받을 수 있는 팀인지는 저장소가 화면과 같은 함수로 다시 잰다 */
+  const result = await claimCredit({ entryId: gate.entry.id, offerId });
   if (!result.ok) return { message: CREDIT_FAILURE_MESSAGE[result.code] };
 
   revalidatePath("/dashboard/credits");

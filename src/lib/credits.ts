@@ -183,6 +183,8 @@ export type CreditCardStateInput = {
   claimStatus: CreditClaimStatus | null;
   unlocked: boolean;
   season: CreditSeason;
+  /** 참가가 살아 있는가(`entries.status`가 active). 탈락·실격·포기면 false */
+  active: boolean;
 };
 
 /**
@@ -193,14 +195,22 @@ export type CreditCardStateInput = {
  *   1. 시상 카드는 클레임 흐름 밖이다.
  *   2. 손에 들어온 발급 기록(예정·완료·확인·만료)은 카드가 어떻게 되든 남는다 —
  *      운영자가 카드를 협의 중으로 되돌려도 받은 코드는 받은 것이다.
- *   3. 협의 중은 **조건이 채워졌을 때만** 협의 중으로 읽힌다(시안 ⑤ 「협의 중,
+ *   3. 참가가 멈춘 팀(탈락·실격·포기)은 새로 받지 않는다 — 받은 것만 남고 나머지는
+ *      「잠금」이다. 시안 ⑥(테스터 전환, C1만 받은 채 나머지 잠금)과 운영 표의
+ *      실격 줄(「추가 발급 중지」, 안 받은 칸은 잠금)이 이 모양이다. 13 설계서
+ *      3장 「탈락 팀은 C1까지만 보유」도 같은 말이다(2026-09-30).
+ *   4. 협의 중은 **조건이 채워졌을 때만** 협의 중으로 읽힌다(시안 ⑤ 「협의 중,
  *      열림」). 레이스 중에 아직 안 열린 카드는 스폰서가 있든 없든 「잠금」이다
  *      (시안 ②③④의 C3) — 조건이 먼저다. 모집 중에는 아무것도 안 열리므로 전부
  *      「협의 중」이고(시안 ①), 시즌이 끝나면 못 연 채 「만료」다(⑦의 C3).
- *   4. 나머지는 조건과 카드가 닫혔는지로 가른다.
+ *   5. 나머지는 조건과 카드가 닫혔는지로 가른다.
+ *
+ * ⚠️ 화면·받기·운영 칸·수동 발급이 **전부 이 함수 하나**를 부른다. 받기가 따로
+ * 판정하던 때는 화면이 「발급 가능」인 카드를 받기가 거절하거나, 화면이 「만료」인
+ * 카드를 받기가 내줬다(2026-09-30 감사).
  */
 export function creditCardState(input: CreditCardStateInput): CreditCardState {
-  const { kind, offerStatus, claimStatus, unlocked, season } = input;
+  const { kind, offerStatus, claimStatus, unlocked, season, active } = input;
   const ended = offerStatus === CreditOfferStatus.ended || season === "over";
 
   /* 1) 시상 카드 */
@@ -226,13 +236,16 @@ export function creditCardState(input: CreditCardStateInput): CreditCardState {
       break;
   }
 
-  /* 3) 협의 중 — 열렸을 때만 협의 중이다 */
+  /* 3) 참가가 멈춘 팀 — 받은 것만 남는다 */
+  if (!active) return season === "over" ? "expired" : "locked";
+
+  /* 4) 협의 중 — 열렸을 때만 협의 중이다 */
   if (offerStatus === CreditOfferStatus.negotiating) {
     if (season === "over") return "expired";
     return season === "pre" || unlocked ? "negotiating" : "locked";
   }
 
-  /* 4) 기록이 없거나 받을 수 있는 채다 */
+  /* 5) 기록이 없거나 받을 수 있는 채다 */
   if (!unlocked) return ended ? "expired" : "locked";
   return ended ? "expired" : "available";
 }
@@ -552,14 +565,40 @@ export function maskCreditCode(code: string): string {
 export type CreditFailureCode =
   | "NOT_FOUND"
   | "LOCKED"
+  | "INACTIVE"
   | "NEGOTIATING"
   | "ALREADY_CLAIMED"
   | "SOLD_OUT"
   | "ENDED";
 
+/**
+ * 받기를 막는 까닭 — 카드 상태가 「발급 가능」이 아니면 그 상태에 맞는 거절.
+ * 받을 수 있으면 null. 참가가 멈춘 팀은 카드가 「잠금」으로 읽히지만 까닭은 따로 댄다.
+ */
+export function claimRefusal(
+  state: CreditCardState,
+  active: boolean,
+): CreditFailureCode | null {
+  switch (state) {
+    case "available":
+      return null;
+    case "negotiating":
+      return "NEGOTIATING";
+    case "scheduled":
+    case "delivered":
+    case "confirmed":
+      return "ALREADY_CLAIMED";
+    case "expired":
+      return "ENDED";
+    default:
+      return active ? "LOCKED" : "INACTIVE";
+  }
+}
+
 export const CREDIT_FAILURE_MESSAGE: Record<CreditFailureCode, string> = {
   NOT_FOUND: "혜택을 찾을 수 없어요.",
   LOCKED: "아직 열리지 않은 혜택이에요.",
+  INACTIVE: "참가가 멈춘 팀은 새로 받을 수 없어요. 이미 받은 크레딧은 그대로 써요.",
   NEGOTIATING: "스폰서 협의가 끝나지 않아 지금은 받을 수 없어요.",
   ALREADY_CLAIMED: "이미 받은 혜택이에요. 팀당 한 번만 받을 수 있어요.",
   SOLD_OUT: "남은 코드가 없어요. 운영에 알려 주시면 스폰서에 요청할게요.",

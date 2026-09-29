@@ -77,6 +77,7 @@ import { encryptSecret } from "@/lib/payment-crypto";
 import { devToolsEnabled } from "@/lib/dev-env";
 import { accountConsentRows } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
+import { notDeployed } from "@/lib/race";
 import { INVITE_TTL_DAYS } from "@/lib/team";
 import { generateCode } from "@/lib/team-store";
 
@@ -234,6 +235,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
             creditOffers: { select: { kind: true, status: true } },
           },
         },
+        raceStartedAt: true,
         hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
         chargeType: true,
         integration: { select: { status: true } },
@@ -379,7 +381,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
           s1Submitted: entry.submissions.some(
             (s) => s.stageKey === StageKey.s1 && s.status !== SubmissionStatus.draft,
           ),
-          deployVerified: entry.hostname?.ownershipVerifiedAt != null,
+          deployVerified: !notDeployed(entry, devNow()),
           awarded: entry.awards.length > 0,
           offers: entry.season.creditOffers,
           claims: entry.creditClaims,
@@ -2805,9 +2807,9 @@ export async function setSandboxInquiries(entryId: string, on: boolean): Promise
   ⚠️ **카드는 시즌의 것이다** — 이 줄을 누르면 그 시즌 참가팀 전부의 카드가
   바뀐다. dev DB라 괜찮다. 되돌리는 것은 `credits-state.mts`.
 
-  ⚠️ 허브 h2~h5·h12는 측정 연동이 검증된 팀이라 C3(배포 URL 검증)가 열려
-  버린다. 시안 ②③④⑥은 C3이 잠금이라 그 판에서는 검증을 되돌린다 — 시안의
-  전제가 「배포 검증은 s3에서 한다」이기 때문이다.
+  C3(배포 URL 검증)는 레이스를 시작해야(s3 제출) 열린다 — 리더보드의 「미배포」와
+  같은 정의다(credits-store `loadUnlockProgress`). 그래서 측정 연동을 끝낸 허브
+  h2~h5·h12에서도 C3는 잠금이고, 전처럼 그 판에서 검증을 되돌리지 않는다.
 */
 export type { CreditsPane } from "@/lib/credits";
 
@@ -2873,12 +2875,11 @@ export async function setSandboxCredits(args: {
   const { entryId, pane } = args;
 
   await setSandboxHub({ key: CREDITS_HUB[pane], entryId });
-  /* 시안 ②③④⑥의 C3은 잠금 — 배포 검증을 되돌린다(머리 주석) */
-  await setHostname(entryId, pane === "race" || pane === "end");
 
   const entry = await prisma.entry.findUniqueOrThrow({
     where: { id: entryId },
     select: {
+      stage: true,
       seasonId: true,
       season: {
         select: {
@@ -2889,6 +2890,14 @@ export async function setSandboxCredits(args: {
     },
   });
   const seasonId = entry.seasonId;
+  /*
+    게이트 1을 못 넘은 팀은 레이스를 시작했을 수 없다(s3 제출이 곧 시작, race.ts). 집계
+    픽스처가 레이스 시작을 시즌 전체에 심어 두므로 이 팀만 비운다 — 안 비우면 ⑥의 C3가
+    배포 검증으로 열린다(「마감」 줄의 s5miss와 같은 까닭).
+  */
+  if (!stageAtLeast(entry.stage, EntryStage.s3)) {
+    await prisma.entry.update({ where: { id: entryId }, data: { raceStartedAt: null } });
+  }
   const stageOf = (key: StageKey) => entry.season.stages.find((s) => s.stageKey === key);
   const endsAt = entry.season.endsAt ?? devNow();
   const day = (base: Date, days: number) => new Date(base.getTime() + days * 86_400_000);
@@ -3093,7 +3102,14 @@ function creditsPaneOf(args: {
     return {
       kind: spec.kind,
       unlocked,
-      state: creditCardState({ kind: spec.kind, offerStatus, claimStatus, unlocked, season }),
+      state: creditCardState({
+        kind: spec.kind,
+        offerStatus,
+        claimStatus,
+        unlocked,
+        season,
+        active: args.status === EntryStatus.active,
+      }),
     };
   });
   return creditsPane({ season, eliminated: args.status === EntryStatus.eliminated, cards });

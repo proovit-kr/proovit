@@ -9,6 +9,7 @@ import {
 } from "@/generated/prisma/enums";
 import {
   type CreditCardState,
+  claimRefusal,
   creditCardState,
   creditSeason,
   creditValueTotal,
@@ -26,6 +27,7 @@ const st = (over: Partial<Parameters<typeof creditCardState>[0]>) =>
     claimStatus: null,
     unlocked: false,
     season: "racing",
+    active: true,
     ...over,
   });
 
@@ -59,11 +61,35 @@ describe("카드 상태 — 시안 일곱 판의 규칙", () => {
     expect(st({ kind: CreditKind.c4, season: "over" })).toBe("expired");
     expect(st({ kind: CreditKind.c4 })).toBe("award");
   });
+  it("참가가 멈춘 팀은 받은 것만 남고 나머지는 잠금이다(⑥, 운영 표의 실격 줄)", () => {
+    expect(st({ unlocked: true, active: false })).toBe("locked");
+    expect(st({ offerStatus: CreditOfferStatus.negotiating, unlocked: true, active: false })).toBe("locked");
+    expect(st({ claimStatus: CreditClaimStatus.available, unlocked: true, active: false })).toBe("locked");
+    expect(st({ claimStatus: CreditClaimStatus.delivered, active: false })).toBe("delivered");
+    expect(st({ claimStatus: CreditClaimStatus.scheduled, active: false })).toBe("scheduled");
+    expect(st({ unlocked: true, active: false, season: "over" })).toBe("expired");
+  });
   it("시즌 구간", () => {
     expect(creditSeason(SeasonPhase.recruiting)).toBe("pre");
     expect(creditSeason(SeasonPhase.racing)).toBe("racing");
     expect(creditSeason(SeasonPhase.awarded)).toBe("over");
     expect(creditSeason(SeasonPhase.archived)).toBe("over");
+  });
+});
+
+describe("받기를 막는 까닭 — 카드 상태 그대로", () => {
+  it("발급 가능만 통과한다", () => {
+    expect(claimRefusal("available", true)).toBeNull();
+    expect(claimRefusal("negotiating", true)).toBe("NEGOTIATING");
+    expect(claimRefusal("locked", true)).toBe("LOCKED");
+    expect(claimRefusal("award", true)).toBe("LOCKED");
+    expect(claimRefusal("scheduled", true)).toBe("ALREADY_CLAIMED");
+    expect(claimRefusal("delivered", true)).toBe("ALREADY_CLAIMED");
+    expect(claimRefusal("confirmed", true)).toBe("ALREADY_CLAIMED");
+    expect(claimRefusal("expired", true)).toBe("ENDED");
+  });
+  it("참가가 멈춘 팀의 잠금은 까닭을 따로 댄다", () => {
+    expect(claimRefusal("locked", false)).toBe("INACTIVE");
   });
 });
 
