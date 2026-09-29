@@ -14,6 +14,7 @@ import {
   REVISION_HOURS,
   type JudgingFailureCode,
 } from "@/lib/judging";
+import { sendAlertMails } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { raceEndAt, teamRaceWindow } from "@/lib/race";
 
@@ -268,7 +269,7 @@ export async function judgeSubmission(args: {
   const now = new Date();
   const advanceTo = PASS_ADVANCES_TO[submission.stageKey];
 
-  await prisma.$transaction(async (tx) => {
+  const mail = await prisma.$transaction(async (tx) => {
     await tx.judgment.create({
       data: {
         submissionId,
@@ -360,24 +361,27 @@ export async function judgeSubmission(args: {
       (result === JudgmentResult.pass || result === JudgmentResult.fail)
         ? NOTI_JUDGMENT[result][gateNo]
         : null;
-    if (text) {
-      const members = await tx.teamMember.findMany({
-        where: { team: { entries: { some: { id: submission.entryId } } } },
-        select: { userId: true },
-      });
-      await tx.notification.createMany({
-        data: members.map((m) => ({
-          userId: m.userId,
-          type: NOTI_JUDGMENT.type,
-          title: text.title,
-          body: text.body,
-          linkUrl: text.linkUrl,
-          channel: NotifChannel.inapp,
-          sentAt: now,
-        })),
-      });
-    }
+    if (!text) return null;
+    const members = await tx.teamMember.findMany({
+      where: { team: { entries: { some: { id: submission.entryId } } } },
+      select: { userId: true, user: { select: { email: true, notifyEmail: true } } },
+    });
+    await tx.notification.createMany({
+      data: members.map((m) => ({
+        userId: m.userId,
+        type: NOTI_JUDGMENT.type,
+        title: text.title,
+        body: text.body,
+        linkUrl: text.linkUrl,
+        channel: NotifChannel.inapp,
+        sentAt: now,
+      })),
+    });
+    return { text, to: members.map((m) => m.user) };
   });
+
+  /* 같은 통지를 메일로도 — 트랜잭션 밖이다(mail.ts `sendAlertMails`) */
+  if (mail) await sendAlertMails(mail.to, mail.text);
 
   return { ok: true };
 }

@@ -9,6 +9,7 @@ import {
 import { writeAudit } from "@/lib/admin-store";
 import { devNow } from "@/lib/dev-clock";
 import { runFinalAutoSubmit, type FinalAutoSubmitResult } from "@/lib/final-submit";
+import { sendAlertMails } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { gateMissTarget } from "@/lib/submission";
 
@@ -29,6 +30,7 @@ import { gateMissTarget } from "@/lib/submission";
   팀원마다 알림을 한 줄씩 남긴다(`NOTI_GATE_MISSED`, 2026-09-28 수연 확정) — 운영자
   판정 통지와 같은 모양이다. 운영규칙 제9조③이 미통과를 통지하라고 하고, 제11조
   이의신청 기한이 「결과 통지 후 5영업일」이라 이 발송 시각이 그 기산점이다.
+  같은 글을 메일로도 보낸다(mail.ts `sendAlertMails`) — 판정 통지와 같다.
 
   s5는 자동 제출(final-submit.ts)이 **먼저** 돈다(`runGateDeadlines`). 레이스를 시작한
   팀은 그때 냈고, 여기에 남는 것은 배포하지 않은 팀이다. 판정 함수도 자동 제출
@@ -60,6 +62,7 @@ const BEFORE_GATE: Partial<Record<StageKey, EntryStage[]>> = {
  * 한 팀을 탈락시킨다. 상태·감사 로그·통지가 한 트랜잭션이다. 읽은 때의 진도·상태
  * 그대로일 때만 쓴다 — 그 사이 게이트를 냈으면(진도가 올랐다) 떨어뜨리지 않는다.
  * 운영자의 수동 상태 변경(admin-store `setEntryStatus`)과 같은 모양으로 남긴다.
+ * 메일은 트랜잭션이 닫힌 뒤에 보낸다.
  */
 async function eliminateOne(
   seasonId: string,
@@ -67,12 +70,13 @@ async function eliminateOne(
   gate: StageKey,
   closesAt: Date,
 ): Promise<boolean> {
-  return prisma.$transaction(async (tx) => {
+  const text = NOTI_GATE_MISSED[gate === StageKey.s2 ? 1 : 2];
+  const to = await prisma.$transaction(async (tx) => {
     const moved = await tx.entry.updateMany({
       where: { id: entry.id, status: EntryStatus.active, stage: entry.stage },
       data: { status: EntryStatus.eliminated },
     });
-    if (moved.count === 0) return false;
+    if (moved.count === 0) return null;
 
     await writeAudit(tx, {
       actorId: null,
@@ -91,10 +95,9 @@ async function eliminateOne(
       },
     });
 
-    const text = NOTI_GATE_MISSED[gate === StageKey.s2 ? 1 : 2];
     const members = await tx.teamMember.findMany({
       where: { team: { entries: { some: { id: entry.id } } } },
-      select: { userId: true },
+      select: { userId: true, user: { select: { email: true, notifyEmail: true } } },
     });
     await tx.notification.createMany({
       data: members.map((m) => ({
@@ -108,8 +111,12 @@ async function eliminateOne(
         sentAt: new Date(),
       })),
     });
-    return true;
+    return members.map((m) => m.user);
   });
+  if (!to) return false;
+
+  await sendAlertMails(to, text);
+  return true;
 }
 
 /**
