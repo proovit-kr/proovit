@@ -39,6 +39,7 @@ import {
   unlockedAt,
 } from "@/lib/credits";
 import { devNow } from "@/lib/dev-clock";
+import { parseFeatureFlags } from "@/lib/feature-flags";
 import { sendCreditMail } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { notDeployed } from "@/lib/race";
@@ -295,7 +296,7 @@ export async function loadCreditCenter(args: {
       claimStatus: claim?.status ?? null,
       unlocked,
       season,
-      active: status === EntryStatus.active,
+      status,
       lapsed: creditLapsed(offer?.validUntil ?? null, today),
     });
 
@@ -427,7 +428,7 @@ export async function judgeCredit(args: {
     /* 조건은 카탈로그의 것이다 — 운영 편집 카드의 unlock_event가 아니다(화면과 같게) */
     unlocked: isUnlocked(CREDIT_CARD_BY_KIND[offer.kind].unlockEvent, progress),
     season: creditSeason(offer.season.phase),
-    active,
+    status: entry.status,
     lapsed: creditLapsed(offer.validUntil, today),
   });
   return {
@@ -444,6 +445,7 @@ export async function judgeCredit(args: {
       kind: offer.kind,
       releaseDate: offer.releaseDate,
       gate1Settled: gate1Settled(entry),
+      status: entry.status,
       today,
     }),
   };
@@ -619,7 +621,7 @@ export async function claimCredit(args: {
  */
 export async function releaseScheduledCredits(
   args: { entryIds?: string[] } = {},
-): Promise<{ released: number; soldOut: number }> {
+): Promise<{ released: number; soldOut: number; failed: number }> {
   const today = devNow();
   const claims = await prisma.creditClaim.findMany({
     where: {
@@ -631,78 +633,109 @@ export async function releaseScheduledCredits(
       id: true,
       entryId: true,
       offer: {
-        select: { id: true, kind: true, deliveryMethod: true, releaseDate: true, validUntil: true },
+        select: {
+          id: true,
+          kind: true,
+          deliveryMethod: true,
+          releaseDate: true,
+          validUntil: true,
+          season: { select: { phase: true, featureFlags: true } },
+        },
       },
       entry: { select: { stage: true, status: true } },
     },
   });
 
-  const byOffer = new Map<string, { entryId: string; code: string | null }[]>();
+  const byOffer = new Map<string, { kind: CreditKind; deliveries: { entryId: string; code: string | null }[] }>();
   let soldOut = 0;
+  let failed = 0;
   for (const claim of claims) {
     const { offer } = claim;
+    /*
+      크레딧 센터가 꺼진 시즌은 보내지 않는다 — 참가자의 혜택 화면이 404라 받은 코드를
+      못 보고 알림 링크도 404다(운영 콘솔 발급과 같은 규칙). 켜지면 다음 크론이 보낸다.
+      끝난 시즌·유효기간 지난 카드도 보내지 않는다(화면이 「만료」로 그린다).
+    */
+    if (!parseFeatureFlags(offer.season.featureFlags).credits) continue;
+    if (creditSeason(offer.season.phase) === "over") continue;
     if (creditLapsed(offer.validUntil, today)) continue;
     const due = releaseDue({
       kind: offer.kind,
       releaseDate: offer.releaseDate,
       gate1Settled: gate1Settled(claim.entry),
+      status: claim.entry.status,
       today,
     });
     if (!due) continue;
 
-    const out = await prisma.$transaction(async (tx) => {
-      const taken =
-        offer.deliveryMethod === CreditDelivery.code_pool ? await takeCode(tx, offer.id) : null;
-      if (offer.deliveryMethod === CreditDelivery.code_pool && !taken) return "sold_out" as const;
-      const moved = await tx.creditClaim.updateMany({
-        where: { id: claim.id, status: CreditClaimStatus.scheduled },
-        data: {
-          status: CreditClaimStatus.delivered,
-          deliveredAt: new Date(),
-          deliveredVia: CreditDeliveredVia.email,
-          ...(taken ? { creditCodeId: taken.id } : {}),
-        },
-      });
-      if (moved.count === 0) {
-        /* 다른 실행이 먼저 보냈다 — 집어 둔 코드를 되돌린다 */
-        if (taken) {
-          await tx.creditCode.update({
-            where: { id: taken.id },
-            data: { status: CreditStatus.issued },
-          });
+    /* 한 줄이 실패해도 나머지는 보낸다 — 실패한 줄은 예정으로 남아 다음 번에 다시 본다 */
+    let out: "sold_out" | { code: string | null } | null;
+    try {
+      out = await prisma.$transaction(async (tx) => {
+        const pool = offer.deliveryMethod === CreditDelivery.code_pool;
+        const taken = pool ? await takeCode(tx, offer.id) : null;
+        if (pool && !taken) return "sold_out" as const;
+        const moved = await tx.creditClaim.updateMany({
+          where: { id: claim.id, status: CreditClaimStatus.scheduled },
+          data: {
+            status: CreditClaimStatus.delivered,
+            deliveredAt: new Date(),
+            deliveredVia: CreditDeliveredVia.email,
+            ...(taken ? { creditCodeId: taken.id } : {}),
+          },
+        });
+        if (moved.count === 0) {
+          /* 다른 실행이 먼저 보냈다 — 집어 둔 코드를 되돌린다 */
+          if (taken) {
+            await tx.creditCode.update({
+              where: { id: taken.id },
+              data: { status: CreditStatus.issued },
+            });
+          }
+          return null;
         }
-        return null;
-      }
-      return { code: taken?.code ?? null };
-    });
+        return { code: taken?.code ?? null };
+      });
+    } catch (e) {
+      failed += 1;
+      console.error("[credits] 발급 예정 보내기 실패", claim.id, e);
+      continue;
+    }
     if (out === "sold_out") {
       soldOut += 1;
       continue;
     }
     if (!out) continue;
-    const list = byOffer.get(offer.id) ?? [];
-    list.push({ entryId: claim.entryId, code: out.code });
-    byOffer.set(offer.id, list);
+    const group = byOffer.get(offer.id) ?? { kind: offer.kind, deliveries: [] };
+    group.deliveries.push({ entryId: claim.entryId, code: out.code });
+    byOffer.set(offer.id, group);
   }
 
+  /*
+    감사 로그·알림은 카드마다 따로 감싼다 — 하나가 실패해도 다른 카드의 팀은 알림을
+    받는다. 이미 보낸 발급은 되돌리지 않는다(코드는 화면에 선다).
+  */
   let released = 0;
-  for (const [offerId, deliveries] of byOffer) {
+  for (const [offerId, { kind, deliveries }] of byOffer) {
     released += deliveries.length;
-    const kind = claims.find((c) => c.offer.id === offerId)!.offer.kind;
-    /* 발송 이력의 「시스템 … 자동」 줄 — 시안 「C1 코드 일괄 발송, 31팀, 이메일」 */
-    await prisma.auditLog.create({
-      data: {
-        actorId: null,
-        action: "credit.release",
-        targetType: "credit_offer",
-        targetId: offerId,
-        reason: kind === CreditKind.c1 ? "게이트 1 판정 뒤 발급 예정 발송" : "지급 예정일 발송",
-        meta: { kind, teams: deliveries.length, entryIds: deliveries.map((d) => d.entryId) },
-      },
-    });
-    await noticeCreditDelivered({ offerId, deliveries });
+    try {
+      /* 발송 이력의 「시스템 … 자동」 줄 — 시안 「C1 코드 일괄 발송, 31팀, 이메일」 */
+      await prisma.auditLog.create({
+        data: {
+          actorId: null,
+          action: "credit.release",
+          targetType: "credit_offer",
+          targetId: offerId,
+          reason: kind === CreditKind.c1 ? "게이트 1 판정 뒤 발급 예정 발송" : "지급 예정일 발송",
+          meta: { kind, teams: deliveries.length, entryIds: deliveries.map((d) => d.entryId) },
+        },
+      });
+      await noticeCreditDelivered({ offerId, deliveries });
+    } catch (e) {
+      console.error("[credits] 발급 예정 알림 실패", offerId, e);
+    }
   }
-  return { released, soldOut };
+  return { released, soldOut, failed };
 }
 
 /** 「C1 빌더 크레딧이」 — 카드 이름 끝 글자의 받침으로 조사를 고른다 */
@@ -737,11 +770,19 @@ export async function noticeCreditDelivered(args: {
       sponsor: { select: { name: true } },
     },
   });
+  /*
+    보낼 것이 없는 발급(수동·이메일 명단 방식, 코드 없음)에는 「발급됐어요」를 보내지
+    않는다 — 코드도 링크도 없는 메일과 「코드를 확인해요」 알림만 가게 된다. 그 방식은
+    운영자가 스폰서 쪽에서 따로 처리한다.
+  */
+  const link = offer.deliveryMethod === CreditDelivery.invite_link ? offer.inviteUrl : null;
+  const deliveries = args.deliveries.filter((d) => d.code || link);
+  if (deliveries.length === 0) return { mailFailed: [] };
   const card = CREDIT_CARD_BY_KIND[offer.kind];
   const cardName = `${card.code} ${card.title}`;
   const members = await prisma.teamMember.findMany({
     where: {
-      team: { entries: { some: { id: { in: args.deliveries.map((d) => d.entryId) } } } },
+      team: { entries: { some: { id: { in: deliveries.map((d) => d.entryId) } } } },
     },
     select: {
       userId: true,
@@ -750,7 +791,7 @@ export async function noticeCreditDelivered(args: {
     },
   });
   const deliveryOf = (m: (typeof members)[number]) =>
-    args.deliveries.find((d) => m.team.entries.some((e) => e.id === d.entryId));
+    deliveries.find((d) => m.team.entries.some((e) => e.id === d.entryId));
 
   const now = new Date();
   await prisma.notification.createMany({
@@ -775,7 +816,7 @@ export async function noticeCreditDelivered(args: {
       josa: subjectJosa(card.title),
       sponsor: offer.sponsor?.name ?? null,
       code: d.code,
-      link: offer.deliveryMethod === CreditDelivery.invite_link ? offer.inviteUrl : null,
+      link,
       validUntil: offer.validUntil,
       howto: offer.redeemNote,
     });
@@ -1069,7 +1110,7 @@ export async function loadAdminCreditConsole(
           claimStatus: claim?.status ?? null,
           unlocked,
           season: creditSeasonNow,
-          active: entry.status === EntryStatus.active,
+          status: entry.status,
           lapsed: offer ? lapsedOffer.has(offer.id) : false,
         });
         return { kind: spec.kind, ...adminCell(state, unlocked) };

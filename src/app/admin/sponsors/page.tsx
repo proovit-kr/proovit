@@ -71,6 +71,12 @@ export default async function Page() {
       ? OFFER_STATUS_LABEL[v as keyof typeof OFFER_STATUS_LABEL]
       : String(v ?? "");
 
+  /* 일괄 발송 줄 — 발급 예정으로만 적은 팀은 「이메일」에 세지 않는다 */
+  const batchLine = (code: string | undefined, teams: number, scheduled: number) =>
+    scheduled > 0
+      ? `${code} 일괄 발송, ${teams - scheduled}팀 이메일, ${scheduled}팀 발급 예정`
+      : `${code} 일괄 발송, ${teams}팀, 이메일`;
+
   /* 감사 로그 한 줄을 시안 이력 문장으로 — 「C1 코드 풀 CSV 80건 업로드, 사유: 스폰서 1차 전달분」 */
   const lines: LogLine[] = [
     ...logs.map((row): LogLine => {
@@ -94,9 +100,9 @@ export default async function Page() {
             : row.action === "credit.offer_create" || row.action === "credit.offer_update"
               ? `${code} 혜택 ${row.action === "credit.offer_create" ? "등록" : "수정"}, 사유: ${row.reason}`
               : row.action === "credit.deliver_manual"
-                ? `${code} 수동 발급, ${team}, 사유: ${row.reason}`
+                ? `${code} 수동 발급${m.scheduled ? "(발급 예정)" : ""}, ${team}, 사유: ${row.reason}`
                 : row.action === "credit.batch"
-                  ? `${code} 일괄 발송, ${m.teams ?? 0}팀, 이메일`
+                  ? batchLine(code, Number(m.teams ?? 0), Number(m.scheduled ?? 0))
                   : row.action === "credit.release"
                     ? `${code} 발급 예정 발송, ${m.teams ?? 0}팀, 이메일 (${row.reason})`
                     : row.action === "credit.logo"

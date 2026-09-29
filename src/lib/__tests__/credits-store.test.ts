@@ -275,14 +275,23 @@ describe("issueCredit — 발급 몸통", () => {
 });
 
 describe("releaseScheduledCredits — 발급 예정 보내기", () => {
-  const c1 = {
+  type Offer = {
+    id: string;
+    kind: CreditKind;
+    deliveryMethod: CreditDelivery;
+    releaseDate: Date | null;
+    validUntil: Date | null;
+    season: { phase: SeasonPhase; featureFlags: Record<string, unknown> };
+  };
+  const c1: Offer = {
     id: "o-1",
     kind: CreditKind.c1,
     deliveryMethod: CreditDelivery.code_pool,
     releaseDate: null,
-    validUntil: null as Date | null,
+    validUntil: null,
+    season: { phase: SeasonPhase.racing, featureFlags: { credits: true } },
   };
-  const row = (id: string, entry: { stage: EntryStage; status: EntryStatus }, offer = c1) => ({
+  const row = (id: string, entry: { stage: EntryStage; status: EntryStatus }, offer: Offer = c1) => ({
     id,
     entryId: `e-${id}`,
     offer,
@@ -321,7 +330,7 @@ describe("releaseScheduledCredits — 발급 예정 보내기", () => {
       row("fail", { stage: EntryStage.s2, status: EntryStatus.eliminated }),
       row("dq", { stage: EntryStage.s3, status: EntryStatus.disqualified }),
     ]);
-    expect(await releaseScheduledCredits()).toEqual({ released: 2, soldOut: 0 });
+    expect(await releaseScheduledCredits()).toEqual({ released: 2, soldOut: 0, failed: 0 });
     const moved = tx.creditClaim.updateMany.mock.calls.map((c: any) => c[0].where.id);
     expect(moved).toEqual(["pass", "fail"]);
     expect(tx.creditClaim.updateMany.mock.calls[0][0].data).toMatchObject({
@@ -347,8 +356,56 @@ describe("releaseScheduledCredits — 발급 예정 보내기", () => {
         validUntil: at("2026-10-01T00:00:00"),
       }),
     ]);
-    expect(await releaseScheduledCredits()).toEqual({ released: 0, soldOut: 0 });
+    expect(await releaseScheduledCredits()).toEqual({ released: 0, soldOut: 0, failed: 0 });
     expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("크레딧 센터가 꺼진 시즌·끝난 시즌은 보내지 않는다", async () => {
+    const pass = { stage: EntryStage.s3, status: EntryStatus.active };
+    db.creditClaim.findMany.mockResolvedValue([
+      row("off", pass, { ...c1, season: { phase: SeasonPhase.racing, featureFlags: { credits: false } } }),
+      row("over", pass, { ...c1, season: { phase: SeasonPhase.awarded, featureFlags: { credits: true } } }),
+    ]);
+    expect(await releaseScheduledCredits()).toEqual({ released: 0, soldOut: 0, failed: 0 });
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("탈락 팀의 C1 아닌 예정, 실격 팀의 예정은 날짜가 와도 보내지 않는다", async () => {
+    const c2 = { ...c1, id: "o-2", kind: CreditKind.c2 };
+    db.creditClaim.findMany.mockResolvedValue([
+      row("out", { stage: EntryStage.s4, status: EntryStatus.eliminated }, c2),
+      row("dq", { stage: EntryStage.s4, status: EntryStatus.disqualified }, c2),
+    ]);
+    expect(await releaseScheduledCredits()).toEqual({ released: 0, soldOut: 0, failed: 0 });
+  });
+
+  it("한 줄이 실패해도 다음 줄은 보낸다", async () => {
+    db.$transaction
+      .mockImplementationOnce(async () => {
+        throw new Error("connection reset");
+      })
+      .mockImplementation((fn: (t: unknown) => unknown) => fn(tx));
+    db.creditClaim.findMany.mockResolvedValue([
+      row("a", { stage: EntryStage.s3, status: EntryStatus.active }),
+      row("pass", { stage: EntryStage.s3, status: EntryStatus.active }),
+    ]);
+    expect(await releaseScheduledCredits()).toEqual({ released: 1, soldOut: 0, failed: 1 });
+  });
+
+  it("보낼 것이 없는 발급(수동 방식, 코드·링크 없음)에는 「발급됐어요」를 보내지 않는다", async () => {
+    const manual = { ...c1, deliveryMethod: CreditDelivery.manual };
+    db.creditOffer.findUniqueOrThrow.mockResolvedValue({
+      kind: CreditKind.c1,
+      deliveryMethod: CreditDelivery.manual,
+      inviteUrl: null,
+      validUntil: null,
+      redeemNote: null,
+      sponsor: null,
+    });
+    db.creditClaim.findMany.mockResolvedValue([row("pass", { stage: EntryStage.s3, status: EntryStatus.active }, manual)]);
+    expect(await releaseScheduledCredits()).toMatchObject({ released: 1 });
+    expect(db.notification.createMany).not.toHaveBeenCalled();
+    expect(sendCreditMail).not.toHaveBeenCalled();
   });
 
   it("코드가 모자라면 예정으로 남긴다", async () => {
@@ -356,7 +413,7 @@ describe("releaseScheduledCredits — 발급 예정 보내기", () => {
     db.creditClaim.findMany.mockResolvedValue([
       row("pass", { stage: EntryStage.s3, status: EntryStatus.active }),
     ]);
-    expect(await releaseScheduledCredits()).toEqual({ released: 0, soldOut: 1 });
+    expect(await releaseScheduledCredits()).toEqual({ released: 0, soldOut: 1, failed: 0 });
     expect(tx.creditClaim.updateMany).not.toHaveBeenCalled();
   });
 
@@ -365,7 +422,7 @@ describe("releaseScheduledCredits — 발급 예정 보내기", () => {
     db.creditClaim.findMany.mockResolvedValue([
       row("pass", { stage: EntryStage.s3, status: EntryStatus.active }),
     ]);
-    expect(await releaseScheduledCredits()).toEqual({ released: 0, soldOut: 0 });
+    expect(await releaseScheduledCredits()).toEqual({ released: 0, soldOut: 0, failed: 0 });
     expect(tx.creditCode.update).toHaveBeenCalledWith({
       where: { id: "c-1" },
       data: { status: CreditStatus.issued },

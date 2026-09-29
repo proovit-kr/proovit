@@ -1837,6 +1837,20 @@ export async function setSandboxHub(args: {
     }
   }
 
+  /*
+    게이트 1을 넘은 판인데 앞 판(h12)이 남긴 s2 미통과 판정이 있으면 지운다. 남으면
+    「s2의 마지막 판정이 통과」가 아니게 되어 C2가 잠긴다(credits-store `gate1PassedAt`).
+    운영에서는 통과해 s3이 된 팀의 마지막 판정이 미통과일 수 없다.
+  */
+  if (stageAtLeast(plan.stage, EntryStage.s3)) {
+    await prisma.judgment.deleteMany({
+      where: {
+        submission: { entryId, stageKey: StageKey.s2 },
+        result: { not: JudgmentResult.pass },
+      },
+    });
+  }
+
   /* 실격은 사유와 소명 기한이 있어야 헤더가 그것을 말할 수 있다 */
   await prisma.sanction.deleteMany({
     where: { entryId, stage: SanctionStage.disqualified },
@@ -3112,7 +3126,7 @@ function creditsPaneOf(args: {
         claimStatus,
         unlocked,
         season,
-        active: args.status === EntryStatus.active,
+        status: args.status,
         lapsed: creditLapsed(offer?.validUntil ?? null, devNow()),
       }),
     };

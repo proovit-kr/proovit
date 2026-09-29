@@ -34,7 +34,13 @@ import { evidenceStorage } from "@/lib/evidence-storage";
  * 뜬다 — 일괄 발송이 일부만 됐거나 메일이 실패한 것 같은). 전에는 둘 다 `message`라
  * 모달이 닫히면서 안내가 같이 사라졌다(2026-09-30 감사).
  */
-export type SponsorActionState = { message?: string; notice?: string; done?: number };
+export type SponsorActionState = {
+  message?: string;
+  notice?: string;
+  /** `notice`가 어느 카드의 것인가 — 다른 카드로 옮기면 안 보인다 */
+  noticeFor?: string;
+  done?: number;
+};
 
 function toEnum<T extends Record<string, string>>(values: T, raw: unknown): T[keyof T] | null {
   const value = String(raw ?? "");
@@ -190,6 +196,7 @@ export async function uploadCodes(_prev: SponsorActionState, formData: FormData)
   const added = result.added ?? 0;
   return {
     ...done(),
+    noticeFor: offerId,
     notice:
       `코드 ${added}건을 올렸습니다.` +
       (unique > added ? ` 이미 있던 ${unique - added}건은 건너뛰었습니다.` : ""),
@@ -246,10 +253,16 @@ export async function batchDeliver(_prev: SponsorActionState, formData: FormData
   revalidatePath("/", "layout");
   const sent = result.delivered.filter((d) => !d.scheduled).length;
   const later = result.delivered.length - sent;
+  /* 예정이 언제 나가는지는 카드마다 다르다 — C1은 그 팀의 게이트 1, 그 밖은 지급 예정일 */
+  const when = offer.kind === CreditKind.c1 ? "게이트 1이 가려지면" : "지급 예정일에";
   const notes = [
     `${sent}팀에 보냈습니다.`,
-    later ? `${later}팀은 발급 예정으로 적었습니다(게이트 1을 통과하면 나갑니다).` : null,
-    result.soldOut ? "코드 풀이 비어 일부 팀은 보내지 못했습니다." : null,
+    later ? `${later}팀은 발급 예정으로 적었습니다(${when} 나갑니다).` : null,
+    result.soldOut
+      ? result.delivered.length === 0
+        ? "코드 풀이 비어 보내지 못했습니다."
+        : "코드 풀이 비어 나머지 팀은 보내지 못했습니다."
+      : null,
     failedTeams.length ? `메일을 보내지 못한 팀: ${failedTeams.join(", ")}.` : null,
   ].filter(Boolean);
   return { done: Date.now(), notice: notes.join(" ") };

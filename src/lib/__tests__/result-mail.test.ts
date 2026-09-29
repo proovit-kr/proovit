@@ -127,6 +127,20 @@ describe("운영자 판정", () => {
     expect(sendAlertMails).not.toHaveBeenCalled();
   });
 
+  it("미통과가 실격·포기를 탈락으로 덮지 않는다 — 탈락 팀 몫의 C1이 새지 않게", async () => {
+    submitted(null);
+    await judgeSubmission({
+      submissionId: "sub-1",
+      result: JudgmentResult.fail,
+      feedback: FEEDBACK,
+      judgeId: "admin-1",
+    });
+    expect(tx.entry.updateMany).toHaveBeenCalledWith({
+      where: { id: "entry-1", status: { in: [EntryStatus.active, EntryStatus.eliminated] } },
+      data: { status: EntryStatus.eliminated },
+    });
+  });
+
   it("결과가 뒤집히면 다시 보낸다", async () => {
     submitted({ result: JudgmentResult.fail, feedback: "이전 사유 열 글자 이상" });
     await judgeSubmission({

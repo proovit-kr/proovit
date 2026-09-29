@@ -150,12 +150,18 @@ export default async function Page() {
   const next = view
     ? nextUnlock({
         season: view.season,
+        active: viewer.entry.status === EntryStatus.active,
         eliminated,
         failedGate,
         cards: view.cards,
       })
     : null;
   const now = devNow();
+  /*
+    C1의 게이트 1이 가려졌는가(통과 또는 탈락) — 가려졌는데도 발급 예정이면 코드 풀이
+    빈 것이다. 그때 「게이트 1을 통과하면」이라고 말하면 틀린다.
+  */
+  const c1Settled = Boolean(view?.buildStartAt) || eliminated;
 
   return (
     <CreditsToast>
@@ -196,7 +202,7 @@ export default async function Page() {
               <Card>
                 <small>{CREDITS_SUM.next}</small>
                 <div className={styles.nx}>
-                  <Next next={next} />
+                  <Next next={next} c1Settled={c1Settled} />
                 </div>
               </Card>
             </div>
@@ -215,6 +221,7 @@ export default async function Page() {
                   index={i}
                   award={view.award}
                   buildStartAt={view.buildStartAt}
+                  c1Settled={c1Settled}
                   now={now}
                 />
               ))}
@@ -287,7 +294,13 @@ function Note({
 }
 
 /** 「다음 언락」 칸 — 시안 `nx` */
-function Next({ next }: { next: ReturnType<typeof nextUnlock> }) {
+function Next({
+  next,
+  c1Settled,
+}: {
+  next: ReturnType<typeof nextUnlock>;
+  c1Settled: boolean;
+}) {
   switch (next.kind) {
     case "pre":
       return (
@@ -305,14 +318,17 @@ function Next({ next }: { next: ReturnType<typeof nextUnlock> }) {
           {CREDITS_NEXT.scheduled[1]}
         </>
       ) : (
-        CREDITS_NEXT.scheduledGate.replace("{code}", topic(next.card.code))
+        (c1Settled || next.card.kind !== CreditKind.c1
+          ? CREDITS_NEXT.scheduledReady
+          : CREDITS_NEXT.scheduledGate
+        ).replace("{code}", topic(next.card.code))
       );
     case "unlock": {
       const line = CREDITS_UNLOCK[next.card.unlockEvent];
       return (
         <>
           {next.via
-            ? CREDITS_NEXT.negotiatingOpen.replace("{code}", next.via.code)
+            ? CREDITS_NEXT.negotiatingOpen.replace("{code}", topic(next.via.code))
             : null}
           <b>{line.key}</b>
           {line.rest
@@ -340,6 +356,8 @@ function Next({ next }: { next: ReturnType<typeof nextUnlock> }) {
       ) : (
         CREDITS_NEXT.overNone
       );
+    case "closed":
+      return CREDITS_NEXT.closed;
     case "done":
       return CREDITS_NEXT.done;
   }
@@ -370,12 +388,14 @@ function CreditCard({
   index,
   award,
   buildStartAt,
+  c1Settled,
   now,
 }: {
   card: CreditCardView;
   index: number;
   award: { label: string; at: Date | null } | null;
   buildStartAt: Date | null;
+  c1Settled: boolean;
   now: Date;
 }) {
   const badge = creditBadge(card.state, card.unlocked);
@@ -482,7 +502,7 @@ function CreditCard({
         </div>
       </div>
 
-      <Body card={card} award={award} now={now} />
+      <Body card={card} award={award} c1Settled={c1Settled} now={now} />
     </Card>
   );
 }
@@ -491,10 +511,12 @@ function CreditCard({
 function Body({
   card,
   award,
+  c1Settled,
   now,
 }: {
   card: CreditCardView;
   award: { label: string; at: Date | null } | null;
+  c1Settled: boolean;
   now: Date;
 }) {
   const how = card.howtoUrl ? (
@@ -562,8 +584,11 @@ function Body({
         <>
           <div className={styles.sched}>
             <Icon name="clock" />
-            {card.kind === CreditKind.c1 || !card.releaseDate ? (
+            {card.kind === CreditKind.c1 && !c1Settled ? (
               T.sched.gate
+            ) : card.kind === CreditKind.c1 || !card.releaseDate ? (
+              /* 보낼 때는 됐는데 아직 못 나갔다 — 코드 풀이 비었다(크론이 다시 본다) */
+              T.sched.ready
             ) : (
               <>
                 {T.sched.line[0]}

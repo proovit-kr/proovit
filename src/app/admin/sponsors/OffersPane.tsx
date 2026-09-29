@@ -95,6 +95,12 @@ export function OffersPane({
   const [logoState, logoAction, logoPending] = useActionState(uploadLogo, INITIAL);
 
   const [modal, setModal] = useState<null | "save" | "status" | "codes">(null);
+  /*
+    「취소」는 폼을 다시 세운다(key를 바꾼다). form.reset()은 제어 셀렉트(kind)의 화면
+    값만 첫 옵션으로 돌리고 상태는 그대로 둬서, 등록에서 C3을 고른 채 취소하고 저장하면
+    C3 폼 값으로 C1이 등록됐다.
+  */
+  const [resets, setResets] = useState(0);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [statusNext, setStatusNext] = useState<CreditOfferStatus>(CreditOfferStatus.active);
   const formRef = useRef<HTMLFormElement>(null);
@@ -248,7 +254,7 @@ export function OffersPane({
           <Chip style={{ marginLeft: "auto" }}>offer_{String(CREDIT_CARDS.indexOf(card) + 1).padStart(2, "0")}</Chip>
         </div>
 
-        <form ref={formRef} key={editing} className={s.form} onSubmit={(e) => e.preventDefault()}>
+        <form ref={formRef} key={`${editing}-${resets}`} className={s.form} onSubmit={(e) => e.preventDefault()}>
           <Field label="kind">
             {/*
               등록에서는 아직 없는 카드만 고른다. 고르면 그 카드의 등록 폼으로 바꿔 선다 —
@@ -325,7 +331,7 @@ export function OffersPane({
           */}
           <Field
             label="releaseDate"
-            note={editing === CreditKind.c1 ? "C1은 팀별 게이트 1 때" : "빌드 스테이지 개시일"}
+            note={editing === CreditKind.c1 ? "C1은 팀별 게이트 1 때" : "지급 예정일"}
           >
             <Input
               name="releaseDate"
@@ -367,7 +373,7 @@ export function OffersPane({
                 </Button>
               </div>
               {/* 올린 결과 — 모달이 닫힌 뒤라 여기에 적는다 */}
-              {codeState.notice ? (
+              {codeState.notice && codeState.noticeFor === offer.id ? (
                 <p role="status" className={s.dm} style={{ marginTop: "8px", fontSize: "12.5px" }}>
                   {codeState.notice}
                 </p>
@@ -387,7 +393,7 @@ export function OffersPane({
         </form>
 
         <div className={s.ft}>
-          <Button type="button" variant="ghost" onClick={() => formRef.current?.reset()}>
+          <Button type="button" variant="ghost" onClick={() => setResets((n) => n + 1)}>
             취소
           </Button>
           <Button type="button" variant="primary" onClick={openSave}>

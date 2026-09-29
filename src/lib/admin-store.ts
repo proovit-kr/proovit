@@ -1055,6 +1055,7 @@ export async function batchDeliverCredits(args: {
           kind: offer.kind,
           releaseDate: offer.releaseDate,
           gate1Settled: gate1Settled(entry),
+          status: entry.status,
           today,
         }),
       });
@@ -1072,7 +1073,14 @@ export async function batchDeliverCredits(args: {
       targetType: "credit_offer",
       targetId: offer.id,
       reason: "발급 가능 팀 일괄 발송",
-      meta: { kind: offer.kind, teams: delivered.length, entryIds: delivered.map((d) => d.entryId), soldOut },
+      meta: {
+        kind: offer.kind,
+        teams: delivered.length,
+        /* 그중 발급 예정으로만 적은 팀 — 발송 이력이 「이메일」과 가른다 */
+        scheduled: delivered.filter((d) => d.scheduled).length,
+        entryIds: delivered.map((d) => d.entryId),
+        soldOut,
+      },
     });
     return { ok: true as const, delivered, soldOut };
   });

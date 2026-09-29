@@ -319,8 +319,15 @@ export async function judgeSubmission(args: {
     }
 
     if (result === JudgmentResult.fail) {
-      await tx.entry.update({
-        where: { id: submission.entryId },
+      /*
+        실격·포기는 덮지 않는다 — 통과로 뒤집을 때 「실격은 건드리지 않는다」와 같은 규칙.
+        덮으면 실격 팀이 탈락 팀이 되어, 게이트 1에서 떨어진 팀 몫(눌러 둔 C1)까지 받는다.
+      */
+      await tx.entry.updateMany({
+        where: {
+          id: submission.entryId,
+          status: { in: [EntryStatus.active, EntryStatus.eliminated] },
+        },
         data: { status: EntryStatus.eliminated },
       });
       await tx.submission.update({

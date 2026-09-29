@@ -54,7 +54,11 @@ async function handle(request: NextRequest) {
   if (denied) return denied;
 
   const gates = await runGateDeadlines();
-  const credits = await releaseScheduledCredits();
+  /* 발급이 실패해도 마감 알림·페이즈 전환은 돈다 — 판정 직후 호출(judging-store)과 같게 감싼다 */
+  const credits = await releaseScheduledCredits().catch((e: unknown) => {
+    console.error("[credits] 크론 발급 예정 보내기 실패", e);
+    return { released: 0, soldOut: 0, failed: -1 };
+  });
   /* 마감 알림은 탈락 처리 **뒤다** — 방금 떨어진 팀에 「마감이 다가와요」를 보내지 않는다 */
   const reminders = await runDeadlineReminders();
   const result = await runPhaseSchedule();

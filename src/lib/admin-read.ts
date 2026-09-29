@@ -256,8 +256,15 @@ export async function loadAuditPage(
       take: 200,
       select: AUDIT_SELECT,
     }),
+    /*
+      「운영자」 고르개에는 운영자만 — 참가자도 감사 로그에 남는다(혜택 받기
+      `credit.claim`, 누가 눌렀는지가 근거라서). 그 사람들을 운영자로 늘어놓지 않는다.
+    */
     prisma.auditLog.findMany({
-      where: { actorId: { not: null } },
+      where: {
+        actorId: { not: null },
+        actor: { userRoles: { some: { role: { key: "admin" } } } },
+      },
       distinct: ["actorId"],
       select: { actor: { select: { id: true, email: true } } },
     }),
@@ -428,8 +435,12 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
         orderBy: { stageKey: "asc" },
       }),
       loadLastRollup(season.id),
-      /* 시안 `.minlog` — 다섯 줄 */
+      /*
+        시안 `.minlog` — 다섯 줄. 운영 쓰기만 — 참가자의 혜택 받기(`credit.claim`)는
+        팀 수만큼 쌓여 운영자가 한 일을 밀어낸다. 감사 로그 화면과 스폰서 발송 이력에는 있다.
+      */
       prisma.auditLog.findMany({
+        where: { action: { not: "credit.claim" } },
         orderBy: { createdAt: "desc" },
         take: 5,
         select: AUDIT_SELECT,
