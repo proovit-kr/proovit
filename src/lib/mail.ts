@@ -631,3 +631,52 @@ export async function sendCreditMail(params: {
           </p>`);
   return send({ to: email, subject: `[PROOVIT] ${title}`, text, html });
 }
+
+/**
+ * 이메일 변경 인증 코드 — 계정 설정의 이메일 변경(lib/email-change.ts). **새 주소로**
+ * 간다. 이 코드를 넣어야 주소가 바뀐다.
+ *
+ * ⚠️ 이행 메일이다. 코드와 기한만 싣는다. 스위치(`notifyEmail`)와 무관하다 — 본인이
+ * 방금 요청한 것이다.
+ */
+export async function sendEmailChangeCode(params: {
+  email: string;
+  code: string;
+  minutes: number;
+}): Promise<MailResult> {
+  const { email, code, minutes } = params;
+  const title = "이메일 변경 인증 코드";
+  const text = [
+    title,
+    "",
+    `코드: ${code}`,
+    `${minutes}분 안에 계정 설정 화면에 입력해 주세요.`,
+    "",
+    "요청하지 않았다면 이 메일을 무시해 주세요. 주소는 바뀌지 않아요.",
+    "",
+    "PROOVIT | 문의: help@proovit.kr",
+  ].join("\n");
+  const html = shell(`
+          <div style="font-size:17px;font-weight:800;letter-spacing:.06em;color:${INK}">
+            PROO<span style="color:#8fc400">✓</span>IT
+          </div>
+          <h1 style="margin:26px 0 0;font-size:21px;line-height:1.45;font-weight:800;color:${INK}">
+            ${title}
+          </h1>
+          <p style="margin:14px 0 0;font-size:15px;line-height:1.75;color:${MUTED}">
+            ${minutes}분 안에 계정 설정 화면에 입력해 주세요.
+          </p>
+          <div style="margin:24px 0 0;padding:16px 0;border-top:1px solid ${LINE};border-bottom:1px solid ${LINE};
+                      font-family:monospace;font-size:30px;font-weight:700;letter-spacing:.3em;color:${INK}">
+            ${code}
+          </div>
+          <p style="margin:14px 0 0;font-size:12px;line-height:1.7;color:${MUTED}">
+            요청하지 않았다면 이 메일을 무시해 주세요. 주소는 바뀌지 않아요.
+          </p>
+          <p style="margin:30px 0 0;padding-top:18px;border-top:1px solid ${LINE};
+                    font-size:12px;line-height:1.8;color:${MUTED}">
+            PROOVIT &nbsp;|&nbsp;
+            문의: <a href="mailto:help@proovit.kr" style="color:${MUTED}">help@proovit.kr</a>
+          </p>`);
+  return send({ to: email, subject: `[PROOVIT] ${title} ${code}`, text, html });
+}
