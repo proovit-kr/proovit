@@ -557,6 +557,8 @@ export async function issueCredit(
 export async function claimCredit(args: {
   entryId: string;
   offerId: string;
+  /** 누른 사람 — 감사 로그에 남는다(운영 콘솔 발송 이력) */
+  actorId: string;
 }): Promise<{ ok: true; scheduled: boolean } | { ok: false; code: CreditFailureCode }> {
   const judged = await judgeCredit(args);
   if (!judged.ok) return judged;
@@ -566,15 +568,33 @@ export async function claimCredit(args: {
   const refusal = claimRefusal(judged.state, judged.active);
   if (refusal) return { ok: false, code: refusal };
 
-  const result = await prisma.$transaction((tx) =>
-    issueCredit(tx, {
+  const result = await prisma.$transaction(async (tx) => {
+    const r = await issueCredit(tx, {
       offer: judged.offer,
       entryId: args.entryId,
       via: CreditDeliveredVia.email,
       now: new Date(),
       due: judged.due,
-    }),
-  );
+    });
+    /*
+      감사 로그 — 운영 콘솔 발송 이력이 이것을 읽는다. 참가자가 스스로 받은 것이
+      이력에 없어 누가 언제 어느 카드를 가져갔는지 되짚을 수 없었다(2026-09-30 감사).
+      admin-store `writeAudit`과 같은 모양이다(그 파일이 이 파일을 불러 되부를 수 없다).
+    */
+    if (r.ok) {
+      await tx.auditLog.create({
+        data: {
+          actorId: args.actorId,
+          action: "credit.claim",
+          targetType: "entry",
+          targetId: args.entryId,
+          reason: r.scheduled ? "참가자 받기, 발급 예정" : "참가자 받기",
+          meta: { offerId: judged.offer.id, kind: judged.offer.kind, entryId: args.entryId, scheduled: r.scheduled },
+        },
+      });
+    }
+    return r;
+  });
   if (!result.ok) return result;
   if (!result.scheduled) {
     await noticeCreditDelivered({
@@ -668,6 +688,18 @@ export async function releaseScheduledCredits(
   let released = 0;
   for (const [offerId, deliveries] of byOffer) {
     released += deliveries.length;
+    const kind = claims.find((c) => c.offer.id === offerId)!.offer.kind;
+    /* 발송 이력의 「시스템 … 자동」 줄 — 시안 「C1 코드 일괄 발송, 31팀, 이메일」 */
+    await prisma.auditLog.create({
+      data: {
+        actorId: null,
+        action: "credit.release",
+        targetType: "credit_offer",
+        targetId: offerId,
+        reason: kind === CreditKind.c1 ? "게이트 1 판정 뒤 발급 예정 발송" : "지급 예정일 발송",
+        meta: { kind, teams: deliveries.length, entryIds: deliveries.map((d) => d.entryId) },
+      },
+    });
     await noticeCreditDelivered({ offerId, deliveries });
   }
   return { released, soldOut };

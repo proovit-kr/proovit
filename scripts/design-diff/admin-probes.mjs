@@ -562,7 +562,11 @@ export const SCREENS = {
             ["머리글", S + ".pane.on .atbl thead", '[data-probe="sp-offers-table"] thead'],
             /* 편집 칸 라벨 — 값은 데이터, 시안에 없는 세 칸은 머리 주석 */
             /* C1 설명의 「AI 빌더 에이전트와」는 09-23 수연 지시로 「AI 에이전트와」(credits.mjs와 같은 결정) */
-            ["편집 라벨", S + ".pane.on .sp-form", '[data-probe="sp-edit"] {{p:form}}', [/^(inviteUrl|howtoUrl|redeemNote|초대 링크형|적용 방법 링크|발송 줄의 적용 안내)$/, /^[\d/]+$/, /^소비 \d+, 만료 \d+$/, /.+\.(svg|png)$/, /^없음$/, /^AI (빌더 )?에이전트와 배포/]],
+            /*
+              C1의 releaseDate 칸은 잠겨 「C1은 팀별 게이트 1 때」라고 적는다 — C1은 팀마다
+              게이트 1이 가려질 때 보낸다(2026-09-30 수연 결정, credits.mjs의 같은 주석).
+            */
+            ["편집 라벨", S + ".pane.on .sp-form", '[data-probe="sp-edit"] {{p:form}}', [/^(inviteUrl|howtoUrl|redeemNote|초대 링크형|적용 방법 링크|발송 줄의 적용 안내)$/, /^[\d/]+$/, /^소비 \d+, 만료 \d+$/, /.+\.(svg|png)$/, /^없음$/, /^AI (빌더 )?에이전트와 배포/, /^(빌드 스테이지 개시일|C1은 팀별 게이트 1 때)$/]],
           ]
         : st === "claims"
           ? [

@@ -19,6 +19,9 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/mail", () => ({ sendAlertMails: vi.fn() }));
 vi.mock("@/lib/admin-store", () => ({ writeAudit: vi.fn() }));
 vi.mock("@/lib/final-submit", () => ({ runFinalAutoSubmit: vi.fn() }));
+vi.mock("@/lib/credits-store", () => ({
+  releaseScheduledCredits: vi.fn(async () => ({ released: 0, soldOut: 0 })),
+}));
 vi.mock("@/lib/dev-clock", () => ({
   devNow: () => new Date("2026-10-05T00:00:00Z"),
 }));
@@ -31,6 +34,7 @@ import {
   StageKey,
   SubmissionStatus,
 } from "@/generated/prisma/enums";
+import { releaseScheduledCredits } from "@/lib/credits-store";
 import { runGateMiss } from "@/lib/gate-miss";
 import { judgeSubmission } from "@/lib/judging-store";
 import { sendAlertMails } from "@/lib/mail";
@@ -106,6 +110,8 @@ describe("운영자 판정", () => {
       NOTI_JUDGMENT.pass[1],
     );
     expect(mailAt).toEqual([1]);
+    /* 게이트 1이 가려졌다 — 그 팀이 눌러 둔 C1을 곧바로 보낸다(트랜잭션 밖) */
+    expect(releaseScheduledCredits).toHaveBeenCalledWith({ entryIds: ["entry-1"] });
   });
 
   it("사유만 고친 재판정은 다시 보내지 않는다", async () => {

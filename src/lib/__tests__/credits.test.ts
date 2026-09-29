@@ -18,6 +18,7 @@ import {
   isOpenedCard,
   maskCreditCode,
   nextUnlock,
+  parseCodeList,
   releaseDue,
   sumCreditValues,
 } from "@/lib/credits";
@@ -245,5 +246,23 @@ describe("코드 가리기", () => {
   it("마디가 없으면 뒤 넷만 남긴다", () => {
     expect(maskCreditCode("vercel.com/claim/prv-s1-4f8b")).toBe("••••••.•••/•••••/•••-••-4f8b");
     expect(maskCreditCode("abcd")).toBe("abcd");
+  });
+});
+
+describe("코드 풀 업로드 — 글에서 코드만", () => {
+  it("한 줄에 하나, 쉼표로 이은 한 줄", () => {
+    expect(parseCodeList("A-1\nA-2\r\n\nA-3\n")).toEqual({ ok: true, codes: ["A-1", "A-2", "A-3"] });
+    expect(parseCodeList("\uFEFFA-1, A-2;A-3")).toEqual({ ok: true, codes: ["A-1", "A-2", "A-3"] });
+  });
+  it("표면 머리 줄의 코드 열만 쓰고 머리 줄은 뺀다", () => {
+    const csv = 'id,Promo Code,amount,expires\n1,"RPL-1",75,2026-11-30\n2,RPL-2,75,2026-11-30';
+    expect(parseCodeList(csv)).toEqual({ ok: true, codes: ["RPL-1", "RPL-2"] });
+  });
+  it("코드 열을 못 찾으면 추측하지 않고 거절한다", () => {
+    expect(parseCodeList("id,amount\n1,75\n2,75")).toMatchObject({ ok: false });
+  });
+  it("빈칸 섞인 값·빈 글은 거절한다", () => {
+    expect(parseCodeList("RPL-1\n코드 발급 안내드립니다")).toMatchObject({ ok: false });
+    expect(parseCodeList(" \n ")).toMatchObject({ ok: false });
   });
 });

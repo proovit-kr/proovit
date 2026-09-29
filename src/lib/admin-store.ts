@@ -716,6 +716,8 @@ export async function applySanction(args: {
 
 export async function saveCreditOffer(args: {
   seasonId: string;
+  /** 「등록」 카드에서 왔으면 create — 이미 있는 카드는 덮지 않는다 */
+  mode: "create" | "edit";
   kind: CreditKind;
   status: CreditOfferStatus;
   /** 스폰서 이름 — 같은 이름이 있으면 그 스폰서에 잇고, 없으면 만든다(시안 `sponsorName` 칸) */
@@ -733,7 +735,7 @@ export async function saveCreditOffer(args: {
   reason: string;
   actorId: string;
 }): Promise<AdminActionResult> {
-  const { seasonId, kind, reason, actorId, sponsorName, ...rest } = args;
+  const { seasonId, kind, reason, actorId, sponsorName, mode, ...rest } = args;
   if (reason.trim().length < REASON_MIN) {
     return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
   }
@@ -760,6 +762,13 @@ export async function saveCreditOffer(args: {
     where: { seasonId_kind: { seasonId, kind } },
     select: { id: true, status: true },
   });
+  /*
+    등록 폼에서 종류를 바꿔 이미 있는 카드를 고르면, 등록 폼의 빈 값(협의 중·스폰서
+    없음·수동)으로 활성 카드를 덮었다(2026-09-30 감사). 등록은 없는 카드만 만든다.
+  */
+  if (mode === "create" && before) {
+    return { ok: false, message: "이미 등록된 카드입니다. 표에서 편집으로 고쳐 주세요." };
+  }
 
   await prisma.$transaction(async (tx) => {
     const sponsorId = sponsorName

@@ -43,21 +43,27 @@ export default async function Page() {
     );
   }
 
-  const [view, logs] = await Promise.all([
-    loadAdminCreditConsole(viewer.season.id),
-    prisma.auditLog.findMany({
-      where: { OR: [{ action: { startsWith: "credit." } }, { action: { startsWith: "credit_" } }] },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-      select: {
-        createdAt: true,
-        action: true,
-        reason: true,
-        meta: true,
-        actor: { select: { email: true } },
-      },
-    }),
-  ]);
+  const view = await loadAdminCreditConsole(viewer.season.id);
+  /*
+    이 시즌의 것만 — 대상이 이 시즌의 카드이거나 팀인 줄. 시즌을 안 거르면 시즌 2에
+    시즌 1 발송 줄이 섞인다.
+  */
+  const logs = await prisma.auditLog.findMany({
+    where: {
+      action: { startsWith: "credit." },
+      targetId: { in: [...view.offers.map((o) => o.id), ...view.claims.map((r) => r.entryId)] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 30,
+    select: {
+      createdAt: true,
+      action: true,
+      reason: true,
+      meta: true,
+      targetId: true,
+      actor: { select: { email: true } },
+    },
+  });
 
   const teamName = new Map(view.claims.map((r) => [r.entryId, r.teamName]));
   const statusLabel = (v: unknown) =>
@@ -70,6 +76,16 @@ export default async function Page() {
     ...logs.map((row): LogLine => {
       const m = (row.meta ?? {}) as Record<string, unknown>;
       const code = typeof m.kind === "string" ? CREDIT_CARD_BY_KIND[m.kind as keyof typeof CREDIT_CARD_BY_KIND]?.code : "";
+      const team = teamName.get(String(m.entryId ?? row.targetId ?? "")) ?? "팀";
+      /* 참가자가 스스로 받은 줄 — 누구는 팀이다(적용 확인 줄과 같게) */
+      if (row.action === "credit.claim") {
+        return {
+          at: row.createdAt,
+          who: team,
+          text: `${code} 받기${m.scheduled ? ", 발급 예정" : ", 이메일"}`,
+          tag: { label: "확인", tone: "teal" },
+        };
+      }
       const text =
         row.action === "credit.codes_upload"
           ? `${code} 코드 풀 CSV ${m.added ?? m.submitted ?? 0}건 업로드, 사유: ${row.reason}`
@@ -78,10 +94,14 @@ export default async function Page() {
             : row.action === "credit.offer_create" || row.action === "credit.offer_update"
               ? `${code} 혜택 ${row.action === "credit.offer_create" ? "등록" : "수정"}, 사유: ${row.reason}`
               : row.action === "credit.deliver_manual"
-                ? `${code} 수동 발급, ${teamName.get(String(m.entryId ?? "")) ?? "팀"}, 사유: ${row.reason}`
+                ? `${code} 수동 발급, ${team}, 사유: ${row.reason}`
                 : row.action === "credit.batch"
                   ? `${code} 일괄 발송, ${m.teams ?? 0}팀, 이메일`
-                  : `${row.action}, ${row.reason}`;
+                  : row.action === "credit.release"
+                    ? `${code} 발급 예정 발송, ${m.teams ?? 0}팀, 이메일 (${row.reason})`
+                    : row.action === "credit.logo"
+                      ? `${code} ${row.reason}`
+                      : `${row.action}, ${row.reason}`;
       return {
         at: row.createdAt,
         who: row.actor?.email ? row.actor.email.split("@")[0] : "시스템",

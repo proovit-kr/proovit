@@ -652,3 +652,84 @@ export const CREDIT_FAILURE_MESSAGE: Record<CreditFailureCode, string> = {
   SOLD_OUT: "남은 코드가 없어요. 운영에 알려 주시면 스폰서에 요청할게요.",
   ENDED: "종료된 혜택이에요.",
 };
+
+// ═════════════════════════════════════════════════════════════
+// 코드 풀 업로드 — 스폰서가 보낸 글에서 코드만 골라낸다
+// ═════════════════════════════════════════════════════════════
+
+/** 따옴표를 존중해 한 줄을 칸으로 — 쉼표·세미콜론·탭 */
+function splitRow(line: string): string[] {
+  const cells: string[] = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (quoted && line[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (!quoted && (ch === "," || ch === ";" || ch === "\t")) {
+      cells.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  cells.push(cur.trim());
+  return cells;
+}
+
+const CODE_HEADER = /code|코드|쿠폰|coupon|promo|voucher/i;
+
+/**
+ * 스폰서가 보낸 글에서 코드 목록을 뽑는다.
+ *
+ * 스폰서가 보내는 모양이 매번 다르다 — 한 줄에 하나, 쉼표로 이은 한 줄, 여러 열짜리 표.
+ *
+ *   한 줄이면          칸마다 코드다(「A,B,C」).
+ *   여러 줄, 칸이 하나  줄마다 코드다.
+ *   여러 줄, 칸이 여럿  **표다.** 머리 줄에서 코드 열(「code」·「코드」·「쿠폰」…)을 찾아
+ *                      그 열만 쓰고 머리 줄은 뺀다. 코드 열을 못 찾으면 거절한다.
+ *
+ * 전에는 줄바꿈·쉼표를 가리지 않고 쪼개서, 표를 올리면 머리글·금액·날짜까지 코드
+ * 풀에 들어가 팀에 나갈 수 있었다(2026-09-30 감사). 모르는 모양은 추측하지 않고
+ * 거절한다 — 엉뚱한 값이 참가자에게 코드로 가는 것이 훨씬 나쁘다.
+ *
+ * 코드 안에 빈칸이 있으면 거절한다 — 그런 값은 대개 설명 글이 섞인 것이다.
+ */
+export function parseCodeList(
+  raw: string,
+): { ok: true; codes: string[] } | { ok: false; message: string } {
+  const lines = raw
+    .replace(/^﻿/, "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return { ok: false, message: "올릴 코드가 없습니다." };
+
+  const rows = lines.map(splitRow);
+  let codes: string[];
+  if (rows.length === 1) {
+    codes = rows[0];
+  } else if (rows.every((r) => r.length === 1)) {
+    codes = rows.map((r) => r[0]);
+  } else {
+    const col = rows[0].findIndex((cell) => CODE_HEADER.test(cell));
+    if (col < 0) {
+      return {
+        ok: false,
+        message: "코드 열을 찾지 못했습니다. 머리 줄에 code 열이 있는 표이거나, 한 줄에 코드 하나씩이어야 합니다.",
+      };
+    }
+    codes = rows.slice(1).map((r) => r[col] ?? "");
+  }
+
+  codes = codes.map((c) => c.trim()).filter(Boolean);
+  const spaced = codes.find((c) => /\s/.test(c));
+  if (spaced) return { ok: false, message: `코드에 빈칸이 있습니다: ${spaced.slice(0, 40)}` };
+  if (codes.length === 0) return { ok: false, message: "올릴 코드가 없습니다." };
+  return { ok: true, codes };
+}

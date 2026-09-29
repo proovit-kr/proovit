@@ -127,6 +127,13 @@ export function ClaimsPane({
         </Button>
       </div>
 
+      {/* 보낸 결과 — 모달이 닫힌 뒤라 표 위에 적는다(일부만 됐거나 메일이 실패한 것까지) */}
+      {bState.notice ? (
+        <div role="status" style={{ margin: "0 0 12px", fontSize: "13px", color: "var(--muted)" }}>
+          {bState.notice}
+        </div>
+      ) : null}
+
       <table className={c.atbl} data-probe="sp-claims-table">
         <thead>
           <tr>

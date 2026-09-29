@@ -15,6 +15,7 @@ vi.mock("@/lib/prisma", () => ({
     creditClaim: { findUnique: vi.fn(), findMany: vi.fn() },
     teamMember: { findMany: vi.fn() },
     notification: { createMany: vi.fn() },
+    auditLog: { create: vi.fn() },
     entry: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
     submission: { findFirst: vi.fn() },
     judgment: { findFirst: vi.fn() },
@@ -165,30 +166,38 @@ describe("claimCredit — 받기", () => {
         updateMany: vi.fn(async () => ({ count: 0 })),
         createMany: vi.fn(async () => ({ count: 1 })),
       },
+      auditLog: { create: vi.fn() },
     };
     db.$transaction.mockImplementation((fn: (t: unknown) => unknown) => fn(tx));
-    expect(await claimCredit({ entryId: "e-1", offerId: "o-1" })).toEqual({ ok: true, scheduled: true });
+    expect(await claimCredit({ entryId: "e-1", offerId: "o-1", actorId: "u-1" })).toEqual({ ok: true, scheduled: true });
     expect(tx.creditCode.findFirst).not.toHaveBeenCalled();
+    /* 누가 눌렀는지 남는다 — 운영 콘솔 발송 이력이 읽는다 */
+    expect(tx.auditLog.create.mock.calls[0][0].data).toMatchObject({
+      actorId: "u-1",
+      action: "credit.claim",
+      targetId: "e-1",
+    });
+    expect(db.notification.createMany).not.toHaveBeenCalled();
   });
 
   it("탈락·실격 팀은 새로 받지 못한다", async () => {
     seed({ entry: { status: EntryStatus.eliminated } });
-    expect(await claimCredit({ entryId: "e-1", offerId: "o-1" })).toEqual({ ok: false, code: "INACTIVE" });
+    expect(await claimCredit({ entryId: "e-1", offerId: "o-1", actorId: "u-1" })).toEqual({ ok: false, code: "INACTIVE" });
     seed({ entry: { status: EntryStatus.disqualified } });
-    expect(await claimCredit({ entryId: "e-1", offerId: "o-1" })).toEqual({ ok: false, code: "INACTIVE" });
+    expect(await claimCredit({ entryId: "e-1", offerId: "o-1", actorId: "u-1" })).toEqual({ ok: false, code: "INACTIVE" });
     expect(db.$transaction).not.toHaveBeenCalled();
   });
   it("시상 발표 뒤에는 활성 카드라도 받지 못한다", async () => {
     seed({ offer: { season: { phase: SeasonPhase.awarded } } });
-    expect(await claimCredit({ entryId: "e-1", offerId: "o-1" })).toEqual({ ok: false, code: "ENDED" });
+    expect(await claimCredit({ entryId: "e-1", offerId: "o-1", actorId: "u-1" })).toEqual({ ok: false, code: "ENDED" });
   });
   it("안 연 카드·협의 중·이미 받은 카드", async () => {
     seed({ s1: false });
-    expect(await claimCredit({ entryId: "e-1", offerId: "o-1" })).toEqual({ ok: false, code: "LOCKED" });
+    expect(await claimCredit({ entryId: "e-1", offerId: "o-1", actorId: "u-1" })).toEqual({ ok: false, code: "LOCKED" });
     seed({ offer: { status: CreditOfferStatus.negotiating } });
-    expect(await claimCredit({ entryId: "e-1", offerId: "o-1" })).toEqual({ ok: false, code: "NEGOTIATING" });
+    expect(await claimCredit({ entryId: "e-1", offerId: "o-1", actorId: "u-1" })).toEqual({ ok: false, code: "NEGOTIATING" });
     seed({ claim: { status: CreditClaimStatus.delivered } });
-    expect(await claimCredit({ entryId: "e-1", offerId: "o-1" })).toEqual({ ok: false, code: "ALREADY_CLAIMED" });
+    expect(await claimCredit({ entryId: "e-1", offerId: "o-1", actorId: "u-1" })).toEqual({ ok: false, code: "ALREADY_CLAIMED" });
   });
 });
 
@@ -321,6 +330,11 @@ describe("releaseScheduledCredits — 발급 예정 보내기", () => {
       deliveredVia: CreditDeliveredVia.email,
     });
     expect(db.notification.createMany).toHaveBeenCalledTimes(1);
+    expect(db.auditLog.create.mock.calls[0][0].data).toMatchObject({
+      actorId: null,
+      action: "credit.release",
+      meta: { teams: 2, entryIds: ["e-pass", "e-fail"] },
+    });
     expect(sendCreditMail).toHaveBeenCalledWith(
       expect.objectContaining({ card: "C1 빌더 크레딧", josa: "이", code: "RPL-1", sponsor: "Replit" }),
     );

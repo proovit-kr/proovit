@@ -183,7 +183,14 @@ export function OffersPane({
                     "-"
                   ) : (
                     <>
-                      {o.releaseDate ? md(o.releaseDate) : <span className={s.sub}>조건 즉시</span>}
+                      {/* C1은 팀마다 게이트 1 때다(편집 칸 주석) — 날짜 하나로 적지 않는다 */}
+                      {o.kind === CreditKind.c1 ? (
+                        <span className={s.sub}>게이트 1 통과 때</span>
+                      ) : o.releaseDate ? (
+                        md(o.releaseDate)
+                      ) : (
+                        <span className={s.sub}>조건 즉시</span>
+                      )}
                       <br />
                       <span className={s.sub}>~ {o.validUntil ? md(o.validUntil) : "미정"}</span>
                     </>
@@ -243,8 +250,18 @@ export function OffersPane({
 
         <form ref={formRef} key={editing} className={s.form} onSubmit={(e) => e.preventDefault()}>
           <Field label="kind">
-            <Select name="kind" className={s.inp} defaultValue={editing} disabled={!!offer}>
-              {KIND_OPTION.map((k) => (
+            {/*
+              등록에서는 아직 없는 카드만 고른다. 고르면 그 카드의 등록 폼으로 바꿔 선다 —
+              폼의 기본값(언락 이벤트 등)이 고른 카드의 것이어야 해서다.
+            */}
+            <Select
+              name="kind"
+              className={s.inp}
+              value={editing}
+              disabled={!!offer}
+              onChange={(e) => setEditing(e.target.value as CreditKind)}
+            >
+              {KIND_OPTION.filter((k) => offer || !byKind.has(k.value)).map((k) => (
                 <option key={k.value} value={k.value}>
                   {k.label}
                 </option>
@@ -252,6 +269,11 @@ export function OffersPane({
             </Select>
             {/* 잠근 셀렉트는 폼에 안 실린다 — 값은 숨은 칸이 싣는다 */}
             {offer ? <input type="hidden" name="kind" value={editing} /> : null}
+            {/*
+              등록인지 편집인지 — 서버가 있는 카드를 등록 폼으로 덮지 않게(admin-store
+              `saveCreditOffer`). 칸 안에 둔다 — 폼의 자식 순서는 대조가 nth-child로 잰다.
+            */}
+            <input type="hidden" name="mode" value={offer ? "edit" : "create"} />
           </Field>
           <Field label="status">
             <Select name="status" className={s.inp} defaultValue={offer?.status ?? CreditOfferStatus.negotiating}>
@@ -297,8 +319,22 @@ export function OffersPane({
               ))}
             </Select>
           </Field>
-          <Field label="releaseDate" note="빌드 스테이지 개시일">
-            <Input name="releaseDate" mono className={s.inp} placeholder="YYYY-MM-DD" defaultValue={ymd(offer?.releaseDate ?? null)} />
+          {/*
+            C1은 팀마다 게이트 1이 가려질 때 보낸다(lib/credits.ts `releaseDue`, 2026-09-30
+            수연 결정) — 이 칸을 쓰지 않는다. 적어 둬도 무시되므로 잠근다.
+          */}
+          <Field
+            label="releaseDate"
+            note={editing === CreditKind.c1 ? "C1은 팀별 게이트 1 때" : "빌드 스테이지 개시일"}
+          >
+            <Input
+              name="releaseDate"
+              mono
+              className={s.inp}
+              placeholder={editing === CreditKind.c1 ? "게이트 1 통과 때" : "YYYY-MM-DD"}
+              defaultValue={editing === CreditKind.c1 ? "" : ymd(offer?.releaseDate ?? null)}
+              disabled={editing === CreditKind.c1}
+            />
           </Field>
           <Field label="validUntil">
             <Input name="validUntil" mono className={s.inp} placeholder="YYYY-MM-DD" defaultValue={ymd(offer?.validUntil ?? null)} />
@@ -330,6 +366,12 @@ export function OffersPane({
                   CSV 업로드
                 </Button>
               </div>
+              {/* 올린 결과 — 모달이 닫힌 뒤라 여기에 적는다 */}
+              {codeState.notice ? (
+                <p role="status" className={s.dm} style={{ marginTop: "8px", fontSize: "12.5px" }}>
+                  {codeState.notice}
+                </p>
+              ) : null}
             </Field>
           ) : null}
           {/* 시안 편집 칸에 없는 셋 — 머리 주석 */}
