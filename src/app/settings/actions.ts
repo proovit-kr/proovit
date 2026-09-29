@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { getSessionUser } from "@/lib/access";
 import { signOut } from "@/lib/auth";
+import { EMAIL_CHANGE_MESSAGE } from "@/lib/email-change";
+import { confirmEmailChange, requestEmailChange } from "@/lib/email-change-store";
 import { prisma } from "@/lib/prisma";
 
 /** 수신 채널 스위치 하나. 누르는 즉시 저장한다 — 시안에 저장 버튼이 없다 */
@@ -16,6 +18,26 @@ export async function setChannel(channel: "email" | "alimtalk", on: boolean) {
     data: channel === "email" ? { notifyEmail: on } : { notifyAlimtalk: on },
   });
   revalidatePath("/settings");
+}
+
+export type EmailChangeState = { ok: boolean; error?: string; sentTo?: string };
+
+/** 이메일 변경 ① — 새 주소로 인증 코드를 보낸다 */
+export async function sendEmailCode(email: string): Promise<EmailChangeState> {
+  const user = await getSessionUser();
+  if (!user) return { ok: false };
+  const r = await requestEmailChange({ id: user.id, email: user.email }, email);
+  return r.ok ? { ok: true, sentTo: r.email } : { ok: false, error: EMAIL_CHANGE_MESSAGE[r.code] };
+}
+
+/** 이메일 변경 ② — 코드가 맞으면 바꾼다 */
+export async function confirmEmailCode(code: string): Promise<EmailChangeState> {
+  const user = await getSessionUser();
+  if (!user) return { ok: false };
+  const r = await confirmEmailChange(user.id, code);
+  if (!r.ok) return { ok: false, error: EMAIL_CHANGE_MESSAGE[r.code] };
+  revalidatePath("/settings");
+  return { ok: true };
 }
 
 /*

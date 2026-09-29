@@ -72,3 +72,34 @@ export const NOTI_GATE_MISSED = {
     linkUrl: "/dashboard",
   },
 } as const;
+
+/**
+ * 마감 알림 — 페이즈 크론이 마감 전에 팀원마다 한 줄(deadline-remind.ts).
+ * 시안 알림센터 목업의 「s2 마감 D-1 · 랜딩, 수요조사 제출을 잊지 마세요.」와
+ * 「이번 주 활동 제출 D-2 · s4 주간 제출 마감이 다가와요.」가 정본이다. s5 문구는
+ * 목업에 없어 같은 꼴로 지었다(내가 정함, 윤서 확인 대기). 제목의 `{dday}`는
+ * 보내는 날의 D-day다.
+ *
+ * ⚠️ `key`로 중복을 거른다 — 같은 key의 알림을 최근 3일 안에 받았으면 다시 안 보낸다.
+ */
+export const NOTI_DEADLINE = {
+  type: "deadline",
+  s2: {
+    key: "s2 마감",
+    title: "s2 마감 {dday}",
+    body: "랜딩, 수요조사 제출을 잊지 마세요.",
+    linkUrl: "/dashboard/submit/s2",
+  },
+  s5: {
+    key: "s5 마감",
+    title: "s5 마감 {dday}",
+    body: "배포 URL을 제출하지 않으면 마감에 미통과 처리돼요.",
+    linkUrl: "/dashboard/submit/s3",
+  },
+  week: {
+    key: "이번 주 활동 제출",
+    title: "이번 주 활동 제출 {dday}",
+    body: "s4 주간 제출 마감이 다가와요.",
+    linkUrl: "/dashboard/submit/s4",
+  },
+} as const;

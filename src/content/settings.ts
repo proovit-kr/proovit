@@ -19,6 +19,8 @@ export const SETTINGS_ACCOUNT = {
   /** 시안은 카카오만 그렸다. 구글은 같은 모양의 회색 배지(내가 정함, 수연 확인 대기) */
   linked: { kakao: "카카오 연결됨", google: "구글 연결됨" },
   logout: "로그아웃",
+  /** 이메일 변경 — 시안에 없다(2026-09-29 수연 요청, 문안은 내가 정함) */
+  change: "변경",
   quit: "탈퇴하기",
 } as const;
 
@@ -27,4 +29,16 @@ export const SETTINGS_QUIT = {
   body: "시즌 진행 중 탈퇴하면 팀 참가가 함께 종료될 수 있어요. 기록은 운영 규정에 따라 보관 후 삭제돼요.",
   cancel: "취소",
   confirm: "탈퇴하기",
+} as const;
+
+/** 이메일 변경 — 시안에 없다. 문안은 내가 정함(윤서 확인 대기) */
+export const SETTINGS_EMAIL_CHANGE = {
+  newLabel: "새 이메일",
+  send: "인증 코드 받기",
+  sent: "{email} 주소로 6자리 코드를 보냈어요. 10분 안에 입력해 주세요.",
+  codeLabel: "인증 코드",
+  confirm: "변경하기",
+  resend: "코드 다시 받기",
+  cancel: "취소",
+  done: "이메일을 바꿨어요.",
 } as const;

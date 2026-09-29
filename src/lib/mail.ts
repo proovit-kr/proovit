@@ -94,6 +94,19 @@ function live(): boolean {
 }
 
 /**
+ * 닿을 수 없는 주소인가 — 예약 도메인(RFC 2606·6761). 시드와 개발 바의 계정이
+ * 이 주소를 쓴다(`@demo.proovit.local`, `@example.com`). 개발에서도 메일이 진짜
+ * 나가므로 그 팀을 판정하면 반송만 쌓이고, 반송률은 보내는 도메인의 평판이 된다.
+ */
+function undeliverable(to: string): boolean {
+  const domain = to.slice(to.lastIndexOf("@") + 1).toLowerCase();
+  return (
+    /(^|\.)example\.(com|net|org)$/.test(domain) ||
+    /\.(test|invalid|local|localhost|example)$/.test(domain)
+  );
+}
+
+/**
  * 이행 메일 한 통. 실패해도 예외를 던지지 않는다 — 부르는 쪽의 본래 작업
  * (접수 저장)이 메일 때문에 깨지면 안 된다. 실패는 로그로 남긴다.
  */
@@ -104,6 +117,10 @@ async function send(mail: {
   html: string;
 }): Promise<MailResult> {
   if (!configured()) return { ok: true, skipped: true };
+  if (undeliverable(mail.to)) {
+    console.info(`[mail] 받을 수 없는 주소라 보내지 않았습니다 → ${mail.to} / ${mail.subject}`);
+    return { ok: true, skipped: true };
+  }
   if (!live()) {
     /* 조용히 넘기지 않는다 — 「보낸 줄 알았는데 안 갔다」가 제일 나쁘다 */
     console.info(
@@ -434,20 +451,31 @@ function escapeHtml(s: string): string {
 }
 
 /**
- * 운영 공지 메일 — 공지 발송 화면(시안 `#scr-adm-noti`)의 「메일」 채널.
+ * 제목·본문·버튼 하나짜리 통지 메일 — 공지와 심사 결과가 이 모양이다. 본문은
+ * 운영자가 적은 글일 수 있어 이스케이프한다. `note`는 버튼 밑의 작은 한 줄.
  *
- * ⚠️ **이행 메일이다.** 공지 창구는 시즌 이행 통지 전용이라(notify-store.ts 머리
- * 주석) 여기도 그 몫만 싣는다. 참가팀 명단에 보내는 것이라 수신거부 링크 대신
- * 대시보드 알림센터 링크를 둔다 — 같은 공지가 인앱에도 남는다.
+ * ⚠️ 본문은 `<p>` 여는 태그에 바로 붙인다. 운영자 글의 줄바꿈을 살리려고
+ * `pre-line`을 걸었는데, 들여쓰기 줄을 띄우면 그 줄바꿈도 빈 줄로 보인다.
  */
-export async function sendNoticeMail(params: {
+function sendBrief(params: {
   email: string;
   title: string;
   body: string;
+  href: string;
+  cta: string;
+  note?: string;
 }): Promise<MailResult> {
-  const { email, title, body } = params;
-  const link = `${siteUrl()}/notifications`;
-  const text = [title, "", body, "", `알림센터: ${link}`, "", "PROOVIT | 문의: help@proovit.kr"].join("\n");
+  const { email, title, body, href, cta, note } = params;
+  const text = [
+    title,
+    "",
+    body,
+    "",
+    `${cta}: ${href}`,
+    ...(note ? ["", note] : []),
+    "",
+    "PROOVIT | 문의: help@proovit.kr",
+  ].join("\n");
   const html = shell(`
           <div style="font-size:17px;font-weight:800;letter-spacing:.06em;color:${INK}">
             PROO<span style="color:#8fc400">✓</span>IT
@@ -455,24 +483,84 @@ export async function sendNoticeMail(params: {
           <h1 style="margin:26px 0 0;font-size:21px;line-height:1.45;font-weight:800;color:${INK}">
             ${escapeHtml(title)}
           </h1>
-          <p style="margin:14px 0 0;font-size:15px;line-height:1.75;color:${MUTED};white-space:pre-line">
-            ${escapeHtml(body)}
-          </p>
+          <p style="margin:14px 0 0;font-size:15px;line-height:1.75;color:${MUTED};white-space:pre-line">${escapeHtml(body)}</p>
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 0">
             <tr><td style="border-radius:10px;background:${INK}">
-              <a href="${link}"
+              <a href="${href}"
                  style="display:inline-block;padding:13px 22px;font-size:14px;font-weight:700;
                         color:#ffffff;text-decoration:none;border-radius:10px;border:1px solid ${INK}">
-                알림센터에서 보기
+                ${cta}
               </a>
             </td></tr>
-          </table>
+          </table>${
+            note
+              ? `
+          <p style="margin:12px 0 0;font-size:12px;line-height:1.7;color:${MUTED}">
+            ${note}
+          </p>`
+              : ""
+          }
           <p style="margin:30px 0 0;padding-top:18px;border-top:1px solid ${LINE};
                     font-size:12px;line-height:1.8;color:${MUTED}">
             PROOVIT &nbsp;|&nbsp;
             문의: <a href="mailto:help@proovit.kr" style="color:${MUTED}">help@proovit.kr</a>
           </p>`);
   return send({ to: email, subject: `[PROOVIT] ${title}`, text, html });
+}
+
+/**
+ * 운영 공지 메일 — 공지 발송 화면(시안 `#scr-adm-noti`)의 「메일」 채널.
+ *
+ * ⚠️ **이행 메일이다.** 공지 창구는 시즌 이행 통지 전용이라(notify-store.ts 머리
+ * 주석) 여기도 그 몫만 싣는다. 참가팀 명단에 보내는 것이라 수신거부 링크 대신
+ * 대시보드 알림센터 링크를 둔다 — 같은 공지가 인앱에도 남는다.
+ *
+ * 계정 설정의 「메일」 스위치를 보지 않는다 — 그 스위치는 심사 결과와 마감 알림만
+ * 말한다(`sendAlertMails`). 일정 변경·결과 발표 같은 공지는 끈 사람에게도 가야
+ * 한다(2026-09-29 수연).
+ */
+export async function sendNoticeMail(params: {
+  email: string;
+  title: string;
+  body: string;
+}): Promise<MailResult> {
+  return sendBrief({
+    ...params,
+    href: `${siteUrl()}/notifications`,
+    cta: "알림센터에서 보기",
+  });
+}
+
+/** 심사 결과 통지 한 건 — content/notifications.ts의 `NOTI_JUDGMENT`·`NOTI_GATE_MISSED` 한 칸 */
+export type AlertNotice = { title: string; body: string; linkUrl: string };
+
+/**
+ * 심사 결과·마감 알림 메일 — 계정 설정 「메일: 심사 결과와 마감 알림을 메일로
+ * 받아요」(시안 `#scr-settings`)가 말하는 두 가지. 운영자 판정(judging-store)·게이트
+ * 미제출 탈락(gate-miss)·마감 알림(deadline-remind)이 인앱 통지와 **같은 글**로 보낸다.
+ *
+ * 받는 사람은 그 스위치를 켠 팀원뿐이다. 탈퇴한 계정은 주소가 비고 스위치도
+ * 꺼지므로(settings/actions.ts) 여기서 같이 빠진다.
+ *
+ * ⚠️ **이행 메일이다.** 판정 사실과 볼 곳만 싣는다.
+ * ⚠️ 트랜잭션이 닫힌 **뒤에** 부른다. 안에서 부르면 롤백돼도 메일은 이미 나갔다.
+ * 실패해도 던지지 않는다 — 판정은 인앱 통지로 이미 성립했다.
+ */
+export async function sendAlertMails(
+  members: { email: string | null; notifyEmail: boolean }[],
+  notice: AlertNotice,
+): Promise<void> {
+  for (const m of members) {
+    if (!m.notifyEmail || !m.email) continue;
+    await sendBrief({
+      email: m.email,
+      title: notice.title,
+      body: notice.body,
+      href: `${siteUrl()}${notice.linkUrl}`,
+      cta: "대시보드에서 보기",
+      note: "심사 결과와 마감 알림 메일은 계정 설정에서 끌 수 있어요.",
+    });
+  }
 }
 
 /**
@@ -542,4 +630,53 @@ export async function sendCreditMail(params: {
             문의: <a href="mailto:help@proovit.kr" style="color:${MUTED}">help@proovit.kr</a>
           </p>`);
   return send({ to: email, subject: `[PROOVIT] ${title}`, text, html });
+}
+
+/**
+ * 이메일 변경 인증 코드 — 계정 설정의 이메일 변경(lib/email-change.ts). **새 주소로**
+ * 간다. 이 코드를 넣어야 주소가 바뀐다.
+ *
+ * ⚠️ 이행 메일이다. 코드와 기한만 싣는다. 스위치(`notifyEmail`)와 무관하다 — 본인이
+ * 방금 요청한 것이다.
+ */
+export async function sendEmailChangeCode(params: {
+  email: string;
+  code: string;
+  minutes: number;
+}): Promise<MailResult> {
+  const { email, code, minutes } = params;
+  const title = "이메일 변경 인증 코드";
+  const text = [
+    title,
+    "",
+    `코드: ${code}`,
+    `${minutes}분 안에 계정 설정 화면에 입력해 주세요.`,
+    "",
+    "요청하지 않았다면 이 메일을 무시해 주세요. 주소는 바뀌지 않아요.",
+    "",
+    "PROOVIT | 문의: help@proovit.kr",
+  ].join("\n");
+  const html = shell(`
+          <div style="font-size:17px;font-weight:800;letter-spacing:.06em;color:${INK}">
+            PROO<span style="color:#8fc400">✓</span>IT
+          </div>
+          <h1 style="margin:26px 0 0;font-size:21px;line-height:1.45;font-weight:800;color:${INK}">
+            ${title}
+          </h1>
+          <p style="margin:14px 0 0;font-size:15px;line-height:1.75;color:${MUTED}">
+            ${minutes}분 안에 계정 설정 화면에 입력해 주세요.
+          </p>
+          <div style="margin:24px 0 0;padding:16px 0;border-top:1px solid ${LINE};border-bottom:1px solid ${LINE};
+                      font-family:monospace;font-size:30px;font-weight:700;letter-spacing:.3em;color:${INK}">
+            ${code}
+          </div>
+          <p style="margin:14px 0 0;font-size:12px;line-height:1.7;color:${MUTED}">
+            요청하지 않았다면 이 메일을 무시해 주세요. 주소는 바뀌지 않아요.
+          </p>
+          <p style="margin:30px 0 0;padding-top:18px;border-top:1px solid ${LINE};
+                    font-size:12px;line-height:1.8;color:${MUTED}">
+            PROOVIT &nbsp;|&nbsp;
+            문의: <a href="mailto:help@proovit.kr" style="color:${MUTED}">help@proovit.kr</a>
+          </p>`);
+  return send({ to: email, subject: `[PROOVIT] ${title} ${code}`, text, html });
 }
