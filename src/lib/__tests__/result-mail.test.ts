@@ -16,7 +16,7 @@ vi.mock("@/lib/prisma", () => ({
     entry: { findMany: vi.fn() },
   },
 }));
-vi.mock("@/lib/mail", () => ({ sendResultMails: vi.fn() }));
+vi.mock("@/lib/mail", () => ({ sendAlertMails: vi.fn() }));
 vi.mock("@/lib/admin-store", () => ({ writeAudit: vi.fn() }));
 vi.mock("@/lib/final-submit", () => ({ runFinalAutoSubmit: vi.fn() }));
 vi.mock("@/lib/dev-clock", () => ({
@@ -33,7 +33,7 @@ import {
 } from "@/generated/prisma/enums";
 import { runGateMiss } from "@/lib/gate-miss";
 import { judgeSubmission } from "@/lib/judging-store";
-import { sendResultMails } from "@/lib/mail";
+import { sendAlertMails } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 
 const MEMBERS = [
@@ -71,7 +71,7 @@ beforeEach(() => {
     return value;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as any);
-  vi.mocked(sendResultMails).mockImplementation(async () => {
+  vi.mocked(sendAlertMails).mockImplementation(async () => {
     mailAt.push(closed);
   });
 });
@@ -101,7 +101,7 @@ describe("운영자 판정", () => {
     });
 
     expect(r).toEqual({ ok: true });
-    expect(sendResultMails).toHaveBeenCalledWith(
+    expect(sendAlertMails).toHaveBeenCalledWith(
       MEMBERS.map((m) => m.user),
       NOTI_JUDGMENT.pass[1],
     );
@@ -118,7 +118,7 @@ describe("운영자 판정", () => {
     });
 
     expect(tx.notification.createMany).not.toHaveBeenCalled();
-    expect(sendResultMails).not.toHaveBeenCalled();
+    expect(sendAlertMails).not.toHaveBeenCalled();
   });
 
   it("결과가 뒤집히면 다시 보낸다", async () => {
@@ -130,7 +130,7 @@ describe("운영자 판정", () => {
       judgeId: "admin-1",
     });
 
-    expect(sendResultMails).toHaveBeenCalledWith(expect.any(Array), NOTI_JUDGMENT.pass[1]);
+    expect(sendAlertMails).toHaveBeenCalledWith(expect.any(Array), NOTI_JUDGMENT.pass[1]);
   });
 });
 
@@ -153,7 +153,7 @@ describe("게이트 미제출 탈락", () => {
     const r = await runGateMiss();
 
     expect(r.eliminated).toHaveLength(1);
-    expect(sendResultMails).toHaveBeenCalledWith(
+    expect(sendAlertMails).toHaveBeenCalledWith(
       MEMBERS.map((m) => m.user),
       NOTI_GATE_MISSED[1],
     );
@@ -165,6 +165,6 @@ describe("게이트 미제출 탈락", () => {
     const r = await runGateMiss();
 
     expect(r.raced).toBe(1);
-    expect(sendResultMails).not.toHaveBeenCalled();
+    expect(sendAlertMails).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 /*
-  메일의 받는 사람 거르기 — 심사 결과 메일(`sendResultMails`)과 닿을 수 없는 주소.
+  메일의 받는 사람 거르기 — 심사 결과 메일(`sendAlertMails`)과 닿을 수 없는 주소.
 
   돌리는 법:  npm test
   Resend는 부르지 않는다 — 테스트 환경은 mail.ts가 늘 막는다(`live`). 막히기 직전에
@@ -7,7 +7,7 @@
 */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { sendNoticeMail, sendResultMails } from "@/lib/mail";
+import { sendNoticeMail, sendAlertMails } from "@/lib/mail";
 
 const NOTICE = {
   title: "1차 심사 결과",
@@ -42,9 +42,9 @@ const reached = () =>
 const refused = () =>
   lines.filter((l) => l.includes("받을 수 없는 주소")).map((l) => l.split("→ ")[1].split(" /")[0]);
 
-describe("sendResultMails", () => {
+describe("sendAlertMails", () => {
   it("계정 설정 「메일」을 켠 팀원에게만 간다", async () => {
-    await sendResultMails(
+    await sendAlertMails(
       [
         { email: "leader@gmail.com", notifyEmail: true },
         { email: "mate@gmail.com", notifyEmail: false },
@@ -57,7 +57,7 @@ describe("sendResultMails", () => {
   });
 
   it("제목은 인앱 통지와 같다", async () => {
-    await sendResultMails([{ email: "leader@gmail.com", notifyEmail: true }], NOTICE);
+    await sendAlertMails([{ email: "leader@gmail.com", notifyEmail: true }], NOTICE);
     expect(lines[0]).toContain("[PROOVIT] 1차 심사 결과");
   });
 });

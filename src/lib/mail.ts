@@ -516,7 +516,7 @@ function sendBrief(params: {
  * 대시보드 알림센터 링크를 둔다 — 같은 공지가 인앱에도 남는다.
  *
  * 계정 설정의 「메일」 스위치를 보지 않는다 — 그 스위치는 심사 결과와 마감 알림만
- * 말한다(`sendResultMails`). 일정 변경·결과 발표 같은 공지는 끈 사람에게도 가야
+ * 말한다(`sendAlertMails`). 일정 변경·결과 발표 같은 공지는 끈 사람에게도 가야
  * 한다(2026-09-29 수연).
  */
 export async function sendNoticeMail(params: {
@@ -532,12 +532,12 @@ export async function sendNoticeMail(params: {
 }
 
 /** 심사 결과 통지 한 건 — content/notifications.ts의 `NOTI_JUDGMENT`·`NOTI_GATE_MISSED` 한 칸 */
-export type ResultNotice = { title: string; body: string; linkUrl: string };
+export type AlertNotice = { title: string; body: string; linkUrl: string };
 
 /**
- * 심사 결과 메일 — 계정 설정 「메일: 심사 결과와 마감 알림을 메일로 받아요」(시안
- * `#scr-settings`)의 심사 결과 몫. 운영자 판정(judging-store)과 게이트 미제출
- * 탈락(gate-miss)이 인앱 통지와 **같은 글**로 보낸다.
+ * 심사 결과·마감 알림 메일 — 계정 설정 「메일: 심사 결과와 마감 알림을 메일로
+ * 받아요」(시안 `#scr-settings`)가 말하는 두 가지. 운영자 판정(judging-store)·게이트
+ * 미제출 탈락(gate-miss)·마감 알림(deadline-remind)이 인앱 통지와 **같은 글**로 보낸다.
  *
  * 받는 사람은 그 스위치를 켠 팀원뿐이다. 탈퇴한 계정은 주소가 비고 스위치도
  * 꺼지므로(settings/actions.ts) 여기서 같이 빠진다.
@@ -546,9 +546,9 @@ export type ResultNotice = { title: string; body: string; linkUrl: string };
  * ⚠️ 트랜잭션이 닫힌 **뒤에** 부른다. 안에서 부르면 롤백돼도 메일은 이미 나갔다.
  * 실패해도 던지지 않는다 — 판정은 인앱 통지로 이미 성립했다.
  */
-export async function sendResultMails(
+export async function sendAlertMails(
   members: { email: string | null; notifyEmail: boolean }[],
-  notice: ResultNotice,
+  notice: AlertNotice,
 ): Promise<void> {
   for (const m of members) {
     if (!m.notifyEmail || !m.email) continue;
@@ -558,7 +558,7 @@ export async function sendResultMails(
       body: notice.body,
       href: `${siteUrl()}${notice.linkUrl}`,
       cta: "대시보드에서 보기",
-      note: "심사 결과 메일은 계정 설정에서 끌 수 있어요.",
+      note: "심사 결과와 마감 알림 메일은 계정 설정에서 끌 수 있어요.",
     });
   }
 }

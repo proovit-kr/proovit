@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { apiOk } from "@/lib/api";
 import { cronAuth } from "@/lib/cron-auth";
+import { runDeadlineReminders } from "@/lib/deadline-remind";
 import { runGateDeadlines } from "@/lib/gate-miss";
 import { runPhaseSchedule } from "@/lib/phase-schedule";
 
@@ -15,6 +16,7 @@ import { runPhaseSchedule } from "@/lib/phase-schedule";
   **뒤로는 절대 안 간다** — 수동으로 앞당기거나 되돌린 페이즈를 덮지 않는다.
 
   같은 실행이 **게이트 마감 처리**도 한다(`lib/gate-miss.ts` `runGateDeadlines`).
+  그 뒤에 **마감 알림**을 보낸다(`lib/deadline-remind.ts`).
     · s5 자동 제출(FR-H6, 2026-09-27) — 확인 버튼을 안 누른 레이스 팀의 s5를 제출로
     · 미제출 탈락(PLN7 1-3, 2026-09-28) — 게이트를 안 낸 팀을 탈락으로
   페이즈 전환보다 먼저 돈다. 둘 다 레이스 시즌만 보므로, 밀린 일정이 같은 실행에서
@@ -49,6 +51,8 @@ async function handle(request: NextRequest) {
   if (denied) return denied;
 
   const gates = await runGateDeadlines();
+  /* 마감 알림은 탈락 처리 **뒤다** — 방금 떨어진 팀에 「마감이 다가와요」를 보내지 않는다 */
+  const reminders = await runDeadlineReminders();
   const result = await runPhaseSchedule();
   if (
     result.transitions.length > 0 ||
@@ -57,7 +61,7 @@ async function handle(request: NextRequest) {
   ) {
     revalidatePath("/", "layout");
   }
-  return apiOk({ ...result, ...gates });
+  return apiOk({ ...result, ...gates, reminders });
 }
 
 /** Vercel 크론이 부르는 쪽 */

@@ -9,7 +9,7 @@ import {
 import { writeAudit } from "@/lib/admin-store";
 import { devNow } from "@/lib/dev-clock";
 import { runFinalAutoSubmit, type FinalAutoSubmitResult } from "@/lib/final-submit";
-import { sendResultMails } from "@/lib/mail";
+import { sendAlertMails } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { gateMissTarget } from "@/lib/submission";
 
@@ -30,7 +30,7 @@ import { gateMissTarget } from "@/lib/submission";
   팀원마다 알림을 한 줄씩 남긴다(`NOTI_GATE_MISSED`, 2026-09-28 수연 확정) — 운영자
   판정 통지와 같은 모양이다. 운영규칙 제9조③이 미통과를 통지하라고 하고, 제11조
   이의신청 기한이 「결과 통지 후 5영업일」이라 이 발송 시각이 그 기산점이다.
-  같은 글을 메일로도 보낸다(mail.ts `sendResultMails`) — 판정 통지와 같다.
+  같은 글을 메일로도 보낸다(mail.ts `sendAlertMails`) — 판정 통지와 같다.
 
   s5는 자동 제출(final-submit.ts)이 **먼저** 돈다(`runGateDeadlines`). 레이스를 시작한
   팀은 그때 냈고, 여기에 남는 것은 배포하지 않은 팀이다. 판정 함수도 자동 제출
@@ -115,7 +115,7 @@ async function eliminateOne(
   });
   if (!to) return false;
 
-  await sendResultMails(to, text);
+  await sendAlertMails(to, text);
   return true;
 }
 

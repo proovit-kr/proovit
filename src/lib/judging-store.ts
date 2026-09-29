@@ -14,7 +14,7 @@ import {
   REVISION_HOURS,
   type JudgingFailureCode,
 } from "@/lib/judging";
-import { sendResultMails } from "@/lib/mail";
+import { sendAlertMails } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { raceEndAt, teamRaceWindow } from "@/lib/race";
 
@@ -380,8 +380,8 @@ export async function judgeSubmission(args: {
     return { text, to: members.map((m) => m.user) };
   });
 
-  /* 같은 통지를 메일로도 — 트랜잭션 밖이다(mail.ts `sendResultMails`) */
-  if (mail) await sendResultMails(mail.to, mail.text);
+  /* 같은 통지를 메일로도 — 트랜잭션 밖이다(mail.ts `sendAlertMails`) */
+  if (mail) await sendAlertMails(mail.to, mail.text);
 
   return { ok: true };
 }
