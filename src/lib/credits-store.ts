@@ -12,6 +12,7 @@ import {
   EntryStage,
   EntryStatus,
   JudgmentResult,
+  NotifChannel,
   SeasonPhase,
   StageKey,
   SubmissionStatus,
@@ -28,6 +29,8 @@ import {
   type UnlockProgress,
   claimRefusal,
   creditCardState,
+  creditLapsed,
+  releaseDue,
   creditSeason,
   isAwardCard,
   isOpenedCard,
@@ -36,6 +39,7 @@ import {
   unlockedAt,
 } from "@/lib/credits";
 import { devNow } from "@/lib/dev-clock";
+import { sendCreditMail } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { notDeployed } from "@/lib/race";
 
@@ -143,6 +147,15 @@ export function deployVerifiedAt(
   return started > verified ? started : verified;
 }
 
+/**
+ * 게이트 1이 가려졌는가 — 통과해 진도가 s3 이상이거나, 탈락했다. C1을 보내는 때다
+ * (credits.ts `releaseDue`). 실격·포기 팀은 가려진 것으로 보지 않는다 — 보내지 않는다.
+ */
+export function gate1Settled(entry: { stage: EntryStage; status: EntryStatus }): boolean {
+  if (entry.status === EntryStatus.eliminated) return true;
+  return entry.status === EntryStatus.active && stageAtLeast(entry.stage, EntryStage.s3);
+}
+
 /** 일어났지만 언제인지 모르는 사건의 자리. 화면은 이 날짜를 안 그린다 */
 export const UNKNOWN_AT = new Date(0);
 
@@ -204,6 +217,8 @@ export type CreditCenterView = {
   total: number;
   /** 시상 기록. 시안 ⑦의 「🏆 우수상 이상 3팀 · 확정 11.03」 */
   award: { label: string; at: Date | null } | null;
+  /** 이 팀의 빌드 시작일 — 게이트 1을 통과한 때. C1의 「지급 시점」이 이 날짜다 */
+  buildStartAt: Date | null;
 };
 
 /**
@@ -261,6 +276,7 @@ export async function loadCreditCenter(args: {
 
   const offerByKind = new Map(offers.map((o) => [o.kind, o]));
   const claimByOffer = new Map(claims.map((c) => [c.offerId, c]));
+  const today = devNow();
 
   const cards = CREDIT_CARDS.map((spec): CreditCardView => {
     const offer = offerByKind.get(spec.kind) ?? null;
@@ -280,6 +296,7 @@ export async function loadCreditCenter(args: {
       unlocked,
       season,
       active: status === EntryStatus.active,
+      lapsed: creditLapsed(offer?.validUntil ?? null, today),
     });
 
     /*
@@ -325,6 +342,7 @@ export async function loadCreditCenter(args: {
     cards,
     opened: cards.filter((c) => isOpenedCard(c.state, c.unlocked)).length,
     total: cards.length,
+    buildStartAt: knownAt(progress.gate1Passed),
     award: award
       ? {
           /* 라벨은 리더보드와 같은 규칙(public-read `awardOf`) — 운영이 적은 것이 먼저다 */
@@ -361,7 +379,14 @@ export async function judgeCredit(args: {
   entryId: string;
   offerId: string;
 }): Promise<
-  | { ok: true; offer: IssueOffer; state: CreditCardState; active: boolean }
+  | {
+      ok: true;
+      offer: IssueOffer;
+      state: CreditCardState;
+      active: boolean;
+      /** 지금 보내도 되나 — 아니면 발급 예정으로 둔다(`issueCredit`) */
+      due: boolean;
+    }
   | { ok: false; code: "NOT_FOUND" }
 > {
   const { entryId, offerId } = args;
@@ -375,12 +400,13 @@ export async function judgeCredit(args: {
         status: true,
         deliveryMethod: true,
         releaseDate: true,
+        validUntil: true,
         season: { select: { phase: true } },
       },
     }),
     prisma.entry.findUnique({
       where: { id: entryId },
-      select: { seasonId: true, status: true },
+      select: { seasonId: true, status: true, stage: true },
     }),
     prisma.creditClaim.findUnique({
       where: { offerId_entryId: { offerId, entryId } },
@@ -393,6 +419,7 @@ export async function judgeCredit(args: {
 
   const progress = await loadUnlockProgress(entryId);
   const active = entry.status === EntryStatus.active;
+  const today = devNow();
   const state = creditCardState({
     kind: offer.kind,
     offerStatus: offer.status,
@@ -401,6 +428,7 @@ export async function judgeCredit(args: {
     unlocked: isUnlocked(CREDIT_CARD_BY_KIND[offer.kind].unlockEvent, progress),
     season: creditSeason(offer.season.phase),
     active,
+    lapsed: creditLapsed(offer.validUntil, today),
   });
   return {
     ok: true,
@@ -412,6 +440,12 @@ export async function judgeCredit(args: {
     },
     state,
     active,
+    due: releaseDue({
+      kind: offer.kind,
+      releaseDate: offer.releaseDate,
+      gate1Settled: gate1Settled(entry),
+      today,
+    }),
   };
 }
 
@@ -447,9 +481,10 @@ async function takeCode(
 /**
  * 한 팀에 카드 하나를 발급한다(트랜잭션 안에서만) — 받기·수동 발급·일괄 발송의 공통 몸통.
  *
- * 코드 풀이면 코드 하나를 붙인다. 지급 예정일이 남았으면 코드를 태우지 않고
- * 「발급 예정」으로 둔다 — 유효기간이 지급 시점부터 도는 탓이다(설계서 2장 「빌드
- * 시작 시점 지급」).
+ * 코드 풀이면 코드 하나를 붙인다. 아직 보낼 때가 아니면(`due` false — C1은 게이트 1
+ * 전, 그 밖은 지급 예정일 전, credits.ts `releaseDue`) 코드를 태우지 않고 「발급
+ * 예정」으로 둔다 — 유효기간이 지급 시점부터 도는 탓이다(설계서 2장 「빌드 시작
+ * 시점 지급」). 예정은 `releaseScheduledCredits`가 때가 되면 보낸다.
  *
  * **팀당 1회는 여기서 막는다.** 클레임 행을 「행이 없거나 발급 가능인 채」일 때만
  * 옮긴다(`updateMany`+조건, 없으면 `createMany`+`skipDuplicates`). 팀원 둘이 같은
@@ -464,15 +499,15 @@ export async function issueCredit(
     via: CreditDeliveredVia;
     /** 기록하는 시각 — 진짜 지금 */
     now: Date;
-    /** 예정일 판정 — 가정한 「오늘」(dev-clock 규칙) */
-    today: Date;
+    /** 지금 보내도 되나. 아니면 발급 예정으로 둔다 */
+    due: boolean;
   },
 ): Promise<
   | { ok: true; code: string | null; scheduled: boolean }
   | { ok: false; code: "SOLD_OUT" | "ALREADY_CLAIMED" }
 > {
-  const { offer, entryId, via, now, today } = args;
-  const scheduled = offer.releaseDate != null && offer.releaseDate > today;
+  const { offer, entryId, via, now } = args;
+  const scheduled = !args.due;
 
   let taken: { id: string; code: string } | null = null;
   if (!scheduled && offer.deliveryMethod === CreditDelivery.code_pool) {
@@ -514,17 +549,15 @@ export async function issueCredit(
  * 크레딧 받기.
  *
  * 판정은 화면과 같은 함수로 다시 하고(`judgeCredit`), 발급은 운영자 발급과 같은
- * 몸통으로 한다(`issueCredit`).
- *
- * 시즌1은 수동 경로로도 같은 결과가 나와야 한다(설계서 2장 「수동 대체 가능」).
- * 그래서 발송 자체는 여기서 하지 않는다 — 상태만 옮기고 실제 이메일은 운영자가
- * 보내거나 P1에서 붙는다. 상태와 발송을 묶어 두면 메일이 안 나갔을 때
- * 되돌릴 수 없는 상태만 남는다.
+ * 몸통으로 한다(`issueCredit`). 발급이 되면 **팀에 메일과 인앱으로 알린다**
+ * (`noticeCreditDelivered`, 트랜잭션 밖). 화면이 「받기를 누르면 이메일로도
+ * 보내드려요」라고 약속하는데 메일을 안 보내던 때가 있었다(2026-09-30 감사).
+ * 메일이 실패해도 발급은 그대로다 — 코드는 화면에 선다.
  */
 export async function claimCredit(args: {
   entryId: string;
   offerId: string;
-}): Promise<CreditResult> {
+}): Promise<{ ok: true; scheduled: boolean } | { ok: false; code: CreditFailureCode }> {
   const judged = await judgeCredit(args);
   if (!judged.ok) return judged;
 
@@ -537,13 +570,186 @@ export async function claimCredit(args: {
     issueCredit(tx, {
       offer: judged.offer,
       entryId: args.entryId,
-      /* 시즌1 P0는 운영자가 보낸다. 자동 발송이 붙으면 email로 바뀐다 */
-      via: CreditDeliveredVia.manual,
+      via: CreditDeliveredVia.email,
       now: new Date(),
-      today: devNow(),
+      due: judged.due,
     }),
   );
-  return result.ok ? { ok: true } : result;
+  if (!result.ok) return result;
+  if (!result.scheduled) {
+    await noticeCreditDelivered({
+      offerId: judged.offer.id,
+      deliveries: [{ entryId: args.entryId, code: result.code }],
+    });
+  }
+  return { ok: true, scheduled: result.scheduled };
+}
+
+/**
+ * 발급 예정을 보낸다 — 때가 된 것만(credits.ts `releaseDue`). C1은 그 팀의 게이트 1이
+ * 가려졌을 때, 그 밖은 지급 예정일이 왔을 때.
+ *
+ * 부르는 곳 셋. 게이트 1 판정 직후(judging-store, 그 팀만), 게이트 마감 처리 직후
+ * (페이즈 크론·개발 바 「마감」 줄), 그리고 페이즈 크론이 15분마다 전체를 한 번.
+ * 크론이 그물이고 앞의 둘은 기다리지 않게 하는 것이다. 여러 번 불러도 같다 —
+ * 「아직 발급 예정인 그 행」을 옮긴 쪽만 가져간다.
+ *
+ * 카드가 활성이 아니거나 유효기간이 지났으면 보내지 않는다(화면도 그 카드를 「만료」로
+ * 그린다). 코드가 모자라면 그 팀은 예정으로 남고 다음 번에 다시 본다.
+ */
+export async function releaseScheduledCredits(
+  args: { entryIds?: string[] } = {},
+): Promise<{ released: number; soldOut: number }> {
+  const today = devNow();
+  const claims = await prisma.creditClaim.findMany({
+    where: {
+      status: CreditClaimStatus.scheduled,
+      offer: { status: CreditOfferStatus.active },
+      ...(args.entryIds ? { entryId: { in: args.entryIds } } : {}),
+    },
+    select: {
+      id: true,
+      entryId: true,
+      offer: {
+        select: { id: true, kind: true, deliveryMethod: true, releaseDate: true, validUntil: true },
+      },
+      entry: { select: { stage: true, status: true } },
+    },
+  });
+
+  const byOffer = new Map<string, { entryId: string; code: string | null }[]>();
+  let soldOut = 0;
+  for (const claim of claims) {
+    const { offer } = claim;
+    if (creditLapsed(offer.validUntil, today)) continue;
+    const due = releaseDue({
+      kind: offer.kind,
+      releaseDate: offer.releaseDate,
+      gate1Settled: gate1Settled(claim.entry),
+      today,
+    });
+    if (!due) continue;
+
+    const out = await prisma.$transaction(async (tx) => {
+      const taken =
+        offer.deliveryMethod === CreditDelivery.code_pool ? await takeCode(tx, offer.id) : null;
+      if (offer.deliveryMethod === CreditDelivery.code_pool && !taken) return "sold_out" as const;
+      const moved = await tx.creditClaim.updateMany({
+        where: { id: claim.id, status: CreditClaimStatus.scheduled },
+        data: {
+          status: CreditClaimStatus.delivered,
+          deliveredAt: new Date(),
+          deliveredVia: CreditDeliveredVia.email,
+          ...(taken ? { creditCodeId: taken.id } : {}),
+        },
+      });
+      if (moved.count === 0) {
+        /* 다른 실행이 먼저 보냈다 — 집어 둔 코드를 되돌린다 */
+        if (taken) {
+          await tx.creditCode.update({
+            where: { id: taken.id },
+            data: { status: CreditStatus.issued },
+          });
+        }
+        return null;
+      }
+      return { code: taken?.code ?? null };
+    });
+    if (out === "sold_out") {
+      soldOut += 1;
+      continue;
+    }
+    if (!out) continue;
+    const list = byOffer.get(offer.id) ?? [];
+    list.push({ entryId: claim.entryId, code: out.code });
+    byOffer.set(offer.id, list);
+  }
+
+  let released = 0;
+  for (const [offerId, deliveries] of byOffer) {
+    released += deliveries.length;
+    await noticeCreditDelivered({ offerId, deliveries });
+  }
+  return { released, soldOut };
+}
+
+/** 「C1 빌더 크레딧이」 — 카드 이름 끝 글자의 받침으로 조사를 고른다 */
+function subjectJosa(word: string): string {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  if (code < 0 || code > 11171) return "이(가)";
+  return code % 28 === 0 ? "가" : "이";
+}
+
+/**
+ * 발급을 팀에 알린다 — 팀원마다 인앱 한 줄과 메일 한 통(코드·링크·기한·적용 방법).
+ *
+ * 받기·수동 발급·일괄 발송·발급 예정 보내기가 전부 이것을 부른다. **트랜잭션 밖에서**
+ * 부른다 — 메일이 실패해도 발급은 되돌리지 않는다(코드는 화면에 선다).
+ *
+ * 메일은 이행 메일이라 알림 스위치(`notify_email`)와 무관하다(mail.ts `sendCreditMail`).
+ * 돌려주는 것은 메일을 한 통이라도 못 보낸 팀의 id — 운영 화면이 팀 이름으로 알린다.
+ */
+export async function noticeCreditDelivered(args: {
+  offerId: string;
+  deliveries: { entryId: string; code: string | null }[];
+}): Promise<{ mailFailed: string[] }> {
+  if (args.deliveries.length === 0) return { mailFailed: [] };
+  const offer = await prisma.creditOffer.findUniqueOrThrow({
+    where: { id: args.offerId },
+    select: {
+      kind: true,
+      deliveryMethod: true,
+      inviteUrl: true,
+      validUntil: true,
+      redeemNote: true,
+      sponsor: { select: { name: true } },
+    },
+  });
+  const card = CREDIT_CARD_BY_KIND[offer.kind];
+  const cardName = `${card.code} ${card.title}`;
+  const members = await prisma.teamMember.findMany({
+    where: {
+      team: { entries: { some: { id: { in: args.deliveries.map((d) => d.entryId) } } } },
+    },
+    select: {
+      userId: true,
+      user: { select: { email: true } },
+      team: { select: { entries: { select: { id: true } } } },
+    },
+  });
+  const deliveryOf = (m: (typeof members)[number]) =>
+    args.deliveries.find((d) => m.team.entries.some((e) => e.id === d.entryId));
+
+  const now = new Date();
+  await prisma.notification.createMany({
+    data: members.map((m) => ({
+      userId: m.userId,
+      type: "notice",
+      title: `${cardName} 발급`,
+      body: "혜택과 크레딧에서 코드와 적용 방법을 확인해요.",
+      linkUrl: "/dashboard/credits",
+      channel: NotifChannel.inapp,
+      sentAt: now,
+    })),
+  });
+
+  const failed = new Set<string>();
+  for (const m of members) {
+    const d = deliveryOf(m);
+    if (!d || !m.user.email) continue;
+    const r = await sendCreditMail({
+      email: m.user.email,
+      card: cardName,
+      josa: subjectJosa(card.title),
+      sponsor: offer.sponsor?.name ?? null,
+      code: d.code,
+      link: offer.deliveryMethod === CreditDelivery.invite_link ? offer.inviteUrl : null,
+      validUntil: offer.validUntil,
+      howto: offer.redeemNote,
+    });
+    if (!r.ok) failed.add(d.entryId);
+  }
+  return { mailFailed: [...failed] };
 }
 
 /**
@@ -753,6 +959,9 @@ export async function loadAdminCreditConsole(
   );
   const creditSeasonNow = creditSeason(season.phase);
   const now = devNow();
+  const lapsedOffer = new Set(
+    offers.filter((o) => creditLapsed(o.validUntil, now)).map((o) => o.id),
+  );
 
   const byId = new Map(offers.map((o) => [o.id, o]));
 
@@ -760,9 +969,10 @@ export async function loadAdminCreditConsole(
     const offer = offers.find((o) => o.kind === spec.kind);
     if (!offer) return [];
     const total = offer.codes.length;
-    const remaining = offer.codes.filter(
-      (c) => c.status === CreditStatus.issued,
-    ).length;
+    const issued = offer.codes.filter((c) => c.status === CreditStatus.issued).length;
+    /* 유효기간이 지난 카드의 남은 코드는 못 나간다 — 잔여가 아니라 만료로 센다 */
+    const lapsed = lapsedOffer.has(offer.id);
+    const remaining = lapsed ? 0 : issued;
     return [
       {
         id: offer.id,
@@ -788,7 +998,9 @@ export async function loadAdminCreditConsole(
           remaining,
           total,
           consumed: offer.codes.filter((c) => c.status === CreditStatus.claimed).length,
-          expired: offer.codes.filter((c) => c.status === CreditStatus.expired).length,
+          expired:
+            offer.codes.filter((c) => c.status === CreditStatus.expired).length +
+            (lapsed ? issued : 0),
         },
       },
     ];
@@ -826,6 +1038,7 @@ export async function loadAdminCreditConsole(
           unlocked,
           season: creditSeasonNow,
           active: entry.status === EntryStatus.active,
+          lapsed: offer ? lapsedOffer.has(offer.id) : false,
         });
         return { kind: spec.kind, ...adminCell(state, unlocked) };
       }),

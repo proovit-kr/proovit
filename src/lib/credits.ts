@@ -131,6 +131,42 @@ export function isUnlocked(
 }
 
 // ═════════════════════════════════════════════════════════════
+// 지급 시점과 유효기간
+// ═════════════════════════════════════════════════════════════
+
+const DAY_MS = 86_400_000;
+
+/**
+ * 유효기간이 지났는가. 유효기간은 날짜(그날 00:00 KST로 적힌다)이고 **그날 끝까지**
+ * 쓸 수 있다 — 「~ 11.30」이면 11.30 하루는 아직 쓴다.
+ */
+export function creditLapsed(validUntil: Date | null, today: Date): boolean {
+  return validUntil !== null && today.getTime() >= validUntil.getTime() + DAY_MS;
+}
+
+/**
+ * 발급 예정인 것을 지금 보내도 되나.
+ *
+ *   C1  그 팀의 **게이트 1이 가려졌을 때**(통과 또는 탈락). 설계서 2장은 「빌드
+ *       스테이지 개시일에 지급」이다 — 유효기간이 지급 시점부터 돌기 때문이다.
+ *       유동 게이트(2026-09-25) 뒤로 빌드는 팀마다 게이트 1을 통과한 때 시작하므로
+ *       달력 날짜 하나로는 이르거나 늦다(2026-09-30 수연 결정). 게이트 1에서 떨어진
+ *       팀도 받기를 눌러 둔 C1은 받는다 — 설계서 3장 「탈락 팀은 C1까지만 보유」,
+ *       시안 ⑥(테스터 전환, C1 발급 완료). `release_date`는 C1에 쓰지 않는다.
+ *   그 밖  지급 예정일(`release_date`)이 왔을 때. 없으면 바로.
+ */
+export function releaseDue(args: {
+  kind: CreditKind;
+  releaseDate: Date | null;
+  /** 게이트 1이 가려졌는가 — 통과해 진도가 s3 이상이거나 탈락했다 */
+  gate1Settled: boolean;
+  today: Date;
+}): boolean {
+  if (args.kind === CreditKind.c1) return args.gate1Settled;
+  return args.releaseDate === null || args.releaseDate.getTime() <= args.today.getTime();
+}
+
+// ═════════════════════════════════════════════════════════════
 // 시즌 구간 — 카드 상태를 가르는 셋째 축
 // ═════════════════════════════════════════════════════════════
 
@@ -185,6 +221,8 @@ export type CreditCardStateInput = {
   season: CreditSeason;
   /** 참가가 살아 있는가(`entries.status`가 active). 탈락·실격·포기면 false */
   active: boolean;
+  /** 카드의 유효기간이 지났는가(`creditLapsed`) */
+  lapsed: boolean;
 };
 
 /**
@@ -194,7 +232,10 @@ export type CreditCardStateInput = {
  *
  *   1. 시상 카드는 클레임 흐름 밖이다.
  *   2. 손에 들어온 발급 기록(예정·완료·확인·만료)은 카드가 어떻게 되든 남는다 —
- *      운영자가 카드를 협의 중으로 되돌려도 받은 코드는 받은 것이다.
+ *      운영자가 카드를 협의 중으로 되돌려도 받은 코드는 받은 것이다. 다만
+ *      유효기간이 지나면 받은 코드도 「만료」다(설계서 5장 「유효기간 종료 → 일괄
+ *      만료 처리」). 행을 고치지 않고 읽을 때 접는다 — 날짜가 지났다는 사실은
+ *      크론을 기다릴 까닭이 없다.
  *   3. 참가가 멈춘 팀(탈락·실격·포기)은 새로 받지 않는다 — 받은 것만 남고 나머지는
  *      「잠금」이다. 시안 ⑥(테스터 전환, C1만 받은 채 나머지 잠금)과 운영 표의
  *      실격 줄(「추가 발급 중지」, 안 받은 칸은 잠금)이 이 모양이다. 13 설계서
@@ -210,8 +251,8 @@ export type CreditCardStateInput = {
  * 카드를 받기가 내줬다(2026-09-30 감사).
  */
 export function creditCardState(input: CreditCardStateInput): CreditCardState {
-  const { kind, offerStatus, claimStatus, unlocked, season, active } = input;
-  const ended = offerStatus === CreditOfferStatus.ended || season === "over";
+  const { kind, offerStatus, claimStatus, unlocked, season, active, lapsed } = input;
+  const ended = offerStatus === CreditOfferStatus.ended || season === "over" || lapsed;
 
   /* 1) 시상 카드 */
   if (isAwardCard(kind)) {
@@ -225,11 +266,11 @@ export function creditCardState(input: CreditCardStateInput): CreditCardState {
   /* 2) 발급 기록이 있으면 그 상태가 곧 카드 상태다 */
   switch (claimStatus) {
     case CreditClaimStatus.scheduled:
-      return "scheduled";
+      return lapsed ? "expired" : "scheduled";
     case CreditClaimStatus.delivered:
-      return "delivered";
+      return lapsed ? "expired" : "delivered";
     case CreditClaimStatus.confirmed:
-      return "confirmed";
+      return lapsed ? "expired" : "confirmed";
     case CreditClaimStatus.expired:
       return "expired";
     default:
@@ -386,7 +427,7 @@ export type NextUnlockCard = {
 export type NextUnlock =
   /** ① 전부 협의 중 */
   | { kind: "pre" }
-  /** ③ 발급 예정 — 배포 예정일에 보낸다 */
+  /** ③ 발급 예정 — 지급 예정일에 보낸다. C1은 `at`이 비고 게이트 1을 통과하면 보낸다 */
   | { kind: "scheduled"; card: NextUnlockCard; at: Date | null }
   /**
    * ②④⑤ 다음에 열릴 카드. `via`는 그 앞에 「협의 중이라 폴백으로 열렸어요」로
@@ -431,8 +472,15 @@ export function nextUnlock(args: {
     return { kind: "pre" };
   }
 
+  /* C1은 날짜가 아니라 게이트 1이다(`releaseDue`) — 때를 비운다 */
   const scheduled = cards.find((c) => c.state === "scheduled");
-  if (scheduled) return { kind: "scheduled", card: scheduled, at: scheduled.releaseDate };
+  if (scheduled) {
+    return {
+      kind: "scheduled",
+      card: scheduled,
+      at: scheduled.kind === CreditKind.c1 ? null : scheduled.releaseDate,
+    };
+  }
 
   const via = cards.find((c) => c.state === "negotiating" && c.unlocked) ?? null;
   const next = cards.find((c) => c.state === "locked" || c.state === "award");

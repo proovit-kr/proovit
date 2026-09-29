@@ -7,7 +7,6 @@ import {
   CreditKind,
   CreditOfferStatus,
   CreditUnlockEvent,
-  NotifChannel,
 } from "@/generated/prisma/enums";
 import { canAccess, getSessionUser, loadAccessContext, loadViewerState } from "@/lib/access";
 import {
@@ -18,10 +17,8 @@ import {
   setSponsorLogo,
   uploadCreditCodes,
 } from "@/lib/admin-store";
-import { CREDIT_CARD_BY_KIND } from "@/lib/credits";
+import { noticeCreditDelivered } from "@/lib/credits-store";
 import { evidenceStorage } from "@/lib/evidence-storage";
-import { sendCreditMail } from "@/lib/mail";
-import { prisma } from "@/lib/prisma";
 
 /*
   스폰서 크레딧 쓰기 — 혜택 저장·상태 전환·로고 교체·코드 풀 업로드·수동 발급·일괄 발송.
@@ -188,43 +185,19 @@ export async function batchDeliver(_prev: SponsorActionState, formData: FormData
   const result = await batchDeliverCredits({ offerId, entryIds, actorId: gate.actorId });
   if (!result.ok) return { message: result.message };
 
-  const card = CREDIT_CARD_BY_KIND[offer.kind];
-  const members = await prisma.teamMember.findMany({
-    where: { team: { entries: { some: { id: { in: result.delivered.map((d) => d.entryId) } } } } },
-    select: { userId: true, user: { select: { email: true } }, team: { select: { entries: { select: { id: true } } } } },
+  /* 발급 예정(C1은 게이트 1 전)은 지금 알리지 않는다 — 보낼 때 알린다 */
+  const { mailFailed } = await noticeCreditDelivered({
+    offerId,
+    deliveries: result.delivered.filter((d) => !d.scheduled),
   });
-  const now = new Date();
-  await prisma.notification.createMany({
-    data: members.map((m) => ({
-      userId: m.userId,
-      type: "notice",
-      title: `${card.code} ${card.title} 발급`,
-      body: "혜택과 크레딧에서 코드와 적용 방법을 확인해요.",
-      linkUrl: "/dashboard/credits",
-      channel: NotifChannel.inapp,
-      sentAt: now,
-    })),
-  });
-  let mailFailed = 0;
-  for (const m of members) {
-    const d = result.delivered.find((x) => m.team.entries.some((e) => e.id === x.entryId));
-    if (!d || d.scheduled || !m.user.email) continue;
-    const r = await sendCreditMail({
-      email: m.user.email,
-      card: `${card.code} ${card.title}`,
-      sponsor: offer.sponsorName,
-      code: d.code,
-      link: offer.deliveryMethod === CreditDelivery.invite_link ? offer.inviteUrl : null,
-      validUntil: offer.validUntil,
-      howto: offer.redeemNote,
-    });
-    if (!r.ok) mailFailed += 1;
-  }
+  const failedTeams = view.claims
+    .filter((r) => mailFailed.includes(r.entryId))
+    .map((r) => r.teamName);
 
   revalidatePath("/", "layout");
   const notes = [
     result.soldOut ? "코드 풀이 비어 일부 팀은 보내지 못했습니다." : null,
-    mailFailed ? `메일 ${mailFailed}통은 보내지 못했습니다.` : null,
+    failedTeams.length ? `메일을 보내지 못한 팀: ${failedTeams.join(", ")}.` : null,
   ].filter(Boolean);
   return { done: Date.now(), ...(notes.length ? { message: notes.join(" ") } : {}) };
 }

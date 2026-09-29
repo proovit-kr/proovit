@@ -11,12 +11,14 @@ import {
   type CreditCardState,
   claimRefusal,
   creditCardState,
+  creditLapsed,
   creditSeason,
   creditValueTotal,
   creditsPane,
   isOpenedCard,
   maskCreditCode,
   nextUnlock,
+  releaseDue,
   sumCreditValues,
 } from "@/lib/credits";
 
@@ -28,6 +30,7 @@ const st = (over: Partial<Parameters<typeof creditCardState>[0]>) =>
     unlocked: false,
     season: "racing",
     active: true,
+    lapsed: false,
     ...over,
   });
 
@@ -69,11 +72,39 @@ describe("카드 상태 — 시안 일곱 판의 규칙", () => {
     expect(st({ claimStatus: CreditClaimStatus.scheduled, active: false })).toBe("scheduled");
     expect(st({ unlocked: true, active: false, season: "over" })).toBe("expired");
   });
+  it("유효기간이 지나면 받은 코드도 만료다 — 안 받은 카드는 못 받는다", () => {
+    expect(st({ claimStatus: CreditClaimStatus.delivered, lapsed: true })).toBe("expired");
+    expect(st({ claimStatus: CreditClaimStatus.confirmed, lapsed: true })).toBe("expired");
+    expect(st({ claimStatus: CreditClaimStatus.scheduled, lapsed: true })).toBe("expired");
+    expect(st({ unlocked: true, lapsed: true })).toBe("expired");
+  });
   it("시즌 구간", () => {
     expect(creditSeason(SeasonPhase.recruiting)).toBe("pre");
     expect(creditSeason(SeasonPhase.racing)).toBe("racing");
     expect(creditSeason(SeasonPhase.awarded)).toBe("over");
     expect(creditSeason(SeasonPhase.archived)).toBe("over");
+  });
+});
+
+describe("유효기간과 지급 시점", () => {
+  const kst = (x: string) => new Date(`${x}+09:00`);
+  it("유효기간 날짜는 그날 끝까지 쓴다", () => {
+    const until = kst("2026-11-30T00:00:00");
+    expect(creditLapsed(until, kst("2026-11-30T23:59:00"))).toBe(false);
+    expect(creditLapsed(until, kst("2026-12-01T00:00:00"))).toBe(true);
+    expect(creditLapsed(null, kst("2030-01-01T00:00:00"))).toBe(false);
+  });
+  it("C1은 달력이 아니라 그 팀의 게이트 1이다 — 통과든 탈락이든 가려지면 보낸다", () => {
+    const today = kst("2026-10-05T12:00:00");
+    const later = kst("2026-10-12T00:00:00");
+    expect(releaseDue({ kind: CreditKind.c1, releaseDate: later, gate1Settled: true, today })).toBe(true);
+    expect(releaseDue({ kind: CreditKind.c1, releaseDate: null, gate1Settled: false, today })).toBe(false);
+  });
+  it("그 밖의 카드는 지급 예정일이 오면", () => {
+    const today = kst("2026-10-05T12:00:00");
+    expect(releaseDue({ kind: CreditKind.c2, releaseDate: kst("2026-10-12T00:00:00"), gate1Settled: true, today })).toBe(false);
+    expect(releaseDue({ kind: CreditKind.c2, releaseDate: kst("2026-10-05T00:00:00"), gate1Settled: false, today })).toBe(true);
+    expect(releaseDue({ kind: CreditKind.c3, releaseDate: null, gate1Settled: false, today })).toBe(true);
   });
 });
 
@@ -160,7 +191,13 @@ describe("다음 언락", () => {
       season: "racing", eliminated: false, failedGate: 1,
       cards: [{ ...c1, ...at("scheduled", true), releaseDate: release }, { ...c2, ...at("locked", false) }, { ...c3, ...at("locked", false) }, { ...c4, ...at("award", false) }],
     });
-    expect(sched).toMatchObject({ kind: "scheduled", card: { code: "C1" }, at: release });
+    /* C1은 날짜가 아니라 게이트 1이다 — 때를 비운다 */
+    expect(sched).toMatchObject({ kind: "scheduled", card: { code: "C1" }, at: null });
+    const dated = nextUnlock({
+      season: "racing", eliminated: false, failedGate: 1,
+      cards: [{ ...c1, ...at("delivered", true) }, { ...c2, ...at("scheduled", true), releaseDate: release }, { ...c3, ...at("locked", false) }, { ...c4, ...at("award", false) }],
+    });
+    expect(dated).toMatchObject({ kind: "scheduled", card: { code: "C2" }, at: release });
     const race = nextUnlock({
       season: "racing", eliminated: false, failedGate: 1,
       cards: [{ ...c1, ...at("confirmed", true) }, { ...c2, ...at("delivered", true) }, { ...c3, ...at("negotiating", true) }, { ...c4, ...at("award", false) }],

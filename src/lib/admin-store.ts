@@ -13,8 +13,13 @@ import {
   Prisma,
 } from "@/generated/prisma/client";
 import { REASON_MIN } from "@/lib/admin";
-import type { CreditCardState } from "@/lib/credits";
-import { issueCredit, judgeCredit } from "@/lib/credits-store";
+import { type CreditCardState, releaseDue } from "@/lib/credits";
+import {
+  gate1Settled,
+  issueCredit,
+  judgeCredit,
+  noticeCreditDelivered,
+} from "@/lib/credits-store";
 import { fmtStamp } from "@/lib/header-state";
 import {
   LATE_ENTRY_BLOCK_MESSAGE,
@@ -938,14 +943,13 @@ export async function deliverCreditManually(args: {
     return { ok: false, message: MANUAL_REFUSAL[judged.state] ?? "지금은 보낼 수 없는 칸입니다." };
   }
 
-  const { devNow } = await import("@/lib/dev-clock");
   const out = await prisma.$transaction(async (tx) => {
     const r = await issueCredit(tx, {
       offer: judged.offer,
       entryId,
       via: CreditDeliveredVia.manual,
       now: new Date(),
-      today: devNow(),
+      due: judged.due,
     });
     if (!r.ok) return r;
     await writeAudit(tx, {
@@ -966,6 +970,16 @@ export async function deliverCreditManually(args: {
           ? "코드 풀이 비었습니다. CSV로 코드를 먼저 올려 주세요."
           : "이미 발급된 팀입니다.",
     };
+  }
+  /*
+    팀에 알린다 — 코드 풀이면 어느 코드가 나갔는지 운영자도 모른다(풀에서 집는다).
+    알리지 않으면 팀은 화면을 다시 열어야 안다.
+  */
+  if (!out.scheduled) {
+    await noticeCreditDelivered({
+      offerId: judged.offer.id,
+      deliveries: [{ entryId, code: out.code }],
+    });
   }
   return { ok: true };
 }
@@ -1007,16 +1021,33 @@ export async function batchDeliverCredits(args: {
 
   const { devNow } = await import("@/lib/dev-clock");
   const now = new Date();
+  const today = devNow();
+  /* 보낼 때인지는 팀마다 다르다 — C1은 그 팀의 게이트 1(credits.ts `releaseDue`) */
+  const entries = new Map(
+    (
+      await prisma.entry.findMany({
+        where: { id: { in: args.entryIds } },
+        select: { id: true, stage: true, status: true },
+      })
+    ).map((e) => [e.id, e]),
+  );
   return prisma.$transaction(async (tx) => {
     const delivered: { entryId: string; code: string | null; scheduled: boolean }[] = [];
     let soldOut = false;
     for (const entryId of args.entryIds) {
+      const entry = entries.get(entryId);
+      if (!entry) continue;
       const r = await issueCredit(tx, {
         offer,
         entryId,
         via: CreditDeliveredVia.email,
         now,
-        today: devNow(),
+        due: releaseDue({
+          kind: offer.kind,
+          releaseDate: offer.releaseDate,
+          gate1Settled: gate1Settled(entry),
+          today,
+        }),
       });
       /* 그 사이 팀이 직접 받았으면 건너뛴다 — 팀당 1회는 issueCredit이 지킨다 */
       if (!r.ok && r.code === "ALREADY_CLAIMED") continue;

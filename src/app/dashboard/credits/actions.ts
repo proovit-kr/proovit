@@ -53,7 +53,7 @@ export async function claimCreditAction(
   if (!result.ok) return { message: CREDIT_FAILURE_MESSAGE[result.code] };
 
   revalidatePath("/dashboard/credits");
-  return { done: CREDITS_TOAST.claimed };
+  return { done: result.scheduled ? CREDITS_TOAST.scheduled : CREDITS_TOAST.claimed };
 }
 
 export async function setAppliedAction(

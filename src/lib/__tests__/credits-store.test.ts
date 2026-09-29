@@ -11,8 +11,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: vi.fn(),
-    creditOffer: { findUnique: vi.fn() },
-    creditClaim: { findUnique: vi.fn() },
+    creditOffer: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
+    creditClaim: { findUnique: vi.fn(), findMany: vi.fn() },
+    teamMember: { findMany: vi.fn() },
+    notification: { createMany: vi.fn() },
     entry: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
     submission: { findFirst: vi.fn() },
     judgment: { findFirst: vi.fn() },
@@ -20,6 +22,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/dev-clock", () => ({ devNow: () => new Date("2026-10-20T12:00:00+09:00") }));
+vi.mock("@/lib/mail", () => ({ sendCreditMail: vi.fn(async () => ({ ok: true })) }));
 
 import {
   CreditClaimStatus,
@@ -41,7 +44,9 @@ import {
   gate1PassedAt,
   issueCredit,
   judgeCredit,
+  releaseScheduledCredits,
 } from "@/lib/credits-store";
+import { sendCreditMail } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -104,10 +109,16 @@ function seed(over: {
     status: CreditOfferStatus.active,
     deliveryMethod: CreditDelivery.code_pool,
     releaseDate: null,
+    validUntil: null,
     season: { phase: SeasonPhase.racing },
     ...over.offer,
   });
-  db.entry.findUnique.mockResolvedValue({ seasonId: "s-1", status: EntryStatus.active, ...over.entry });
+  db.entry.findUnique.mockResolvedValue({
+    seasonId: "s-1",
+    status: EntryStatus.active,
+    stage: EntryStage.s2,
+    ...over.entry,
+  });
   db.creditClaim.findUnique.mockResolvedValue(over.claim === undefined ? null : over.claim);
   db.entry.findUniqueOrThrow.mockResolvedValue({
     stage: EntryStage.s2,
@@ -146,6 +157,20 @@ describe("judgeCredit — 화면과 같은 판정", () => {
 describe("claimCredit — 받기", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("게이트 1 전의 C1은 발급 예정으로 적고 알리지 않는다", async () => {
+    seed();
+    const tx = {
+      creditCode: { findFirst: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+      creditClaim: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        createMany: vi.fn(async () => ({ count: 1 })),
+      },
+    };
+    db.$transaction.mockImplementation((fn: (t: unknown) => unknown) => fn(tx));
+    expect(await claimCredit({ entryId: "e-1", offerId: "o-1" })).toEqual({ ok: true, scheduled: true });
+    expect(tx.creditCode.findFirst).not.toHaveBeenCalled();
+  });
+
   it("탈락·실격 팀은 새로 받지 못한다", async () => {
     seed({ entry: { status: EntryStatus.eliminated } });
     expect(await claimCredit({ entryId: "e-1", offerId: "o-1" })).toEqual({ ok: false, code: "INACTIVE" });
@@ -174,7 +199,7 @@ describe("issueCredit — 발급 몸통", () => {
     deliveryMethod: CreditDelivery.code_pool,
     releaseDate: null as Date | null,
   };
-  const args = { entryId: "e-1", via: CreditDeliveredVia.manual, now: NOW, today: NOW };
+  const args = { entryId: "e-1", via: CreditDeliveredVia.manual, now: NOW, due: true };
 
   const txOf = (over: {
     codes?: { id: string; code: string }[];
@@ -230,10 +255,106 @@ describe("issueCredit — 발급 몸통", () => {
     });
     expect(tx.creditClaim.createMany).not.toHaveBeenCalled();
   });
-  it("지급 예정일 전이면 코드를 태우지 않고 발급 예정으로 둔다", async () => {
+  it("보낼 때가 아니면 코드를 태우지 않고 발급 예정으로 둔다", async () => {
     const tx = txOf({});
-    const later = { ...offer, releaseDate: at("2026-10-26T00:00:00") };
-    expect(await issueCredit(tx as any, { offer: later, ...args })).toEqual({ ok: true, code: null, scheduled: true });
+    expect(await issueCredit(tx as any, { offer, ...args, due: false })).toEqual({ ok: true, code: null, scheduled: true });
     expect(tx.creditCode.findFirst).not.toHaveBeenCalled();
+    expect(tx.creditClaim.createMany.mock.calls[0][0].data[0]).toMatchObject({
+      status: CreditClaimStatus.scheduled,
+    });
+  });
+});
+
+describe("releaseScheduledCredits — 발급 예정 보내기", () => {
+  const c1 = {
+    id: "o-1",
+    kind: CreditKind.c1,
+    deliveryMethod: CreditDelivery.code_pool,
+    releaseDate: null,
+    validUntil: null as Date | null,
+  };
+  const row = (id: string, entry: { stage: EntryStage; status: EntryStatus }, offer = c1) => ({
+    id,
+    entryId: `e-${id}`,
+    offer,
+    entry,
+  });
+  let tx: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tx = {
+      creditCode: {
+        findFirst: vi.fn(async () => ({ id: "c-1", code: "RPL-1" })),
+        updateMany: vi.fn(async () => ({ count: 1 })),
+        update: vi.fn(),
+      },
+      creditClaim: { updateMany: vi.fn(async () => ({ count: 1 })) },
+    };
+    db.$transaction.mockImplementation((fn: (t: unknown) => unknown) => fn(tx));
+    db.creditOffer.findUniqueOrThrow.mockResolvedValue({
+      kind: CreditKind.c1,
+      deliveryMethod: CreditDelivery.code_pool,
+      inviteUrl: null,
+      validUntil: null,
+      redeemNote: null,
+      sponsor: { name: "Replit" },
+    });
+    db.teamMember.findMany.mockResolvedValue([
+      { userId: "u-1", user: { email: "a@gmail.com" }, team: { entries: [{ id: "e-pass" }] } },
+    ]);
+  });
+
+  it("게이트 1을 통과한 팀과 떨어진 팀의 C1을 보내고, 아직인 팀은 둔다", async () => {
+    db.creditClaim.findMany.mockResolvedValue([
+      row("pass", { stage: EntryStage.s3, status: EntryStatus.active }),
+      row("wait", { stage: EntryStage.s2, status: EntryStatus.active }),
+      row("fail", { stage: EntryStage.s2, status: EntryStatus.eliminated }),
+      row("dq", { stage: EntryStage.s3, status: EntryStatus.disqualified }),
+    ]);
+    expect(await releaseScheduledCredits()).toEqual({ released: 2, soldOut: 0 });
+    const moved = tx.creditClaim.updateMany.mock.calls.map((c: any) => c[0].where.id);
+    expect(moved).toEqual(["pass", "fail"]);
+    expect(tx.creditClaim.updateMany.mock.calls[0][0].data).toMatchObject({
+      status: CreditClaimStatus.delivered,
+      creditCodeId: "c-1",
+      deliveredVia: CreditDeliveredVia.email,
+    });
+    expect(db.notification.createMany).toHaveBeenCalledTimes(1);
+    expect(sendCreditMail).toHaveBeenCalledWith(
+      expect.objectContaining({ card: "C1 빌더 크레딧", josa: "이", code: "RPL-1", sponsor: "Replit" }),
+    );
+  });
+
+  it("유효기간이 지난 카드는 보내지 않는다", async () => {
+    db.creditClaim.findMany.mockResolvedValue([
+      row("pass", { stage: EntryStage.s3, status: EntryStatus.active }, {
+        ...c1,
+        validUntil: at("2026-10-01T00:00:00"),
+      }),
+    ]);
+    expect(await releaseScheduledCredits()).toEqual({ released: 0, soldOut: 0 });
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("코드가 모자라면 예정으로 남긴다", async () => {
+    tx.creditCode.findFirst.mockResolvedValue(null);
+    db.creditClaim.findMany.mockResolvedValue([
+      row("pass", { stage: EntryStage.s3, status: EntryStatus.active }),
+    ]);
+    expect(await releaseScheduledCredits()).toEqual({ released: 0, soldOut: 1 });
+    expect(tx.creditClaim.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("다른 실행이 먼저 보냈으면 집어 둔 코드를 되돌린다", async () => {
+    tx.creditClaim.updateMany.mockResolvedValue({ count: 0 });
+    db.creditClaim.findMany.mockResolvedValue([
+      row("pass", { stage: EntryStage.s3, status: EntryStatus.active }),
+    ]);
+    expect(await releaseScheduledCredits()).toEqual({ released: 0, soldOut: 0 });
+    expect(tx.creditCode.update).toHaveBeenCalledWith({
+      where: { id: "c-1" },
+      data: { status: CreditStatus.issued },
+    });
   });
 });

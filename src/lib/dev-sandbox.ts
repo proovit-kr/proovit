@@ -43,6 +43,7 @@ import {
   type CreditsPane,
   type UnlockProgress,
   creditCardState,
+  creditLapsed,
   creditSeason,
   creditsPane,
   isUnlocked,
@@ -51,6 +52,7 @@ import { devNow, setDevToday } from "@/lib/dev-clock";
 import { setDevHubKey } from "@/lib/dev-hub";
 import { EVIDENCE_KINDS, buildEvidenceKey, kindOfName } from "@/lib/evidence";
 import { evidenceStorage } from "@/lib/evidence-storage";
+import { releaseScheduledCredits } from "@/lib/credits-store";
 import { runGateDeadlines } from "@/lib/gate-miss";
 import {
   DEV_FILE_BYTES,
@@ -232,7 +234,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
             id: true,
             createdAt: true,
             phase: true,
-            creditOffers: { select: { kind: true, status: true } },
+            creditOffers: { select: { kind: true, status: true, validUntil: true } },
           },
         },
         raceStartedAt: true,
@@ -2496,6 +2498,8 @@ export async function setSandboxDeadline(args: {
   if (!stage?.closesAt) throw new Error(`[dev] ${gate} 마감이 비어 있습니다.`);
   setDevToday(new Date(stage.closesAt.getTime() + 15 * 60_000));
   await runGateDeadlines({ now: devNow(), entryIds: [entryId] });
+  /* 크론과 같은 순서 — 방금 떨어진 팀이 눌러 둔 C1을 보낸다 */
+  await releaseScheduledCredits({ entryIds: [entryId] });
 }
 
 export async function setSandboxSubmit(args: {
@@ -3082,7 +3086,7 @@ function creditsPaneOf(args: {
   s1Submitted: boolean;
   deployVerified: boolean;
   awarded: boolean;
-  offers: { kind: CreditKind; status: CreditOfferStatus }[];
+  offers: { kind: CreditKind; status: CreditOfferStatus; validUntil: Date | null }[];
   claims: { status: CreditClaimStatus; offer: { kind: CreditKind } }[];
 }): CreditsPane | null {
   const season = creditSeason(args.phase);
@@ -3096,8 +3100,8 @@ function creditsPaneOf(args: {
   };
   const cards = CREDIT_CARDS.map((spec) => {
     const unlocked = isUnlocked(spec.unlockEvent, progress);
-    const offerStatus =
-      args.offers.find((o) => o.kind === spec.kind)?.status ?? CreditOfferStatus.negotiating;
+    const offer = args.offers.find((o) => o.kind === spec.kind);
+    const offerStatus = offer?.status ?? CreditOfferStatus.negotiating;
     const claimStatus = args.claims.find((c) => c.offer.kind === spec.kind)?.status ?? null;
     return {
       kind: spec.kind,
@@ -3109,6 +3113,7 @@ function creditsPaneOf(args: {
         unlocked,
         season,
         active: args.status === EntryStatus.active,
+        lapsed: creditLapsed(offer?.validUntil ?? null, devNow()),
       }),
     };
   });

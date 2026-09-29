@@ -33,8 +33,14 @@ export const CREDITS_SUM = {
 export const CREDITS_NEXT = {
   /** ① 전부 협의 중 — 「₩0」이 mono */
   pre: ["스폰서 확정 전이에요. 지금은 ", "₩0", " 스타트 스택으로 같은 루트를 갈 수 있어요."],
-  /** ③ 발급 예정 — `{code}`는 카드 코드, 날짜가 mono */
-  scheduled: ["{code}은 빌드 시작일 ", "에 보내드려요"],
+  /**
+   * ③ 발급 예정. `{code}`는 카드 코드와 조사(「C1은」).
+   * C1은 팀마다 게이트 1을 통과한 때 보낸다(2026-09-30 수연 결정, lib/credits.ts
+   * `releaseDue`) — 시안의 「빌드 시작일 10.12에」는 달력 한 날짜라 쓰지 않는다.
+   * 그 밖의 카드는 지급 예정일이 mono다.
+   */
+  scheduledGate: "{code} 게이트 1을 통과하면 보내드려요",
+  scheduled: ["{code} ", "에 보내드려요"],
   /** ⑤ 협의 중인데 열림 — 다음 카드 문장 앞에 붙는다 */
   negotiatingOpen: "{code}는 스폰서 협의 중이라 폴백으로 열렸어요. ",
   /** ⑥ `{gate}`는 게이트 번호, `{code}`는 처음 잠긴 카드 */
@@ -66,8 +72,10 @@ export const CREDIT_CARD_TEXT = {
   negotiating: "협의 중",
   /** 「$75」 뒤 */
   worth: "상당",
-  /** 배포 예정일이 있을 때 앞에 붙는 말. C1만 그렇다(빌드 스테이지 개시일) */
+  /** C1의 지급 시점 앞에 붙는 말 — 그 팀의 빌드 시작일(게이트 1 통과)이 날짜다 */
   releaseLabel: "빌드 시작일",
+  /** C1인데 그 팀이 아직 게이트 1 전이다 — 날짜를 모른다 */
+  releaseGate: "게이트 1 통과 때",
   /** 배포 예정일이 없으면 사건이 곧 지급이다 */
   releaseImmediate: {
     [CreditUnlockEvent.s1_submitted]: "제출 즉시",
@@ -86,7 +94,10 @@ export const CREDIT_CARD_TEXT = {
   },
   lock: { claim: "크레딧 받기", cond: "조건 자세히" },
   sched: {
-    line: ["빌드 시작일 ", "에 이메일로 보내드려요"],
+    /** C1 — 날짜 대신 사건이다(위 `scheduledGate`와 같은 까닭) */
+    gate: "게이트 1을 통과하면 이메일로 보내드려요",
+    /** 그 밖 — 지급 예정일이 mono로 사이에 온다 */
+    line: ["", "에 이메일로 보내드려요"],
     mail: "받을 이메일 확인",
     when: "코드는 스폰서가 빌드 개시일에 맞춰 발급해요",
   },
@@ -115,6 +126,8 @@ export const CREDITS_FOOT = [
 
 export const CREDITS_TOAST = {
   claimed: "코드를 보냈어요, 이메일도 확인해 주세요",
+  /** 받기를 눌렀는데 아직 보낼 때가 아니다(C1은 게이트 1 전) */
+  scheduled: "발급 예정으로 적었어요, 보낼 때 이메일로 알려드려요",
   confirmed: "적용 확인됐어요",
   unconfirmed: "적용 확인을 취소했어요",
   copied: "코드를 복사했어요",
