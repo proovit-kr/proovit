@@ -315,11 +315,12 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
   },
   /*
     혜택. 진도 조건이 없다 — 시안 ①(협의 중, 폴백)이 모집 중에 그려진다.
-    플래그(credits)가 꺼져 있으면 메뉴가 숨고 404다. 제휴가 끝내 없으면 이 탭을
-    닫아 둔다(2026-09-30) — 무료 도구 조합은 스테이지 가이드가 안내한다(9회차 회의).
-    13 설계서 2장 「폴백 필수 출시」와는 다르다. 스폰서가 붙으면 켠다.
+    **플래그와 무관하게 연다.** 제휴가 없어도 폴백(0원 스타트 스택)을 보여 준다 —
+    13 설계서 2장 「폴백 필수 출시」, 시안 시즌 관리 「OFF면 폴백 카드만」(2026-09-30
+    수연 결정). 플래그(credits)는 스폰서 카드와 받기를 켜고 끄는 데만 쓴다
+    (credits-store `loadCreditCenter`·`judgeCredit`).
   */
-  dashboardCredits: { auth: "user", entry: true, flag: "credits" },
+  dashboardCredits: { auth: "user", entry: true },
   notifications: { auth: "user", flag: "notifications" },
   /** 계정 설정. 참가하지 않은 회원도 쓴다 */
   settings: { auth: "user" },

@@ -648,6 +648,36 @@ export function parseFallbackItems(raw: unknown): FallbackItem[] {
 // ═════════════════════════════════════════════════════════════
 
 /**
+ * 폴백 기본 목록 — 카드에 운영자가 적은 목록이 없을 때 쓴다. 제휴가 없어도 혜택 탭이
+ * 비지 않게 하려는 것이다(2026-09-30 수연 「제휴가 없을 때도 폴백 있게」).
+ *
+ * 항목은 13 크레딧 센터 설계서 3장 표의 「폴백(0원 스타트 스택)」 열이고, 이름이 같은
+ * 것에만 시안 CR_CARDS의 짧은 설명을 붙였다. 시안의 「한국어 사용 가이드 Ch.5」·「스레드
+ * 운영 가이드 Ch.6」은 옛 골든패스 장 번호라 지금 가이드(S0~S5)와 안 맞아 쓰지 않는다.
+ * C4는 폴백이 없다(설계서 「없음」) — 시안대로 「스폰서가 확정되면 표시돼요」 줄만 선다.
+ */
+export const CREDIT_FALLBACK: Record<CreditKind, readonly FallbackItem[]> = {
+  [CreditKind.c1]: [{ name: "빌더 무료 티어 가이드" }, { name: "무료 배포 경로" }],
+  [CreditKind.c2]: [
+    { name: "Vercel Hobby", note: "호스팅" },
+    { name: "Supabase Free", note: "DB와 인증" },
+    { name: "무료 API 티어 조합" },
+  ],
+  [CreditKind.c3]: [
+    { name: "GA4", note: "측정 연동으로 자동" },
+    { name: "Search Console", note: "색인 등록" },
+    { name: "Threads 운영 가이드" },
+  ],
+  [CreditKind.c4]: [],
+};
+
+/** 카드의 폴백 — 운영자가 적은 목록이 있으면 그것, 없으면 기본 목록 */
+export function fallbackItemsOf(kind: CreditKind, raw: unknown): FallbackItem[] {
+  const items = parseFallbackItems(raw);
+  return items.length ? items : [...CREDIT_FALLBACK[kind]];
+}
+
+/**
  * 발급 확인까지 끝난 코드는 가린다.
  *
  * 이미 쓴 코드라 화면에 통째로 띄워 둘 이유가 없다. 어깨 너머로 보이는 것도

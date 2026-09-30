@@ -252,12 +252,12 @@ check(
   "STAGE_LOCKED",
 );
 check(
-  "플래그 off — 크레딧 404",
+  "플래그 off여도 혜택 탭은 연다 — 폴백 카드만",
   canAccess(
     "dashboardCredits",
     ctx({ phase: SeasonPhase.racing, stage: EntryStage.s1 }),
   ),
-  "NOT_FOUND",
+  "ALLOW",
 );
 check(
   "진도 미달 — 지표 409",
