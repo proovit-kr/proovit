@@ -66,6 +66,11 @@ export default async function Page() {
   });
 
   const teamName = new Map(view.claims.map((r) => [r.entryId, r.teamName]));
+  /* 묶음 줄의 팀 — 「리틀포션 외 2팀」(시안 「새벽창고 외 8팀」) */
+  const teamsOf = (ids: unknown) => {
+    const names = (Array.isArray(ids) ? ids : []).map((id) => teamName.get(String(id)) ?? "팀");
+    return names.length > 1 ? `${names[0]} 외 ${names.length - 1}팀` : (names[0] ?? "팀");
+  };
   const statusLabel = (v: unknown) =>
     typeof v === "string" && v in OFFER_STATUS_LABEL
       ? OFFER_STATUS_LABEL[v as keyof typeof OFFER_STATUS_LABEL]
@@ -92,6 +97,18 @@ export default async function Page() {
           tag: { label: "확인", tone: "teal" },
         };
       }
+      /*
+        메일 실패 — 시스템 줄이지만 운영자가 할 일이 있어 빨간 「실패」로 단다.
+        내가 정함(수연 확인 대기): 시안의 꼬리표는 자동·수기·확인 셋뿐이다.
+      */
+      if (row.action === "credit.mail_failed") {
+        return {
+          at: row.createdAt,
+          who: "시스템",
+          text: `${code} 발급 메일 실패, ${teamsOf(m.entryIds)}, 칸을 눌러 재발송`,
+          tag: { label: "실패", tone: "red" },
+        };
+      }
       const text =
         row.action === "credit.codes_upload"
           ? `${code} 코드 풀 CSV ${m.added ?? m.submitted ?? 0}건 업로드, 사유: ${row.reason}`
@@ -100,7 +117,9 @@ export default async function Page() {
             : row.action === "credit.offer_create" || row.action === "credit.offer_update"
               ? `${code} 혜택 ${row.action === "credit.offer_create" ? "등록" : "수정"}, 사유: ${row.reason}`
               : row.action === "credit.deliver_manual"
-                ? `${code} 수동 발급${m.scheduled ? "(발급 예정)" : ""}, ${team}, 사유: ${row.reason}`
+                ? `${code} 수동 발급${m.manualCode ? ", 코드 입력" : ""}${m.scheduled ? "(발급 예정)" : ""}, ${team}, 사유: ${row.reason}`
+                : row.action === "credit.resend"
+                  ? `${code} 메일 재발송${m.failed ? "(실패)" : ""}, ${team}, 사유: ${row.reason}`
                 : row.action === "credit.batch"
                   ? batchLine(code, Number(m.teams ?? 0), Number(m.scheduled ?? 0))
                   : row.action === "credit.release"
@@ -174,10 +193,25 @@ export default async function Page() {
       <section className={`${s.pane} ${s.root}`} data-probe="sp-claims">
         <h3 className={s.paneHead}>팀별 발급 현황</h3>
         <ClaimsPane
-          offers={view.offers.map((o) => ({ id: o.id, kind: o.kind, status: o.status }))}
+          offers={view.offers.map((o) => ({
+            id: o.id,
+            kind: o.kind,
+            status: o.status,
+            deliveryMethod: o.deliveryMethod,
+          }))}
           rows={view.claims.map((r) => ({
             ...r,
             lastDeliveredAt: r.lastDeliveredAt ? fmtStamp(r.lastDeliveredAt) : null,
+            cells: r.cells.map((x) => ({
+              ...x,
+              detail: x.detail
+                ? {
+                    ...x.detail,
+                    deliveredAt: x.detail.deliveredAt ? fmtStamp(x.detail.deliveredAt) : null,
+                    mailFailedAt: x.detail.mailFailedAt ? fmtStamp(x.detail.mailFailedAt) : null,
+                  }
+                : null,
+            })),
           }))}
         />
       </section>

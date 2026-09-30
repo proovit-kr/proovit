@@ -12,6 +12,7 @@ import { canAccess, getSessionUser, loadAccessContext, loadViewerState } from "@
 import {
   batchDeliverCredits,
   deliverCreditManually,
+  resendCreditMail,
   saveCreditOffer,
   setCreditOfferStatus,
   setSponsorLogo,
@@ -22,7 +23,8 @@ import { noticeCreditDelivered } from "@/lib/credits-store";
 import { evidenceStorage } from "@/lib/evidence-storage";
 
 /*
-  스폰서 크레딧 쓰기 — 혜택 저장·상태 전환·로고 교체·코드 풀 업로드·수동 발급·일괄 발송.
+  스폰서 크레딧 쓰기 — 혜택 저장·상태 전환·로고 교체·코드 풀 업로드·수동 발급·일괄 발송·
+  메일 재발송.
 
   ⚠️ 전부 판정을 다시 한다. 화면이 버튼을 안 그렸다는 사실은 아무것도 막지
   않는다(admin/entries/actions.ts와 같은 규칙). enum은 값 목록에 대조해서 통과한
@@ -203,6 +205,13 @@ export async function uploadCodes(_prev: SponsorActionState, formData: FormData)
   };
 }
 
+/*
+  보낸 뒤 표 위에 남길 한 줄 — 수동 발급·재발송. 내가 정함(수연 확인 대기): 시안에 없는
+  자리라 일괄 발송의 결과 줄과 같은 말투로 적는다. 메일이 실패하면 칸에도 「메일 실패」가 선다.
+*/
+/** 발급 예정이 언제 나가는지 — 카드마다 다르다(C1은 그 팀의 게이트 1, 그 밖은 지급 예정일) */
+const releaseWhen = (kind: CreditKind) => (kind === CreditKind.c1 ? "게이트 1이 가려지면" : "지급 예정일에");
+
 export async function deliverManually(_prev: SponsorActionState, formData: FormData): Promise<SponsorActionState> {
   const gate = await guard();
   if ("error" in gate) return { message: gate.error };
@@ -211,9 +220,44 @@ export async function deliverManually(_prev: SponsorActionState, formData: FormD
   const entryId = String(formData.get("entryId") ?? "");
   if (!offerId || !entryId) return { message: "잘못된 요청입니다." };
   const result = await deliverCreditManually({
-    offerId, entryId, reason: String(formData.get("reason") ?? ""), actorId: gate.actorId,
+    offerId,
+    entryId,
+    reason: String(formData.get("reason") ?? ""),
+    actorId: gate.actorId,
+    code: String(formData.get("code") ?? ""),
   });
-  return result.ok ? done() : { message: result.message };
+  if (!result.ok) return { message: result.message };
+  return {
+    ...done(),
+    notice: result.scheduled
+      ? `발급 예정으로 적었습니다(${releaseWhen(result.kind)} 나갑니다).`
+      : result.mailFailed
+        ? "발급했지만 메일을 보내지 못했습니다. 칸을 눌러 재발송해 주세요."
+        : "보냈습니다. 팀에 메일과 알림이 나갔습니다.",
+  };
+}
+
+/** 발급 메일 재발송 — 같은 코드를 같은 메일로. 상태는 안 바뀐다 */
+export async function resendMail(_prev: SponsorActionState, formData: FormData): Promise<SponsorActionState> {
+  const gate = await guard();
+  if ("error" in gate) return { message: gate.error };
+  if (!gate.creditsOn) return { message: CREDITS_OFF };
+  const offerId = String(formData.get("offerId") ?? "");
+  const entryId = String(formData.get("entryId") ?? "");
+  if (!offerId || !entryId) return { message: "잘못된 요청입니다." };
+  const result = await resendCreditMail({
+    offerId,
+    entryId,
+    reason: String(formData.get("reason") ?? ""),
+    actorId: gate.actorId,
+  });
+  if (!result.ok) return { message: result.message };
+  return {
+    ...done(),
+    notice: result.mailFailed
+      ? "메일을 다시 보내지 못했습니다. 잠시 뒤 다시 눌러 주세요."
+      : "메일을 다시 보냈습니다.",
+  };
 }
 
 /**
@@ -253,8 +297,7 @@ export async function batchDeliver(_prev: SponsorActionState, formData: FormData
   revalidatePath("/", "layout");
   const sent = result.delivered.filter((d) => !d.scheduled).length;
   const later = result.delivered.length - sent;
-  /* 예정이 언제 나가는지는 카드마다 다르다 — C1은 그 팀의 게이트 1, 그 밖은 지급 예정일 */
-  const when = offer.kind === CreditKind.c1 ? "게이트 1이 가려지면" : "지급 예정일에";
+  const when = releaseWhen(offer.kind);
   const notes = [
     `${sent}팀에 보냈습니다.`,
     later ? `${later}팀은 발급 예정으로 적었습니다(${when} 나갑니다).` : null,

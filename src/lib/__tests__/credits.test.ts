@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CreditClaimStatus,
+  CreditDelivery,
   CreditKind,
   CreditOfferStatus,
   CreditUnlockEvent,
@@ -10,8 +11,10 @@ import {
 } from "@/generated/prisma/enums";
 import {
   type CreditCardState,
+  awaitingManualCode,
   claimRefusal,
   creditCardState,
+  creditTargetLabel,
   creditLapsed,
   creditSeason,
   creditValueTotal,
@@ -295,5 +298,24 @@ describe("코드 풀 업로드 — 글에서 코드만", () => {
   it("빈칸 섞인 값·빈 글은 거절한다", () => {
     expect(parseCodeList("RPL-1\n코드 발급 안내드립니다")).toMatchObject({ ok: false });
     expect(parseCodeList(" \n ")).toMatchObject({ ok: false });
+  });
+});
+
+describe("수동형 코드 대기 — 받아 뒀는데 운영자가 코드를 안 적었다", () => {
+  it("수동형·발급 예정·코드 없음일 때만", () => {
+    const base = { deliveryMethod: CreditDelivery.manual, claimStatus: CreditClaimStatus.scheduled, hasCode: false };
+    expect(awaitingManualCode(base)).toBe(true);
+    expect(awaitingManualCode({ ...base, hasCode: true })).toBe(false);
+    expect(awaitingManualCode({ ...base, deliveryMethod: CreditDelivery.code_pool })).toBe(false);
+    expect(awaitingManualCode({ ...base, claimStatus: CreditClaimStatus.delivered })).toBe(false);
+    expect(awaitingManualCode({ ...base, claimStatus: null })).toBe(false);
+  });
+});
+
+describe("감사 로그 대상 칸 — 시안 발송 이력의 「새벽창고 외 8팀」", () => {
+  it("팀 수에 따라", () => {
+    expect(creditTargetLabel(CreditKind.c1, [])).toBe("C1 빌더 크레딧");
+    expect(creditTargetLabel(CreditKind.c1, ["리틀포션"])).toBe("C1, 리틀포션");
+    expect(creditTargetLabel(CreditKind.c2, ["새벽창고", "a", "b"])).toBe("C2, 새벽창고 외 2팀");
   });
 });
