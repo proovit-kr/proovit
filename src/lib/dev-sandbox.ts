@@ -43,6 +43,7 @@ import {
   type CreditsPane,
   type UnlockProgress,
   creditCardState,
+  creditLapsed,
   creditSeason,
   creditsPane,
   isUnlocked,
@@ -51,6 +52,7 @@ import { devNow, setDevToday } from "@/lib/dev-clock";
 import { setDevHubKey } from "@/lib/dev-hub";
 import { EVIDENCE_KINDS, buildEvidenceKey, kindOfName } from "@/lib/evidence";
 import { evidenceStorage } from "@/lib/evidence-storage";
+import { releaseScheduledCredits } from "@/lib/credits-store";
 import { runGateDeadlines } from "@/lib/gate-miss";
 import {
   DEV_FILE_BYTES,
@@ -77,6 +79,7 @@ import { encryptSecret } from "@/lib/payment-crypto";
 import { devToolsEnabled } from "@/lib/dev-env";
 import { accountConsentRows } from "@/lib/account-consent";
 import { prisma } from "@/lib/prisma";
+import { notDeployed } from "@/lib/race";
 import { INVITE_TTL_DAYS } from "@/lib/team";
 import { generateCode } from "@/lib/team-store";
 
@@ -231,9 +234,10 @@ export async function loadSandboxState(): Promise<SandboxState> {
             id: true,
             createdAt: true,
             phase: true,
-            creditOffers: { select: { kind: true, status: true } },
+            creditOffers: { select: { kind: true, status: true, validUntil: true } },
           },
         },
+        raceStartedAt: true,
         hostname: { select: { deployStatus: true, ownershipVerifiedAt: true } },
         chargeType: true,
         integration: { select: { status: true } },
@@ -379,7 +383,7 @@ export async function loadSandboxState(): Promise<SandboxState> {
           s1Submitted: entry.submissions.some(
             (s) => s.stageKey === StageKey.s1 && s.status !== SubmissionStatus.draft,
           ),
-          deployVerified: entry.hostname?.ownershipVerifiedAt != null,
+          deployVerified: !notDeployed(entry, devNow()),
           awarded: entry.awards.length > 0,
           offers: entry.season.creditOffers,
           claims: entry.creditClaims,
@@ -1833,6 +1837,20 @@ export async function setSandboxHub(args: {
     }
   }
 
+  /*
+    게이트 1을 넘은 판인데 앞 판(h12)이 남긴 s2 미통과 판정이 있으면 지운다. 남으면
+    「s2의 마지막 판정이 통과」가 아니게 되어 C2가 잠긴다(credits-store `gate1PassedAt`).
+    운영에서는 통과해 s3이 된 팀의 마지막 판정이 미통과일 수 없다.
+  */
+  if (stageAtLeast(plan.stage, EntryStage.s3)) {
+    await prisma.judgment.deleteMany({
+      where: {
+        submission: { entryId, stageKey: StageKey.s2 },
+        result: { not: JudgmentResult.pass },
+      },
+    });
+  }
+
   /* 실격은 사유와 소명 기한이 있어야 헤더가 그것을 말할 수 있다 */
   await prisma.sanction.deleteMany({
     where: { entryId, stage: SanctionStage.disqualified },
@@ -2494,6 +2512,8 @@ export async function setSandboxDeadline(args: {
   if (!stage?.closesAt) throw new Error(`[dev] ${gate} 마감이 비어 있습니다.`);
   setDevToday(new Date(stage.closesAt.getTime() + 15 * 60_000));
   await runGateDeadlines({ now: devNow(), entryIds: [entryId] });
+  /* 크론과 같은 순서 — 방금 떨어진 팀이 눌러 둔 C1을 보낸다 */
+  await releaseScheduledCredits({ entryIds: [entryId] });
 }
 
 export async function setSandboxSubmit(args: {
@@ -2805,9 +2825,9 @@ export async function setSandboxInquiries(entryId: string, on: boolean): Promise
   ⚠️ **카드는 시즌의 것이다** — 이 줄을 누르면 그 시즌 참가팀 전부의 카드가
   바뀐다. dev DB라 괜찮다. 되돌리는 것은 `credits-state.mts`.
 
-  ⚠️ 허브 h2~h5·h12는 측정 연동이 검증된 팀이라 C3(배포 URL 검증)가 열려
-  버린다. 시안 ②③④⑥은 C3이 잠금이라 그 판에서는 검증을 되돌린다 — 시안의
-  전제가 「배포 검증은 s3에서 한다」이기 때문이다.
+  C3(배포 URL 검증)는 레이스를 시작해야(s3 제출) 열린다 — 리더보드의 「미배포」와
+  같은 정의다(credits-store `loadUnlockProgress`). 그래서 측정 연동을 끝낸 허브
+  h2~h5·h12에서도 C3는 잠금이고, 전처럼 그 판에서 검증을 되돌리지 않는다.
 */
 export type { CreditsPane } from "@/lib/credits";
 
@@ -2873,12 +2893,11 @@ export async function setSandboxCredits(args: {
   const { entryId, pane } = args;
 
   await setSandboxHub({ key: CREDITS_HUB[pane], entryId });
-  /* 시안 ②③④⑥의 C3은 잠금 — 배포 검증을 되돌린다(머리 주석) */
-  await setHostname(entryId, pane === "race" || pane === "end");
 
   const entry = await prisma.entry.findUniqueOrThrow({
     where: { id: entryId },
     select: {
+      stage: true,
       seasonId: true,
       season: {
         select: {
@@ -2889,6 +2908,14 @@ export async function setSandboxCredits(args: {
     },
   });
   const seasonId = entry.seasonId;
+  /*
+    게이트 1을 못 넘은 팀은 레이스를 시작했을 수 없다(s3 제출이 곧 시작, race.ts). 집계
+    픽스처가 레이스 시작을 시즌 전체에 심어 두므로 이 팀만 비운다 — 안 비우면 ⑥의 C3가
+    배포 검증으로 열린다(「마감」 줄의 s5miss와 같은 까닭).
+  */
+  if (!stageAtLeast(entry.stage, EntryStage.s3)) {
+    await prisma.entry.update({ where: { id: entryId }, data: { raceStartedAt: null } });
+  }
   const stageOf = (key: StageKey) => entry.season.stages.find((s) => s.stageKey === key);
   const endsAt = entry.season.endsAt ?? devNow();
   const day = (base: Date, days: number) => new Date(base.getTime() + days * 86_400_000);
@@ -3073,7 +3100,7 @@ function creditsPaneOf(args: {
   s1Submitted: boolean;
   deployVerified: boolean;
   awarded: boolean;
-  offers: { kind: CreditKind; status: CreditOfferStatus }[];
+  offers: { kind: CreditKind; status: CreditOfferStatus; validUntil: Date | null }[];
   claims: { status: CreditClaimStatus; offer: { kind: CreditKind } }[];
 }): CreditsPane | null {
   const season = creditSeason(args.phase);
@@ -3087,13 +3114,21 @@ function creditsPaneOf(args: {
   };
   const cards = CREDIT_CARDS.map((spec) => {
     const unlocked = isUnlocked(spec.unlockEvent, progress);
-    const offerStatus =
-      args.offers.find((o) => o.kind === spec.kind)?.status ?? CreditOfferStatus.negotiating;
+    const offer = args.offers.find((o) => o.kind === spec.kind);
+    const offerStatus = offer?.status ?? CreditOfferStatus.negotiating;
     const claimStatus = args.claims.find((c) => c.offer.kind === spec.kind)?.status ?? null;
     return {
       kind: spec.kind,
       unlocked,
-      state: creditCardState({ kind: spec.kind, offerStatus, claimStatus, unlocked, season }),
+      state: creditCardState({
+        kind: spec.kind,
+        offerStatus,
+        claimStatus,
+        unlocked,
+        season,
+        status: args.status,
+        lapsed: creditLapsed(offer?.validUntil ?? null, devNow()),
+      }),
     };
   });
   return creditsPane({ season, eliminated: args.status === EntryStatus.eliminated, cards });

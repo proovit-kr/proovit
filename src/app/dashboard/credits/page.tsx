@@ -17,9 +17,9 @@ import {
   CREDITS_UNLOCK,
   CREDIT_CARD_TEXT as T,
 } from "@/content/credits";
-import { CreditKind, EntryStage, EntryStatus } from "@/generated/prisma/enums";
+import { CreditKind, EntryStatus, StageKey } from "@/generated/prisma/enums";
 import { guardPage } from "@/lib/access";
-import { stageAtLeast } from "@/lib/access-policy";
+import { gateOf } from "@/lib/access-policy";
 import {
   type CreditCardState,
   creditBadge,
@@ -68,6 +68,11 @@ import styles from "./credits.module.css";
     · 시안 ⑦ 「받은 코드는 11.30까지」는 받은 코드 중 가장 이른 유효기간이다.
     · 게이트 1 통과의 「다음 언락」 문장은 시안에 없어 같은 꼴로 맞췄다(content).
     · 카드 본문(`.ds`)은 카드에 설명이 있을 때만 그린다.
+  시안과 일부러 다른 것(2026-09-30 수연 결정):
+    · C1의 지급 시점은 **그 팀의** 빌드 시작일(게이트 1을 통과한 날)이다 — 시안의
+      달력 날짜 「빌드 시작일 10.12」가 아니다(lib/credits.ts `releaseDue`). 게이트 1
+      전에는 「게이트 1 통과 때」이고, ③의 발급 예정 줄과 「다음 언락」에 날짜·D-day가
+      없다.
   `data-probe`·`data-state`는 대조 스크립트가 지금 어느 판인지 읽는 표식이다.
 */
 
@@ -97,6 +102,8 @@ const minute = (d: Date) => {
 };
 const dDay = (to: Date, from: Date) =>
   Math.max(0, Math.ceil((to.getTime() - from.getTime()) / 86_400_000));
+/** 카드 코드 뒤 주제 조사 — 영어로 읽는다(「씨원은」·「씨투는」, 시안 「C3는」) */
+const topic = (code: string) => `${code}${code === "C1" ? "은" : "는"}`;
 
 /** 시안 `st-*` 클래스 */
 const STATE_CLASS: Record<CreditCardState, string> = {
@@ -126,26 +133,35 @@ export default async function Page() {
     ? await loadCreditCenter({
         entryId: viewer.entry.id,
         seasonId: viewer.season.id,
-        stage: viewer.entry.stage,
         phase: viewer.season.phase,
+        status: viewer.entry.status,
       })
     : null;
 
   const eliminated = viewer.entry.status === EntryStatus.eliminated;
-  /* 못 넘은 게이트 — 진도가 s5에 닿았으면 2차, 아니면 1차 */
-  const failedGate = stageAtLeast(viewer.entry.stage, EntryStage.s5) ? 2 : 1;
+  /*
+    못 넘은 게이트 — 헤더·허브와 같은 규칙(access-policy `gateOf`). s5를 안 내고
+    떨어진 팀은 진도가 s3·s4인 채라 「진도가 s5면 2차」로는 1차로 읽혔다.
+  */
+  const failedGate = gateOf(viewer.entry.stage) === StageKey.s5 ? 2 : 1;
   const pane = view
     ? creditsPane({ season: view.season, eliminated, cards: view.cards })
     : null;
   const next = view
     ? nextUnlock({
         season: view.season,
+        active: viewer.entry.status === EntryStatus.active,
         eliminated,
         failedGate,
         cards: view.cards,
       })
     : null;
   const now = devNow();
+  /*
+    C1의 게이트 1이 가려졌는가(통과 또는 탈락) — 가려졌는데도 발급 예정이면 코드 풀이
+    빈 것이다. 그때 「게이트 1을 통과하면」이라고 말하면 틀린다.
+  */
+  const c1Settled = Boolean(view?.buildStartAt) || eliminated;
 
   return (
     <CreditsToast>
@@ -186,7 +202,7 @@ export default async function Page() {
               <Card>
                 <small>{CREDITS_SUM.next}</small>
                 <div className={styles.nx}>
-                  <Next next={next} />
+                  <Next next={next} c1Settled={c1Settled} />
                 </div>
               </Card>
             </div>
@@ -204,6 +220,8 @@ export default async function Page() {
                   card={card}
                   index={i}
                   award={view.award}
+                  buildStartAt={view.buildStartAt}
+                  c1Settled={c1Settled}
                   now={now}
                 />
               ))}
@@ -257,7 +275,8 @@ function Note({
     const text = (
       received.length ? CREDITS_NOTE.tester : CREDITS_NOTE.testerNone
     )
-      .replace("{gate}", String(failedGate))
+      /* 조사가 숫자를 따른다 — 「1을」·「2를」 */
+      .replace("{gate}", failedGate === 2 ? "2를" : "1을")
       .replace("{cards}", received.join(", "));
     return (
       <div
@@ -275,7 +294,13 @@ function Note({
 }
 
 /** 「다음 언락」 칸 — 시안 `nx` */
-function Next({ next }: { next: ReturnType<typeof nextUnlock> }) {
+function Next({
+  next,
+  c1Settled,
+}: {
+  next: ReturnType<typeof nextUnlock>;
+  c1Settled: boolean;
+}) {
   switch (next.kind) {
     case "pre":
       return (
@@ -286,19 +311,24 @@ function Next({ next }: { next: ReturnType<typeof nextUnlock> }) {
         </>
       );
     case "scheduled":
-      return (
+      return next.at ? (
         <>
-          {CREDITS_NEXT.scheduled[0].replace("{code}", next.card.code)}
-          {next.at ? <Mono>{day(next.at)}</Mono> : null}
+          {CREDITS_NEXT.scheduled[0].replace("{code}", topic(next.card.code))}
+          <Mono>{day(next.at)}</Mono>
           {CREDITS_NEXT.scheduled[1]}
         </>
+      ) : (
+        (c1Settled || next.card.kind !== CreditKind.c1
+          ? CREDITS_NEXT.scheduledReady
+          : CREDITS_NEXT.scheduledGate
+        ).replace("{code}", topic(next.card.code))
       );
     case "unlock": {
       const line = CREDITS_UNLOCK[next.card.unlockEvent];
       return (
         <>
           {next.via
-            ? CREDITS_NEXT.negotiatingOpen.replace("{code}", next.via.code)
+            ? CREDITS_NEXT.negotiatingOpen.replace("{code}", topic(next.via.code))
             : null}
           <b>{line.key}</b>
           {line.rest
@@ -326,6 +356,8 @@ function Next({ next }: { next: ReturnType<typeof nextUnlock> }) {
       ) : (
         CREDITS_NEXT.overNone
       );
+    case "closed":
+      return CREDITS_NEXT.closed;
     case "done":
       return CREDITS_NEXT.done;
   }
@@ -355,16 +387,25 @@ function CreditCard({
   card,
   index,
   award,
+  buildStartAt,
+  c1Settled,
   now,
 }: {
   card: CreditCardView;
   index: number;
   award: { label: string; at: Date | null } | null;
+  buildStartAt: Date | null;
+  c1Settled: boolean;
   now: Date;
 }) {
   const badge = creditBadge(card.state, card.unlocked);
   const pend = card.state === "negotiating";
   const awardCard = card.kind === CreditKind.c4;
+  /*
+    C1의 지급 시점은 그 팀의 빌드 시작일(게이트 1 통과)이다 — 카드의 지급 예정일이
+    아니다(credits.ts `releaseDue`). 게이트 1에서 떨어졌어도 받은 C1은 보낸 날로 적는다.
+  */
+  const c1At = card.kind === CreditKind.c1 ? (buildStartAt ?? card.deliveredAt) : null;
 
   return (
     <Card className={`${styles.cr} ${STATE_CLASS[card.state]}`} data-i={index}>
@@ -434,11 +475,15 @@ function CreditCard({
         </div>
         <div>
           <small>{T.meta.release}</small>
-          {card.releaseDate && card.kind === CreditKind.c1 ? (
-            <>
-              <span className={styles.k}>{T.releaseLabel}</span>{" "}
-              <b>{day(card.releaseDate)}</b>
-            </>
+          {card.kind === CreditKind.c1 ? (
+            c1At ? (
+              <>
+                <span className={styles.k}>{T.releaseLabel}</span>{" "}
+                <b>{day(c1At)}</b>
+              </>
+            ) : (
+              <span className={styles.k}>{T.releaseGate}</span>
+            )
           ) : (
             <span className={styles.k}>
               {card.releaseDate
@@ -457,7 +502,7 @@ function CreditCard({
         </div>
       </div>
 
-      <Body card={card} award={award} now={now} />
+      <Body card={card} award={award} c1Settled={c1Settled} now={now} />
     </Card>
   );
 }
@@ -466,10 +511,12 @@ function CreditCard({
 function Body({
   card,
   award,
+  c1Settled,
   now,
 }: {
   card: CreditCardView;
   award: { label: string; at: Date | null } | null;
+  c1Settled: boolean;
   now: Date;
 }) {
   const how = card.howtoUrl ? (
@@ -537,14 +584,19 @@ function Body({
         <>
           <div className={styles.sched}>
             <Icon name="clock" />
-            {T.sched.line[0]}
-            {card.releaseDate ? (
-              <b className="mono">{day(card.releaseDate)}</b>
-            ) : null}
-            {T.sched.line[1]}
-            {card.releaseDate ? (
-              <span className={styles.dd}>D-{dDay(card.releaseDate, now)}</span>
-            ) : null}
+            {card.kind === CreditKind.c1 && !c1Settled ? (
+              T.sched.gate
+            ) : card.kind === CreditKind.c1 || !card.releaseDate ? (
+              /* 보낼 때는 됐는데 아직 못 나갔다 — 코드 풀이 비었다(크론이 다시 본다) */
+              T.sched.ready
+            ) : (
+              <>
+                {T.sched.line[0]}
+                <b className="mono">{day(card.releaseDate)}</b>
+                {T.sched.line[1]}
+                <span className={styles.dd}>D-{dDay(card.releaseDate, now)}</span>
+              </>
+            )}
           </div>
           <div className={styles.act}>
             <a className={styles.lnk} href="/settings">
