@@ -34,6 +34,7 @@ import {
   creditLapsed,
   releaseDue,
   creditSeason,
+  fallbackItemsOf,
   isAwardCard,
   isOpenedCard,
   isUnlocked,
@@ -228,16 +229,22 @@ export type CreditCenterView = {
  * 혜택 탭 한 판.
  *
  * 카드 4장은 **항상** 4장이다. DB에 행이 없어도 자리를 비우지 않는다 — 운영자가
- * 아직 안 만든 카드도 협의 중 카드와 폴백으로 선다. (탭 자체는 크레딧 센터 플래그가
- * 켜져 있을 때만 열린다 — 제휴가 없으면 닫아 둔다, access-policy `dashboardCredits`.)
+ * 아직 안 만든 카드도 협의 중 카드와 폴백으로 선다.
+ *
+ * **크레딧 센터 플래그가 꺼져 있으면 폴백 카드만 선다**(시안 시즌 관리 「OFF면 폴백
+ * 카드만」, 13 설계서 2장 「폴백 필수 출시」). 탭은 플래그와 무관하게 열려 있고, 꺼진
+ * 동안은 카드를 모두 협의 중으로 읽어 스폰서·가치를 감춘다. 이미 받은 코드는 받은
+ * 것이라 그대로 선다(`creditCardState` 2번).
  */
 export async function loadCreditCenter(args: {
   entryId: string;
   seasonId: string;
   phase: SeasonPhase;
   status: EntryStatus;
+  /** 크레딧 센터 플래그(`credits`). 꺼져 있으면 폴백 카드만 */
+  creditsOn: boolean;
 }): Promise<CreditCenterView> {
-  const { entryId, seasonId, phase, status } = args;
+  const { entryId, seasonId, phase, status, creditsOn } = args;
   const season = creditSeason(phase);
 
   const [offers, claims, progress, award] = await Promise.all([
@@ -290,8 +297,11 @@ export async function loadCreditCenter(args: {
     /*
       카드가 DB에 없으면 협의 중으로 본다. 운영자가 아직 안 만든 것과 만들었는데
       스폰서가 안 붙은 것은 참가자에게 같은 상황이다 — 둘 다 "지금은 폴백"이다.
+      크레딧 센터가 꺼져 있을 때도 같다(폴백 카드만).
     */
-    const offerStatus = offer?.status ?? CreditOfferStatus.negotiating;
+    const offerStatus = creditsOn
+      ? (offer?.status ?? CreditOfferStatus.negotiating)
+      : CreditOfferStatus.negotiating;
     const state = creditCardState({
       kind: spec.kind,
       offerStatus,
@@ -308,6 +318,11 @@ export async function loadCreditCenter(args: {
     */
     const delivered = state === "delivered" || state === "confirmed";
     const codeValue = claim?.creditCode?.code ?? offer?.inviteUrl ?? null;
+    /*
+      꺼져 있는 동안은 스폰서·가치를 감춘다 — 아직 안 열린 혜택을 약속하는 모양이 된다.
+      받은 기록이 있는 카드는 그 스폰서의 것이라 그대로 둔다.
+    */
+    const sponsor = creditsOn || claim ? (offer?.sponsor ?? null) : null;
 
     return {
       kind: spec.kind,
@@ -319,16 +334,17 @@ export async function loadCreditCenter(args: {
       unlockedAt: at,
       state,
       offerId: offer?.id ?? null,
-      sponsorName: offer?.sponsor?.name ?? null,
-      sponsorMark: offer?.sponsor?.mark ?? null,
-      sponsorLogoUrl: offer?.sponsor?.logoUrl ?? null,
+      sponsorName: sponsor?.name ?? null,
+      sponsorMark: sponsor?.mark ?? null,
+      sponsorLogoUrl: sponsor?.logoUrl ?? null,
       description: offer?.description ?? null,
-      value: offer?.value ?? null,
+      value: creditsOn || claim ? (offer?.value ?? null) : null,
       releaseDate: offer?.releaseDate ?? null,
       validUntil: offer?.validUntil ?? null,
       deliveryMethod: offer?.deliveryMethod ?? null,
       fallbackUrl: offer?.fallbackUrl ?? null,
-      fallbackItems: parseFallbackItems(offer?.fallbackItems),
+      /* 운영자가 적은 목록이 없으면 설계서의 기본 목록 — 제휴가 없어도 폴백이 선다 */
+      fallbackItems: fallbackItemsOf(spec.kind, offer?.fallbackItems),
       howtoUrl: offer?.howtoUrl ?? null,
       redeemNote: offer?.redeemNote ?? null,
       code_:
@@ -406,7 +422,7 @@ export async function judgeCredit(args: {
         deliveryMethod: true,
         releaseDate: true,
         validUntil: true,
-        season: { select: { phase: true } },
+        season: { select: { phase: true, featureFlags: true } },
       },
     }),
     prisma.entry.findUnique({
@@ -427,7 +443,10 @@ export async function judgeCredit(args: {
   const today = devNow();
   const state = creditCardState({
     kind: offer.kind,
-    offerStatus: offer.status,
+    /* 크레딧 센터가 꺼져 있으면 화면이 폴백 카드만 그린다 — 받기도 같게 협의 중으로 읽는다 */
+    offerStatus: parseFeatureFlags(offer.season.featureFlags).credits
+      ? offer.status
+      : CreditOfferStatus.negotiating,
     claimStatus: claim?.status ?? null,
     /* 조건은 카탈로그의 것이다 — 운영 편집 카드의 unlock_event가 아니다(화면과 같게) */
     unlocked: isUnlocked(CREDIT_CARD_BY_KIND[offer.kind].unlockEvent, progress),
@@ -695,8 +714,8 @@ export async function releaseScheduledCredits(
   for (const claim of claims) {
     const { offer } = claim;
     /*
-      크레딧 센터가 꺼진 시즌은 보내지 않는다 — 참가자의 혜택 화면이 404라 받은 코드를
-      못 보고 알림 링크도 404다(운영 콘솔 발급과 같은 규칙). 켜지면 다음 크론이 보낸다.
+      크레딧 센터가 꺼진 시즌은 보내지 않는다 — 꺼진 동안 참가자 화면은 폴백 카드만 그린다
+      (운영 콘솔 발급과 같은 규칙). 켜지면 다음 크론이 보낸다.
       끝난 시즌·유효기간 지난 카드도 보내지 않는다(화면이 「만료」로 그린다).
     */
     if (!parseFeatureFlags(offer.season.featureFlags).credits) continue;

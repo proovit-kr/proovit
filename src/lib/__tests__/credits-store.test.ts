@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: vi.fn(),
-    creditOffer: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
+    creditOffer: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), findMany: vi.fn() },
     creditClaim: { findUnique: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
     teamMember: { findMany: vi.fn() },
     notification: { createMany: vi.fn() },
@@ -45,6 +45,7 @@ import {
   gate1PassedAt,
   issueCredit,
   judgeCredit,
+  loadCreditCenter,
   noticeCreditDelivered,
   releaseScheduledCredits,
   resendCreditDelivery,
@@ -113,7 +114,7 @@ function seed(over: {
     deliveryMethod: CreditDelivery.code_pool,
     releaseDate: null,
     validUntil: null,
-    season: { phase: SeasonPhase.racing },
+    season: { phase: SeasonPhase.racing, featureFlags: { credits: true } },
     ...over.offer,
   });
   db.entry.findUnique.mockResolvedValue({
@@ -645,5 +646,103 @@ describe("judgeCredit — 수동형 코드 대기", () => {
     expect(await judgeCredit({ entryId: "e-1", offerId: "o-1" })).toMatchObject({ awaitingCode: false });
     seed({ claim: { status: CreditClaimStatus.scheduled, creditCodeId: null } });
     expect(await judgeCredit({ entryId: "e-1", offerId: "o-1" })).toMatchObject({ awaitingCode: false });
+  });
+});
+
+describe("크레딧 센터가 꺼져 있으면 폴백 카드만 — 탭은 연다", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("받기도 화면처럼 협의 중으로 읽어 거절한다", async () => {
+    seed({ offer: { season: { phase: SeasonPhase.racing, featureFlags: { credits: false } } } });
+    expect(await judgeCredit({ entryId: "e-1", offerId: "o-1" })).toMatchObject({ ok: true, state: "negotiating" });
+    expect(await claimCredit({ entryId: "e-1", offerId: "o-1", actorId: "u-1" })).toEqual({
+      ok: false,
+      code: "NEGOTIATING",
+    });
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("카드는 협의 중, 스폰서·가치는 감추고, 폴백은 적은 것이 없으면 설계서 기본 목록", async () => {
+    seed();
+    db.creditOffer.findMany.mockResolvedValue([
+      {
+        id: "o-1",
+        kind: CreditKind.c1,
+        status: CreditOfferStatus.active,
+        description: null,
+        value: "$75",
+        releaseDate: null,
+        validUntil: null,
+        deliveryMethod: CreditDelivery.code_pool,
+        inviteUrl: null,
+        howtoUrl: null,
+        redeemNote: null,
+        fallbackUrl: null,
+        fallbackItems: [],
+        sponsor: { name: "Replit", mark: "R", logoUrl: null },
+      },
+      {
+        id: "o-2",
+        kind: CreditKind.c2,
+        status: CreditOfferStatus.negotiating,
+        description: null,
+        value: null,
+        releaseDate: null,
+        validUntil: null,
+        deliveryMethod: CreditDelivery.invite_link,
+        inviteUrl: null,
+        howtoUrl: null,
+        redeemNote: null,
+        fallbackUrl: null,
+        fallbackItems: [{ name: "운영이 적은 폴백" }],
+        sponsor: null,
+      },
+    ]);
+    db.creditClaim.findMany.mockResolvedValue([]);
+    const view = await loadCreditCenter({
+      entryId: "e-1",
+      seasonId: "s-1",
+      phase: SeasonPhase.racing,
+      status: EntryStatus.active,
+      creditsOn: false,
+    });
+    const [c1, c2, c3, c4] = view.cards;
+    expect(c1).toMatchObject({ state: "negotiating", sponsorName: null, value: null });
+    expect(c1.fallbackItems.map((x) => x.name)).toEqual(["빌더 무료 티어 가이드", "무료 배포 경로"]);
+    expect(c2.fallbackItems).toEqual([{ name: "운영이 적은 폴백" }]);
+    /* 카드 행이 없어도 폴백이 선다 */
+    expect(c3.fallbackItems.map((x) => x.name)).toEqual(["GA4", "Search Console", "Threads 운영 가이드"]);
+    expect(c4.fallbackItems).toEqual([]);
+  });
+
+  it("켜져 있으면 스폰서 카드 그대로", async () => {
+    seed();
+    db.creditOffer.findMany.mockResolvedValue([
+      {
+        id: "o-1",
+        kind: CreditKind.c1,
+        status: CreditOfferStatus.active,
+        description: null,
+        value: "$75",
+        releaseDate: null,
+        validUntil: null,
+        deliveryMethod: CreditDelivery.code_pool,
+        inviteUrl: null,
+        howtoUrl: null,
+        redeemNote: null,
+        fallbackUrl: null,
+        fallbackItems: [],
+        sponsor: { name: "Replit", mark: "R", logoUrl: null },
+      },
+    ]);
+    db.creditClaim.findMany.mockResolvedValue([]);
+    const view = await loadCreditCenter({
+      entryId: "e-1",
+      seasonId: "s-1",
+      phase: SeasonPhase.racing,
+      status: EntryStatus.active,
+      creditsOn: true,
+    });
+    expect(view.cards[0]).toMatchObject({ state: "available", sponsorName: "Replit", value: "$75" });
   });
 });
