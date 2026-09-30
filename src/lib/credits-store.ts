@@ -225,9 +225,9 @@ export type CreditCenterView = {
 /**
  * 혜택 탭 한 판.
  *
- * 카드 4장은 **항상** 4장이다. DB에 행이 없어도 자리를 비우지 않는다 —
- * 제휴가 0건이어도 혜택 탭은 열린다는 것이 설계서 2장의 전제고, 그때 화면에
- * 서는 것이 협의 중 카드와 폴백이다.
+ * 카드 4장은 **항상** 4장이다. DB에 행이 없어도 자리를 비우지 않는다 — 운영자가
+ * 아직 안 만든 카드도 협의 중 카드와 폴백으로 선다. (탭 자체는 크레딧 센터 플래그가
+ * 켜져 있을 때만 열린다 — 제휴가 없으면 닫아 둔다, access-policy `dashboardCredits`.)
  */
 export async function loadCreditCenter(args: {
   entryId: string;

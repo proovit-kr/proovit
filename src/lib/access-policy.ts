@@ -315,7 +315,9 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
   },
   /*
     혜택. 진도 조건이 없다 — 시안 ①(협의 중, 폴백)이 모집 중에 그려진다.
-    제휴 0건이어도 혜택 탭은 연다는 13 설계서 2장의 전제와 같다(2026-09-23).
+    플래그(credits)가 꺼져 있으면 메뉴가 숨고 404다. 제휴가 끝내 없으면 이 탭을
+    닫아 둔다(2026-09-30) — 무료 도구 조합은 스테이지 가이드가 안내한다(9회차 회의).
+    13 설계서 2장 「폴백 필수 출시」와는 다르다. 스폰서가 붙으면 켠다.
   */
   dashboardCredits: { auth: "user", entry: true, flag: "credits" },
   notifications: { auth: "user", flag: "notifications" },

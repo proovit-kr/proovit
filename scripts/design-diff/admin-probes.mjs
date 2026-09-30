@@ -157,7 +157,11 @@ export const SCREENS = {
       ["트랙", S + ".ad-body > .fld:nth-of-type(3)", '[data-probe="ad-body"] > div:nth-of-type(3)', [/^테마 트랙$/, /^비활성$/]],
       /* JSON 본문은 시즌 값이다 — 게다가 jsonb는 키 순서를 제 식으로 바꿔 저장한다 */
       ["config", S + ".ad-body > .fld:nth-of-type(4)", '[data-probe="ad-body"] > div:nth-of-type(4)', [/^\{/]],
-      ["flags", S + ".ad-body > .fld:nth-of-type(5)", '[data-probe="ad-body"] > div:nth-of-type(5)'],
+      /*
+        크레딧 센터의 부연은 일부러 바꿨다(2026-09-30) — 끄면 폴백 카드가 아니라 메뉴가
+        숨는다(SeasonPanel `FLAG_ROWS` 주석). 시안이 갱신되면 지운다.
+      */
+      ["flags", S + ".ad-body > .fld:nth-of-type(5)", '[data-probe="ad-body"] > div:nth-of-type(5)', [/^13 설계서 v0\.1, (9\/14 go\/no-go 후 ON, OFF면 폴백 카드만|스폰서 확보 후 ON, OFF면 혜택과 크레딧 메뉴 숨김)$/]],
     ],
     hover: (S) => [
       ["트랙 추가 hover", S + ".ad-body > .fld:nth-of-type(3) .btn", `[data-probe="tracks"] > ${BTN}`],
