@@ -1414,9 +1414,13 @@ model CreditClaim {
   deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
   confirmedAt DateTime? @map("confirmed_at") @db.Timestamptz(6)
 
-  /// 소비한 코드. CODE_POOL일 때만 붙는다. 링크형·수동형은 null이다
+  /// 나간 코드. 코드 풀이면 풀에서 집은 것, 수동형이면 운영자가 적어 넣은 것이다.
+  /// 링크형·이메일 명단형은 null이다
   creditCodeId String? @unique @map("credit_code_id") @db.Uuid
   deliveredVia CreditDeliveredVia? @map("delivered_via")
+  /// 마지막 발송에서 메일이 한 통이라도 못 나간 때. 다 나갔으면 null — 재발송이 성공하면 비운다.
+  /// 발급은 되돌리지 않으므로(코드는 화면에 선다) 운영자가 이것을 보고 다시 보낸다
+  mailFailedAt DateTime? @map("mail_failed_at") @db.Timestamptz(6)
 
   offer      CreditOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
   entry      Entry       @relation(fields: [entryId], references: [id], onDelete: Cascade)

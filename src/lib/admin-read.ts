@@ -5,8 +5,10 @@ import {
   EntryStatus,
   LeadStatus,
   SubmissionStatus,
+  type CreditKind,
   type SeasonPhase,
 } from "@/generated/prisma/enums";
+import { CREDIT_CARD_BY_KIND, creditTargetLabel } from "@/lib/credits";
 import { prisma } from "@/lib/prisma";
 import { devNow } from "@/lib/dev-clock";
 import { loadFirstRaceStart } from "@/lib/race-read";
@@ -132,10 +134,21 @@ export async function loadAuditLines(
     meta && typeof meta === "object" && "entryId" in meta && typeof meta.entryId === "string"
       ? meta.entryId
       : null;
+  /* 묶음 발급(일괄 발송·예정 보내기·메일 실패)은 팀을 `meta.entryIds`에 적는다 */
+  const metaEntries = (meta: unknown): string[] =>
+    meta && typeof meta === "object" && "entryIds" in meta && Array.isArray(meta.entryIds)
+      ? meta.entryIds.filter((v): v is string => typeof v === "string")
+      : [];
+  /* 크레딧 줄의 카드 — 대상 칸에 「C1, 리틀포션」으로 붙인다 */
+  const metaKind = (meta: unknown): CreditKind | null =>
+    meta && typeof meta === "object" && "kind" in meta && typeof meta.kind === "string" && meta.kind in CREDIT_CARD_BY_KIND
+      ? (meta.kind as CreditKind)
+      : null;
 
   const entryIds = [
     ...ids("entry"),
     ...rows.map((r) => metaEntry(r.meta)).filter((v): v is string => !!v),
+    ...rows.flatMap((r) => (r.action.startsWith("credit.") ? metaEntries(r.meta) : [])),
   ];
   const [entries, teams, submissions, flags, seasons] = await Promise.all([
     prisma.entry.findMany({
@@ -162,12 +175,26 @@ export async function loadAuditLines(
     ...seasons.map((s) => [s.id, s.title] as const),
   ]);
 
+  /*
+    크레딧 줄은 카드와 팀을 같이 쓴다. 카드(`credit_offer`)를 대상으로 적은 묶음 줄은
+    대상 칸이 「-」였다 — 어느 카드를 몇 팀에 보냈는지 감사 로그에서 안 보였다(2026-09-30).
+    옛 줄도 meta에 카드와 팀이 있어 그대로 읽힌다.
+  */
+  const creditLabel = (row: (typeof rows)[number]): string | null => {
+    const kind = row.action.startsWith("credit.") ? metaKind(row.meta) : null;
+    if (!kind) return null;
+    const one = metaEntry(row.meta) ?? (row.targetType === "entry" ? row.targetId : null);
+    const teams = (one ? [one] : metaEntries(row.meta)).map((id) => name.get(id) ?? "팀");
+    return creditTargetLabel(kind, teams);
+  };
+
   return rows.map((row) => {
     const meta = row.meta as { target?: unknown; from?: unknown; to?: unknown } | null;
     const label =
       typeof meta?.target === "string"
         ? meta.target
-        : ((row.targetId && name.get(row.targetId)) ??
+        : (creditLabel(row) ??
+          (row.targetId && name.get(row.targetId)) ??
           (metaEntry(row.meta) ? name.get(metaEntry(row.meta)!) : undefined) ??
           null);
     return {

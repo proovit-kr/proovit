@@ -151,3 +151,40 @@
   font-weight: 700;
   margin-bottom: 12px;
 }
+
+/*
+  발급 기록이 있는 칸 — 배지를 누르면 발급 상세가 열린다(내가 정함, 수연 확인 대기).
+  배지 모양은 그대로 두고 버튼만 걷어 낸다. 누를 수 있다는 것은 커서와 초점 테두리로.
+*/
+.cellBtn {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.cellBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 수동 발급 모달의 「보낼 코드」 칸 — 사유 칸과 같은 간격 */
+.codeFld {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+/* 발급 상세의 코드 상자 — 긴 초대 링크도 상자를 밀지 않게 어디서든 끊는다 */
+.codeText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 14px;
+}
+
+/* 시안 `.keybox .cp` — 복사 버튼을 오른쪽 끝으로 민다(편입 링크 상자와 같다) */
+.cp {
+  margin-left: auto;
+}

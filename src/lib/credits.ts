@@ -170,6 +170,24 @@ export function releaseDue(args: {
 }
 
 /**
+ * 운영자가 코드를 적어 넣기를 기다리는 칸인가 — 수동형 카드를 참가자가 받았는데
+ * 아직 코드가 없다. 수동형은 코드 풀이 없어 시스템이 보낼 것이 없다. 전에는 받기가
+ * 곧바로 「발급 완료」로 적혀 참가자 화면에 빈 코드 칸이 섰다(2026-09-30).
+ * 받기·수동 발급·운영 칸·예정 보내기가 이 술어 하나를 쓴다.
+ */
+export function awaitingManualCode(args: {
+  deliveryMethod: CreditDelivery;
+  claimStatus: CreditClaimStatus | null;
+  hasCode: boolean;
+}): boolean {
+  return (
+    args.deliveryMethod === CreditDelivery.manual &&
+    args.claimStatus === CreditClaimStatus.scheduled &&
+    !args.hasCode
+  );
+}
+
+/**
  * 발급 예정이 **언젠가 나갈 수 있는** 참가 상태인가. 참가가 살아 있거나, 게이트 1에서
  * 떨어진 팀의 C1(위 `releaseDue` 주석)만이다. 실격·포기 팀, 탈락 팀의 C1 아닌 카드는
  * 눌러 둔 예정도 보내지 않는다 — 「참가가 멈춘 팀은 새로 받지 못한다」.
@@ -562,6 +580,18 @@ export const CLAIM_STATUS_LABEL: Record<CreditClaimStatus, string> = {
   [CreditClaimStatus.confirmed]: "발급 확인",
   [CreditClaimStatus.expired]: "만료",
 };
+
+/**
+ * 감사 로그 대상 칸 — 「C1, 리틀포션」·「C1, 새벽창고 외 8팀」. 시안 발송 이력 줄
+ * (「C2 초대 링크 발송, 새벽창고 외 8팀」)과 같은 모양이다. 팀이 없으면 카드 이름.
+ */
+export function creditTargetLabel(kind: CreditKind, teams: readonly string[]): string {
+  const card = CREDIT_CARD_BY_KIND[kind];
+  if (teams.length === 0) return `${card.code} ${card.title}`;
+  return teams.length === 1
+    ? `${card.code}, ${teams[0]}`
+    : `${card.code}, ${teams[0]} 외 ${teams.length - 1}팀`;
+}
 
 export const OFFER_STATUS_LABEL: Record<CreditOfferStatus, string> = {
   [CreditOfferStatus.negotiating]: "협의 중",

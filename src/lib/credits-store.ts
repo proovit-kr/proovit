@@ -27,8 +27,10 @@ import {
   type CreditSeason,
   type FallbackItem,
   type UnlockProgress,
+  awaitingManualCode,
   claimRefusal,
   creditCardState,
+  creditTargetLabel,
   creditLapsed,
   releaseDue,
   creditSeason,
@@ -387,6 +389,8 @@ export async function judgeCredit(args: {
       active: boolean;
       /** 지금 보내도 되나 — 아니면 발급 예정으로 둔다(`issueCredit`) */
       due: boolean;
+      /** 수동형을 받아 두고 운영자의 코드를 기다리는 칸(credits.ts `awaitingManualCode`) */
+      awaitingCode: boolean;
     }
   | { ok: false; code: "NOT_FOUND" }
 > {
@@ -411,7 +415,7 @@ export async function judgeCredit(args: {
     }),
     prisma.creditClaim.findUnique({
       where: { offerId_entryId: { offerId, entryId } },
-      select: { status: true },
+      select: { status: true, creditCodeId: true },
     }),
   ]);
   if (!offer || !entry || offer.seasonId !== entry.seasonId) {
@@ -448,6 +452,13 @@ export async function judgeCredit(args: {
       status: entry.status,
       today,
     }),
+    awaitingCode:
+      state === "scheduled" &&
+      awaitingManualCode({
+        deliveryMethod: offer.deliveryMethod,
+        claimStatus: claim?.status ?? null,
+        hasCode: Boolean(claim?.creditCodeId),
+      }),
   };
 }
 
@@ -488,10 +499,17 @@ async function takeCode(
  * 예정」으로 둔다 — 유효기간이 지급 시점부터 도는 탓이다(설계서 2장 「빌드 시작
  * 시점 지급」). 예정은 `releaseScheduledCredits`가 때가 되면 보낸다.
  *
+ * **수동형은 운영자가 적어 넣은 코드(`manualCode`)로만 나간다.** 그 코드로 코드 행을
+ * 만들어 붙인다. 코드 없이 받으면 「발급 예정」으로 두고 운영자를 기다린다 — 설계서
+ * 5장 「시즌 1 수동 대체 경로」(운영자가 코드를 보내고 상태를 옮긴다, 참가자 화면은
+ * 같다). 코드를 적었는데 아직 보낼 때가 아니면 코드를 붙인 채 예정으로 두고, 때가 되면
+ * 예정 보내기가 그 코드로 보낸다.
+ *
  * **팀당 1회는 여기서 막는다.** 클레임 행을 「행이 없거나 발급 가능인 채」일 때만
- * 옮긴다(`updateMany`+조건, 없으면 `createMany`+`skipDuplicates`). 팀원 둘이 같은
- * 순간에 누르면 둘째는 유일 제약에서 기다렸다가 물러나고, 집어 둔 코드는 되돌린다.
- * 앞에서 행을 읽고 판단하던 때는 둘 다 통과해 코드가 두 개 나갔다.
+ * 옮긴다(`updateMany`+조건, 없으면 `createMany`+`skipDuplicates`). 운영자가 코드를 적을
+ * 때는 「코드를 기다리는 예정」도 옮긴다. 팀원 둘이 같은 순간에 누르면 둘째는 유일
+ * 제약에서 기다렸다가 물러나고, 집어 둔 코드는 되돌린다. 앞에서 행을 읽고 판단하던
+ * 때는 둘 다 통과해 코드가 두 개 나갔다.
  */
 export async function issueCredit(
   tx: Prisma.TransactionClient,
@@ -503,40 +521,60 @@ export async function issueCredit(
     now: Date;
     /** 지금 보내도 되나. 아니면 발급 예정으로 둔다 */
     due: boolean;
+    /** 운영자가 적어 넣은 코드 — 수동형 카드에만 쓴다(다른 방식이면 무시한다) */
+    manualCode?: string;
   },
 ): Promise<
   | { ok: true; code: string | null; scheduled: boolean }
-  | { ok: false; code: "SOLD_OUT" | "ALREADY_CLAIMED" }
+  | { ok: false; code: "SOLD_OUT" | "ALREADY_CLAIMED" | "CODE_TAKEN" }
 > {
   const { offer, entryId, via, now } = args;
-  const scheduled = !args.due;
+  const manual = offer.deliveryMethod === CreditDelivery.manual;
+  const manualCode = manual ? args.manualCode?.trim() || null : null;
+  const scheduled = !args.due || (manual && !manualCode);
 
   let taken: { id: string; code: string } | null = null;
-  if (!scheduled && offer.deliveryMethod === CreditDelivery.code_pool) {
+  if (manualCode) {
+    /* 코드는 전체에서 유일하다 — 같은 코드가 두 팀에 나가면 한 팀은 못 쓴다 */
+    const clash = await tx.creditCode.findUnique({ where: { code: manualCode }, select: { id: true } });
+    if (clash) return { ok: false, code: "CODE_TAKEN" };
+    taken = await tx.creditCode.create({
+      data: { offerId: offer.id, code: manualCode, status: CreditStatus.claimed },
+      select: { id: true, code: true },
+    });
+  } else if (!scheduled && offer.deliveryMethod === CreditDelivery.code_pool) {
     taken = await takeCode(tx, offer.id);
     if (!taken) return { ok: false, code: "SOLD_OUT" };
   }
 
-  const data = {
-    status: scheduled ? CreditClaimStatus.scheduled : CreditClaimStatus.delivered,
-    claimedAt: now,
-    ...(scheduled ? {} : { deliveredAt: now, deliveredVia: via }),
-    ...(taken ? { creditCodeId: taken.id } : {}),
-  };
+  const status = scheduled ? CreditClaimStatus.scheduled : CreditClaimStatus.delivered;
+  const sent = scheduled ? {} : { deliveredAt: now, deliveredVia: via };
+  const attach = taken ? { creditCodeId: taken.id } : {};
   const moved = await tx.creditClaim.updateMany({
     where: { offerId: offer.id, entryId, status: CreditClaimStatus.available },
-    data,
+    data: { status, claimedAt: now, ...sent, ...attach },
   });
   const reserved =
     moved.count === 1 ||
+    /* 참가자가 받아 두고 코드를 기다리던 수동형 — 받은 때(claimed_at)는 그대로 둔다 */
+    (manualCode !== null &&
+      (
+        await tx.creditClaim.updateMany({
+          where: { offerId: offer.id, entryId, status: CreditClaimStatus.scheduled, creditCodeId: null },
+          data: { status, ...sent, ...attach },
+        })
+      ).count === 1) ||
     (
       await tx.creditClaim.createMany({
-        data: [{ offerId: offer.id, entryId, ...data }],
+        data: [{ offerId: offer.id, entryId, status, claimedAt: now, ...sent, ...attach }],
         skipDuplicates: true,
       })
     ).count === 1;
   if (!reserved) {
-    if (taken) {
+    if (taken && manualCode) {
+      /* 방금 만든 코드 행이다 — 붙일 곳이 없으면 남기지 않는다 */
+      await tx.creditCode.delete({ where: { id: taken.id } });
+    } else if (taken) {
       await tx.creditCode.update({
         where: { id: taken.id },
         data: { status: CreditStatus.issued },
@@ -597,7 +635,8 @@ export async function claimCredit(args: {
     }
     return r;
   });
-  if (!result.ok) return result;
+  /* 받기는 코드를 적어 넣지 않는다 — 「코드 중복」은 운영자 수동 발급에서만 난다 */
+  if (!result.ok) return { ok: false, code: result.code === "CODE_TAKEN" ? "ALREADY_CLAIMED" : result.code };
   if (!result.scheduled) {
     await noticeCreditDelivered({
       offerId: judged.offer.id,
@@ -618,6 +657,9 @@ export async function claimCredit(args: {
  *
  * 카드가 활성이 아니거나 유효기간이 지났으면 보내지 않는다(화면도 그 카드를 「만료」로
  * 그린다). 코드가 모자라면 그 팀은 예정으로 남고 다음 번에 다시 본다.
+ *
+ * 수동형은 운영자가 적어 둔 코드가 있어야 보낸다. 없으면 운영자를 기다린다(운영 칸
+ * 「발급 예정, 코드 대기」) — 전에는 코드 없는 「발급 완료」로 옮겨졌다.
  */
 export async function releaseScheduledCredits(
   args: { entryIds?: string[] } = {},
@@ -632,6 +674,7 @@ export async function releaseScheduledCredits(
     select: {
       id: true,
       entryId: true,
+      creditCode: { select: { id: true, code: true } },
       offer: {
         select: {
           id: true,
@@ -667,13 +710,25 @@ export async function releaseScheduledCredits(
       today,
     });
     if (!due) continue;
+    /* 수동형인데 운영자가 아직 코드를 안 적었다 — 보낼 것이 없다 */
+    if (
+      awaitingManualCode({
+        deliveryMethod: offer.deliveryMethod,
+        claimStatus: CreditClaimStatus.scheduled,
+        hasCode: Boolean(claim.creditCode),
+      })
+    ) {
+      continue;
+    }
 
     /* 한 줄이 실패해도 나머지는 보낸다 — 실패한 줄은 예정으로 남아 다음 번에 다시 본다 */
     let out: "sold_out" | { code: string | null } | null;
     try {
       out = await prisma.$transaction(async (tx) => {
-        const pool = offer.deliveryMethod === CreditDelivery.code_pool;
-        const taken = pool ? await takeCode(tx, offer.id) : null;
+        /* 먼저 붙어 있는 코드(운영자가 적어 둔 수동형)가 있으면 그것으로 보낸다 */
+        const attached = claim.creditCode ?? null;
+        const pool = !attached && offer.deliveryMethod === CreditDelivery.code_pool;
+        const taken = attached ?? (pool ? await takeCode(tx, offer.id) : null);
         if (pool && !taken) return "sold_out" as const;
         const moved = await tx.creditClaim.updateMany({
           where: { id: claim.id, status: CreditClaimStatus.scheduled },
@@ -681,12 +736,12 @@ export async function releaseScheduledCredits(
             status: CreditClaimStatus.delivered,
             deliveredAt: new Date(),
             deliveredVia: CreditDeliveredVia.email,
-            ...(taken ? { creditCodeId: taken.id } : {}),
+            ...(taken && !attached ? { creditCodeId: taken.id } : {}),
           },
         });
         if (moved.count === 0) {
-          /* 다른 실행이 먼저 보냈다 — 집어 둔 코드를 되돌린다 */
-          if (taken) {
+          /* 다른 실행이 먼저 보냈다 — 풀에서 집어 둔 코드를 되돌린다 */
+          if (taken && !attached) {
             await tx.creditCode.update({
               where: { id: taken.id },
               data: { status: CreditStatus.issued },
@@ -745,74 +800,57 @@ function subjectJosa(word: string): string {
   return code % 28 === 0 ? "가" : "이";
 }
 
-/**
- * 발급을 팀에 알린다 — 팀원마다 인앱 한 줄과 메일 한 통(코드·링크·기한·적용 방법).
- *
- * 받기·수동 발급·일괄 발송·발급 예정 보내기가 전부 이것을 부른다. **트랜잭션 밖에서**
- * 부른다 — 메일이 실패해도 발급은 되돌리지 않는다(코드는 화면에 선다).
- *
- * 메일은 이행 메일이라 알림 스위치(`notify_email`)와 무관하다(mail.ts `sendCreditMail`).
- * 돌려주는 것은 메일을 한 통이라도 못 보낸 팀의 id — 운영 화면이 팀 이름으로 알린다.
- */
-export async function noticeCreditDelivered(args: {
-  offerId: string;
-  deliveries: { entryId: string; code: string | null }[];
-}): Promise<{ mailFailed: string[] }> {
-  if (args.deliveries.length === 0) return { mailFailed: [] };
-  const offer = await prisma.creditOffer.findUniqueOrThrow({
-    where: { id: args.offerId },
-    select: {
-      kind: true,
-      deliveryMethod: true,
-      inviteUrl: true,
-      validUntil: true,
-      redeemNote: true,
-      sponsor: { select: { name: true } },
-    },
-  });
-  /*
-    보낼 것이 없는 발급(수동·이메일 명단 방식, 코드 없음)에는 「발급됐어요」를 보내지
-    않는다 — 코드도 링크도 없는 메일과 「코드를 확인해요」 알림만 가게 된다. 그 방식은
-    운영자가 스폰서 쪽에서 따로 처리한다.
-  */
-  const link = offer.deliveryMethod === CreditDelivery.invite_link ? offer.inviteUrl : null;
-  const deliveries = args.deliveries.filter((d) => d.code || link);
-  if (deliveries.length === 0) return { mailFailed: [] };
-  const card = CREDIT_CARD_BY_KIND[offer.kind];
-  const cardName = `${card.code} ${card.title}`;
-  const members = await prisma.teamMember.findMany({
-    where: {
-      team: { entries: { some: { id: { in: deliveries.map((d) => d.entryId) } } } },
-    },
+/** 발급 메일의 재료 — 카드 한 장 */
+const MAIL_OFFER_SELECT = {
+  kind: true,
+  deliveryMethod: true,
+  inviteUrl: true,
+  validUntil: true,
+  redeemNote: true,
+  sponsor: { select: { name: true } },
+} as const;
+
+type MailOffer = Prisma.CreditOfferGetPayload<{ select: typeof MAIL_OFFER_SELECT }>;
+
+type CreditMember = { userId: string; email: string | null; entryId: string; teamName: string };
+
+/** 발급받은 팀들의 팀원 — 인앱 알림과 메일이 같은 목록을 쓴다 */
+async function creditMembers(entryIds: string[]): Promise<CreditMember[]> {
+  const rows = await prisma.teamMember.findMany({
+    where: { team: { entries: { some: { id: { in: entryIds } } } } },
     select: {
       userId: true,
       user: { select: { email: true } },
-      team: { select: { entries: { select: { id: true } } } },
+      team: { select: { name: true, entries: { select: { id: true } } } },
     },
   });
-  const deliveryOf = (m: (typeof members)[number]) =>
-    deliveries.find((d) => m.team.entries.some((e) => e.id === d.entryId));
-
-  const now = new Date();
-  await prisma.notification.createMany({
-    data: members.map((m) => ({
-      userId: m.userId,
-      type: "notice",
-      title: `${cardName} 발급`,
-      body: "혜택과 크레딧에서 코드와 적용 방법을 확인해요.",
-      linkUrl: "/dashboard/credits",
-      channel: NotifChannel.inapp,
-      sentAt: now,
-    })),
+  return rows.flatMap((m) => {
+    const entryId = entryIds.find((id) => m.team.entries.some((e) => e.id === id));
+    return entryId ? [{ userId: m.userId, email: m.user.email, entryId, teamName: m.team.name }] : [];
   });
+}
 
+/**
+ * 팀원마다 발급 메일 한 통 — 코드·링크·기한·적용 방법. 돌려주는 것은 한 통이라도 못
+ * 보낸 팀의 id.
+ *
+ * 메일은 이행 메일이라 알림 스위치(`notify_email`)와 무관하다(mail.ts `sendCreditMail`).
+ * 주소가 없는 팀원은 건너뛴다 — 실패가 아니라 보낼 곳이 없는 것이라 다시 보내도 같다.
+ */
+async function mailCreditToTeams(
+  offer: MailOffer,
+  members: CreditMember[],
+  deliveries: { entryId: string; code: string | null }[],
+  link: string | null,
+): Promise<Set<string>> {
+  const card = CREDIT_CARD_BY_KIND[offer.kind];
   const failed = new Set<string>();
   for (const m of members) {
-    const d = deliveryOf(m);
-    if (!d || !m.user.email) continue;
+    const d = deliveries.find((x) => x.entryId === m.entryId);
+    if (!d || !m.email) continue;
     const r = await sendCreditMail({
-      email: m.user.email,
-      card: cardName,
+      email: m.email,
+      card: `${card.code} ${card.title}`,
       josa: subjectJosa(card.title),
       sponsor: offer.sponsor?.name ?? null,
       code: d.code,
@@ -822,7 +860,176 @@ export async function noticeCreditDelivered(args: {
     });
     if (!r.ok) failed.add(d.entryId);
   }
-  return { mailFailed: [...failed] };
+  return failed;
+}
+
+/**
+ * 메일 결과를 칸에 적는다 — 못 보낸 팀은 `mail_failed_at`, 다 보낸 팀은 비운다.
+ * 못 보낸 팀이 있으면 감사 로그에 시스템 줄을 남긴다(운영 콘솔 발송 이력·감사 로그).
+ * 이 기록이 실패해도 발급과 메일은 이미 끝났다 — 삼키고 로그만 남긴다.
+ */
+async function recordCreditMail(args: {
+  offerId: string;
+  kind: CreditKind;
+  sent: string[];
+  failed: string[];
+  teamName: Map<string, string>;
+  /** 재발송이면 운영자 줄(credit.resend)이 따로 남으므로 시스템 줄을 안 쓴다 */
+  quiet?: boolean;
+}): Promise<void> {
+  const { offerId, kind, failed } = args;
+  const ok = args.sent.filter((id) => !failed.includes(id));
+  try {
+    const now = new Date();
+    if (failed.length) {
+      await prisma.creditClaim.updateMany({
+        where: { offerId, entryId: { in: failed } },
+        data: { mailFailedAt: now },
+      });
+    }
+    if (ok.length) {
+      await prisma.creditClaim.updateMany({
+        where: { offerId, entryId: { in: ok }, mailFailedAt: { not: null } },
+        data: { mailFailedAt: null },
+      });
+    }
+    if (failed.length && !args.quiet) {
+      await prisma.auditLog.create({
+        data: {
+          actorId: null,
+          action: "credit.mail_failed",
+          targetType: "credit_offer",
+          targetId: offerId,
+          reason: `발급 메일 ${failed.length}팀 실패, 운영 콘솔에서 재발송`,
+          meta: {
+            kind,
+            entryIds: failed,
+            target: creditTargetLabel(kind, failed.map((id) => args.teamName.get(id) ?? "팀")),
+          },
+        },
+      });
+    }
+  } catch (e) {
+    console.error("[credits] 메일 결과 기록 실패", offerId, e);
+  }
+}
+
+/**
+ * 발급을 팀에 알린다 — 팀원마다 인앱 한 줄과 메일 한 통(코드·링크·기한·적용 방법).
+ *
+ * 받기·수동 발급·일괄 발송·발급 예정 보내기가 전부 이것을 부른다. **트랜잭션 밖에서**
+ * 부른다 — 메일이 실패해도 발급은 되돌리지 않는다(코드는 화면에 선다). 대신 못 보낸
+ * 팀을 칸에 적어(`mail_failed_at`) 운영자가 재발송하게 한다.
+ *
+ * **던지지 않는다.** 알림이 통째로 실패하면(DB·메일 서버) 그 팀들을 전부 못 보낸 것으로
+ * 적는다 — 받기가 이미 끝났는데 참가자에게 오류가 뜨면 다시 누르게 된다.
+ * 돌려주는 것은 메일을 한 통이라도 못 보낸 팀의 id — 운영 화면이 팀 이름으로 알린다.
+ */
+export async function noticeCreditDelivered(args: {
+  offerId: string;
+  deliveries: { entryId: string; code: string | null }[];
+}): Promise<{ mailFailed: string[] }> {
+  if (args.deliveries.length === 0) return { mailFailed: [] };
+  let offer: MailOffer;
+  try {
+    offer = await prisma.creditOffer.findUniqueOrThrow({
+      where: { id: args.offerId },
+      select: MAIL_OFFER_SELECT,
+    });
+  } catch (e) {
+    console.error("[credits] 발급 알림 실패 — 카드를 못 읽음", args.offerId, e);
+    return { mailFailed: args.deliveries.map((d) => d.entryId) };
+  }
+  /*
+    보낼 것이 없는 발급(이메일 명단 방식, 코드 없음)에는 「발급됐어요」를 보내지
+    않는다 — 코드도 링크도 없는 메일과 「코드를 확인해요」 알림만 가게 된다. 그 방식은
+    운영자가 스폰서 쪽에서 따로 처리한다.
+  */
+  const link = offer.deliveryMethod === CreditDelivery.invite_link ? offer.inviteUrl : null;
+  const deliveries = args.deliveries.filter((d) => d.code || link);
+  if (deliveries.length === 0) return { mailFailed: [] };
+  const card = CREDIT_CARD_BY_KIND[offer.kind];
+  const sent = deliveries.map((d) => d.entryId);
+
+  let members: CreditMember[];
+  try {
+    members = await creditMembers(sent);
+  } catch (e) {
+    console.error("[credits] 발급 알림 실패 — 팀원을 못 읽음", args.offerId, e);
+    await recordCreditMail({ offerId: args.offerId, kind: offer.kind, sent, failed: sent, teamName: new Map() });
+    return { mailFailed: sent };
+  }
+  const teamName = new Map(members.map((m) => [m.entryId, m.teamName]));
+
+  /* 인앱이 먼저다 — 메일 서버가 느리거나 죽어도 화면 알림은 간다 */
+  try {
+    await prisma.notification.createMany({
+      data: members.map((m) => ({
+        userId: m.userId,
+        type: "notice",
+        title: `${card.code} ${card.title} 발급`,
+        body: "혜택과 크레딧에서 코드와 적용 방법을 확인해요.",
+        linkUrl: "/dashboard/credits",
+        channel: NotifChannel.inapp,
+        sentAt: new Date(),
+      })),
+    });
+  } catch (e) {
+    console.error("[credits] 발급 인앱 알림 실패", args.offerId, e);
+  }
+
+  let failed: string[];
+  try {
+    failed = [...(await mailCreditToTeams(offer, members, deliveries, link))];
+  } catch (e) {
+    console.error("[credits] 발급 메일 실패", args.offerId, e);
+    failed = sent;
+  }
+  await recordCreditMail({ offerId: args.offerId, kind: offer.kind, sent, failed, teamName });
+  return { mailFailed: failed };
+}
+
+/**
+ * 발급 메일을 다시 보낸다 — 운영 콘솔 「재발송」. 같은 코드·링크를 같은 메일로
+ * 보낸다(인앱 알림은 처음 발급 때 이미 갔다). 칸의 메일 실패 표시는 결과대로 고친다.
+ *
+ * 보낼 수 있는지(발급 완료·확인인 칸)는 부르는 쪽이 `judgeCredit`으로 이미 가렸다.
+ */
+export async function resendCreditDelivery(args: {
+  offerId: string;
+  entryId: string;
+}): Promise<{ ok: true; failed: boolean; kind: CreditKind; teamName: string | null } | { ok: false }> {
+  const claim = await prisma.creditClaim.findUnique({
+    where: { offerId_entryId: { offerId: args.offerId, entryId: args.entryId } },
+    select: { creditCode: { select: { code: true } }, offer: { select: MAIL_OFFER_SELECT } },
+  });
+  if (!claim) return { ok: false };
+  const { offer } = claim;
+  const link = offer.deliveryMethod === CreditDelivery.invite_link ? offer.inviteUrl : null;
+  const code = claim.creditCode?.code ?? null;
+  if (!code && !link) return { ok: false };
+
+  let failed: boolean;
+  let teamName = new Map<string, string>();
+  try {
+    const members = await creditMembers([args.entryId]);
+    teamName = new Map(members.map((m) => [m.entryId, m.teamName]));
+    const lost = await mailCreditToTeams(offer, members, [{ entryId: args.entryId, code }], link);
+    /* 주소 있는 팀원이 아무도 없으면 나간 메일이 없다 — 실패로 둔다 */
+    failed = !members.some((m) => m.email) || lost.size > 0;
+  } catch (e) {
+    console.error("[credits] 재발송 실패", args.offerId, args.entryId, e);
+    failed = true;
+  }
+  await recordCreditMail({
+    offerId: args.offerId,
+    kind: offer.kind,
+    sent: [args.entryId],
+    failed: failed ? [args.entryId] : [],
+    teamName,
+    quiet: true,
+  });
+  return { ok: true, failed, kind: offer.kind, teamName: teamName.get(args.entryId) ?? null };
 }
 
 /**
@@ -895,10 +1102,28 @@ export type AdminOfferRow = {
 export type AdminClaimCell = {
   kind: CreditKind;
   label: string;
-  tone: "lime" | "teal" | "gray";
+  tone: "lime" | "teal" | "gray" | "red" | "warn";
   dashed: boolean;
   /** 지금 보낼 수 있다 — 수동 발급·일괄 발송의 대상 */
   available: boolean;
+  /** 수동형을 받아 두고 운영자의 코드를 기다린다 — 수동 발급(코드 입력)의 대상 */
+  awaitingCode: boolean;
+  /** 발급 기록 — 칸을 누르면 여는 발급 상세. 발급 기록이 없는 칸은 null */
+  detail: AdminClaimDetail | null;
+};
+
+/** 운영 콘솔 발급 상세 — 나간 코드·메일 결과·재발송 */
+export type AdminClaimDetail = {
+  offerId: string;
+  /** 나간 코드. 수동형이면 운영자가 적은 것, 링크형·이메일 명단형은 null */
+  code: string | null;
+  /** 링크형이면 카드의 초대 링크 */
+  link: string | null;
+  deliveredAt: Date | null;
+  /** 마지막 발송에서 메일이 못 나간 때. 다 나갔으면 null */
+  mailFailedAt: Date | null;
+  /** 다시 보낼 수 있다 — 발급 완료·확인이고 보낼 코드나 링크가 있다 */
+  resendable: boolean;
 };
 
 export type AdminClaimRow = {
@@ -943,12 +1168,15 @@ export type AdminCreditConsole = {
 function adminCell(
   state: CreditCardState,
   unlocked: boolean,
-): Omit<AdminClaimCell, "kind"> {
+  claim: { awaitingCode: boolean; mailFailed: boolean } = { awaitingCode: false, mailFailed: false },
+): Omit<AdminClaimCell, "kind" | "detail"> {
+  const awaitingCode = state === "scheduled" && claim.awaitingCode;
   const cell = (label: string, tone: AdminClaimCell["tone"], dashed = false) => ({
     label,
     tone,
     dashed,
     available: state === "available",
+    awaitingCode,
   });
   switch (state) {
     case "negotiating":
@@ -956,9 +1184,17 @@ function adminCell(
     case "available":
       return cell(CLAIM_STATUS_LABEL.available, "lime");
     case "scheduled":
-      return cell(CLAIM_STATUS_LABEL.scheduled, "lime", true);
+      /*
+        내가 정함(수연 확인 대기) — 시안에 없는 두 칸. 상태 필터가 앞마디로 거르므로
+        「발급 예정」·「발급 완료」로 시작하게 둔다. 운영자가 할 일이 있는 칸이라 색을 바꾼다.
+      */
+      return awaitingCode
+        ? cell(`${CLAIM_STATUS_LABEL.scheduled}, 코드 대기`, "warn", true)
+        : cell(CLAIM_STATUS_LABEL.scheduled, "lime", true);
     case "delivered":
-      return cell(CLAIM_STATUS_LABEL.delivered, "lime");
+      return claim.mailFailed
+        ? cell(`${CLAIM_STATUS_LABEL.delivered}, 메일 실패`, "red")
+        : cell(CLAIM_STATUS_LABEL.delivered, "lime");
     case "confirmed":
       return cell(CLAIM_STATUS_LABEL.confirmed, "teal");
     case "expired":
@@ -1018,6 +1254,8 @@ export async function loadAdminCreditConsole(
             status: true,
             deliveredAt: true,
             confirmedAt: true,
+            mailFailedAt: true,
+            creditCode: { select: { code: true } },
           },
         },
         consents: { select: { type: true, granted: true } },
@@ -1113,7 +1351,32 @@ export async function loadAdminCreditConsole(
           status: entry.status,
           lapsed: offer ? lapsedOffer.has(offer.id) : false,
         });
-        return { kind: spec.kind, ...adminCell(state, unlocked) };
+        const code = claim?.creditCode?.code ?? null;
+        const link =
+          offer?.deliveryMethod === CreditDelivery.invite_link ? (offer.inviteUrl ?? null) : null;
+        const mailFailed = Boolean(claim?.mailFailedAt) && state === "delivered";
+        const awaitingCode =
+          !!offer &&
+          awaitingManualCode({
+            deliveryMethod: offer.deliveryMethod,
+            claimStatus: claim?.status ?? null,
+            hasCode: code !== null,
+          });
+        return {
+          kind: spec.kind,
+          ...adminCell(state, unlocked, { awaitingCode, mailFailed }),
+          detail:
+            offer && claim && claim.status !== CreditClaimStatus.available
+              ? {
+                  offerId: offer.id,
+                  code,
+                  link,
+                  deliveredAt: claim.deliveredAt,
+                  mailFailedAt: claim.mailFailedAt,
+                  resendable: (state === "delivered" || state === "confirmed") && (code !== null || link !== null),
+                }
+              : null,
+        };
       }),
       lastDeliveredAt: delivered[0] ?? null,
       /*
