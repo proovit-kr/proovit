@@ -202,7 +202,7 @@ export default async function Page() {
               <Card>
                 <small>{CREDITS_SUM.next}</small>
                 <div className={styles.nx}>
-                  <Next next={next} c1Settled={c1Settled} />
+                  <Next next={next} c1Settled={c1Settled} now={now} />
                 </div>
               </Card>
             </div>
@@ -297,9 +297,11 @@ function Note({
 function Next({
   next,
   c1Settled,
+  now,
 }: {
   next: ReturnType<typeof nextUnlock>;
   c1Settled: boolean;
+  now: Date;
 }) {
   switch (next.kind) {
     case "pre":
@@ -311,7 +313,8 @@ function Next({
         </>
       );
     case "scheduled":
-      return next.at ? (
+      /* 지급 예정일이 지났는데 예정으로 남았다 — 코드를 기다린다(카드 줄과 같은 규칙) */
+      return next.at && next.at > now ? (
         <>
           {CREDITS_NEXT.scheduled[0].replace("{code}", topic(next.card.code))}
           <Mono>{day(next.at)}</Mono>
@@ -586,8 +589,11 @@ function Body({
             <Icon name="clock" />
             {card.kind === CreditKind.c1 && !c1Settled ? (
               T.sched.gate
-            ) : card.kind === CreditKind.c1 || !card.releaseDate ? (
-              /* 보낼 때는 됐는데 아직 못 나갔다 — 코드 풀이 비었다(크론이 다시 본다) */
+            ) : card.kind === CreditKind.c1 || !card.releaseDate || card.releaseDate <= now ? (
+              /*
+                보낼 때는 됐는데 아직 못 나갔다 — 코드 풀이 비었거나(크론이 다시 본다) 수동형
+                카드라 운영자가 코드를 적기를 기다린다. 지난 날짜로 「D-0」을 그리지 않는다.
+              */
               T.sched.ready
             ) : (
               <>

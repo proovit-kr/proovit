@@ -19,6 +19,7 @@ import {
   issueCredit,
   judgeCredit,
   noticeCreditDelivered,
+  resendCreditDelivery,
 } from "@/lib/credits-store";
 import { fmtStamp } from "@/lib/header-state";
 import {
@@ -925,22 +926,30 @@ export async function uploadCreditCodes(args: {
 }
 
 /**
- * 수동 발급 — 시즌1의 정상 경로다. 시안 발급 현황의 「수동 발급」(→ `#mdl-reason`).
+ * 수동 발급 — 시안 발급 현황의 「수동 발급」(→ `#mdl-reason`). 자동 발송이 기본이고,
+ * 이것은 운영자가 한 팀에 직접 보내는 길이다(설계서 5장 「시즌 1 수동 대체 경로」).
+ * 참가자 화면은 자동일 때와 똑같이 보인다 — 같은 몸통(`issueCredit`)으로 발급하고
+ * 같은 메일·인앱(`noticeCreditDelivered`)을 보낸다.
  *
- * 자동 발송은 P1이고, 그전까지는 운영자가 코드를 직접 보내고 여기서 상태를
- * 옮긴다(설계서 5장 「시즌 1 수동 대체 경로」). 참가자 화면은 자동일 때와
- * 똑같이 보인다 — 그게 이 경로가 성립하는 조건이다.
+ * 수동형 카드는 **운영자가 코드를 적어 넣는다**(`code`). 스폰서에게 받은 코드를 적으면
+ * 그 코드로 발급하고 메일이 나간다. 참가자가 받아 두고 코드를 기다리는 칸(「발급 예정,
+ * 코드 대기」)도 여기서 채운다. 다른 방식이면 코드 칸을 무시한다(풀에서 집는다).
  *
  * 보낼 수 있는지는 참가자 「받기」와 **같은 판정**으로 다시 잰다(credits-store
- * `judgeCredit`). 운영 표가 「발급 가능」을 그린 칸만 보낸다 — 실격 팀, 안 열린 카드,
- * 끝난 시즌은 버튼이 없어도 직접 부르면 나갔다(2026-09-30 감사).
+ * `judgeCredit`). 운영 표가 「발급 가능」·「코드 대기」를 그린 칸만 보낸다 — 실격 팀,
+ * 안 열린 카드, 끝난 시즌은 버튼이 없어도 직접 부르면 나갔다(2026-09-30 감사).
  */
 export async function deliverCreditManually(args: {
   offerId: string;
   entryId: string;
   reason: string;
   actorId: string;
-}): Promise<AdminActionResult> {
+  /** 수동형 카드에 운영자가 적은 코드 */
+  code?: string;
+}): Promise<
+  | { ok: true; kind: CreditKind; scheduled: boolean; mailFailed: boolean }
+  | { ok: false; message: string }
+> {
   const { offerId, entryId, reason, actorId } = args;
   if (reason.trim().length < REASON_MIN) {
     return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
@@ -948,8 +957,16 @@ export async function deliverCreditManually(args: {
 
   const judged = await judgeCredit({ entryId, offerId });
   if (!judged.ok) return { ok: false, message: "혜택을 찾을 수 없습니다." };
-  if (judged.state !== "available") {
+  if (judged.state !== "available" && !judged.awaitingCode) {
     return { ok: false, message: MANUAL_REFUSAL[judged.state] ?? "지금은 보낼 수 없는 칸입니다." };
+  }
+
+  const manual = judged.offer.deliveryMethod === CreditDelivery.manual;
+  const code = args.code?.trim() ?? "";
+  if (manual) {
+    if (!code) return { ok: false, message: "수동 방식 혜택입니다. 보낼 코드를 적어 주세요." };
+    if (code.length > 120) return { ok: false, message: "코드는 120자까지입니다." };
+    if (/\s/.test(code)) return { ok: false, message: "코드에 빈칸이 있습니다. 코드만 적어 주세요." };
   }
 
   const out = await prisma.$transaction(async (tx) => {
@@ -959,6 +976,7 @@ export async function deliverCreditManually(args: {
       via: CreditDeliveredVia.manual,
       now: new Date(),
       due: judged.due,
+      manualCode: manual ? code : undefined,
     });
     if (!r.ok) return r;
     await writeAudit(tx, {
@@ -967,7 +985,8 @@ export async function deliverCreditManually(args: {
       targetType: "entry",
       targetId: entryId,
       reason: reason.trim(),
-      meta: { offerId, kind: judged.offer.kind, entryId, scheduled: r.scheduled },
+      /* 코드는 적지 않는다 — 운영 콘솔 발급 상세에서 본다 */
+      meta: { offerId, kind: judged.offer.kind, entryId, scheduled: r.scheduled, manualCode: manual },
     });
     return r;
   });
@@ -977,20 +996,60 @@ export async function deliverCreditManually(args: {
       message:
         out.code === "SOLD_OUT"
           ? "코드 풀이 비었습니다. CSV로 코드를 먼저 올려 주세요."
-          : "이미 발급된 팀입니다.",
+          : out.code === "CODE_TAKEN"
+            ? "이미 등록된 코드입니다. 다른 팀에 나갔거나 코드 풀에 있는 코드입니다."
+            : "이미 발급된 팀입니다.",
     };
   }
   /*
     팀에 알린다 — 코드 풀이면 어느 코드가 나갔는지 운영자도 모른다(풀에서 집는다).
-    알리지 않으면 팀은 화면을 다시 열어야 안다.
+    알리지 않으면 팀은 화면을 다시 열어야 안다. 메일이 실패하면 칸에 적힌다.
   */
-  if (!out.scheduled) {
-    await noticeCreditDelivered({
-      offerId: judged.offer.id,
-      deliveries: [{ entryId, code: out.code }],
-    });
+  const kind = judged.offer.kind;
+  if (out.scheduled) return { ok: true, kind, scheduled: true, mailFailed: false };
+  const { mailFailed } = await noticeCreditDelivered({
+    offerId: judged.offer.id,
+    deliveries: [{ entryId, code: out.code }],
+  });
+  return { ok: true, kind, scheduled: false, mailFailed: mailFailed.length > 0 };
+}
+
+/**
+ * 발급 메일 재발송 — 운영 콘솔 발급 상세의 「재발송」. 메일이 실패한 칸이나 팀이 못
+ * 받았다고 할 때 같은 코드를 다시 보낸다. 상태는 안 바뀌고 메일 실패 표시만 결과대로
+ * 고친다. 사유와 함께 감사 로그에 남는다(운영자 쓰기 전량 기록).
+ */
+export async function resendCreditMail(args: {
+  offerId: string;
+  entryId: string;
+  reason: string;
+  actorId: string;
+}): Promise<{ ok: true; mailFailed: boolean } | { ok: false; message: string }> {
+  const { offerId, entryId, reason, actorId } = args;
+  if (reason.trim().length < REASON_MIN) {
+    return { ok: false, message: `사유를 ${REASON_MIN}자 이상 적어 주세요.` };
   }
-  return { ok: true };
+  const judged = await judgeCredit({ entryId, offerId });
+  if (!judged.ok) return { ok: false, message: "혜택을 찾을 수 없습니다." };
+  if (judged.state !== "delivered" && judged.state !== "confirmed") {
+    return {
+      ok: false,
+      message: judged.state === "expired" ? "만료된 칸입니다." : "발급된 칸만 다시 보낼 수 있습니다.",
+    };
+  }
+  const sent = await resendCreditDelivery({ offerId, entryId });
+  if (!sent.ok) return { ok: false, message: "보낼 코드나 링크가 없는 발급입니다." };
+  await prisma.$transaction((tx) =>
+    writeAudit(tx, {
+      actorId,
+      action: "credit.resend",
+      targetType: "entry",
+      targetId: entryId,
+      reason: reason.trim(),
+      meta: { offerId, kind: sent.kind, entryId, failed: sent.failed },
+    }),
+  );
+  return { ok: true, mailFailed: sent.failed };
 }
 
 /** 「발급 가능」이 아닌 칸을 보내려 할 때 — 운영 표의 배지와 같은 말로 */
@@ -1025,6 +1084,10 @@ export async function batchDeliverCredits(args: {
   if (!offer) return { ok: false, message: "혜택을 찾을 수 없습니다." };
   if (offer.status !== CreditOfferStatus.active) {
     return { ok: false, message: "활성 혜택만 보낼 수 있습니다." };
+  }
+  /* 수동형은 팀마다 코드를 적어야 나간다 — 한꺼번에 보내면 코드 없는 발급이 된다 */
+  if (offer.deliveryMethod === CreditDelivery.manual) {
+    return { ok: false, message: "수동 방식 혜택은 팀마다 코드를 적어 수동 발급해 주세요." };
   }
   if (args.entryIds.length === 0) return { ok: false, message: "보낼 팀이 없습니다." };
 

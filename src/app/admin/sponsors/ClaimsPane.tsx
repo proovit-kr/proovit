@@ -4,15 +4,17 @@ import { useActionState, useState } from "react";
 
 import { Badge } from "@/components/Badge";
 import { Button, LinkButton } from "@/components/Button";
-import { Input, Select } from "@/components/Field";
+import { Field, Input, Select } from "@/components/Field";
 import { Modal } from "@/components/Modal";
-import { Chip } from "@/components/Surface";
-import { CreditKind, CreditOfferStatus } from "@/generated/prisma/enums";
+import { Card, Chip } from "@/components/Surface";
+import { Toast, useToast } from "@/components/Toast";
+import { CreditDelivery, CreditKind, CreditOfferStatus } from "@/generated/prisma/enums";
 import { CREDIT_CARD_BY_KIND } from "@/lib/credits";
 
+import hub from "../../dashboard/hub.module.css";
 import c from "../console.module.css";
 import { ReasonModal } from "../ReasonModal";
-import { batchDeliver, deliverManually, type SponsorActionState } from "./actions";
+import { batchDeliver, deliverManually, resendMail, type SponsorActionState } from "./actions";
 import s from "./sponsors.module.css";
 
 /*
@@ -24,9 +26,31 @@ import s from "./sponsors.module.css";
 
   줄 끝 칸은 시안 넷 — 발급 가능한 카드가 있으면 「수동 발급」, 이미 받은 게 있으면
   「이력」(감사 로그의 credit.*로 간다), 탈락은 「테스터 전환」, 실격은 「추가 발급 중지」.
+
+  내가 정함(수연 확인 대기) — 시안에 없는 셋(2026-09-30 수연 「네 가지 붙여」).
+    · 발급 기록이 있는 칸은 누를 수 있다 → 발급 상세(나간 코드·메일 결과·재발송).
+      줄 끝 칸은 한 줄에 버튼 하나라 카드마다 여는 자리를 칸에 둔다.
+    · 수동형 카드의 수동 발급은 보낼 코드를 적는다(사유 모달에 칸 하나).
+    · 「발급 완료, 메일 실패」(빨강)·「발급 예정, 코드 대기」(노랑) 칸.
 */
 
-type Cell = { kind: CreditKind; label: string; tone: "lime" | "teal" | "gray"; dashed: boolean; available: boolean };
+type Detail = {
+  offerId: string;
+  code: string | null;
+  link: string | null;
+  deliveredAt: string | null;
+  mailFailedAt: string | null;
+  resendable: boolean;
+};
+type Cell = {
+  kind: CreditKind;
+  label: string;
+  tone: "lime" | "teal" | "gray" | "red" | "warn";
+  dashed: boolean;
+  available: boolean;
+  awaitingCode: boolean;
+  detail: Detail | null;
+};
 type Row = {
   entryId: string;
   teamName: string;
@@ -49,11 +73,14 @@ const HEAD: Partial<Record<CreditKind, string>> = {
 
 const STATUS_FILTER = ["잠금", "발급 가능", "발급 예정", "발급 완료", "발급 확인", "만료"];
 
+/* 시안 `.keybox .cp` 복사 버튼 크기 — 편입 링크 상자와 같다 */
+const CP = { padding: "7px 14px", fontSize: "12.5px" } as const;
+
 export function ClaimsPane({
   offers,
   rows,
 }: {
-  offers: { id: string; kind: CreditKind; status: CreditOfferStatus }[];
+  offers: { id: string; kind: CreditKind; status: CreditOfferStatus; deliveryMethod: CreditDelivery }[];
   rows: Row[];
 }) {
   const [card, setCard] = useState("");
@@ -62,15 +89,25 @@ export function ClaimsPane({
   const [manual, setManual] = useState<Row | null>(null);
   const [manualKind, setManualKind] = useState<CreditKind | null>(null);
   const [batchOpen, setBatchOpen] = useState(false);
+  /* 발급 상세와 재발송 — 어느 팀의 어느 카드인가 */
+  const [detail, setDetail] = useState<{ row: Row; cell: Cell } | null>(null);
+  const [resend, setResend] = useState<{ row: Row; cell: Cell } | null>(null);
+  const { message: toast, show } = useToast();
 
   const [mState, mAction, mPending] = useActionState(deliverManually, INITIAL);
   const [bState, bAction, bPending] = useActionState(batchDeliver, INITIAL);
-  const [seen, setSeen] = useState([mState.done, bState.done]);
-  if (seen[0] !== mState.done || seen[1] !== bState.done) {
-    setSeen([mState.done, bState.done]);
+  const [rState, rAction, rPending] = useActionState(resendMail, INITIAL);
+  const [seen, setSeen] = useState([mState.done, bState.done, rState.done]);
+  if (seen[0] !== mState.done || seen[1] !== bState.done || seen[2] !== rState.done) {
+    setSeen([mState.done, bState.done, rState.done]);
     setManual(null);
     setBatchOpen(false);
+    setResend(null);
   }
+  /* 표 위의 결과 줄 — 셋 중 마지막으로 끝난 것 하나만 */
+  const notice = [mState, bState, rState]
+    .filter((x) => x.notice && x.done)
+    .sort((a, b) => (b.done ?? 0) - (a.done ?? 0))[0]?.notice;
 
   const kinds = rows[0]?.cells.map((x) => x.kind) ?? [CreditKind.c1, CreditKind.c2, CreditKind.c3];
   const shown = rows.filter(
@@ -79,8 +116,16 @@ export function ClaimsPane({
       (!status || r.cells.some((x) => (!card || x.kind === card) && x.label.startsWith(status))),
   );
 
-  /* 일괄 발송할 카드 — 골랐으면 그것, 아니면 보낼 팀이 가장 많은 활성 카드 */
-  const active = offers.filter((o) => o.status === CreditOfferStatus.active && o.kind !== CreditKind.c4);
+  /*
+    일괄 발송할 카드 — 골랐으면 그것, 아니면 보낼 팀이 가장 많은 활성 카드. 수동형은
+    팀마다 코드를 적어야 해서 빠진다(서버도 거절한다).
+  */
+  const active = offers.filter(
+    (o) =>
+      o.status === CreditOfferStatus.active &&
+      o.kind !== CreditKind.c4 &&
+      o.deliveryMethod !== CreditDelivery.manual,
+  );
   const targetsOf = (kind: CreditKind) => rows.filter((r) => r.cells.some((x) => x.kind === kind && x.available));
   const batchOffer =
     active.find((o) => o.kind === card) ??
@@ -89,6 +134,20 @@ export function ClaimsPane({
   const batchTargets = batchOffer ? targetsOf(batchOffer.kind) : [];
 
   const offerOf = (kind: CreditKind | null) => offers.find((o) => o.kind === kind);
+  /* 수동 발급을 걸 수 있는 칸 — 발급 가능이거나 수동형이 코드를 기다린다 */
+  const fillable = (x: Cell) => x.available || x.awaitingCode;
+  const manualCell = manual?.cells.find((x) => x.kind === manualKind) ?? null;
+  const manualNeedsCode = offerOf(manualKind)?.deliveryMethod === CreditDelivery.manual;
+
+  const copy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      show("코드 복사됨");
+    } catch {
+      /* 클립보드를 막아둔 브라우저도 있다. 코드는 상자에 그대로 있다 */
+      show("복사 실패, 상자에서 직접 옮겨 적어야 함");
+    }
+  };
 
   return (
     <>
@@ -128,9 +187,9 @@ export function ClaimsPane({
       </div>
 
       {/* 보낸 결과 — 모달이 닫힌 뒤라 표 위에 적는다(일부만 됐거나 메일이 실패한 것까지) */}
-      {bState.notice ? (
+      {notice ? (
         <div role="status" style={{ margin: "0 0 12px", fontSize: "13px", color: "var(--muted)" }}>
-          {bState.notice}
+          {notice}
         </div>
       ) : null}
 
@@ -149,7 +208,7 @@ export function ClaimsPane({
         </thead>
         <tbody>
           {shown.map((r) => {
-            const availableKinds = r.cells.filter((x) => x.available).map((x) => x.kind);
+            const availableKinds = r.cells.filter(fillable).map((x) => x.kind);
             const delivered = r.cells.some((x) => x.label === "발급 완료" || x.label === "발급 확인");
             return (
               <tr key={r.entryId}>
@@ -179,13 +238,29 @@ export function ClaimsPane({
                   ) : null}
                 </td>
                 <td className={`${c.num} ${s.num}`}>{r.stage}</td>
-                {r.cells.map((x) => (
-                  <td key={x.kind}>
+                {r.cells.map((x) => {
+                  const badge = (
                     <Badge tone={x.tone} dashed={x.dashed} className={c.bdMini}>
                       {x.label}
                     </Badge>
-                  </td>
-                ))}
+                  );
+                  return (
+                    <td key={x.kind}>
+                      {x.detail ? (
+                        <button
+                          type="button"
+                          className={s.cellBtn}
+                          aria-label={`${r.teamName} ${CREDIT_CARD_BY_KIND[x.kind].code} 발급 상세`}
+                          onClick={() => setDetail({ row: r, cell: x })}
+                        >
+                          {badge}
+                        </button>
+                      ) : (
+                        badge
+                      )}
+                    </td>
+                  );
+                })}
                 <td className={`${c.num} ${s.num}`}>{r.lastDeliveredAt ?? "-"}</td>
                 <td className={`${c.num} ${s.num}`} style={{ color: r.sponsorConsent ? "var(--teal)" : "var(--faint)" }}>
                   {r.sponsorConsent ? "✓" : "-"}
@@ -202,7 +277,8 @@ export function ClaimsPane({
                       className={c.tblBtn}
                       onClick={() => {
                         setManual(r);
-                        setManualKind(availableKinds[0]);
+                        /* 운영자를 기다리는 칸(코드 대기)이 먼저다 — 팀이 이미 받기를 눌렀다 */
+                        setManualKind(r.cells.find((x) => x.awaitingCode)?.kind ?? availableKinds[0]);
                       }}
                     >
                       수동 발급
@@ -232,20 +308,129 @@ export function ClaimsPane({
         fields={{ offerId: offerOf(manualKind)?.id ?? "", entryId: manual?.entryId ?? "" }}
         extra={
           manual ? (
-            <Select
-              aria-label={`${manual.teamName} 발급할 카드`}
-              style={{ marginTop: "12px" }}
-              value={manualKind ?? ""}
-              onChange={(e) => setManualKind(e.target.value as CreditKind)}
-            >
-              {manual.cells
-                .filter((x) => x.available)
-                .map((x) => (
+            <>
+              <Select
+                aria-label={`${manual.teamName} 발급할 카드`}
+                style={{ marginTop: "12px" }}
+                value={manualKind ?? ""}
+                onChange={(e) => setManualKind(e.target.value as CreditKind)}
+              >
+                {manual.cells.filter(fillable).map((x) => (
                   <option key={x.kind} value={x.kind}>
                     {manual.teamName}, {CREDIT_CARD_BY_KIND[x.kind].code} {CREDIT_CARD_BY_KIND[x.kind].title}
+                    {x.awaitingCode ? ", 코드 대기" : ""}
                   </option>
                 ))}
-            </Select>
+              </Select>
+              {/* 수동형은 운영자가 코드를 적는다 — 적은 코드로 팀에 메일이 나간다 */}
+              {manualNeedsCode ? (
+                <Field
+                  label="보낼 코드"
+                  note={manualCell?.awaitingCode ? "팀이 받기를 눌러 둠" : "스폰서에게 받은 코드"}
+                  htmlFor="sp-manual-code"
+                  className={s.codeFld}
+                >
+                  <Input id="sp-manual-code" name="code" mono autoComplete="off" spellCheck={false} />
+                </Field>
+              ) : null}
+            </>
+          ) : null
+        }
+      />
+
+      {/* 발급 상세 — 나간 코드와 메일 결과. 보기만 하므로 사유를 묻지 않는다 */}
+      <Modal
+        open={detail !== null}
+        onClose={() => setDetail(null)}
+        title={
+          detail
+            ? `${detail.row.teamName}, ${CREDIT_CARD_BY_KIND[detail.cell.kind].code} ${CREDIT_CARD_BY_KIND[detail.cell.kind].title}`
+            : ""
+        }
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={() => setDetail(null)}>
+              닫기
+            </Button>
+            {detail?.cell.detail?.resendable ? (
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  setResend(detail);
+                  setDetail(null);
+                }}
+              >
+                재발송
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        {detail?.cell.detail ? (
+          <div data-probe="sp-claim-detail">
+            <Card className={hub.sum} style={{ marginBottom: "14px" }}>
+              <div>
+                <span>상태</span>
+                <Badge tone={detail.cell.tone} dashed={detail.cell.dashed} className={c.bdMini}>
+                  {detail.cell.label}
+                </Badge>
+              </div>
+              <div>
+                <span>발송</span>
+                <b>{detail.cell.detail.deliveredAt ?? "보내기 전"}</b>
+              </div>
+              <div>
+                <span>메일</span>
+                <b style={detail.cell.detail.mailFailedAt ? { color: "var(--danger)" } : undefined}>
+                  {detail.cell.detail.mailFailedAt
+                    ? `실패, ${detail.cell.detail.mailFailedAt}`
+                    : detail.cell.detail.deliveredAt
+                      ? "보냄"
+                      : "-"}
+                </b>
+              </div>
+            </Card>
+            {detail.cell.detail.code || detail.cell.detail.link ? (
+              <div className={hub.keybox}>
+                <span className={s.codeText}>{detail.cell.detail.code ?? detail.cell.detail.link}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={s.cp}
+                  style={CP}
+                  onClick={() => void copy(detail.cell.detail?.code ?? detail.cell.detail?.link ?? "")}
+                >
+                  복사
+                </Button>
+              </div>
+            ) : (
+              <p style={{ fontSize: "13px", color: "var(--faint)" }}>
+                {detail.cell.awaitingCode
+                  ? "코드 대기. 줄 끝 수동 발급에서 보낼 코드를 적으면 나감."
+                  : detail.cell.detail.deliveredAt
+                    ? "나간 코드 없음. 이메일 명단 방식은 스폰서가 팀에 직접 보냄."
+                    : "발급 예정. 보낼 때가 되면 자동으로 나감."}
+              </p>
+            )}
+          </div>
+        ) : null}
+      </Modal>
+
+      {/* 재발송 — 운영자 쓰기라 사유와 함께 감사 로그에 남는다 */}
+      <ReasonModal
+        open={resend !== null}
+        onClose={() => setResend(null)}
+        action={rAction}
+        pending={rPending}
+        message={rState.message}
+        submitLabel="재발송"
+        fields={{ offerId: resend?.cell.detail?.offerId ?? "", entryId: resend?.row.entryId ?? "" }}
+        extra={
+          resend ? (
+            <p style={{ marginTop: "8px", fontSize: "13px", color: "var(--muted)" }}>
+              {`${resend.row.teamName}, ${CREDIT_CARD_BY_KIND[resend.cell.kind].code}. 같은 코드로 팀원 모두에게 메일을 다시 보냄.`}
+            </p>
           ) : null
         }
       />
@@ -282,6 +467,7 @@ export function ClaimsPane({
           </p>
         ) : null}
       </Modal>
+      <Toast message={toast} />
     </>
   );
 }
