@@ -115,7 +115,6 @@ export default async function DashboardLayout({
   children: ReactNode;
 }) {
   const viewer = await loadViewerState();
-  const flags = viewer.season?.flags;
   const header = await loadDashboardHeader(viewer);
 
   /*
@@ -139,9 +138,8 @@ export default async function DashboardLayout({
       /* 어느 스테이지를 보고 있든 이 항목이 켜져 있어야 한다 */
       activePrefix: "/dashboard/submit",
     },
-    ...(flags?.credits
-      ? [{ href: "/dashboard/credits", label: "혜택과 크레딧" }]
-      : []),
+    /* 제휴가 없어도 연다 — 크레딧 센터가 꺼져 있으면 폴백 카드만 선다(access-policy) */
+    { href: "/dashboard/credits", label: "혜택과 크레딧" },
     { href: "/dashboard/metrics", label: "내 지표" },
     { href: "/dashboard/judgments", label: "심사 결과" },
     { href: "/dashboard/appeal", label: "소명" },

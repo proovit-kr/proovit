@@ -78,10 +78,8 @@ const SCHEDULE_STATE: Record<
 };
 
 /*
-  시안 3031행의 세 줄 — 제목과 부연을 그대로. 단 크레딧 센터의 부연은 **일부러 바꿨다**
-  (2026-09-30). 시안은 「9/14 go/no-go 후 ON, OFF면 폴백 카드만」인데, 끄면 폴백 카드가
-  아니라 혜택과 크레딧 메뉴가 숨고 주소도 404다(access-policy `dashboardCredits`). 제휴가
-  없으면 탭을 닫아 두기로 해서 그 동작이 맞고, 틀린 쪽은 부연이었다.
+  시안 3031행의 세 줄 — 제목과 부연을 그대로. 크레딧 센터를 끄면 혜택 탭이 폴백 카드만
+  그린다(2026-09-30 수연 「제휴가 없을 때도 폴백 있게」, access-policy `dashboardCredits`).
 */
 const FLAG_ROWS: { key: keyof Flags; title: string; desc?: string }[] = [
   { key: "leaderboard", title: "공개 리더보드" },
@@ -89,7 +87,7 @@ const FLAG_ROWS: { key: keyof Flags; title: string; desc?: string }[] = [
   {
     key: "credits",
     title: "크레딧 센터",
-    desc: "13 설계서 v0.1, 스폰서 확보 후 ON, OFF면 혜택과 크레딧 메뉴 숨김",
+    desc: "13 설계서 v0.1, 9/14 go/no-go 후 ON, OFF면 폴백 카드만",
   },
 ];
 

@@ -135,6 +135,7 @@ export default async function Page() {
         seasonId: viewer.season.id,
         phase: viewer.season.phase,
         status: viewer.entry.status,
+        creditsOn: viewer.season.flags.credits,
       })
     : null;
 

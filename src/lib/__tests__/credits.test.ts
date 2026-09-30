@@ -15,6 +15,7 @@ import {
   claimRefusal,
   creditCardState,
   creditTargetLabel,
+  fallbackItemsOf,
   creditLapsed,
   creditSeason,
   creditValueTotal,
@@ -317,5 +318,22 @@ describe("감사 로그 대상 칸 — 시안 발송 이력의 「새벽창고 �
     expect(creditTargetLabel(CreditKind.c1, [])).toBe("C1 빌더 크레딧");
     expect(creditTargetLabel(CreditKind.c1, ["리틀포션"])).toBe("C1, 리틀포션");
     expect(creditTargetLabel(CreditKind.c2, ["새벽창고", "a", "b"])).toBe("C2, 새벽창고 외 2팀");
+  });
+});
+
+describe("폴백 — 제휴가 없어도 선다", () => {
+  it("운영자가 적은 목록이 있으면 그것", () => {
+    expect(fallbackItemsOf(CreditKind.c1, [{ name: "Lovable 무료", note: "월 5회" }])).toEqual([
+      { name: "Lovable 무료", note: "월 5회" },
+    ]);
+  });
+  it("비었거나 깨졌으면 설계서 기본 목록, C4는 없다", () => {
+    expect(fallbackItemsOf(CreditKind.c2, []).map((x) => x.name)).toEqual([
+      "Vercel Hobby",
+      "Supabase Free",
+      "무료 API 티어 조합",
+    ]);
+    expect(fallbackItemsOf(CreditKind.c3, "깨진 값").length).toBe(3);
+    expect(fallbackItemsOf(CreditKind.c4, [])).toEqual([]);
   });
 });
