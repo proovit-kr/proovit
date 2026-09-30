@@ -5,11 +5,7 @@ import { revalidatePath } from "next/cache";
 import { CREDITS_TOAST } from "@/content/credits";
 import { canAccess, loadViewerState, toAccessContext } from "@/lib/access";
 import { CREDIT_FAILURE_MESSAGE } from "@/lib/credits";
-import {
-  claimCredit,
-  loadUnlockProgress,
-  setCreditApplied,
-} from "@/lib/credits-store";
+import { claimCredit, setCreditApplied } from "@/lib/credits-store";
 
 /*
   혜택 받기 · 적용 확인.
@@ -19,8 +15,8 @@ import {
   엔드포인트다(payment/actions.ts와 같은 이유).
 
   ⚠️ 팀장 제한을 걸지 않는다. 혜택은 팀 자원이고 받는 순간 팀 전체에 붙는다.
-  누가 눌렀는지는 감사 로그가 남기면 되고, 팀장만 누를 수 있게 하면 팀장이
-  자리를 비운 주에 크레딧이 통째로 놀게 된다.
+  누가 눌렀는지는 감사 로그가 남기고(`credit.claim`), 팀장만 누를 수 있게 하면
+  팀장이 자리를 비운 주에 크레딧이 통째로 놀게 된다.
 */
 
 export type CreditActionState = {
@@ -39,7 +35,7 @@ async function guard() {
   const permission = canAccess("dashboardCredits", toAccessContext(viewer));
   if (!permission.ok) return { error: permission.message } as const;
 
-  return { entry: viewer.entry } as const;
+  return { entry: viewer.entry, userId: viewer.user.id } as const;
 }
 
 export async function claimCreditAction(
@@ -52,16 +48,12 @@ export async function claimCreditAction(
   const gate = await guard();
   if ("error" in gate) return { message: gate.error };
 
-  const progress = await loadUnlockProgress(gate.entry.id, gate.entry.stage);
-  const result = await claimCredit({
-    entryId: gate.entry.id,
-    offerId,
-    progress,
-  });
+  /* 열렸는지·받을 수 있는 팀인지는 저장소가 화면과 같은 함수로 다시 잰다 */
+  const result = await claimCredit({ entryId: gate.entry.id, offerId, actorId: gate.userId });
   if (!result.ok) return { message: CREDIT_FAILURE_MESSAGE[result.code] };
 
   revalidatePath("/dashboard/credits");
-  return { done: CREDITS_TOAST.claimed };
+  return { done: result.scheduled ? CREDITS_TOAST.scheduled : CREDITS_TOAST.claimed };
 }
 
 export async function setAppliedAction(

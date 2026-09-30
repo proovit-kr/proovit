@@ -157,7 +157,11 @@ export const SCREENS = {
       ["트랙", S + ".ad-body > .fld:nth-of-type(3)", '[data-probe="ad-body"] > div:nth-of-type(3)', [/^테마 트랙$/, /^비활성$/]],
       /* JSON 본문은 시즌 값이다 — 게다가 jsonb는 키 순서를 제 식으로 바꿔 저장한다 */
       ["config", S + ".ad-body > .fld:nth-of-type(4)", '[data-probe="ad-body"] > div:nth-of-type(4)', [/^\{/]],
-      ["flags", S + ".ad-body > .fld:nth-of-type(5)", '[data-probe="ad-body"] > div:nth-of-type(5)'],
+      /*
+        크레딧 센터의 부연은 일부러 바꿨다(2026-09-30) — 끄면 폴백 카드가 아니라 메뉴가
+        숨는다(SeasonPanel `FLAG_ROWS` 주석). 시안이 갱신되면 지운다.
+      */
+      ["flags", S + ".ad-body > .fld:nth-of-type(5)", '[data-probe="ad-body"] > div:nth-of-type(5)', [/^13 설계서 v0\.1, (9\/14 go\/no-go 후 ON, OFF면 폴백 카드만|스폰서 확보 후 ON, OFF면 혜택과 크레딧 메뉴 숨김)$/]],
     ],
     hover: (S) => [
       ["트랙 추가 hover", S + ".ad-body > .fld:nth-of-type(3) .btn", `[data-probe="tracks"] > ${BTN}`],
@@ -562,7 +566,11 @@ export const SCREENS = {
             ["머리글", S + ".pane.on .atbl thead", '[data-probe="sp-offers-table"] thead'],
             /* 편집 칸 라벨 — 값은 데이터, 시안에 없는 세 칸은 머리 주석 */
             /* C1 설명의 「AI 빌더 에이전트와」는 09-23 수연 지시로 「AI 에이전트와」(credits.mjs와 같은 결정) */
-            ["편집 라벨", S + ".pane.on .sp-form", '[data-probe="sp-edit"] {{p:form}}', [/^(inviteUrl|howtoUrl|redeemNote|초대 링크형|적용 방법 링크|발송 줄의 적용 안내)$/, /^[\d/]+$/, /^소비 \d+, 만료 \d+$/, /.+\.(svg|png)$/, /^없음$/, /^AI (빌더 )?에이전트와 배포/]],
+            /*
+              C1의 releaseDate 칸은 잠겨 「C1은 팀별 게이트 1 때」라고 적는다 — C1은 팀마다
+              게이트 1이 가려질 때 보낸다(2026-09-30 수연 결정, credits.mjs의 같은 주석).
+            */
+            ["편집 라벨", S + ".pane.on .sp-form", '[data-probe="sp-edit"] {{p:form}}', [/^(inviteUrl|howtoUrl|redeemNote|초대 링크형|적용 방법 링크|발송 줄의 적용 안내)$/, /^[\d/]+$/, /^소비 \d+, 만료 \d+$/, /.+\.(svg|png)$/, /^없음$/, /^AI (빌더 )?에이전트와 배포/, /^(빌드 스테이지 개시일|C1은 팀별 게이트 1 때)$/]],
           ]
         : st === "claims"
           ? [

@@ -572,20 +572,24 @@ export async function sendAlertMails(
  */
 export async function sendCreditMail(params: {
   email: string;
+  /** 「C1 빌더 크레딧」 */
   card: string;
+  /** 카드 이름 뒤 주격 조사(「이」·「가」). 괄호가 끼면 받침을 못 읽어 부르는 쪽이 준다 */
+  josa: string;
   sponsor: string | null;
   code: string | null;
   link: string | null;
   validUntil: Date | null;
   howto: string | null;
 }): Promise<MailResult> {
-  const { email, card, sponsor, code, link, validUntil, howto } = params;
-  const title = `${card}${sponsor ? `(${sponsor})` : ""}가 발급됐어요`;
+  const { email, card, josa, sponsor, code, link, validUntil, howto } = params;
+  const title = `${card}${josa} 발급됐어요`;
   const until = validUntil ? kstDate(validUntil) : null;
   const center = `${siteUrl()}/dashboard/credits`;
   const text = [
     title,
     "",
+    sponsor ? `스폰서: ${sponsor}` : null,
     code ? `코드: ${code}` : null,
     link ? `링크: ${link}` : null,
     until ? `유효기간: ${until}까지` : null,
@@ -608,6 +612,7 @@ export async function sendCreditMail(params: {
                  style="margin:24px 0 0;border-top:1px solid ${LINE};border-bottom:1px solid ${LINE}">
             <tr><td style="padding:10px 0">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${sponsor ? row("스폰서", escapeHtml(sponsor)) : ""}
                 ${code ? row("코드", `<span style="font-family:monospace">${escapeHtml(code)}</span>`) : ""}
                 ${link ? row("링크", `<a href="${escapeHtml(link)}" style="color:${INK}">${escapeHtml(link)}</a>`) : ""}
                 ${until ? row("유효기간", `${until}까지`) : ""}

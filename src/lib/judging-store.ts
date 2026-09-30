@@ -14,6 +14,7 @@ import {
   REVISION_HOURS,
   type JudgingFailureCode,
 } from "@/lib/judging";
+import { releaseScheduledCredits } from "@/lib/credits-store";
 import { sendAlertMails } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { raceEndAt, teamRaceWindow } from "@/lib/race";
@@ -318,8 +319,15 @@ export async function judgeSubmission(args: {
     }
 
     if (result === JudgmentResult.fail) {
-      await tx.entry.update({
-        where: { id: submission.entryId },
+      /*
+        실격·포기는 덮지 않는다 — 통과로 뒤집을 때 「실격은 건드리지 않는다」와 같은 규칙.
+        덮으면 실격 팀이 탈락 팀이 되어, 게이트 1에서 떨어진 팀 몫(눌러 둔 C1)까지 받는다.
+      */
+      await tx.entry.updateMany({
+        where: {
+          id: submission.entryId,
+          status: { in: [EntryStatus.active, EntryStatus.eliminated] },
+        },
         data: { status: EntryStatus.eliminated },
       });
       await tx.submission.update({
@@ -382,6 +390,20 @@ export async function judgeSubmission(args: {
 
   /* 같은 통지를 메일로도 — 트랜잭션 밖이다(mail.ts `sendAlertMails`) */
   if (mail) await sendAlertMails(mail.to, mail.text);
+
+  /*
+    게이트 1이 가려졌다(통과든 탈락이든) — 받기를 눌러 둔 C1을 지금 보낸다(credits.ts
+    `releaseDue`). 크론이 15분마다 그물로 다시 보지만, 빌드를 시작한 팀이 기다리지 않게
+    여기서 먼저 부른다. 판정은 이미 저장됐으므로 발급이 실패해도 되돌리지 않는다.
+  */
+  if (
+    submission.stageKey === StageKey.s2 &&
+    (result === JudgmentResult.pass || result === JudgmentResult.fail)
+  ) {
+    await releaseScheduledCredits({ entryIds: [submission.entryId] }).catch((e: unknown) =>
+      console.error("[credits] 게이트 1 판정 뒤 C1 발급 실패", e),
+    );
+  }
 
   return { ok: true };
 }

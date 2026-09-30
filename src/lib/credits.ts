@@ -4,6 +4,7 @@ import {
   CreditKind,
   CreditOfferStatus,
   CreditUnlockEvent,
+  EntryStatus,
   SeasonPhase,
 } from "@/generated/prisma/enums";
 import { phaseAtLeast } from "@/lib/season-phase";
@@ -131,6 +132,55 @@ export function isUnlocked(
 }
 
 // ═════════════════════════════════════════════════════════════
+// 지급 시점과 유효기간
+// ═════════════════════════════════════════════════════════════
+
+const DAY_MS = 86_400_000;
+
+/**
+ * 유효기간이 지났는가. 유효기간은 날짜(그날 00:00 KST로 적힌다)이고 **그날 끝까지**
+ * 쓸 수 있다 — 「~ 11.30」이면 11.30 하루는 아직 쓴다.
+ */
+export function creditLapsed(validUntil: Date | null, today: Date): boolean {
+  return validUntil !== null && today.getTime() >= validUntil.getTime() + DAY_MS;
+}
+
+/**
+ * 발급 예정인 것을 지금 보내도 되나.
+ *
+ *   C1  그 팀의 **게이트 1이 가려졌을 때**(통과 또는 탈락). 설계서 2장은 「빌드
+ *       스테이지 개시일에 지급」이다 — 유효기간이 지급 시점부터 돌기 때문이다.
+ *       유동 게이트(2026-09-25) 뒤로 빌드는 팀마다 게이트 1을 통과한 때 시작하므로
+ *       달력 날짜 하나로는 이르거나 늦다(2026-09-30 수연 결정). 게이트 1에서 떨어진
+ *       팀도 받기를 눌러 둔 C1은 받는다 — 설계서 3장 「탈락 팀은 C1까지만 보유」,
+ *       시안 ⑥(테스터 전환, C1 발급 완료). `release_date`는 C1에 쓰지 않는다.
+ *   그 밖  지급 예정일(`release_date`)이 왔을 때. 없으면 바로.
+ */
+export function releaseDue(args: {
+  kind: CreditKind;
+  releaseDate: Date | null;
+  /** 게이트 1이 가려졌는가 — 통과해 진도가 s3 이상이거나 탈락했다 */
+  gate1Settled: boolean;
+  status: EntryStatus;
+  today: Date;
+}): boolean {
+  if (!scheduledReleasable(args.kind, args.status)) return false;
+  if (args.kind === CreditKind.c1) return args.gate1Settled;
+  return args.releaseDate === null || args.releaseDate.getTime() <= args.today.getTime();
+}
+
+/**
+ * 발급 예정이 **언젠가 나갈 수 있는** 참가 상태인가. 참가가 살아 있거나, 게이트 1에서
+ * 떨어진 팀의 C1(위 `releaseDue` 주석)만이다. 실격·포기 팀, 탈락 팀의 C1 아닌 카드는
+ * 눌러 둔 예정도 보내지 않는다 — 「참가가 멈춘 팀은 새로 받지 못한다」.
+ * 보내기(`releaseDue`)와 그리기(`creditCardState`)가 같은 술어를 쓴다.
+ */
+export function scheduledReleasable(kind: CreditKind, status: EntryStatus): boolean {
+  if (status === EntryStatus.active) return true;
+  return kind === CreditKind.c1 && status === EntryStatus.eliminated;
+}
+
+// ═════════════════════════════════════════════════════════════
 // 시즌 구간 — 카드 상태를 가르는 셋째 축
 // ═════════════════════════════════════════════════════════════
 
@@ -183,6 +233,10 @@ export type CreditCardStateInput = {
   claimStatus: CreditClaimStatus | null;
   unlocked: boolean;
   season: CreditSeason;
+  /** 참가 상태(`entries.status`). active가 아니면 새로 받지 않는다 */
+  status: EntryStatus;
+  /** 카드의 유효기간이 지났는가(`creditLapsed`) */
+  lapsed: boolean;
 };
 
 /**
@@ -191,17 +245,29 @@ export type CreditCardStateInput = {
  * **순서가 규약이다**(canAccess와 같은 이유).
  *
  *   1. 시상 카드는 클레임 흐름 밖이다.
- *   2. 손에 들어온 발급 기록(예정·완료·확인·만료)은 카드가 어떻게 되든 남는다 —
- *      운영자가 카드를 협의 중으로 되돌려도 받은 코드는 받은 것이다.
- *   3. 협의 중은 **조건이 채워졌을 때만** 협의 중으로 읽힌다(시안 ⑤ 「협의 중,
+ *   2. 손에 들어온 발급 기록(완료·확인·만료)은 카드가 어떻게 되든 남는다 —
+ *      운영자가 카드를 협의 중으로 되돌려도 받은 코드는 받은 것이다. 다만
+ *      유효기간이 지나면 받은 코드도 「만료」다(설계서 5장 「유효기간 종료 → 일괄
+ *      만료 처리」). 행을 고치지 않고 읽을 때 접는다 — 날짜가 지났다는 사실은
+ *      크론을 기다릴 까닭이 없다.
+ *   3. 참가가 멈춘 팀(탈락·실격·포기)은 새로 받지 않는다 — 받은 것만 남고 나머지는
+ *      「잠금」이다. 시안 ⑥(테스터 전환, C1만 받은 채 나머지 잠금)과 운영 표의
+ *      실격 줄(「추가 발급 중지」, 안 받은 칸은 잠금)이 이 모양이다. 13 설계서
+ *      3장 「탈락 팀은 C1까지만 보유」도 같은 말이다(2026-09-30).
+ *   4. 협의 중은 **조건이 채워졌을 때만** 협의 중으로 읽힌다(시안 ⑤ 「협의 중,
  *      열림」). 레이스 중에 아직 안 열린 카드는 스폰서가 있든 없든 「잠금」이다
  *      (시안 ②③④의 C3) — 조건이 먼저다. 모집 중에는 아무것도 안 열리므로 전부
  *      「협의 중」이고(시안 ①), 시즌이 끝나면 못 연 채 「만료」다(⑦의 C3).
- *   4. 나머지는 조건과 카드가 닫혔는지로 가른다.
+ *   5. 나머지는 조건과 카드가 닫혔는지로 가른다.
+ *
+ * ⚠️ 화면·받기·운영 칸·수동 발급이 **전부 이 함수 하나**를 부른다. 받기가 따로
+ * 판정하던 때는 화면이 「발급 가능」인 카드를 받기가 거절하거나, 화면이 「만료」인
+ * 카드를 받기가 내줬다(2026-09-30 감사).
  */
 export function creditCardState(input: CreditCardStateInput): CreditCardState {
-  const { kind, offerStatus, claimStatus, unlocked, season } = input;
-  const ended = offerStatus === CreditOfferStatus.ended || season === "over";
+  const { kind, offerStatus, claimStatus, unlocked, season, status, lapsed } = input;
+  const active = status === EntryStatus.active;
+  const ended = offerStatus === CreditOfferStatus.ended || season === "over" || lapsed;
 
   /* 1) 시상 카드 */
   if (isAwardCard(kind)) {
@@ -215,24 +281,32 @@ export function creditCardState(input: CreditCardStateInput): CreditCardState {
   /* 2) 발급 기록이 있으면 그 상태가 곧 카드 상태다 */
   switch (claimStatus) {
     case CreditClaimStatus.scheduled:
-      return "scheduled";
+      /*
+        나가지 않을 예정은 예정으로 그리지 않는다 — 끝난 카드·시즌이면 만료, 보낼 수 없는
+        참가 상태면 잠금(`scheduledReleasable`). 「발급 예정」이 끝까지 남던 때가 있었다.
+      */
+      if (ended) return "expired";
+      return scheduledReleasable(kind, status) ? "scheduled" : "locked";
     case CreditClaimStatus.delivered:
-      return "delivered";
+      return lapsed ? "expired" : "delivered";
     case CreditClaimStatus.confirmed:
-      return "confirmed";
+      return lapsed ? "expired" : "confirmed";
     case CreditClaimStatus.expired:
       return "expired";
     default:
       break;
   }
 
-  /* 3) 협의 중 — 열렸을 때만 협의 중이다 */
+  /* 3) 참가가 멈춘 팀 — 받은 것만 남는다 */
+  if (!active) return season === "over" ? "expired" : "locked";
+
+  /* 4) 협의 중 — 열렸을 때만 협의 중이다 */
   if (offerStatus === CreditOfferStatus.negotiating) {
     if (season === "over") return "expired";
     return season === "pre" || unlocked ? "negotiating" : "locked";
   }
 
-  /* 4) 기록이 없거나 받을 수 있는 채다 */
+  /* 5) 기록이 없거나 받을 수 있는 채다 */
   if (!unlocked) return ended ? "expired" : "locked";
   return ended ? "expired" : "available";
 }
@@ -373,7 +447,7 @@ export type NextUnlockCard = {
 export type NextUnlock =
   /** ① 전부 협의 중 */
   | { kind: "pre" }
-  /** ③ 발급 예정 — 배포 예정일에 보낸다 */
+  /** ③ 발급 예정 — 지급 예정일에 보낸다. C1은 `at`이 비고 게이트 1을 통과하면 보낸다 */
   | { kind: "scheduled"; card: NextUnlockCard; at: Date | null }
   /**
    * ②④⑤ 다음에 열릴 카드. `via`는 그 앞에 「협의 중이라 폴백으로 열렸어요」로
@@ -384,10 +458,14 @@ export type NextUnlock =
   | { kind: "tester"; gate: 1 | 2; next: NextUnlockCard | null }
   /** ⑦ — `until`은 받은 코드 중 가장 이른 유효기간 */
   | { kind: "over"; until: Date | null }
+  /** 실격·포기 — 새로 열릴 카드가 없다(탈락은 ⑥ 테스터) */
+  | { kind: "closed" }
   | { kind: "done" };
 
 export function nextUnlock(args: {
   season: CreditSeason;
+  /** 참가가 살아 있는가. 탈락은 `eliminated`로 따로 준다 */
+  active: boolean;
   eliminated: boolean;
   /** 못 넘은 게이트. 탈락일 때만 뜻이 있다 */
   failedGate: 1 | 2;
@@ -398,7 +476,7 @@ export function nextUnlock(args: {
     validUntil: Date | null;
   })[];
 }): NextUnlock {
-  const { season, eliminated, failedGate, cards } = args;
+  const { season, active, eliminated, failedGate, cards } = args;
 
   if (season === "over") {
     const until = cards
@@ -407,6 +485,7 @@ export function nextUnlock(args: {
       .sort((a, b) => a.getTime() - b.getTime())[0];
     return { kind: "over", until: until ?? null };
   }
+  if (!active && !eliminated) return { kind: "closed" };
   if (eliminated) {
     return {
       kind: "tester",
@@ -418,8 +497,15 @@ export function nextUnlock(args: {
     return { kind: "pre" };
   }
 
+  /* C1은 날짜가 아니라 게이트 1이다(`releaseDue`) — 때를 비운다 */
   const scheduled = cards.find((c) => c.state === "scheduled");
-  if (scheduled) return { kind: "scheduled", card: scheduled, at: scheduled.releaseDate };
+  if (scheduled) {
+    return {
+      kind: "scheduled",
+      card: scheduled,
+      at: scheduled.kind === CreditKind.c1 ? null : scheduled.releaseDate,
+    };
+  }
 
   const via = cards.find((c) => c.state === "negotiating" && c.unlocked) ?? null;
   const next = cards.find((c) => c.state === "locked" || c.state === "award");
@@ -552,16 +638,127 @@ export function maskCreditCode(code: string): string {
 export type CreditFailureCode =
   | "NOT_FOUND"
   | "LOCKED"
+  | "INACTIVE"
   | "NEGOTIATING"
   | "ALREADY_CLAIMED"
   | "SOLD_OUT"
   | "ENDED";
 
+/**
+ * 받기를 막는 까닭 — 카드 상태가 「발급 가능」이 아니면 그 상태에 맞는 거절.
+ * 받을 수 있으면 null. 참가가 멈춘 팀은 카드가 「잠금」으로 읽히지만 까닭은 따로 댄다.
+ */
+export function claimRefusal(
+  state: CreditCardState,
+  active: boolean,
+): CreditFailureCode | null {
+  switch (state) {
+    case "available":
+      return null;
+    case "negotiating":
+      return "NEGOTIATING";
+    case "scheduled":
+    case "delivered":
+    case "confirmed":
+      return "ALREADY_CLAIMED";
+    case "expired":
+      return "ENDED";
+    default:
+      return active ? "LOCKED" : "INACTIVE";
+  }
+}
+
 export const CREDIT_FAILURE_MESSAGE: Record<CreditFailureCode, string> = {
   NOT_FOUND: "혜택을 찾을 수 없어요.",
   LOCKED: "아직 열리지 않은 혜택이에요.",
+  INACTIVE: "참가가 멈춘 팀은 새로 받을 수 없어요. 이미 받은 크레딧은 그대로 써요.",
   NEGOTIATING: "스폰서 협의가 끝나지 않아 지금은 받을 수 없어요.",
   ALREADY_CLAIMED: "이미 받은 혜택이에요. 팀당 한 번만 받을 수 있어요.",
   SOLD_OUT: "남은 코드가 없어요. 운영에 알려 주시면 스폰서에 요청할게요.",
   ENDED: "종료된 혜택이에요.",
 };
+
+// ═════════════════════════════════════════════════════════════
+// 코드 풀 업로드 — 스폰서가 보낸 글에서 코드만 골라낸다
+// ═════════════════════════════════════════════════════════════
+
+/** 따옴표를 존중해 한 줄을 칸으로 — 쉼표·세미콜론·탭 */
+function splitRow(line: string): string[] {
+  const cells: string[] = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (quoted && line[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (!quoted && (ch === "," || ch === ";" || ch === "\t")) {
+      cells.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  cells.push(cur.trim());
+  return cells;
+}
+
+const CODE_HEADER = /code|코드|쿠폰|coupon|promo|voucher/i;
+
+/**
+ * 스폰서가 보낸 글에서 코드 목록을 뽑는다.
+ *
+ * 스폰서가 보내는 모양이 매번 다르다 — 한 줄에 하나, 쉼표로 이은 한 줄, 여러 열짜리 표.
+ *
+ *   한 줄이면          칸마다 코드다(「A,B,C」).
+ *   여러 줄, 칸이 하나  줄마다 코드다. 첫 줄이 머리(「code」)면 뺀다.
+ *   여러 줄, 칸이 여럿  **표다.** 머리 줄에서 코드 열(「code」·「코드」·「쿠폰」…)을 찾아
+ *                      그 열만 쓰고 머리 줄은 뺀다. 코드 열을 못 찾으면 거절한다.
+ *
+ * 전에는 줄바꿈·쉼표를 가리지 않고 쪼개서, 표를 올리면 머리글·금액·날짜까지 코드
+ * 풀에 들어가 팀에 나갈 수 있었다(2026-09-30 감사). 모르는 모양은 추측하지 않고
+ * 거절한다 — 엉뚱한 값이 참가자에게 코드로 가는 것이 훨씬 나쁘다.
+ *
+ * 코드 안에 빈칸이 있으면 거절한다 — 그런 값은 대개 설명 글이 섞인 것이다.
+ */
+export function parseCodeList(
+  raw: string,
+): { ok: true; codes: string[] } | { ok: false; message: string } {
+  const lines = raw
+    .replace(/^﻿/, "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return { ok: false, message: "올릴 코드가 없습니다." };
+
+  const rows = lines.map(splitRow);
+  /* 머리 줄 한 칸 — 「code」·「Promo Code」처럼 코드 열 이름이고 숫자가 없다(코드에는 숫자가 있다) */
+  const isHeader = (cell: string) => CODE_HEADER.test(cell) && !/\d/.test(cell);
+  let codes: string[];
+  if (rows.length === 1) {
+    if (rows[0].some(isHeader)) return { ok: false, message: "머리 줄만 있고 코드가 없습니다." };
+    codes = rows[0];
+  } else if (rows.every((r) => r.length === 1)) {
+    /* 한 열짜리 표 — 머리 줄이 있으면 뺀다. 안 빼면 「code」가 코드로 팀에 나간다 */
+    codes = rows.map((r) => r[0]).slice(isHeader(rows[0][0]) ? 1 : 0);
+  } else {
+    const col = rows[0].findIndex((cell) => CODE_HEADER.test(cell));
+    if (col < 0) {
+      return {
+        ok: false,
+        message: "코드 열을 찾지 못했습니다. 머리 줄에 code 열이 있는 표이거나, 한 줄에 코드 하나씩이어야 합니다.",
+      };
+    }
+    codes = rows.slice(1).map((r) => r[col] ?? "");
+  }
+
+  codes = codes.map((c) => c.trim()).filter(Boolean);
+  const spaced = codes.find((c) => /\s/.test(c));
+  if (spaced) return { ok: false, message: `코드에 빈칸이 있습니다: ${spaced.slice(0, 40)}` };
+  if (codes.length === 0) return { ok: false, message: "올릴 코드가 없습니다." };
+  return { ok: true, codes };
+}

@@ -171,12 +171,19 @@ function code(k, on) {
   ];
 }
 
+/*
+  ⚠️ C1의 발급 예정 줄에는 날짜·D-day가 없다 — **일부러 바꿨다**(2026-09-30 수연 결정).
+  C1은 팀마다 게이트 1을 통과한 때 보내므로(lib/credits.ts `releaseDue`) 시안의
+  「빌드 시작일 10.12에 … D-9」를 쓸 수 없다. 날짜 칸(b)과 D-day(dd)가 빠진 만큼 줄
+  높이가 D-day 글꼴 몫(2.5px)만큼 낮아진다 — 높이는 안 본다. 시안이 갱신되면 되돌린다.
+*/
 const sched = (k) => [
-  [`카드 ${k + 1} sched`, `${S}.cr[data-i="${k}"] .sched`, `${I("cr")}[data-i="${k}"] ${I("sched")}`],
+  [`카드 ${k + 1} sched`, `${S}.cr[data-i="${k}"] .sched`, `${I("cr")}[data-i="${k}"] ${I("sched")}`, [], ["height"]],
   [`카드 ${k + 1} sched ic`, `${S}.cr[data-i="${k}"] .sched .ic`, `${I("cr")}[data-i="${k}"] ${I("sched")} svg`, SVG],
-  [`카드 ${k + 1} sched b`, `${S}.cr[data-i="${k}"] .sched b`, `${I("cr")}[data-i="${k}"] ${I("sched")} b`, [], INLINE],
-  [`카드 ${k + 1} sched dd`, `${S}.cr[data-i="${k}"] .sched .dd`, `${I("cr")}[data-i="${k}"] ${I("dd")}`, [], INLINE],
 ];
+/** 같은 까닭으로 ③에서는 C1 카드와 레일의 높이를 안 본다 */
+const freeHeight = (rows, names) =>
+  rows.map((r) => (names.includes(r[0]) ? [r[0], r[1], r[2], r[3] ?? [], [...(r[4] ?? []), "height"], r[5]] : r));
 
 /* 카드 넷의 자리 — 시안 st별. lock·award(협의 중 아님)는 잠금 노드 */
 const LOCK = (k) => [...card(k), nodeIcon(k), ...act(k, { btn: ".btn", lnk: true })];
@@ -196,11 +203,12 @@ const LIST = {
     ...HEAD, ["nx b", S + ".cr-sum .nx b", `${I("nx")} b`, [], INLINE],
     ...LOCK(0), metaLime(0), metaB(0), ...LOCK(1), metaLime(1), ...LOCK(2), ...AWARD(3), metaB(3),
   ],
-  sched: [
-    ...HEAD, ["nx mono", S + ".cr-sum .nx .mono", `${I("nx")} .mono`, [], INLINE],
+  /* 「다음 언락」의 날짜(mono)도 없다 — 위 `sched` 주석 */
+  sched: freeHeight([
+    ...HEAD,
     ...card(0, { cond: "ok" }), nodeIcon(0), metaLime(0), ...sched(0), ...act(0, { lnk: true, when: true }),
     ...LOCK(1), metaLime(1), ...LOCK(2), ...AWARD(3), metaB(3),
-  ],
+  ], ["rail", "카드 1"]),
   build: [
     ...HEAD, ["nx b", S + ".cr-sum .nx b", `${I("nx")} b`, [], INLINE],
     ...card(0, { cond: "ok" }), nodeIcon(0), metaLime(0), ...code(0, false),
@@ -275,6 +283,14 @@ const IGNORE = [
   */
   /^AI 빌더 에이전트와 배포, 컴퓨트 크레딧\. 표준 빌더로/,
   /^AI 에이전트와 배포,$/,
+  /*
+    ⚠️ C1의 지급 시점. 시안은 「빌드 시작일 10.12」(달력), 우리는 그 팀이 게이트 1을
+    통과한 날이고 통과 전에는 「게이트 1 통과 때」다 — **일부러 바꿨다**(2026-09-30
+    수연 결정, 위 `sched` 주석). ①②③에서만 갈리고 ④ 이후는 같은 모양이다.
+  */
+  /^빌드 시작일$/, /^게이트 1 통과 때$/,
+  /^C1은 빌드 시작일$/, /^에 보내드려요$/, /^C1은 게이트 1을 통과하면 보내드려요$/,
+  /^에 이메일로 보내드려요$/, /^게이트 1을 통과하면 이메일로 보내드려요$/,
 ];
 
 const probe = () => `(() => {
