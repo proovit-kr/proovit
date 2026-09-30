@@ -443,7 +443,7 @@ export function Landing({
   const lead = top[0]?.validVisitors ?? 0;
 
   return (
-    <div className="page">
+    <div className={`page ${styles.edges}`}>
       {/*
         이동 대신 폼으로 스크롤한다 — 같은 문서 안이라 주소만 갈면 아무 일도
         안 일어난 것처럼 보인다. `href`는 자바스크립트가 죽었을 때의 대비다.

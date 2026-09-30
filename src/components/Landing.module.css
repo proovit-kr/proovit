@@ -30,6 +30,31 @@
   min-width: 0;
 }
 
+/*
+  헤더·푸터의 안쪽 여백을 `.ld`의 콘텐츠 선에 맞춘다(2026-10-01, 동혁 QA ★).
+  시안은 헤더·푸터가 창 끝에서 40px(≤1024 헤더 22px, ≤760 18·20px)이고 본문은
+  1120px 상자 안이라, 넓은 창에서 로고와 본문 왼쪽 끝이 따로 놀았다(1440에서 160px).
+  바탕과 밑줄은 창 끝까지 그대로 두고 여백만 바꾼다.
+
+  `.ld`의 콘텐츠 왼쪽 끝 = (창 − 1120)/2 + 40 = 50% − 520px. 창이 1120보다 좁으면
+  40px(≤760은 20px)에서 멈춘다.
+
+  ⚠️ NavBar·Footer는 다른 모듈이라 클래스로 집으면 해시가 달라 영영 안 맞는다.
+  `.page`의 직계 태그로 집는다. 랜딩에서만이다 — 다른 공개 화면은 본문 폭이 제각각이다.
+*/
+.edges > header,
+.edges > footer {
+  padding-left: max(40px, calc(50% - 520px));
+  padding-right: max(40px, calc(50% - 520px));
+}
+@media (max-width: 760px) {
+  .edges > header,
+  .edges > footer {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
 /* ═══════════════ 히어로 ═══════════════ */
 
 .hero {
@@ -610,11 +635,19 @@
   transform: scaleX(1);
 }
 
-/* 러너 도트. 게이트에서 잠깐 멈췄다 다시 달린다 */
+/*
+  러너 도트. 게이트에서 잠깐 멈췄다 다시 달린다.
+
+  ⚠️ 멈추는 자리는 시안과 다르다(2026-10-01, 동혁 QA ★). 시안은 7칸을 균등하게
+  나눈 7.14%·35.71%·92.86%인데, `.rmGrid`에 칸 사이 8px(여섯 번이라 48px)이 있어
+  노드 중심이 거기서 비껴 있다 — 게이트 1에서 1px 오른쪽, 게이트 2에서 3.4px
+  왼쪽에 섰다. 칸 i의 중심 = (100% − 48px) × (2i+1)/14 + 8px × i.
+  `.rmGrid`의 gap을 바꾸면 여기도 같이 고친다.
+*/
 .rmRun {
   position: absolute;
   top: 27px;
-  left: 7.14%;
+  left: calc((100% - 48px) / 14);
   width: 9px;
   height: 9px;
   margin: -4.5px 0 0 -4.5px;
@@ -631,31 +664,31 @@
 }
 @keyframes rmrun {
   0% {
-    left: 7.14%;
+    left: calc((100% - 48px) / 14);
     opacity: 0;
   }
   4% {
     opacity: 1;
   }
   28% {
-    left: 35.71%;
+    left: calc((100% - 48px) * 5 / 14 + 16px);
   }
   37% {
-    left: 35.71%;
+    left: calc((100% - 48px) * 5 / 14 + 16px);
   }
   72% {
-    left: 92.86%;
+    left: calc((100% - 48px) * 13 / 14 + 48px);
   }
   84% {
-    left: 92.86%;
+    left: calc((100% - 48px) * 13 / 14 + 48px);
     opacity: 1;
   }
   90% {
-    left: 92.86%;
+    left: calc((100% - 48px) * 13 / 14 + 48px);
     opacity: 0;
   }
   100% {
-    left: 7.14%;
+    left: calc((100% - 48px) / 14);
     opacity: 0;
   }
 }
