@@ -325,6 +325,24 @@ export const MARQUEE = [
   "100% 온라인",
 ];
 
+/*
+  히어로 전광판의 예시 순위 — 시즌이 열리기 전(모집 전·모집 중)에만 쓴다.
+
+  시안은 이 상태를 빈 슬롯 셋으로 그리는데, 「지표로 증명하라」 옆에 지표가
+  하나도 없었다(2026-10-02 동혁 QA, 수연 결정). 진행 중 전광판과 같은 줄을
+  그리고 뱃지와 안내 문장이 「예시」라고 밝힌다.
+
+  팀명·숫자는 시안 ver4 진행 중 전광판의 표본 그대로다(막대 100·62·41%).
+
+  ⚠️ 진행 중·종료에는 쓰지 않는다. 집계 전이라 순위가 비어도 빈 슬롯으로 둔다 —
+  「예시」 표시 없이 실제 순위 자리에 섞이면 지어낸 숫자가 된다.
+*/
+export const SAMPLE_BOARD = [
+  { entryId: "sample-1", teamName: "골목마켓", validVisitors: 731 },
+  { entryId: "sample-2", teamName: "모카브루", validVisitors: 455 },
+  { entryId: "sample-3", teamName: "두잇로그", validVisitors: 298 },
+];
+
 
 /*
   시즌 상세(`/seasons/:slug`)의 스테이지 카드 — 시안 `#scr-season`의 `.tl`.
