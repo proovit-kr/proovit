@@ -143,10 +143,12 @@ const ALL_PAIRS = [
   ["rm-w", S + ".rm-w", "rmW"],
   ["rm-d", S + ".rm-d", "rmD"],
   ["rm-legend", S + ".rm-legend", "rmLegend"],
-  ["three", S + ".ld-3", "three"],
-  /* Reveal이 감싸지 않고 자식에 붙으므로 카드가 곧 그리드의 자식이다 */
-  ["three 카드", S + ".ld-3 .card", '[class*="__three"] > *', [], ["width", "height"]],
-  ["three n", S + ".ld-3 .n", "threeNo"],
+  /*
+    ⚠️ 03 BENEFITS·04 WHY는 값을 대조하지 않는다. 시안은 번호 붙은 카드 셋(`.ld-3`)인데
+    카드가 너무 많다는 QA 의견으로 상자를 걷고 선으로만 나눴다(2026-10-03, 수연 전달.
+    `Landing.tsx`의 03·04 주석). 짝이 없어 글자만 본다 — 카드 번호(01~03)는 아래
+    `TEXT_IGNORE`의 숫자 규칙에 걸려 시안에만 있어도 안 잡힌다.
+  */
   ["crit", S + ".ld-crit", "crit"],
   ["crit 카드", S + ".ld-crit .card", '[class*="__crit"] > *', [], ["width", "height"]],
   ["crit rd", S + ".ld-crit .rd", "critRound"],

@@ -822,28 +822,37 @@ export function Landing({
           </div>
         </div>
 
-        {/* ═══════ 03 BENEFITS ═══════ */}
-        <div className={styles.sec}>
+        {/*
+          ═══════ 03 BENEFITS · 04 WHY ═══════
+          시안은 둘 다 번호 붙은 카드 셋(`.ld-3`)이다. 같은 상자 여섯이 잇달아 나와
+          카드가 너무 많다는 QA 의견으로 상자를 걷었다(2026-10-03, 수연 전달) —
+          03은 세로선으로 나눈 세 열, 04는 가로선으로 나눈 세 줄이다. 카드 안의
+          번호(01~03)도 뺐다. 순서가 없는 목록이고 섹션 번호와 겹친다.
+
+          ⚠️ 선은 칸(`.benefit`·`.why`)이 갖고 리빌은 그 안의 글자에만 건다.
+          칸에 걸면 선까지 같이 미끄러져 들어온다.
+        */}
+        <div className={cx(styles.sec, styles.secFlush)}>
           <SectionHead
             no="03"
             label="BENEFITS"
             title="참가하면 이런 걸 받아요"
           />
-          <div className={styles.three}>
+          <div className={styles.benefits}>
             {LANDING_BENEFITS.map((b, i) => (
-              <Reveal key={b.no} index={i} step={100}>
-                <Card>
-                  <span className={styles.threeNo}>{b.no}</span>
-                  <h4>{b.title}</h4>
-                  {/* 절 끊기(Clauses)를 안 쓴다. 카드가 한 줄씩 길어져 시안대로 자연 줄바꿈이다(2026-09-19 수연 결정) */}
-                  <p>{b.desc}</p>
-                </Card>
-              </Reveal>
+              <div key={b.no} className={styles.benefit}>
+                <Reveal index={i} step={100}>
+                  <div>
+                    <h4>{b.title}</h4>
+                    {/* 절 끊기(Clauses)를 안 쓴다. 한 줄씩 길어져 자연 줄바꿈이다(2026-09-19 수연 결정) */}
+                    <p>{b.desc}</p>
+                  </div>
+                </Reveal>
+              </div>
             ))}
           </div>
         </div>
 
-        {/* ═══════ 04 WHY ═══════ */}
         <div className={styles.sec}>
           <SectionHead
             no="04"
@@ -854,17 +863,18 @@ export function Landing({
               </>
             }
           />
-          <div className={styles.three}>
+          <div className={styles.whys}>
             {LANDING_WHY.map((w, i) => (
-              <Reveal key={w.no} index={i} step={100}>
-                <Card>
-                  <span className={styles.threeNo}>{w.no}</span>
-                  <h4>{w.title}</h4>
-                  <p>
-                    <Clauses text={w.desc} />
-                  </p>
-                </Card>
-              </Reveal>
+              <div key={w.no} className={styles.why}>
+                <Reveal index={i} step={100}>
+                  <div className={styles.whyIn}>
+                    <h4>{w.title}</h4>
+                    <p>
+                      <Clauses text={w.desc} />
+                    </p>
+                  </div>
+                </Reveal>
+              </div>
             ))}
           </div>
         </div>
