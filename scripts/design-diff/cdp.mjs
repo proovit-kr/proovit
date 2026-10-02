@@ -93,6 +93,10 @@ export const textNodes = (sel) => `(() => {
  *                           도착하는 섹션의 이름을 맞췄다(2026-10-03 QA 의견, 수연 전달).
  *
  * 시안이 따라오면 그 줄을 지운다.
+ *
+ * ⚠️ 이 표는 **모든 화면**의 대조에 걸린다. 한 화면에서만 바꾼 글자는 여기 넣지 않고
+ * 그 화면의 스크립트가 `diffText`의 `renames`로 넘긴다 — 「₩0」이 그렇다. 랜딩의
+ * 참가비는 「FREE」로 바꿨지만 크레딧 센터의 「₩0 스타트 스택」은 시안 그대로다.
  */
 const SPEC_RENAMES = [
   [/^((?:시즌 \d+ )?(?:사전|참가) 신청)하기$/, "$1"],
@@ -101,7 +105,7 @@ const SPEC_RENAMES = [
   [/^HOW IT WORKS$/, "TRACK"],
   [/^작동 방식$/, "트랙"],
 ];
-const renamed = (t) => SPEC_RENAMES.reduce((s, [re, to]) => s.replace(re, to), t);
+const renamed = (t, table = SPEC_RENAMES) => table.reduce((s, [re, to]) => s.replace(re, to), t);
 
 /**
  * 긁어 온 글자 두 벌을 견준다. 다른 것만 찍고 개수를 돌려준다.
@@ -113,13 +117,14 @@ const renamed = (t) => SPEC_RENAMES.reduce((s, [re, to]) => s.replace(re, to), t
  *
  * @param ignore 데이터가 정하는 것만 넣는다. ⚠️ 여기 넣는 순간 그 문구는
  *   영원히 대조되지 않는다 — **판단이 서지 않으면 넣지 말고 빨간 줄로 남긴다.**
+ * @param renames 이 화면에서만 일부러 바꾼 글자. `SPEC_RENAMES`와 같은 모양이고 그 뒤에 건다.
  */
-export function diffText(spec, impl, { ignore = [], label = "" } = {}) {
+export function diffText(spec, impl, { ignore = [], label = "", renames = [] } = {}) {
   if (!spec || !impl) {
     console.log(`  ⚠️ 글자를 긁지 못했다${label ? ` (${label})` : ""}`);
     return 1;
   }
-  spec = spec.map(renamed);
+  spec = spec.map((t) => renamed(renamed(t), renames));
   const glue = (arr) => arr.join("").replace(/\s+/g, "");
   const bare = (t) => t.replace(/\s+/g, "");
   const implFlat = glue(impl), specFlat = glue(spec);
