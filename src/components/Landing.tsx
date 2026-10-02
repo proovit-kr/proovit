@@ -31,6 +31,7 @@ import {
   LANDING_WHY,
   MARQUEE,
   ROADMAP,
+  SAMPLE_BOARD,
 } from "@/content/landing";
 import {
   fmtMD,
@@ -50,10 +51,12 @@ import {
   시안은 정적 목업이라 숫자가 박혀 있다. 우리는 실제 값을 넣는다 — 사전 신청
   수는 DB 집계고, CTA 문구·행선지는 시즌 페이즈가 정한다.
 
-  **없는 데이터를 지어내지 않는다.** 진행 중이 아니면 전광판은 순위 대신
-  빈 슬롯을 보여준다(시안도 그렇게 그려 뒀다). 진행 중에도 스냅샷 순위가 없는
+  **없는 데이터를 실제인 것처럼 지어내지 않는다.** 진행 중에 스냅샷 순위가 없는
   자리는 빈 슬롯으로 남긴다. 조작 불가능한 지표가 이 서비스의 상품인데 랜딩에
   허구의 실시간 숫자를 띄우면 그 주장이 무너진다.
+
+  시즌이 열리기 전의 전광판만 예외다 — 빈 슬롯 대신 예시 순위를 그리고
+  「예시」라고 밝힌다(`SAMPLE_BOARD`, 2026-10-02 수연 결정. 시안은 빈 슬롯이다).
 */
 
 /** 진행 중·시즌 종료 전광판. `page.tsx`의 `loadLive`가 채운다 */
@@ -437,9 +440,10 @@ export function Landing({
 
   /*
     전광판 세 자리. 막대는 1위 대비 비율이다(시안 731·455·298명 → 100·62·41%).
-    순위가 없는 자리는 빈 슬롯으로 둔다 — 셋이 안 차도 지어내지 않는다.
+    진행 중·종료에 순위가 없는 자리는 빈 슬롯으로 둔다 — 셋이 안 차도 지어내지
+    않는다. 시즌이 열리기 전에는 예시 순위를 그린다.
   */
-  const top = racing || ended ? live.top : [];
+  const top = racing || ended ? live.top : SAMPLE_BOARD;
   const lead = top[0]?.validVisitors ?? 0;
 
   return (
@@ -601,7 +605,7 @@ export function Landing({
             )}
           </div>
 
-          {/* 라이브 전광판. 진행 중이 아니면 순위 대신 빈 슬롯이다 */}
+          {/* 라이브 전광판. 시즌이 열리기 전에는 예시 순위다 */}
           <Reveal dir="right">
             <div className={styles.live}>
               <div className={styles.liveCap}>
@@ -609,9 +613,7 @@ export function Landing({
                 {racing ? (
                   <Badge tone="lime">LIVE</Badge>
                 ) : (
-                  <Badge tone="gray">
-                    {ended ? "최종" : recruiting ? "개막 전" : "준비 중"}
-                  </Badge>
+                  <Badge tone="gray">{ended ? "최종" : "예시"}</Badge>
                 )}
               </div>
               {[0, 1, 2].map((i) => {
@@ -657,9 +659,16 @@ export function Landing({
                 </p>
               ) : (
                 <p className={cx(styles.liveNote, styles.liveNoteFit)}>
-                  {/* 줄이 나뉘어도 「표시돼요.」만 홀로 떨어지지 않게 묶는다 */}
-                  {seasonName}이 시작되면 참가팀의 유효 이용자 수가 여기에{" "}
-                  {"실시간으로\u00a0표시돼요."}
+                  {/*
+                    칸이 좁으면 첫 문장 뒤에서 끊기고 둘째 문장이 상자째 다음 줄로 간다.
+                    `Clauses`를 쓰지 않는다 — 한 줄에 못 들어가는 절은 `ClauseFit`이
+                    상자를 벗겨서, 390에서 「…참가팀의 유효 / 이용자 수가…」로 갈라졌다.
+                    상자 안에서는 「유효 이용자 수가」와 끝 세 어절이 붙어 다닌다.
+                  */}
+                  예시 화면이에요.{" "}
+                  <span className={styles.liveNoteRest}>
+                    {`${seasonName}이 시작되면 참가팀의 유효\u00a0이용자\u00a0수가 여기에\u00a0실시간으로\u00a0표시돼요.`}
+                  </span>
                 </p>
               )}
             </div>
