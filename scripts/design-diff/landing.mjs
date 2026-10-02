@@ -425,6 +425,15 @@ const FORM_PAIRS = ["form", "form fh", "consents", "consent row", "consent box",
 const hasForm = STATE === "pre" || STATE === "done";
 const hasHint = STATE === "recruit" || STATE === "stage";
 /*
+  ⚠️ 폼이 있는 두 상태(모집 전·종료)에는 히어로 버튼 줄이 **없다** — 시안과 일부러
+  다르다(2026-10-02 수연 결정, `Landing.tsx` 머리 주석). 시안은 거기에도 CTA 둘을
+  두는데 첫 버튼이 바로 아래 폼으로 데려가는 버튼이라 뺐고, 둘째는 제목 옆 글자
+  링크가 됐다. 시안에 짝이 없어 그 링크는 값을 대조하지 않는다 — 글자만 본다
+  (`cdp.mjs`의 `SPEC_RENAMES`). 폼의 위 여백(30px)도 그 줄이 갖던 것을 옮긴 값이다.
+*/
+const CTA_PAIRS = ["ctas", "cta 버튼1", "cta 버튼2"];
+const hasCtas = !hasForm;
+/*
   ⚠️ 모집 전·모집 중의 전광판은 시안과 다르다 — 빈 슬롯 대신 예시 순위를 그린다
   (2026-10-02 동혁 QA, 수연 결정). 줄의 생김새는 시안의 진행 중 슬롯 그대로라,
   시안 쪽에서 숨은 LIVE 슬롯을 켜고 빈 슬롯을 꺼서 그것과 견준다(`showSpecLive`).
@@ -450,15 +459,17 @@ const ANCHOR_SKIP = {
     ? { "cta 버튼1": ["line-height", "text-align"], "cta 버튼2": ["line-height", "text-align"],
         fin: ["::before height"] }
     : {}),
-  /* 종료는 두 번째 CTA만 시안이 `<a>`다(「최종 결과 보기」). 이유는 위와 같다 */
-  ...(STATE === "done"
-    ? { "cta 버튼2": ["line-height", "text-align"] }
-    : {}),
+  /* 버튼 줄이 있던 자리의 간격을 폼이 갖는다(위 `CTA_PAIRS` 주석) */
+  ...(hasForm ? { form: ["margin-top"] } : {}),
   /* 진행 중도 같은 이유로 -0.05em이다(2026-09-19 수연 결정) */
   ...(STATE !== "done" ? { "live ex": ["letter-spacing"] } : {}),
 };
 const PAIRS = ALL_PAIRS
-  .filter(([n]) => n === "hint" ? hasHint : FORM_PAIRS.includes(n) ? hasForm : true)
+  .filter(([n]) =>
+    n === "hint" ? hasHint
+    : FORM_PAIRS.includes(n) ? hasForm
+    : CTA_PAIRS.includes(n) ? hasCtas
+    : true)
   .map(([n, s, i, x, k]) => ANCHOR_SKIP[n] ? [n, s, i, x, [...(k ?? []), ...ANCHOR_SKIP[n]]] : [n, s, i, x, k]);
 /*
   진행 중은 전광판 팀명·점수와 배지의 스테이지명, 안내 문장의 마감일이 데이터다.
@@ -493,13 +504,17 @@ if (STATE === "done") {
   TEXT_IGNORE.push(/^시즌 1 종료, \d\d\.\d\d 최종 결과 발표$/,
     /^\d\d\.\d\d \d\d:\d\d 집계 확정 기준 최종 순위예요\.$/);
 }
-/* 구현본의 첫 CTA로 상태를 알아본다. 「~하기」는 2026-10-02에 뗐다(cdp.mjs `SPEC_RENAMES`) */
+/*
+  구현본의 파이널 CTA로 상태를 알아본다. 「~하기」는 2026-10-02에 뗐다(cdp.mjs `SPEC_RENAMES`).
+  히어로의 첫 CTA로 보다가 바꿨다 — 모집 전·종료에는 히어로에 버튼 줄이 없다.
+  파이널 버튼은 네 상태 모두에 있고 글자도 히어로의 것과 같았다.
+*/
 const CTA_OF = {
   "사전 신청": "pre", "참가 신청": "recruit",
   "리더보드 보기": "stage", "시즌 2 알림 받기": "done",
 };
 const stateOf = `(() => {
-  const b = document.querySelector('[class*="__ctas"] > *:first-child');
+  const b = document.querySelector('[class*="__fin"] :is(button, a)');
   return (${JSON.stringify(CTA_OF)})[b?.textContent.trim()] ?? "알 수 없음(" + b?.textContent.trim() + ")";
 })()`;
 
