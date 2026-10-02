@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Children, cloneElement, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 
@@ -103,6 +104,18 @@ export interface LandingProps {
   화면·대시보드의 같은 버튼도 함께 바꿨다 — 한 곳만 되돌리지 않는다.
 
   넷 다 옮겼다. 아카이브(`arch`)는 시안 랜딩에 상태가 없어 ① 모집 전으로 그려진다.
+
+  ⚠️ **폼이 있는 두 상태(모집 전·종료)의 히어로에는 버튼 줄이 없다.** 시안은 여기에도
+  CTA 둘을 두는데(「사전 신청」+「작동 방식 보기」, 「시즌 2 알림 받기」+「최종 결과 보기」),
+  첫 버튼이 30px 아래의 폼으로 데려가는 버튼이라 맨 위에서 누르면 화면이 안 움직였고,
+  첫 화면에 라임 버튼 셋(헤더·히어로·폼의 「신청」)이 같이 보였다. 첫 버튼을 빼고,
+  둘째는 제목 둘째 줄(「지표로 증명하라」) 바로 오른쪽의 글자 링크로 옮겼다
+  (2026-10-02 수연 결정, 글자 링크·「트랙 보기」는 동혁 제안).
+  헤더와 파이널의 같은 버튼은 그대로다. 폼이 화면을 벗어난 뒤 돌아갈 길이 그 둘이다.
+
+  링크의 자리는 **수연이 정했다**(2026-10-03). 그 전에 두 자리를 거쳤다 — 제목 첫 줄
+  오른쪽 끝(폼의 오른쪽 끝에 맞춤)은 어디에도 안 붙은 채 떠 보였고, 설명 문구 끝은
+  내가 골랐다가 물렸다. 다시 옮기지 않는다.
 */
 
 const NUM = new Intl.NumberFormat("ko-KR");
@@ -286,7 +299,7 @@ export function Landing({
   };
 
   /*
-    사전신청 CTA. 히어로 안의 큰 버튼과 헤더의 작은 버튼이 같이 쓴다.
+    사전신청 CTA. 헤더의 작은 버튼과 파이널의 큰 버튼이 같이 쓴다.
 
     헤더 버튼은 폼이 이미 화면에 보이는 상태에서 눌리는 경우가 많아서,
     스크롤만으로는 거의 아무 일도 일어나지 않아 무응답으로 느껴진다.
@@ -450,6 +463,36 @@ export function Landing({
   const top = racing || ended ? live.top : SAMPLE_BOARD;
   const lead = top[0]?.validVisitors ?? 0;
 
+  /*
+    제목 둘째 줄 오른쪽의 글자 링크. 폼이 있는 두 상태에만 있다(머리 주석).
+    화살표는 다른 화면으로 갈 때만 단다 — 「트랙 보기」는 같은 문서의 02로 내려갈 뿐이다
+    (동혁 제안). 종료의 「최종 결과 보기」를 같은 링크로 옮기고 화살표를 붙인 것은
+    그 규칙을 따른 것이다(내가 정함, 수연 확인 대기).
+    종료는 리더보드가 꺼져 있으면 갈 곳이 없어 링크도 없다.
+
+    ⚠️ `<h1>` 안에 넣지 않는다. 넣으면 줄 끝에 저절로 붙어 편하지만 제목의 글자가
+    「…증명하라 트랙 보기」가 된다 — 스크린리더가 읽는 제목과 검색에 잡히는 제목이 그렇다.
+    형제로 두고 자리는 CSS(`.titleRow`)가 잡는다.
+  */
+  const titleLink = ended ? (
+    boardOn ? (
+      <Link href={board} className={styles.titleLink}>
+        최종 결과 보기 →
+      </Link>
+    ) : null
+  ) : racing || recruiting ? null : (
+    <button type="button" className={styles.titleLink} onClick={() => scrollTo("how")}>
+      트랙 보기
+    </button>
+  );
+  const title = (
+    <h1 className={styles.title}>
+      말이 아니라,
+      <br />
+      <Glitch text="지표로 증명하라" />
+    </h1>
+  );
+
   return (
     <div className={`page ${styles.edges}`}>
       {/*
@@ -473,32 +516,24 @@ export function Landing({
               )}
             </Reveal>
             <Reveal index={1} step={70}>
-              <h1 className={styles.title}>
-                말이 아니라,
-                <br />
-                <Glitch text="지표로 증명하라" />
-              </h1>
+              {titleLink ? (
+                <div className={styles.titleRow}>
+                  {title}
+                  {titleLink}
+                </div>
+              ) : (
+                title
+              )}
             </Reveal>
             <Reveal index={2} step={70}>
               <p className={styles.sub}>
                 <Clauses text="아이디어를 실제 유저와 매출 데이터로 바꾸는 AI 빌드 리그예요. 코딩 경험이 없어도 괜찮아요." />
               </p>
             </Reveal>
-            <Reveal index={3} step={70}>
-              {ended ? (
-                /* 알림 받기는 아래 폼으로 데려간다 — 모집 전 「사전 신청」과 같은 동작이다 */
-                <div className={styles.ctas}>
-                  <Button size="lg" className={styles.btnPrimary} onClick={runCta}>
-                    {`${nextSeason} 알림 받기`}
-                  </Button>
-                  {boardOn ? (
-                    <LinkButton size="lg" variant="outline" href={board}>
-                      최종 결과 보기
-                    </LinkButton>
-                  ) : null}
-                </div>
-              ) : racing ? (
-                /* 진행 중은 관전자가 주 대상이고, 두 번째 자리는 참가팀의 진입점이다 */
+            {/* 버튼 줄은 폼이 없는 두 상태에만 있다 — 폼이 있으면 그 폼이 곧 CTA다(머리 주석) */}
+            {racing ? (
+              <Reveal index={3} step={70}>
+                {/* 진행 중은 관전자가 주 대상이고, 두 번째 자리는 참가팀의 진입점이다 */}
                 <div className={styles.ctas}>
                   {boardOn ? (
                     <LinkButton size="lg" className={styles.btnPrimary} href={board}>
@@ -515,8 +550,10 @@ export function Landing({
                     참가팀 로그인
                   </LinkButton>
                 </div>
-              ) : recruiting ? (
-                /* 참가 신청이 로그인을 거치므로 두 번째 자리가 로그인 진입점이다 */
+              </Reveal>
+            ) : recruiting ? (
+              <Reveal index={3} step={70}>
+                {/* 참가 신청이 로그인을 거치므로 두 번째 자리가 로그인 진입점이다 */}
                 <div className={styles.ctas}>
                   <LinkButton size="lg" className={styles.btnPrimary} href="/apply">
                     참가 신청
@@ -525,21 +562,8 @@ export function Landing({
                     로그인
                   </LinkButton>
                 </div>
-              ) : (
-                <div className={styles.ctas}>
-                  <Button size="lg" className={styles.btnPrimary} onClick={runCta}>
-                    사전 신청
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    onClick={() => scrollTo("how")}
-                  >
-                    작동 방식 보기
-                  </Button>
-                </div>
-              )}
-            </Reveal>
+              </Reveal>
+            ) : null}
 
             {racing ? (
               <Reveal index={4} step={70}>
@@ -563,7 +587,7 @@ export function Landing({
                 </p>
               </Reveal>
             ) : (
-            <Reveal index={4} step={70}>
+            <Reveal index={3} step={70}>
               <form className={styles.form} onSubmit={onPreRegister} noValidate>
                 <div className={styles.formHead}>
                   {ended ? `${nextSeason} 소식 받기` : "시즌 소식 받기"}

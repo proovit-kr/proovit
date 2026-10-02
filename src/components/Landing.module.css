@@ -137,6 +137,61 @@
   color: #f3f6fc;
 }
 
+/*
+  제목 둘째 줄(「지표로 증명하라」) 바로 오른쪽의 글자 링크 — 모집 전 「트랙 보기」,
+  종료 「최종 결과 보기 →」. 시안에는 없다. 시안은 설명 문구 아래에 버튼 줄(`.ld-ctas`)을
+  두는데, 폼이 있는 두 상태에서는 그 줄을 뺐다(2026-10-02 수연 결정, 글자 링크는 동혁
+  제안, 자리는 2026-10-03 수연 지정. `Landing.tsx` 머리 주석).
+
+  제목과 링크를 나란히 세운다. 제목 상자의 폭은 가장 긴 줄만큼인데 그게 둘째 줄이라,
+  상자의 오른쪽 끝이 곧 「지표로 증명하라」의 끝이다. 세로는 `last baseline`이다 —
+  제목의 **마지막 줄** 밑선에 링크의 밑선을 맞춘다. 옆에 자리가 없으면(좁은 폰의 종료
+  문구) 링크가 제목 아래 줄로 내려간다.
+*/
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  /* `last baseline`을 모르는 브라우저(사파리 15 이하)는 아래끝을 맞춘다. 밑선보다 몇 px 낮게 놓인다 */
+  align-items: flex-end;
+  column-gap: 18px;
+}
+/* 같은 속성을 두 번 적으면 압축기가 앞의 것을 지운다. 그래서 `@supports`로 가른다 */
+@supports (align-items: last baseline) {
+  .titleRow {
+    align-items: last baseline;
+  }
+}
+.titleLink {
+  position: relative;
+  color: var(--accent);
+  /* 버튼이던 때의 글자 크기 그대로다(`.ctas > *`) */
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  /*
+    제목의 아래 여백과 같은 값이다. 밑선을 맞출 때는 자리에 영향이 없고(제목 쪽이 밑선
+    아래로 더 깊다), 아래끝을 맞추는 브라우저에서는 링크를 제목 마지막 줄의 높이로 올려
+    주며, 링크가 아래 줄로 내려갔을 때는 설명 문구와의 간격이 된다.
+  */
+  margin-bottom: 14px;
+}
+/*
+  글자만 보이지만 누르는 자리는 넓힌다. 상자에 여백을 주지 않고 의사요소로 넓히는 것은
+  포커스 테두리가 글자에 붙게 하려는 것이다 — 여백으로 넓히면 테두리가 그만큼 커진다.
+*/
+.titleLink::after {
+  content: "";
+  position: absolute;
+  inset: -10px -6px;
+}
+.titleLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .sub {
   color: var(--muted);
   font-size: 17px;
@@ -182,6 +237,11 @@
   border-radius: var(--r-l);
   padding: 20px 20px 16px;
   max-width: 480px;
+  /*
+    시안에는 없다. 시안은 폼 위에 버튼 줄이 있어 그 줄의 아래 여백(30px)이 이 간격이었다.
+    폼이 있는 두 상태에서 그 줄을 뺐으므로 같은 값을 폼이 갖는다.
+  */
+  margin-top: 30px;
   background-image: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.026),
@@ -1087,6 +1147,10 @@
   .title {
     font-size: 34px;
     line-height: 1.18;
+  }
+  /* 320에서도 「트랙 보기」가 제목 옆에 들어간다(206 + 12 + 54 ≤ 280) */
+  .titleRow {
+    column-gap: 12px;
   }
   .sub {
     font-size: 15px;
