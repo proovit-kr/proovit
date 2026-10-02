@@ -296,7 +296,7 @@
   gap: 8px;
 }
 /*
-  「준비 중」 뱃지가 형광등처럼 아주 가끔 깜빡이고, 오른쪽 끝에 붙는다.
+  전광판 뱃지(「예시」·LIVE·「최종」)가 형광등처럼 아주 가끔 깜빡이고, 오른쪽 끝에 붙는다.
 
   ⚠️ `.liveCap .badge`로 쓰면 **안 먹는다.** `.badge`는 Badge.module.css의
   해시 클래스라 이 모듈의 `.badge`와 다른 이름이 된다 — `.ctas .btn`·
@@ -374,7 +374,10 @@
   color: var(--faint);
   font-size: 15px;
 }
-/* 진행 중 LIVE 슬롯 — 시안 `.ld-live .slot .nm`·`.bar i`·`.only-live` (1456~1460행) */
+/*
+  진행 중 LIVE 슬롯 — 시안 `.ld-live .slot .nm`·`.bar i`·`.only-live` (1456~1460행).
+  모집 전·모집 중의 예시 순위도 같은 줄을 쓴다.
+*/
 .slotName {
   font-size: 14px;
   font-weight: 700;
@@ -425,6 +428,14 @@
   .liveNoteFitLive {
     letter-spacing: -0.05em;
   }
+}
+/*
+  예시 안내의 둘째 문장(모집 전·모집 중). 「예시 화면이에요.」와 한 줄에 못 들어가면
+  상자째 다음 줄로 간다 — 두 열(안쪽 384px)과 좁은 한 열에서 그렇고, 위의 자간은
+  이 문장을 두 열에서 한 줄에 담는 값 그대로다(2026-10-02).
+*/
+.liveNoteRest {
+  display: inline-block;
 }
 
 /* ═══════════════ 스탯 4칸 ═══════════════ */

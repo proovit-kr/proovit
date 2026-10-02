@@ -112,7 +112,7 @@ const ALL_PAIRS = [
   ["slot rk", S + ".ld-live .slot .rk", "slotRank"],
   /* 점수 칸은 전역 `.score`(모노·800)를 함께 받는다. 빠져 있던 것을 09-19 진행 중 작업에서 잡았다 */
   ["slot score", S + ".ld-live .slot .score", "slotScore"],
-  /* 진행 중 LIVE 슬롯만 있는 것들 */
+  /* LIVE 슬롯에만 있는 것들 — 진행 중·종료의 순위와 모집 전·모집 중의 예시 순위 */
   ["slot nm", S + ".ld-live .slot .nm", "slotName", ["width", "text-overflow", "white-space", "overflow-x"]],
   /* 폭은 안 본다. 막대 칸이 점수 글자 폭을 뺀 나머지라 데이터(팀명·점수)를 따라간다 */
   ["slot bar i", S + ".ld-live .slot .bar i", '[class*="__slotBar"] > i', ["top", "bottom", "left"]],
@@ -424,8 +424,21 @@ const FORM_PAIRS = ["form", "form fh", "consents", "consent row", "consent box",
   "consent req", "consent 보기", "신청 버튼"];
 const hasForm = STATE === "pre" || STATE === "done";
 const hasHint = STATE === "recruit" || STATE === "stage";
-const LIVE_PAIRS = ["slot nm", "slot bar i", "slot 마지막"];
-const hasLive = STATE === "stage" || STATE === "done";
+/*
+  ⚠️ 모집 전·모집 중의 전광판은 시안과 다르다 — 빈 슬롯 대신 예시 순위를 그린다
+  (2026-10-02 동혁 QA, 수연 결정). 줄의 생김새는 시안의 진행 중 슬롯 그대로라,
+  시안 쪽에서 숨은 LIVE 슬롯을 켜고 빈 슬롯을 꺼서 그것과 견준다(`showSpecLive`).
+  팀명·점수도 시안 표본 그대로라 글자까지 맞는다 — 다른 것은 뱃지와 안내 첫
+  문장뿐이다. 그래서 LIVE 슬롯 짝(「slot nm」·「slot bar i」·「slot 마지막」)을
+  네 상태 모두에서 잰다.
+*/
+const SAMPLE = STATE === "pre" || STATE === "recruit";
+const showSpecLive = `(() => {
+  const set = (sel, v) => document.querySelectorAll(sel)
+    .forEach((e) => e.style.setProperty("display", v, "important"));
+  set("#scr-landing .ld-live .slot.only-wait", "none");
+  set("#scr-landing .ld-live .slot.only-live", "flex");
+})()`;
 /*
   ⚠️ 모집 중·진행 중의 CTA는 시안이 `<a>`라 line-height(body 1.65)와 text-align
   (start)을 물려받아 `<button>`인 모집 전 CTA보다 6.75px 높다. 우리는 두 태그를
@@ -445,19 +458,29 @@ const ANCHOR_SKIP = {
   ...(STATE !== "done" ? { "live ex": ["letter-spacing"] } : {}),
 };
 const PAIRS = ALL_PAIRS
-  .filter(([n]) => n === "hint" ? hasHint : FORM_PAIRS.includes(n) ? hasForm
-    : LIVE_PAIRS.includes(n) ? hasLive : true)
+  .filter(([n]) => n === "hint" ? hasHint : FORM_PAIRS.includes(n) ? hasForm : true)
   .map(([n, s, i, x, k]) => ANCHOR_SKIP[n] ? [n, s, i, x, [...(k ?? []), ...ANCHOR_SKIP[n]]] : [n, s, i, x, k]);
 /*
   진행 중은 전광판 팀명·점수와 배지의 스테이지명, 안내 문장의 마감일이 데이터다.
   시안은 표본(골목마켓 731명·「s4 마케팅과 유저 유입」·10.04)이고 구현은 dev DB다.
   팀명·점수 칸은 글자를 긁기 전에 양쪽에서 비우고, 나머지 둘은 틀만 맞춰 본다.
 */
-const DATA_BLANK = STATE === "stage" || STATE === "done"
-  ? { spec: ".ld-live .slot.only-live .nm, .ld-live .slot.only-live .score",
-      impl: '[class*="__slotLive"] > [class*="__slotName"], [class*="__slotLive"] > [class*="__slotScore"]' }
-  : null;
+/*
+  ⚠️ 예시 순위(모집 전·모집 중)는 팀명을 남기고 **점수 칸만** 비운다. 값은 시안
+  표본 그대로인데 시안의 `countUp`이 믿을 수 없다 — 도는 중에 한 번 더 불리면
+  그때 화면에 있던 중간값을 목표로 읽어 거기서 굳는다(731명이 12명·195명으로
+  잡혔고 폭마다 달랐다). 숫자와 막대 비율은 구현 쪽에서 따로 잰다.
+*/
+const DATA_BLANK = SAMPLE
+  ? { spec: ".ld-live .slot.only-live .score",
+      impl: '[class*="__slotLive"] > [class*="__slotScore"]' }
+  : { spec: ".ld-live .slot.only-live .nm, .ld-live .slot.only-live .score",
+      impl: '[class*="__slotLive"] > [class*="__slotName"], [class*="__slotLive"] > [class*="__slotScore"]' };
 const blank = (sel) => `document.querySelectorAll(${JSON.stringify(sel)}).forEach((e) => { e.textContent = ""; })`;
+/* 예시 전광판의 뱃지(시안 「준비 중」·「개막 전」)와 안내 첫 문장. 둘째 문장은 시안 그대로다 */
+if (SAMPLE) {
+  TEXT_IGNORE.push(/^(준비 중|개막 전|예시)$/, /^예시 화면이에요\.$/);
+}
 /* 마감일도 데이터다 — dev DB 일정은 시안 표본을 2주 민 임시값이다(시즌 1 일정 미정) */
 if (STATE === "recruit") {
   TEXT_IGNORE.push(/^시즌 1 참가 신청 접수 중, \d\d\.\d\d 마감$/, /마감은 \d\d\.\d\d 23:59예요\.$/);
@@ -484,6 +507,8 @@ const stateOf = `(() => {
   화면을 바꾼다 — 모집 전에는 `.slot:last-of-type`을 숨은 LIVE 슬롯이 가져가
   세 번째 빈 슬롯에 밑줄이 남는다. 그것도 시안이다(2026-09-19 수연 확인).
   한때 걷어냈다가 그 밑줄을 대조에서 지워 버렸다.
+  (2026-10-02부터 모집 전·모집 중은 예시 순위라 그 밑줄이 없다 — 시안 쪽도
+  LIVE 슬롯을 켜서 잰다. 위 `showSpecLive`.)
 */
 const pickState = (state) => `(() => {
   const sec = document.getElementById("scr-landing");
@@ -509,6 +534,7 @@ for (const w of WIDTHS) {
     await p.goto(SPEC_URL);
     const picked = await p.eval(pickState(STATE));
     if (picked !== STATE) throw new Error(picked);
+    if (SAMPLE) await p.eval(showSpecLive);
     await p.stripViewerShell();
     await p.resize(w, 1000);
     const naturally = await p.eval(settle, true);
