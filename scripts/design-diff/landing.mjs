@@ -359,7 +359,7 @@ const settle = `(async () => {
 
 /*
   ⚠️ 글자 대조. 공용 `textNodes`·`diffText`가 cdp.mjs에 있다.
-  데이터가 정하는 것만 뺀다 — 사전 신청 수 하나뿐이다.
+  데이터가 정하는 것만 뺀다 — 스탯 줄의 참가팀 수(진행 중·종료) 하나뿐이다.
 */
 const TEXT_IGNORE = [
   /^\d+$/,
@@ -406,6 +406,16 @@ const TEXT_IGNORE = [
 ];
 
 /*
+  랜딩에서만 일부러 바꾼 글자 — 시안 쪽을 바꿔 놓고 견준다(`cdp.mjs`의 `SPEC_RENAMES`와 같은 방식).
+  참가비는 「₩0」이 아니라 「FREE」다(2026-10-03 QA 의견, 수연 전달). 스탯 줄과 마퀴 두 자리.
+  공용 표에 넣지 않는다 — 크레딧 센터의 「₩0 스타트 스택」은 시안 그대로다.
+*/
+const TEXT_RENAMES = [
+  [/^₩0$/, "FREE"],
+  [/^참가비 ₩0$/, "참가비 FREE"],
+];
+
+/*
   상태. 시안은 STATE 버튼(`.sb[data-set]`)으로 고르고, 구현은 dev DB의 시즌
   페이즈가 정한다(개발 바의 페이즈 줄). 구현이 지금 어느 상태를 그리는지 먼저
   찍고, 요청한 상태가 아니면 대조하지 않는다 — 다른 상태끼리 견준 0건은 거짓이다.
@@ -449,6 +459,15 @@ const showSpecLive = `(() => {
   set("#scr-landing .ld-live .slot.only-live", "flex");
 })()`;
 /*
+  ⚠️ 모집 전·모집 중의 스탯 줄은 **세 칸**이다 — 시안의 넷째 칸 「사전 신청 N명」을 뺐다
+  (2026-10-03 QA 의견, 수연 전달. `Landing.tsx`의 `stats`). 그래서 이 두 상태에서는
+    · 격자를 대조하지 않는다. 한 줄에 셋을 세우느라 열이 시안(4열, 좁으면 2열)과 다르다.
+    · 글자를 긁기 전에 시안의 그 칸을 비운다. 안 비워도 모집 전에는 0건인데 우연이다 —
+      「명」은 「증명하라」에, 「사전 신청」은 파이널 버튼에 걸려 맞는다.
+  진행 중·종료의 넷째 칸 「참가팀」은 시안 그대로다.
+*/
+const SPEC_GONE = SAMPLE ? ".ld-stat.only-wait" : null;
+/*
   ⚠️ 모집 중·진행 중의 CTA는 시안이 `<a>`라 line-height(body 1.65)와 text-align
   (start)을 물려받아 `<button>`인 모집 전 CTA보다 6.75px 높다. 우리는 두 태그를
   똑같이 그린다(Button.module.css) — 상태가 바뀐다고 같은 자리 버튼 키가 변하지
@@ -461,6 +480,8 @@ const ANCHOR_SKIP = {
     : {}),
   /* 버튼 줄이 있던 자리의 간격을 폼이 갖는다(위 `CTA_PAIRS` 주석) */
   ...(hasForm ? { form: ["margin-top"] } : {}),
+  /* 세 칸의 격자(위 `SPEC_GONE` 주석) */
+  ...(SAMPLE ? { stats: ["grid-template-columns"] } : {}),
   /* 진행 중도 같은 이유로 -0.05em이다(2026-09-19 수연 결정) */
   ...(STATE !== "done" ? { "live ex": ["letter-spacing"] } : {}),
 };
@@ -557,6 +578,7 @@ for (const w of WIDTHS) {
     const r = await p.eval(probe(PAIRS.map(([n, s, , x, k]) => [n, s, "spec", x, k])));
     await p.shot(`${OUT}/spec-${w}.png`);
     if (DATA_BLANK) await p.eval(blank(DATA_BLANK.spec));
+    if (SPEC_GONE) await p.eval(blank(SPEC_GONE));
     r.text = await p.eval(textNodes("#scr-landing .ld"));
     r.naturally = naturally;
     return r;
@@ -589,7 +611,7 @@ for (const w of WIDTHS) {
   total += spec.missing.length + impl.missing.length;
   total += diffTable(`${w}px — 랜딩`, spec.out, impl.out);
   /* 글자는 폭과 무관하지만, 미디어 쿼리로 숨는 것이 있어 폭마다 다시 본다 */
-  total += diffText(spec.text, impl.text, { ignore: TEXT_IGNORE });
+  total += diffText(spec.text, impl.text, { ignore: TEXT_IGNORE, renames: TEXT_RENAMES });
 }
 console.log(`\n═══════════════════════════\n세 폭 합계 불일치 ${total}건`);
 console.log(`스크린샷: ${OUT}`);
