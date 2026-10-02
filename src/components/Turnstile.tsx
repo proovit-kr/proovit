@@ -21,6 +21,7 @@ interface TurnstileApi {
     opts: {
       sitekey: string;
       theme?: "light" | "dark" | "auto";
+      size?: "normal" | "flexible" | "compact";
       appearance?: "always" | "execute" | "interaction-only";
       callback: (token: string) => void;
       "expired-callback"?: () => void;
@@ -38,6 +39,13 @@ declare global {
 }
 
 export const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+/*
+  상자의 폭은 Cloudflare가 정한다 — `normal`이 300×65, `compact`가 150×140이고
+  CSS로 줄일 수 없다(iframe이라 안쪽 배치는 그대로고 잘리기만 한다).
+*/
+const NORMAL_W = 300;
+const COMPACT_W = 150;
 
 /** 키가 없으면 토큰을 요구하지 않는다. 폼의 제출 가능 조건 계산에 쓴다. */
 export const turnstileEnabled = Boolean(TURNSTILE_SITE_KEY);
@@ -80,9 +88,20 @@ export default function Turnstile({
     const el = boxRef.current;
     if (!api || !el || widgetIdRef.current) return;
 
+    /*
+      부모 상자에 300px이 안 들어가면 작은 것을 쓴다. 폼의 안쪽 여백까지는 써도
+      되므로(아래 `margin-inline`) 여백을 포함한 폭으로 잰다 — 랜딩 히어로 폼은
+      화면 폭 342px 아래에서 작은 것이 된다. 그릴 때 한 번 정하고, 그 뒤 화면을
+      돌리거나 줄여 넘치면 가운데 놓인 채 양옆으로 나간다.
+    */
+    const room = el.parentElement?.clientWidth ?? NORMAL_W;
+    const compact = room < NORMAL_W;
+    el.style.setProperty("--turnstile-w", `${compact ? COMPACT_W : NORMAL_W}px`);
+
     widgetIdRef.current = api.render(el, {
       sitekey: TURNSTILE_SITE_KEY,
       theme: "dark",
+      size: compact ? "compact" : "normal",
       /*
         정상 트래픽에는 위젯을 그리지 않는다. 검증은 그대로 돌고 토큰도 그대로
         받되, Cloudflare가 실제로 사람 확인을 요구할 때만 위젯이 나타난다.
@@ -126,7 +145,25 @@ export default function Turnstile({
         onLoad={() => setReady(true)}
         onReady={() => setReady(true)}
       />
-      <div ref={boxRef} />
+      {/*
+        ⚠️ 상자의 고정 폭이 **바깥 레이아웃을 벌리지 못하게 한다.** 그냥 두면 부모가
+        상자 폭만큼 벌어지고, 그 최소 폭이 그리드 열까지 올라가 화면 밖으로 밀어낸다 —
+        랜딩 히어로가 폭 381px 이하에서 그랬다(360px 폰에서 폼 안쪽은 278px인데
+        상자가 300px이라 왼쪽 열이 통째로 342px로 굳어, 버튼과 폼 테두리가 잘렸다).
+
+        · `contain: inline-size` — 이 칸의 내용 폭을 바깥의 폭 계산에서 뺀다.
+        · `margin-inline` — 자리가 상자보다 좁으면 가운데 놓고 양옆 여백으로 내보낸다.
+          자리가 넉넉하면 0이라 지금까지처럼 왼쪽에 붙는다.
+
+        `interaction-only`라 평소에는 상자가 없다. 사람 확인을 요구받을 때만 해당한다.
+      */}
+      <div
+        ref={boxRef}
+        style={{
+          contain: "inline-size",
+          marginInline: `min(0px, calc((100% - var(--turnstile-w, ${NORMAL_W}px)) / 2))`,
+        }}
+      />
     </>
   );
 }

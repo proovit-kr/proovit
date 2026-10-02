@@ -493,8 +493,9 @@ if (STATE === "done") {
   TEXT_IGNORE.push(/^시즌 1 종료, \d\d\.\d\d 최종 결과 발표$/,
     /^\d\d\.\d\d \d\d:\d\d 집계 확정 기준 최종 순위예요\.$/);
 }
+/* 구현본의 첫 CTA로 상태를 알아본다. 「~하기」는 2026-10-02에 뗐다(cdp.mjs `SPEC_RENAMES`) */
 const CTA_OF = {
-  "사전 신청하기": "pre", "참가 신청하기": "recruit",
+  "사전 신청": "pre", "참가 신청": "recruit",
   "리더보드 보기": "stage", "시즌 2 알림 받기": "done",
 };
 const stateOf = `(() => {
@@ -561,7 +562,7 @@ for (const w of WIDTHS) {
   /*
     ⚠️ 스크롤만으로 안 나타난 리빌은 **불일치로 센다.** 재기 전에 전부 강제로
     켜기 때문에, 안 세면 영영 투명한 요소가 0건으로 통과한다 — 모집 중 파이널
-    「참가 신청하기」가 그랬다(LinkButton이 Reveal의 ref를 버렸다). 수연이 눈으로 잡았다.
+    「참가 신청」 버튼이 그랬다(LinkButton이 Reveal의 ref를 버렸다). 수연이 눈으로 잡았다.
   */
   const [shownN, allN] = impl.naturally.split("/").map(Number);
   if (shownN !== allN) {

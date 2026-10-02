@@ -221,7 +221,7 @@ const TEXT_PAIRS = [
   dev DB의 phase에 따라 우리 쪽 문구가 달라진다. 상태가 다른 것이지 문구가
   틀린 것이 아니다 — 상태별 문구 자체는 header-states.mjs가 전부 대조한다.
 */
-const TEXT_IGNORE = [/^(사전 신청하기|참가 신청하기|리더보드 보기|리더보드|시즌 보기|로그인|시즌 \d+ 알림 받기|내 대시보드|운영 콘솔)$/];
+const TEXT_IGNORE = [/^(사전 신청|참가 신청|리더보드 보기|리더보드|시즌 보기|로그인|시즌 \d+ 알림 받기|내 대시보드|운영 콘솔)$/];
 
 let total = 0;
 for (const w of WIDTHS) {

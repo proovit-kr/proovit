@@ -32,7 +32,7 @@ export default function Page() {
       {/* ⚠️ 플렉스로 감싸지 않는다. 감싸면 inline-flex가 flex로 블록화돼
           display 값이 시안과 달라진다 */}
       <section>
-        <Button data-probe="btn-primary">사전 신청하기</Button>
+        <Button data-probe="btn-primary">사전 신청</Button>
         <Button variant="outline" data-probe="btn-outline">
           작동 방식 보기
         </Button>

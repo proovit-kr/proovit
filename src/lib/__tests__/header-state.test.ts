@@ -149,14 +149,14 @@ describe("공개 헤더 — 조합기 MAP.pub", () => {
   });
 
   it("CTA — 규칙표 「공개 CTA」", () => {
-    expect(pub("pre", "guest").actions.map((a) => a.label)).toEqual(["사전 신청하기"]);
-    expect(pub("recruit", "guest").actions[0]).toMatchObject({ label: "참가 신청하기", href: "/apply", variant: "primary" });
+    expect(pub("pre", "guest").actions.map((a) => a.label)).toEqual(["사전 신청"]);
+    expect(pub("recruit", "guest").actions[0]).toMatchObject({ label: "참가 신청", href: "/apply", variant: "primary" });
     expect(pub("stage", "guest").actions[0]).toMatchObject({ label: "리더보드 보기", short: "리더보드", variant: "outline" });
     expect(pub("done", "guest").actions.map((a) => [a.label, a.variant])).toEqual([
       ["결과 보기", "ghost"],
       ["시즌 2 알림 받기", "primary"],
     ]);
-    expect(pub("arch", "guest").actions[0].label).toBe("시즌 2 사전 신청하기");
+    expect(pub("arch", "guest").actions[0].label).toBe("시즌 2 사전 신청");
     expect(pub("stage", "member").actions[0]).toMatchObject({ label: "시즌 2 알림 받기", variant: "outline" });
     expect(pub("stage", "entrant").actions[0]).toMatchObject({ label: "내 대시보드", variant: "outline", href: "/dashboard" });
     expect(pub("stage", "elim").actions[0]).toMatchObject({ label: "내 대시보드", variant: "gray" });

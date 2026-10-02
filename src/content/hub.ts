@@ -346,7 +346,7 @@ export const HUB_NO_ENTRY = {
     sub: "이전 시즌 기록은 아카이브에 그대로 남아 있어요.",
     actTitle: "새 엔트리로 다시 도전해요",
     actBody: "팀은 그대로 쓸 수 있어요, 아이디어만 새로 정하면 돼요.",
-    label: "참가 신청하기",
+    label: "참가 신청",
     href: "/apply",
   },
   closed: {

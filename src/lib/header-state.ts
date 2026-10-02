@@ -390,16 +390,17 @@ export function resolvePublicHeader(input: PublicHeaderInput): PublicHeaderModel
   const next = nextSeasonLabel(season.title);
   const avatar = user ? { initial: user.initial, admin: false } : null;
 
+  /* 「사전 신청」·「참가 신청」은 시안의 「~하기」를 뗀 것이다(2026-10-02, `Landing.tsx` 머리 주석) */
   switch (variant) {
     case "P1":
       return {
         variant, nav, login: false, adminTag: false, bell: null, avatar: null,
-        actions: [{ kind: "preregister", label: "사전 신청하기", href: PREREGISTER, variant: "primary" }],
+        actions: [{ kind: "preregister", label: "사전 신청", href: PREREGISTER, variant: "primary" }],
       };
     case "P2":
       return {
         variant, nav, login: true, adminTag: false, bell: null, avatar: null,
-        actions: [{ kind: "apply", label: "참가 신청하기", href: "/apply", variant: "primary" }],
+        actions: [{ kind: "apply", label: "참가 신청", href: "/apply", variant: "primary" }],
       };
     case "P3":
     case "P4":
@@ -435,12 +436,12 @@ export function resolvePublicHeader(input: PublicHeaderInput): PublicHeaderModel
     case "P6":
       return {
         variant, nav, login: false, adminTag: false, bell: null, avatar: null,
-        actions: [{ kind: "preregister", label: `${next} 사전 신청하기`, href: PREREGISTER, variant: "primary" }],
+        actions: [{ kind: "preregister", label: `${next} 사전 신청`, href: PREREGISTER, variant: "primary" }],
       };
     case "P7":
       return {
         variant, nav, login: false, adminTag: false, bell: null, avatar,
-        actions: [{ kind: "apply", label: "참가 신청하기", href: "/apply", variant: "primary" }],
+        actions: [{ kind: "apply", label: "참가 신청", href: "/apply", variant: "primary" }],
       };
     case "P8":
       return {
