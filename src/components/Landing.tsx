@@ -46,7 +46,7 @@ import {
 
   구조는 시안 순서 그대로다:
     히어로(왼쪽 카피+폼 / 오른쪽 전광판) → 스탯 4칸 → 마퀴
-    → 01 POSITION → 02 HOW IT WORKS → 03 BENEFITS
+    → 01 POSITION → 02 TRACK(시안의 HOW IT WORKS) → 03 BENEFITS
     → 04 WHY → 05 CRITERIA → 06 FAQ → 파이널
 
   시안은 정적 목업이라 숫자가 박혀 있다. 우리는 실제 값을 넣는다 — 사전 신청
@@ -778,12 +778,13 @@ export function Landing({
           </div>
         </div>
 
-        {/* ═══════ 02 HOW IT WORKS ═══════ */}
+        {/* ═══════ 02 TRACK ═══════ */}
+        {/* 시안은 「HOW IT WORKS / 작동 방식」이다. 히어로의 링크가 「트랙 보기」가 되면서 도착하는 섹션의 이름을 거기에 맞췄다(2026-10-03 QA 의견, 수연 전달) */}
         <div className={styles.sec} id="how">
           <SectionHead
             no="02"
-            label="HOW IT WORKS"
-            title="작동 방식"
+            label="TRACK"
+            title="트랙"
             lead="다섯 개의 체크포인트. 트랙은 하나예요."
           />
           <div className={styles.rmWrap}>
