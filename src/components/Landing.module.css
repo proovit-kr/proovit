@@ -891,11 +891,15 @@
 
 /*
   시안의 카드 셋(`.ld-3`)을 걷고 선만 남겼다(`Landing.tsx`의 03·04 주석).
-  세로선은 위의 가로선에서 시작해 **다음 섹션의 윗선에 닿는다** — 그래서 이 섹션만
+  세로선은 위의 가로선에서 시작해 **다음 섹션의 윗선에 닿는다** — 그래서 이 섹션은
   아래 여백이 없고(`.secFlush`), 그만큼을 칸이 안쪽 여백으로 갖는다.
-  한 열로 접히는 폭(≤1024)에서는 선이 가로로 눕고 섹션 여백이 돌아온다.
+  한 열로 접히는 폭(≤1024)에서는 선이 가로로 눕는다.
+
+  ⚠️ `.secFlush`는 04도 쓰고, 어느 폭에서나 0이다. 마지막 칸을 닫는 선이 다음 섹션의
+  윗선이라, 섹션 여백을 두면 **마지막 칸만 아래가 넓어진다**(24px 대 76px. 2026-10-03
+  수연이 04에서 짚었다). 클래스 둘을 겹쳐 ≤760의 `.sec { padding: 48px 0 }`을 이긴다.
 */
-.secFlush {
+.sec.secFlush {
   padding-bottom: 0;
 }
 .benefits {
@@ -907,7 +911,7 @@
 }
 .benefit {
   position: relative;
-  padding: 32px 0 44px;
+  padding: 32px 0;
 }
 /* 선을 칸의 테두리가 아니라 사이 여백 한가운데에 긋는다 — 세 칸의 글줄 폭이 같아진다 */
 .benefit + .benefit::before {
@@ -937,9 +941,6 @@
 .why {
   padding: 24px 0;
   border-top: 1px solid var(--line);
-}
-.why:last-child {
-  padding-bottom: 0;
 }
 .whyIn {
   display: grid;
@@ -1165,10 +1166,7 @@
   .stats {
     grid-template-columns: repeat(2, 1fr);
   }
-  /* 03은 한 열로 접힌다. 세로선이 가로선이 되고 섹션의 아래 여백이 돌아온다 */
-  .secFlush {
-    padding-bottom: 76px;
-  }
+  /* 03은 한 열로 접힌다. 세로선이 가로선이 된다 */
   .benefits {
     grid-template-columns: 1fr;
   }
@@ -1180,9 +1178,6 @@
   }
   .benefit + .benefit::before {
     content: none;
-  }
-  .benefit:last-child {
-    padding-bottom: 0;
   }
   .cmp,
   .crit {
@@ -1273,10 +1268,6 @@
   }
   .secTitle {
     font-size: 24px;
-  }
-  /* 한 열일 때는 `.sec`와 같은 아래 여백이다 — ≤1024에서 돌려놓은 76px를 여기서 다시 줄인다 */
-  .secFlush {
-    padding-bottom: 48px;
   }
   .benefit {
     padding: 20px 0;

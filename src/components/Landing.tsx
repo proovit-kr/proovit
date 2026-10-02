@@ -853,7 +853,7 @@ export function Landing({
           </div>
         </div>
 
-        <div className={styles.sec}>
+        <div className={cx(styles.sec, styles.secFlush)}>
           <SectionHead
             no="04"
             label="WHY"
