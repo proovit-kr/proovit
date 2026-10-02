@@ -78,6 +78,23 @@ export const textNodes = (sel) => `(() => {
 })()`;
 
 /**
+ * 시안과 **일부러** 다르게 쓰는 문구. 시안 쪽 글자를 이 표대로 바꿔 놓고 견준다.
+ *
+ * `ignore`에 넣지 않는 이유: 넣으면 그 자리가 대조에서 통째로 빠진다. 바꿔서
+ * 견주면 「시안의 그 자리에 우리 문구가 있는가」는 계속 본다. 텍스트 노드
+ * 전체가 맞을 때만 바꾼다 — 문장 속에 섞인 같은 말은 건드리지 않는다.
+ *
+ *   「~신청하기」 → 「~신청」  사전 신청·참가 신청 버튼 전부(헤더·랜딩·시즌 상세·
+ *                           참가 신청 화면·대시보드). 2026-10-02 QA, 동혁 제안·수연 결정.
+ *
+ * 시안이 따라오면 그 줄을 지운다.
+ */
+const SPEC_RENAMES = [
+  [/^((?:시즌 \d+ )?(?:사전|참가) 신청)하기$/, "$1"],
+];
+const renamed = (t) => SPEC_RENAMES.reduce((s, [re, to]) => s.replace(re, to), t);
+
+/**
  * 긁어 온 글자 두 벌을 견준다. 다른 것만 찍고 개수를 돌려준다.
  *
  * 시안은 한 텍스트 노드로 쓰는 문장을 우리는 값을 끼워 넣느라 쪼갠다
@@ -93,6 +110,7 @@ export function diffText(spec, impl, { ignore = [], label = "" } = {}) {
     console.log(`  ⚠️ 글자를 긁지 못했다${label ? ` (${label})` : ""}`);
     return 1;
   }
+  spec = spec.map(renamed);
   const glue = (arr) => arr.join("").replace(/\s+/g, "");
   const bare = (t) => t.replace(/\s+/g, "");
   const implFlat = glue(impl), specFlat = glue(spec);

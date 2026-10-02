@@ -229,7 +229,7 @@ export default async function ApplyPage({
               입력란을 화면 중앙에 놓고 커서를 넣는다.
             */}
             <LinkButton href="/?preregister=1" size="lg" className={styles.cta}>
-              사전 신청하기
+              사전 신청
             </LinkButton>
             <p className={styles.ctaNote}>
               랜딩 첫 화면의 이메일 칸으로 이동해 커서까지 놓아드립니다. 이메일

@@ -98,6 +98,10 @@ export interface LandingProps {
   배지·CTA 두 버튼·안내 문장·사전 신청 폼·전광판 캡션·파이널 CTA가 갈린다.
   (ver3까지는 분기가 없어 「사전 신청하기」 하나였다.)
 
+  ⚠️ 버튼 문구는 「사전 신청」·「참가 신청」이다. 시안은 「~하기」인데 QA에서 뗐다
+  (2026-10-02 동혁 제안, 수연 결정). 헤더(`header-state.ts`)·시즌 상세·참가 신청
+  화면·대시보드의 같은 버튼도 함께 바꿨다 — 한 곳만 되돌리지 않는다.
+
   넷 다 옮겼다. 아카이브(`arch`)는 시안 랜딩에 상태가 없어 ① 모집 전으로 그려진다.
 */
 
@@ -298,7 +302,7 @@ export function Landing({
   };
 
   /*
-    다른 화면에서 「사전 신청하러 가기」로 넘어온 경우 — 지금은 /apply의 모집 전
+    다른 화면에서 「사전 신청」 버튼으로 넘어온 경우 — 지금은 /apply의 모집 전
     안내가 유일하다. 그쪽에서 이미 의사를 밝히고 온 사람이라, 도착해서 폼을
     다시 찾게 하면 한 번 더 일을 시키는 셈이다.
 
@@ -482,7 +486,7 @@ export function Landing({
             </Reveal>
             <Reveal index={3} step={70}>
               {ended ? (
-                /* 알림 받기는 아래 폼으로 데려간다 — 모집 전 「사전 신청하기」와 같은 동작이다 */
+                /* 알림 받기는 아래 폼으로 데려간다 — 모집 전 「사전 신청」과 같은 동작이다 */
                 <div className={styles.ctas}>
                   <Button size="lg" className={styles.btnPrimary} onClick={runCta}>
                     {`${nextSeason} 알림 받기`}
@@ -515,7 +519,7 @@ export function Landing({
                 /* 참가 신청이 로그인을 거치므로 두 번째 자리가 로그인 진입점이다 */
                 <div className={styles.ctas}>
                   <LinkButton size="lg" className={styles.btnPrimary} href="/apply">
-                    참가 신청하기
+                    참가 신청
                   </LinkButton>
                   <LinkButton size="lg" variant="outline" href="/login">
                     로그인
@@ -524,7 +528,7 @@ export function Landing({
               ) : (
                 <div className={styles.ctas}>
                   <Button size="lg" className={styles.btnPrimary} onClick={runCta}>
-                    사전 신청하기
+                    사전 신청
                   </Button>
                   <Button
                     size="lg"
@@ -927,7 +931,7 @@ export function Landing({
                 style={{ padding: "14px 30px", fontSize: 15 }}
                 href="/apply"
               >
-                참가 신청하기
+                참가 신청
               </LinkButton>
             ) : (
               <Button
@@ -935,7 +939,7 @@ export function Landing({
                 style={{ padding: "14px 30px", fontSize: 15 }}
                 onClick={runCta}
               >
-                사전 신청하기
+                사전 신청
               </Button>
             )}
           </Reveal>

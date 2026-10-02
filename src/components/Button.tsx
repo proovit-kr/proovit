@@ -97,7 +97,7 @@ export interface LinkButtonProps extends BaseProps {
   /*
     ⚠️ ref를 받아 넘긴다. 랜딩의 `Reveal`이 자식에 ref를 붙여 화면 진입을
     관찰하는데, 여기서 버리면 관찰이 안 붙어 버튼이 opacity 0으로 영영
-    남는다(모집 중 파이널 「참가 신청하기」가 그랬다).
+    남는다(모집 중 파이널 「참가 신청」 버튼이 그랬다).
   */
   ref?: Ref<HTMLAnchorElement>;
 }

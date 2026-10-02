@@ -82,11 +82,19 @@ const COMMON = [
   ["tl-gate b", S + ".tl-gate b", P("gateNo")],
 ];
 
-/* 히어로 CTA는 상태마다 하나다 — 시안은 `.only-*`로 셋 중 하나만 남긴다 */
+/*
+  히어로 CTA는 상태마다 하나다 — 시안은 `.only-*`로 셋 중 하나만 남긴다.
+
+  ⚠️ ①②는 `width`를 뺀다. 시안은 「사전 신청하기」·「참가 신청하기」인데 우리는
+  「~하기」를 뗐고(2026-10-02, cdp.mjs `SPEC_RENAMES`), 버튼 폭은 글자 폭을 따라간다.
+  ③ 「리더보드 보기」는 문구가 같아 폭까지 본다.
+*/
 const BTN = (only) => [
   "btn",
   `${S}.ss-hero .cta .btn.only-${only}`,
   IN('[class*="Button-module"][class*="__btn"]'),
+  [],
+  only === "racing" ? [] : ["width"],
 ];
 
 const PRE = [...COMMON, BTN("pre")];

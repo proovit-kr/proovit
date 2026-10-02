@@ -204,7 +204,12 @@ const LIST = {
   h15: [...HEAD, ...SNAP("h15"), ...HERO("h15")],
   h16: [...HEAD, ["제목 칩", P("h16") + ".hb-h1 .chip", `${I("h1")} [class*="Surface-module"]`, [], ["width"]],
     ...SNAP("h16"), ...ACT("h16")],
-  h17: [...HEAD, ...HERO("h17")],
+  /*
+    h17의 버튼은 `width`를 뺀다. 시안은 「시즌 2 참가 신청하기」인데 우리는 「~하기」를
+    뗐고(2026-10-02, cdp.mjs `SPEC_RENAMES`), 버튼 폭은 글자 폭을 따라간다.
+  */
+  h17: [...HEAD, ...HERO("h17").map((p) =>
+    (p[0] === "act .btn" ? [p[0], p[1], p[2], p[3], [...p[4], "width"]] : p))],
 };
 
 const probe = () => `(() => {

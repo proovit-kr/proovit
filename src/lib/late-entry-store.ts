@@ -52,7 +52,7 @@ export function loadLateEntryDeadline(seasonId: string): Promise<Date | null> {
  * `submitApplication`)이 **둘 다 이것을 부른다.** 판정은 순수 함수 `applyGate`다.
  *
  * 모집 중이면 평소 신청이고 DB를 더 읽지 않는다. 모집 판정은 랜딩 CTA와 같은
- * `resolveLandingCta`다 — 랜딩은 「신청하기」를 띄우는데 여기는 닫힌(혹은 그 반대인)
+ * `resolveLandingCta`다 — 랜딩은 「참가 신청」을 띄우는데 여기는 닫힌(혹은 그 반대인)
  * 상태가 생기면 안 된다.
  *
  * ⚠️ 이 결과를 권한으로 들고 다니지 않는다. 화면이 폼을 그린 뒤 제출하면 액션이
