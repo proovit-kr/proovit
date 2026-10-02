@@ -109,13 +109,13 @@ export interface LandingProps {
   CTA 둘을 두는데(「사전 신청」+「작동 방식 보기」, 「시즌 2 알림 받기」+「최종 결과 보기」),
   첫 버튼이 30px 아래의 폼으로 데려가는 버튼이라 맨 위에서 누르면 화면이 안 움직였고,
   첫 화면에 라임 버튼 셋(헤더·히어로·폼의 「신청」)이 같이 보였다. 첫 버튼을 빼고,
-  둘째는 설명 문구 끝에 이어 붙는 글자 링크로 옮겼다(2026-10-02 수연 결정,
-  글자 링크·「트랙 보기」는 동혁 제안).
+  둘째는 제목 둘째 줄(「지표로 증명하라」) 바로 오른쪽의 글자 링크로 옮겼다
+  (2026-10-02 수연 결정, 글자 링크·「트랙 보기」는 동혁 제안).
   헤더와 파이널의 같은 버튼은 그대로다. 폼이 화면을 벗어난 뒤 돌아갈 길이 그 둘이다.
 
-  링크의 자리는 한 번 옮겼다. 처음에는 동혁 제안대로 제목 첫 줄 오른쪽, 폼의 오른쪽
-  끝에 맞춰 두었는데 어디에도 안 붙은 채 떠 보였다(2026-10-03 수연 지적, 자리는 맡겨서
-  내가 정함). 설명을 다 읽은 자리, 폼 바로 위가 「더 알아보기」가 놓일 곳이다.
+  링크의 자리는 **수연이 정했다**(2026-10-03). 그 전에 두 자리를 거쳤다 — 제목 첫 줄
+  오른쪽 끝(폼의 오른쪽 끝에 맞춤)은 어디에도 안 붙은 채 떠 보였고, 설명 문구 끝은
+  내가 골랐다가 물렸다. 다시 옮기지 않는다.
 */
 
 const NUM = new Intl.NumberFormat("ko-KR");
@@ -464,22 +464,33 @@ export function Landing({
   const lead = top[0]?.validVisitors ?? 0;
 
   /*
-    설명 문구 끝의 글자 링크. 폼이 있는 두 상태에만 있다(머리 주석).
+    제목 둘째 줄 오른쪽의 글자 링크. 폼이 있는 두 상태에만 있다(머리 주석).
     화살표는 다른 화면으로 갈 때만 단다 — 「트랙 보기」는 같은 문서의 02로 내려갈 뿐이다
     (동혁 제안). 종료의 「최종 결과 보기」를 같은 링크로 옮기고 화살표를 붙인 것은
     그 규칙을 따른 것이다(내가 정함, 수연 확인 대기).
     종료는 리더보드가 꺼져 있으면 갈 곳이 없어 링크도 없다.
+
+    ⚠️ `<h1>` 안에 넣지 않는다. 넣으면 줄 끝에 저절로 붙어 편하지만 제목의 글자가
+    「…증명하라 트랙 보기」가 된다 — 스크린리더가 읽는 제목과 검색에 잡히는 제목이 그렇다.
+    형제로 두고 자리는 CSS(`.titleRow`)가 잡는다.
   */
-  const subLink = ended ? (
+  const titleLink = ended ? (
     boardOn ? (
-      <Link href={board} className={styles.subLink}>
+      <Link href={board} className={styles.titleLink}>
         최종 결과 보기 →
       </Link>
     ) : null
   ) : racing || recruiting ? null : (
-    <button type="button" className={styles.subLink} onClick={() => scrollTo("how")}>
+    <button type="button" className={styles.titleLink} onClick={() => scrollTo("how")}>
       트랙 보기
     </button>
+  );
+  const title = (
+    <h1 className={styles.title}>
+      말이 아니라,
+      <br />
+      <Glitch text="지표로 증명하라" />
+    </h1>
   );
 
   return (
@@ -505,25 +516,18 @@ export function Landing({
               )}
             </Reveal>
             <Reveal index={1} step={70}>
-              <h1 className={styles.title}>
-                말이 아니라,
-                <br />
-                <Glitch text="지표로 증명하라" />
-              </h1>
+              {titleLink ? (
+                <div className={styles.titleRow}>
+                  {title}
+                  {titleLink}
+                </div>
+              ) : (
+                title
+              )}
             </Reveal>
             <Reveal index={2} step={70}>
               <p className={styles.sub}>
                 <Clauses text="아이디어를 실제 유저와 매출 데이터로 바꾸는 AI 빌드 리그예요. 코딩 경험이 없어도 괜찮아요." />
-                {/*
-                  사이는 반각 공백(U+2002)이다. 보통 공백보다 넓어 문장과 링크가 떨어져 보이고,
-                  줄이 바뀌면 앞줄 끝에 남아 링크가 줄 첫머리에서 들여쓰이지 않는다(여백으로 띄우면 들여쓰인다).
-                */}
-                {subLink ? (
-                  <>
-                    {" "}
-                    {subLink}
-                  </>
-                ) : null}
               </p>
             </Reveal>
             {/* 버튼 줄은 폼이 없는 두 상태에만 있다 — 폼이 있으면 그 폼이 곧 CTA다(머리 주석) */}
