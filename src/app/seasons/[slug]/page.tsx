@@ -95,9 +95,9 @@ function cta(
   leaderboard: boolean,
 ): { href: string; label: string } | null {
   if (phase === "pre_apply") {
-    return { href: "/?preregister=1", label: "사전 신청하기" };
+    return { href: "/?preregister=1", label: "사전 신청" };
   }
-  if (phase === "recruiting") return { href: "/apply", label: "참가 신청하기" };
+  if (phase === "recruiting") return { href: "/apply", label: "참가 신청" };
   /* 시안에 없는 네 번째 상태(시상 발표)도 갈 곳은 리더보드뿐이다 */
   if (phase === "racing" || phase === "awarded") {
     return leaderboard

@@ -189,7 +189,7 @@ export async function submitApplication(
   /*
     받는 기간 판정은 참가 신청 화면과 **같은 함수**(`loadApplyGate`)다. 모집 중이면
     평소 신청, 모집이 아니면 유효한 지각 편입 링크가 있을 때만 받는다. 모집 판정은
-    그 안에서 랜딩 CTA와 같은 `resolveLandingCta`를 쓴다 — 랜딩은 "신청하기"를
+    그 안에서 랜딩 CTA와 같은 `resolveLandingCta`를 쓴다 — 랜딩은 「참가 신청」을
     띄우는데 /apply는 닫혀 있는(혹은 그 반대인) 상태가 생기면 안 된다.
   */
   const season = await getCurrentSeason();

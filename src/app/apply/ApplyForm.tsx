@@ -282,7 +282,7 @@ export function ApplyForm({
         style={{ padding: "14px", fontSize: "15px" }}
         disabled={pending}
       >
-        {pending ? "접수 중…" : "참가 신청하기"}
+        {pending ? "접수 중…" : "참가 신청"}
       </Button>
     </form>
   );
