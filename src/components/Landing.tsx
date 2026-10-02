@@ -45,12 +45,12 @@ import {
   랜딩 — 시안 v2.1의 「랜딩(배포본 정적 재현)」을 그대로 옮긴 것.
 
   구조는 시안 순서 그대로다:
-    히어로(왼쪽 카피+폼 / 오른쪽 전광판) → 스탯 4칸 → 마퀴
+    히어로(왼쪽 카피+폼 / 오른쪽 전광판) → 스탯 줄 → 마퀴
     → 01 POSITION → 02 TRACK(시안의 HOW IT WORKS) → 03 BENEFITS
     → 04 WHY → 05 CRITERIA → 06 FAQ → 파이널
 
-  시안은 정적 목업이라 숫자가 박혀 있다. 우리는 실제 값을 넣는다 — 사전 신청
-  수는 DB 집계고, CTA 문구·행선지는 시즌 페이즈가 정한다.
+  시안은 정적 목업이라 숫자가 박혀 있다. 우리는 실제 값을 넣는다 — 전광판과
+  참가팀 수는 DB 집계고, CTA 문구·행선지는 시즌 페이즈가 정한다.
 
   **없는 데이터를 실제인 것처럼 지어내지 않는다.** 진행 중에 스냅샷 순위가 없는
   자리는 빈 슬롯으로 남긴다. 조작 불가능한 지표가 이 서비스의 상품인데 랜딩에
@@ -82,8 +82,6 @@ export interface LandingProps {
   seasonTheme: string | null;
   /** 킥오프 시각(ISO). 미정이면 null. */
   startAt: string | null;
-  /** 실제 사전 신청자 수 (DB 집계) */
-  preRegisterCount: number;
   /** 참가 신청 마감 = 레이스 전환 예정 시각(ISO). 일정 행이 없으면 null */
   recruitClosesAt: string | null;
   /** 시즌 종료 = 최종 결과 발표일(ISO). 운영 헤더 「시상 발표」와 같은 값. 미정이면 null */
@@ -243,7 +241,6 @@ export function Landing({
   seasonName,
   startAt,
   headerSeason,
-  preRegisterCount,
   recruitClosesAt,
   endsAt,
   live,
@@ -280,8 +277,6 @@ export function Landing({
   const [showMissingConsent, setShowMissingConsent] = useState(false);
   const [pending, setPending] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
-  // 낙관적으로 올려 보여준다. 새로고침하면 서버 값으로 정정된다.
-  const [count, setCount] = useState(preRegisterCount);
 
   /* 로드맵은 화면에 들어올 때 선이 그어지고 정거장이 순서대로 올라온다 */
   const { ref: rmRef, shown: rmShown } = useReveal<HTMLDivElement>();
@@ -395,7 +390,6 @@ export function Landing({
       // 그건 「자유로운 의사에 따른 결정」(D1 ①)이 아니다.
       setConsent(EMPTY_CONSENT);
       setBotReset((n) => n + 1);
-      setCount((n) => n + 1);
       show("✓ 사전 신청 완료! 시즌 소식을 보내드릴게요.");
     } catch {
       show("네트워크 오류예요. 연결을 확인해주세요.");
@@ -445,14 +439,23 @@ export function Landing({
       ? `${seasonName} 참가 신청 접수 중${lastMinute ? `, ${fmtMD(lastMinute)} 마감` : ""}`
       : `${seasonName}, ${openingLabel}`;
 
-  /* 시안의 스탯 4칸. 앞 셋은 고정값이고 마지막만 DB에서 온다 */
+  /*
+    시안의 스탯 줄. 앞 셋은 고정값이고, 넷째 칸은 시즌이 열린 뒤(진행 중·종료)의
+    「참가팀」뿐이다.
+
+    ⚠️ 시안과 두 군데가 다르다(2026-10-03 QA 의견, 수연 전달).
+      · 참가비는 「₩0」이 아니라 「FREE」다. 마퀴의 「참가비 FREE」도 같이 바꿨다.
+      · 모집 전·모집 중의 넷째 칸 「사전 신청 N명」을 뺐다. 세 칸이 한 줄에 선다
+        (`.statsThree`). 숫자는 서버에서 읽지도 않는다 — 속성으로 내려보내면
+        화면에 안 그려도 HTML에 실린다.
+  */
   const stats = [
     { value: "20~40", unit: "팀", label: "모집 규모" },
     { value: "1~2", unit: "인", label: "팀 구성" },
-    { value: "₩0", unit: "", label: "참가비" },
-    racing || ended
-      ? { value: NUM.format(live.teams), unit: "팀", label: "참가팀" }
-      : { value: NUM.format(count), unit: "명", label: "사전 신청" },
+    { value: "FREE", unit: "", label: "참가비" },
+    ...(racing || ended
+      ? [{ value: NUM.format(live.teams), unit: "팀", label: "참가팀" }]
+      : []),
   ];
 
   /*
@@ -703,8 +706,8 @@ export function Landing({
           </Reveal>
         </div>
 
-        {/* ═══════ 스탯 4칸 ═══════ */}
-        <div className={styles.stats}>
+        {/* ═══════ 스탯 (시즌이 열리기 전에는 세 칸, 열린 뒤에는 네 칸) ═══════ */}
+        <div className={cx(styles.stats, stats.length === 3 && styles.statsThree)}>
           {stats.map((s, i) => (
             <Reveal key={s.label} index={i} step={80}>
               <div className={styles.stat}>
