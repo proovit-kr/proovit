@@ -511,9 +511,16 @@
   세 칸(모집 전·모집 중 — 「사전 신청 N명」을 뺐다, `Landing.tsx`의 `stats`).
   네 칸의 격자에 그대로 두면 넓은 화면은 오른쪽 한 칸이 비고 좁은 화면은 둘+하나로
   갈린다. 어느 폭에서나 한 줄에 셋을 세운다 — 클래스 둘을 겹쳐 아래 반응형 규칙을 이긴다.
+
+  가운데 정렬이다(2026-10-03 수연). 왼쪽 정렬로 3등분하면 오른쪽만 비어 보인다 —
+  1440에서 왼쪽 여백 0, 오른쪽 267px였다. 칸을 글자 폭만큼만 잡고 남는 폭을 둘레에
+  똑같이 나눈다. 같은 폭으로 나눠 가운데 정렬하면 넓은 화면은 비슷하지만, 320에서
+  글자가 긴 첫 칸이 제 몫을 넘겨 사이가 23px·34px로 어긋난다.
 */
 .stats.statsThree {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, auto);
+  justify-content: space-around;
+  text-align: center;
 }
 /* `.score`는 globals.css의 전역 클래스다 — 모듈 안에서 :global로 집어야 한다 */
 .stat :global(.score) {
@@ -1204,15 +1211,6 @@
     grid-template-columns: 1fr 1fr;
     gap: 10px;
     padding: 22px 0;
-  }
-  /*
-    세 칸을 같은 폭으로 나누면 글자가 긴 첫 칸만 다음 칸에 붙는다 — 320에서
-    「20~40팀」과 「1~2인」 사이가 10px이고 「FREE」 앞은 34px였다. 칸을 글자 폭만큼만
-    잡고 남는 폭을 사이에 똑같이 나눈다.
-  */
-  .stats.statsThree {
-    grid-template-columns: repeat(3, auto);
-    justify-content: space-between;
   }
   .stat :global(.score) {
     font-size: 26px;
