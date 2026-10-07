@@ -1,5 +1,6 @@
-import { ConsentType } from "@/generated/prisma/enums";
+import { ConsentSource, ConsentType } from "@/generated/prisma/enums";
 import {
+  ACCOUNT_AGE_CONSENT_VERSION,
   ACCOUNT_MARKETING_CONSENT_VERSION,
   ACCOUNT_PRIVACY_CONSENT_VERSION,
   ACCOUNT_TERMS_CONSENT_VERSION,
@@ -22,24 +23,18 @@ import { prisma } from "@/lib/prisma";
 /**
  * 계정 동의에서 **반드시** 받아야 하는 종류와 그 현재 버전.
  *
- * 만 14세 확인은 여기 없다 — 이유는 `AGE_IS_A_GATE_NOT_A_RECORD` 주석 참고.
+ * 연령 확인도 별도로 본다. 과거 약관 동의를 연령 확인 기록으로 소급하지 않는다.
  */
 const REQUIRED: { type: ConsentType; version: string }[] = [
   { type: ConsentType.terms, version: ACCOUNT_TERMS_CONSENT_VERSION },
   { type: ConsentType.privacy, version: ACCOUNT_PRIVACY_CONSENT_VERSION },
+  { type: ConsentType.age, version: ACCOUNT_AGE_CONSENT_VERSION },
 ];
 
 /*
-  ⚠️ **만 14세 확인은 저장하지 않는다**(AGE_IS_A_GATE_NOT_A_RECORD).
-
-  `ConsentType`에 `age`가 없다. 사전 신청도 같다 — `leads` 표에 나이 확인 칸이
-  없고 `privacy_consent_at`·`marketing_opt_in`만 있다. 즉 이 제품에서 나이 확인은
-  **통과 조건**이지 보관하는 동의 기록이 아니다.
-
-  시안 개발 메모는 저장 항목에 「만 14세 확인」을 적었다. 그대로 하려면 enum에
-  값을 더해야 하는데 그건 마이그레이션이라 이번 패스에서 하지 않았다. 필수 셋을
-  모두 체크해야만 저장이 일어나므로, 계정 동의 행이 있다는 것 자체가 그 시점에
-  나이 확인을 받았다는 뜻이 된다 — 다만 그 해석은 코드를 읽어야 나온다.
+  연령 확인은 consents의 age 행에 시각(createdAt)·방식(source)·문안 버전을 남긴다.
+  생년월일은 받지 않으며 실제 나이가 검증되었다는 뜻이 아니다. 과거 기록은
+  채우지 않는다 — age 행이 없는 기존 회원은 다음 로그인에 다시 확인받는다.
 */
 
 /** "v1.2" → [1, 2]. 비교할 수 없는 값은 [-1]로 떨어뜨려 항상 재동의시킨다. */
@@ -118,7 +113,7 @@ export async function loadAccountConsentNeed(
         type: { in: REQUIRED.map((r) => r.type) },
       },
       orderBy: { createdAt: "desc" },
-      select: { type: true, granted: true, version: true },
+      select: { type: true, granted: true, version: true, source: true },
     }),
     prisma.oauthAccount.findFirst({
       where: { userId },
@@ -142,6 +137,10 @@ export async function loadAccountConsentNeed(
       missing = true;
       continue;
     }
+    if (need.type === ConsentType.age && !row.source) {
+      missing = true;
+      continue;
+    }
     if (isOlderThan(row.version, need.version)) stale = true;
   }
 
@@ -152,8 +151,10 @@ export async function loadAccountConsentNeed(
 
   return {
     needed: missing || stale,
-    /* 빠진 것 없이 버전만 낮으면 재동의다 */
-    reconsent: !missing && stale,
+    /* 과거 계정 동의가 있으면 연령 확인 누락도 기존 회원의 재확인이다. */
+    reconsent:
+      (missing || stale) &&
+      [ConsentType.terms, ConsentType.privacy].some((type) => latest.get(type)?.granted),
     provider,
     maskedEmail: user?.email ? maskEmail(user.email) : "",
   };
@@ -168,9 +169,13 @@ export async function loadAccountConsentNeed(
 export function accountConsentRows(args: {
   userId: string;
   marketing: boolean;
+  ageConfirmed: true;
+  ageSource?: ConsentSource;
   ipHash: string | null;
   userAgent: string | null;
 }) {
+  if (args.ageConfirmed !== true) throw new Error("만 14세 이상 직접 확인이 필요합니다.");
+
   const base = {
     userId: args.userId,
     /* 계정 동의라 참가에 붙이지 않는다 */
@@ -180,6 +185,16 @@ export function accountConsentRows(args: {
   };
 
   return [
+    {
+      ...base,
+      type: ConsentType.age,
+      granted: true,
+      version: ACCOUNT_AGE_CONSENT_VERSION,
+      source: args.ageSource ?? ConsentSource.self_declaration,
+      /* 연령 확인에는 접속 증빙을 추가로 수집하지 않는다. */
+      ipHash: null,
+      userAgent: null,
+    },
     {
       ...base,
       type: ConsentType.terms,

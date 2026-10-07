@@ -11,7 +11,7 @@ import ConsentFields, {
   type ConsentState,
 } from "@/components/ConsentFields";
 import { Toast, useToast } from "@/components/Toast";
-import { SIGNUP_CONSENTS } from "@/content/consent";
+import { ACCOUNT_AGE_NOTICE, SIGNUP_CONSENTS } from "@/content/consent";
 
 import styles from "./ConsentDialog.module.css";
 
@@ -98,7 +98,7 @@ export function ConsentDialog({
                     받아요」는 처음 가입하는 사람에게 참인 말이고, 두 번째로 보는
                     사람에게는 거짓이 된다.
                   */
-                  "약관이 개정되어 다시 확인이 필요해요. 바뀐 내용을 보고 동의해 주세요."
+                  "서비스 이용을 위해 동의와 연령 확인을 다시 받아요. 아래 항목을 확인해 주세요."
                 : "PROOVIT 계정을 만들려면 아래 항목에 동의가 필요해요. 한 번만 받아요."
             }
           />
@@ -122,6 +122,7 @@ export function ConsentDialog({
         <form action={onAccept}>
           <ConsentFields
             items={SIGNUP_CONSENTS}
+            idPrefix="account-"
             value={consent}
             onChange={setConsent}
             /* 시안 ver4가 이 모달에 「모두 동의」 줄을 둔다(1735행 `label.all`) */
@@ -145,6 +146,10 @@ export function ConsentDialog({
               />
             ) : null,
           )}
+
+          <p className={styles.why}>
+            <Clauses text={ACCOUNT_AGE_NOTICE} />
+          </p>
 
           <div className={styles.ft}>
             <SubmitButton ready={ready} />

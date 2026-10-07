@@ -12,6 +12,7 @@
 
   ⚠️ **반드시 .env.development.local로 돌린다.** `.env`는 운영 DB다.
 */
+import { ConsentSource } from "../../src/generated/prisma/enums";
 import { accountConsentRows } from "../../src/lib/account-consent";
 import { checkDevSandbox } from "../../src/lib/dev-sandbox";
 import { prisma } from "../../src/lib/prisma";
@@ -36,7 +37,7 @@ const user = await prisma.user.upsert({
 
 await prisma.consent.deleteMany({ where: { userId: user.id, entryId: null } });
 await prisma.consent.createMany({
-  data: accountConsentRows({ userId: user.id, marketing: false, ipHash: null, userAgent: null }),
+  data: accountConsentRows({ userId: user.id, marketing: false, ageConfirmed: true, ageSource: ConsentSource.dev_fixture, ipHash: null, userAgent: null }),
 });
 
 const token = crypto.randomUUID();

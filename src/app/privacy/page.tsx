@@ -8,6 +8,8 @@ import {
   DocTable,
   type DocSection,
 } from "@/components/DocPage";
+import { Clauses } from "@/components/Clauses";
+import { ACCOUNT_AGE_NOTICE } from "@/content/consent";
 import { privacyPolicyFor } from "@/content/privacy";
 import { getCurrentSeason, isRecruitingOrLater } from "@/lib/season";
 
@@ -80,6 +82,14 @@ export default async function Page() {
         ) : (
           <DocRowTable rows={summary.rows} />
         ),
+    },
+    /* 기존 정본을 소급 수정하지 않고 새 연령 기록 고지를 따로 공개한다. */
+    {
+      id: "pv-age",
+      num: "추가 안내",
+      title: "만 14세 이상 확인 기록",
+      tocLabel: "연령 확인 기록",
+      body: <p><Clauses text={ACCOUNT_AGE_NOTICE} /></p>,
     },
     ...policy.articles.map((a) => ({
       id: `pv-${a.no}`,

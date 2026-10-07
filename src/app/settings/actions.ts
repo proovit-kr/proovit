@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { ConsentType } from "@/generated/prisma/enums";
 import { getSessionUser } from "@/lib/access";
 import { signOut } from "@/lib/auth";
 import { EMAIL_CHANGE_MESSAGE } from "@/lib/email-change";
@@ -60,6 +61,8 @@ export async function withdraw() {
 
   const gone = "탈퇴한 회원";
   await prisma.$transaction([
+    /* 가입 화면에서 고지한 대로 연령 직접 확인 기록은 탈퇴 시 파기한다. */
+    prisma.consent.deleteMany({ where: { userId: user.id, type: ConsentType.age } }),
     prisma.oauthAccount.deleteMany({ where: { userId: user.id } }),
     prisma.session.deleteMany({ where: { userId: user.id } }),
     prisma.user.update({

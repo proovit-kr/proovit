@@ -45,6 +45,7 @@ export async function acceptAccountConsent(formData: FormData): Promise<boolean>
     data: accountConsentRows({
       userId: user.id,
       marketing,
+      ageConfirmed: true,
       ipHash: hashIp(ip),
       userAgent: requestHeaders.get("user-agent")?.slice(0, 500) ?? null,
     }),

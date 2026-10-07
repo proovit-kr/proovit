@@ -89,6 +89,8 @@ enum HostnameType {
 
 /// 동의 종류. 하나의 append-only 로그에 다 담기므로 종류로 구분한다.
 enum ConsentType {
+  /// 만 14세 이상 확인. 본인인증이 아니라 사용자의 직접 확인 기록이다.
+  age
   terms
   privacy
   marketing
@@ -103,6 +105,12 @@ enum ConsentType {
   /// (13 크레딧 센터 설계서 8장 · 광고용역 계약서 · 개인정보처리방침의 스폰서 표).
   /// 없으면 이메일 명단 방식의 지급 대상에서 뺀다.
   sponsor_share
+}
+
+/// 연령 확인의 출처. 개발 픽스처를 실제 사용자 확인과 구분한다.
+enum ConsentSource {
+  self_declaration
+  dev_fixture
 }
 
 enum NotifChannel {
@@ -510,6 +518,8 @@ model Consent {
   granted Boolean
   /// 동의한 문안의 버전. 문안이 개정되면 D6에 따라 재동의를 받는다.
   version String?     @db.VarChar(20)
+  /// 연령 확인 방식. 기존 동의 행은 null이며 소급해서 채우지 않는다.
+  source  ConsentSource?
 
   /// 동의 증빙. 참가신청 동의문은 수집 항목이 이메일 하나보다 넓으므로
   /// leads와 달리 IP 해시를 남길 수 있다(원문은 절대 저장하지 않는다).
