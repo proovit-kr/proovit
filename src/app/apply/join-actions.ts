@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { APPLY_CONSENTS } from "@/content/consent";
+import { loadAccountConsentNeed } from "@/lib/account-consent";
 import { getSessionUser } from "@/lib/access";
 import { missingRequiredConsents } from "@/lib/apply-store";
 import { getCurrentSeason } from "@/lib/season";
@@ -53,6 +54,10 @@ export async function joinTeam(
   const user = await getSessionUser();
   if (!user) {
     return { message: "로그인이 풀렸습니다. 다시 로그인해 주세요.", code: raw };
+  }
+
+  if ((await loadAccountConsentNeed(user.id)).needed) {
+    return { message: "가입 동의와 만 14세 이상 확인을 먼저 완료해 주세요.", code: raw };
   }
 
   const parsed = InviteCodeSchema.safeParse(raw);

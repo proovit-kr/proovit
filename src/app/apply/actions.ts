@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { loadAccountConsentNeed } from "@/lib/account-consent";
 import { getSessionUser } from "@/lib/access";
 import { type ApplyFieldErrors } from "@/lib/apply";
 import { submitApplication, type ApplyFailureCode } from "@/lib/apply-store";
@@ -35,6 +36,10 @@ export async function submitApply(
   const user = await getSessionUser();
   if (!user) {
     return { message: "로그인이 풀렸습니다. 다시 로그인해 주세요." };
+  }
+
+  if ((await loadAccountConsentNeed(user.id)).needed) {
+    return { message: "가입 동의와 만 14세 이상 확인을 먼저 완료해 주세요." };
   }
 
   /*

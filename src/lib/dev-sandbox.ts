@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import {
   AbuseStatus,
   ChargeType,
+  ConsentSource,
   ConsentType,
   CreditClaimStatus,
   CreditDeliveredVia,
@@ -30,6 +31,7 @@ import {
   TransactionStatus,
 } from "@/generated/prisma/enums";
 import {
+  ACCOUNT_AGE_CONSENT_VERSION,
   ACCOUNT_PRIVACY_CONSENT_VERSION,
   ACCOUNT_TERMS_CONSENT_VERSION,
   APPLY_CONSENTS,
@@ -663,6 +665,8 @@ async function createMate(): Promise<{ id: string }> {
     data: accountConsentRows({
       userId: user.id,
       marketing: false,
+      ageConfirmed: true,
+      ageSource: ConsentSource.dev_fixture,
       ipHash: null,
       userAgent: null,
     }),
@@ -1276,6 +1280,14 @@ export async function setMetricsFixture(args: {
         type: ConsentType.privacy,
         granted: true,
         version: ACCOUNT_PRIVACY_CONSENT_VERSION,
+      },
+      {
+        userId,
+        entryId: null,
+        type: ConsentType.age,
+        granted: true,
+        version: ACCOUNT_AGE_CONSENT_VERSION,
+        source: ConsentSource.dev_fixture,
       },
     ];
   });

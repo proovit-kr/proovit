@@ -1,3 +1,4 @@
+import { ConsentSource } from "@/generated/prisma/enums";
 import { randomBytes } from "node:crypto";
 
 import { cookies, headers } from "next/headers";
@@ -75,7 +76,7 @@ async function loginAs(email: string): Promise<void> {
   */
   if ((await loadAccountConsentNeed(user.id)).needed) {
     await prisma.consent.createMany({
-      data: accountConsentRows({ userId: user.id, marketing: false, ipHash: null, userAgent: "dev-bar" }),
+      data: accountConsentRows({ userId: user.id, marketing: false, ageConfirmed: true, ageSource: ConsentSource.dev_fixture, ipHash: null, userAgent: "dev-bar" }),
     });
   }
 

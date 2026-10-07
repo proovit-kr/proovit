@@ -12,11 +12,13 @@ import {
 } from "@/generated/prisma/client";
 import {
   canAccess,
+  ROUTE_POLICY,
   type AccessContext,
   type AccessResult,
   type OnboardingProgress,
   type RouteKey,
 } from "@/lib/access-policy";
+import { loadAccountConsentNeed } from "@/lib/account-consent";
 import { apiFail } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { parseFeatureFlags, type FeatureFlags } from "@/lib/feature-flags";
@@ -129,6 +131,7 @@ export type ViewerState = {
     nickname: string;
     onboarded: boolean;
     roles: string[];
+    accountConsentComplete?: boolean;
   } | null;
   season: {
     /** 시즌 종속 조회(스테이지·제출)가 이 값을 쓴다 */
@@ -178,6 +181,10 @@ export const loadViewerState = cache(
       getCurrentSeason(),
     ]);
 
+    const accountConsentComplete = user
+      ? !(await loadAccountConsentNeed(user.id)).needed
+      : false;
+
     /*
       리더보드 공개 판정에 가장 이른 레이스 시작이 든다 — 레이스 이후 페이즈에서
       플래그가 켜져 있을 때만 한 번 더 읽는다(race-read.ts). 같은 요청의 헤더·페이지와
@@ -201,6 +208,7 @@ export const loadViewerState = cache(
               nickname: user.nickname,
               onboarded: user.onboardedAt !== null,
               roles: [],
+              accountConsentComplete,
             }
           : null,
         season: seasonState,
@@ -262,6 +270,7 @@ export const loadViewerState = cache(
         nickname: user.nickname,
         onboarded: user.onboardedAt !== null,
         roles: roles.map((r) => r.role.key),
+        accountConsentComplete,
       },
       season: seasonState,
       team: team
@@ -307,6 +316,7 @@ export function toAccessContext(viewer: ViewerState): AccessContext {
           id: viewer.user.id,
           onboarded: viewer.user.onboarded,
           isAdmin: viewer.user.roles.includes("admin"),
+          accountConsentComplete: viewer.user.accountConsentComplete,
         }
       : null,
     season: viewer.season
@@ -378,5 +388,12 @@ export async function guardPage(
   next?: string,
 ): Promise<{ viewer: ViewerState; access: AccessResult }> {
   const viewer = await loadViewerState();
-  return { viewer, access: assertAccess(route, toAccessContext(viewer), next) };
+  const ctx = toAccessContext(viewer);
+  if (ctx.user) {
+    /* 홈의 전역 모달에서 확인받는다. 동의 전 보호 화면을 먼저 렌더하지 않는다. */
+    if (!ctx.user.accountConsentComplete && route !== "settings" && ROUTE_POLICY[route].auth !== "public") {
+      redirect("/");
+    }
+  }
+  return { viewer, access: assertAccess(route, ctx, next) };
 }

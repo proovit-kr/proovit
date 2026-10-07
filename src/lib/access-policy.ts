@@ -219,7 +219,7 @@ type RoutePolicy = {
   ⚠️ 라우트 이름은 PLN3을 따른다 — 제출은 `/dashboard/submit/:stageKey`다.
   옛 문서의 `/dashboard/submissions/:stage`·`/dashboard/sub/stepN`이 아니다.
 */
-const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
+export const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
   // ── 공개 ──────────────────────────────────────────────────
   landing: { auth: "public" },
   seasonDetail: { auth: "public" },
@@ -341,7 +341,7 @@ const ROUTE_POLICY: Record<RouteKey, RoutePolicy> = {
 
 /** 판정에 필요한 것 전부. 화면·핸들러가 이걸 만들어 넘긴다 */
 export type AccessContext = {
-  user: { id: string; onboarded: boolean; isAdmin: boolean } | null;
+  user: { id: string; onboarded: boolean; isAdmin: boolean; accountConsentComplete?: boolean } | null;
   season: { phase: SeasonPhase; flags: FeatureFlags } | null;
   /** 참가 기록. 회원이지만 참가하지 않았으면 null */
   entry: {
@@ -396,6 +396,12 @@ export function canAccess(route: RouteKey, ctx: AccessContext): AccessResult {
       */
       return { ok: false, code: "FORBIDDEN", message: "접근 권한이 없습니다." };
     }
+  }
+
+  /* 모달을 숨기거나 API를 직접 불러도 가입 동의·연령 확인 없이 이용하지 못한다.
+     계정 설정은 탈퇴·로그아웃을 위해 남겨 둔다. 실제 서버 컨텍스트에서 값을 채운다. */
+  if (policy.auth !== "public" && route !== "settings" && ctx.user?.accountConsentComplete === false) {
+    return { ok: false, code: "FORBIDDEN", message: "가입 동의와 만 14세 이상 확인이 필요합니다." };
   }
 
   // 2) 참가 기록 — 없으면 404
