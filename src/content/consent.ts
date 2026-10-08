@@ -143,8 +143,17 @@ export const ACCOUNT_PRIVACY_CONSENT_VERSION = "v1.0";
 
 /** 생년월일·본인인증을 수집하지 않는 만 14세 이상 직접 확인 문안. */
 export const ACCOUNT_AGE_CONSENT_VERSION = "v1.0";
-export const ACCOUNT_AGE_NOTICE =
-  "만 14세 이상 이용 조건 확인을 위해 확인 여부·시각·방식을 회원 탈퇴 시까지 보관해요. 생년월일은 수집하지 않으며 본인인증을 대신하지 않아요. 확인하지 않으면 가입할 수 없어요.";
+/**
+ * 연령 확인 보관 안내. 가입 모달은 줄 단위로 그린다 — 첫 문장이 모달 폭보다 길어
+ * 「보관해요.」만 홀로 다음 줄에 떨어졌다. 「위해」 뒤에서 줄을 바꾼다
+ * (2026-10-08 수연 결정 — 쉼표를 넣어 끊지 않고 줄바꿈으로).
+ */
+export const ACCOUNT_AGE_NOTICE_LINES = [
+  "만 14세 이상 이용 조건 확인을 위해",
+  "확인 여부·시각·방식을 회원 탈퇴 시까지 보관해요. 생년월일은 수집하지 않으며 본인인증을 대신하지 않아요. 확인하지 않으면 가입할 수 없어요.",
+] as const;
+/** 폭이 넉넉한 자리(개인정보처리방침)는 한 문단으로 이어 쓴다. 글자는 위와 같다. */
+export const ACCOUNT_AGE_NOTICE = ACCOUNT_AGE_NOTICE_LINES.join(" ");
 
 /** 계정 단위 마케팅 수신 동의 문안의 버전. 사전 신청 폼과 문안이 같아 값을 맞춘다. */
 export const ACCOUNT_MARKETING_CONSENT_VERSION = MARKETING_CONSENT_VERSION;
