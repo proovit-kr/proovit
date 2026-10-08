@@ -24,6 +24,9 @@ export async function GET(
 
   const viewer = await loadViewerState();
   if (!viewer.user) return new Response(null, { status: 401 });
+  if (!viewer.user.accountConsentComplete) {
+    return new Response(null, { status: 403, headers: { "Cache-Control": "private, no-store" } });
+  }
   const isAdmin = viewer.user.roles.includes("admin");
   if (!isAdmin && viewer.entry?.id !== parsed.entryId) return notFound();
 

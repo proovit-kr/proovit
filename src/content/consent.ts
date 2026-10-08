@@ -141,6 +141,11 @@ export const ACCOUNT_TERMS_CONSENT_VERSION = "v0.1";
 /** 계정 단위 개인정보 수집·이용 동의 문안의 버전. */
 export const ACCOUNT_PRIVACY_CONSENT_VERSION = "v1.0";
 
+/** 생년월일·본인인증을 수집하지 않는 만 14세 이상 직접 확인 문안. */
+export const ACCOUNT_AGE_CONSENT_VERSION = "v1.0";
+export const ACCOUNT_AGE_NOTICE =
+  "만 14세 이상 이용 조건 확인을 위해 확인 여부·시각·방식을 회원 탈퇴 시까지 보관해요. 생년월일은 수집하지 않으며 본인인증을 대신하지 않아요. 확인하지 않으면 가입할 수 없어요.";
+
 /** 계정 단위 마케팅 수신 동의 문안의 버전. 사전 신청 폼과 문안이 같아 값을 맞춘다. */
 export const ACCOUNT_MARKETING_CONSENT_VERSION = MARKETING_CONSENT_VERSION;
 

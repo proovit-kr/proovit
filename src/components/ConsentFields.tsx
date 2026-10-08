@@ -67,19 +67,21 @@ export function focusFirstMissingConsent(
 
 function ConsentRow({
   item,
+  idPrefix,
   checked,
   disabled,
   invalid,
   onChange,
 }: {
   item: ConsentItem;
+  idPrefix: string;
   checked: boolean;
   disabled: boolean;
   /** 제출을 시도했는데 이 필수 항목이 비어 있다 */
   invalid: boolean;
   onChange: (next: boolean) => void;
 }) {
-  const id = rowId(item.key);
+  const id = `${idPrefix}${rowId(item.key)}`;
 
   // "[필수] 개인정보 …" 에서 앞머리 태그만 떼어내 다르게 칠한다
   const match = /^\[(필수|선택)\]\s*(.*)$/.exec(item.label);
@@ -148,6 +150,7 @@ function ConsentRow({
 
 export default function ConsentFields({
   items = PREREGISTER_CONSENTS,
+  idPrefix = "",
   value,
   onChange,
   disabled = false,
@@ -159,6 +162,8 @@ export default function ConsentFields({
 }: {
   /** 표시할 동의 항목. 기본값은 사전 신청 폼이다. */
   items?: ConsentItem[];
+  /** 랜딩 폼 위에 가입 모달이 겹칠 때 label이 다른 체크박스를 가리키지 않게 한다. */
+  idPrefix?: string;
   value: ConsentState;
   onChange: (next: ConsentState) => void;
   disabled?: boolean;
@@ -232,6 +237,7 @@ export default function ConsentFields({
         <ConsentRow
           key={item.key}
           item={item}
+          idPrefix={idPrefix}
           checked={value[item.key]}
           disabled={disabled}
           invalid={showMissing && item.required && !value[item.key]}
