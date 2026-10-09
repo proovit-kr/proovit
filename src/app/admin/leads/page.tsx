@@ -33,7 +33,7 @@ const NUM = new Intl.NumberFormat("ko-KR");
 export default async function Page() {
   const { viewer } = await guardPage("adminLeads", "/admin/leads");
   const data = viewer.season
-    ? await loadAdminLeads(viewer.season.id, devNow())
+    ? await loadAdminLeads(viewer.season, devNow())
     : { rows: [], total: 0, todayCount: 0, optIn: 0 };
   const rate = data.total ? Math.round((data.optIn / data.total) * 100) : 0;
 

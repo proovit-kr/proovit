@@ -14,10 +14,13 @@ describe("prodLeadsEnabled", () => {
 
   it("PROD_DATABASE_URL이 없으면 꺼진다", async () => {
     delete process.env.PROD_DATABASE_URL;
-    const { prodLeadsEnabled, prodLeadCount, prodLeadStats } = await import("@/lib/prod-leads");
+    const { prodLeadsEnabled, prodLeadCount, prodLeadStats, prodLeadPage, prodLeadExportRows } =
+      await import("@/lib/prod-leads");
     expect(prodLeadsEnabled()).toBe(false);
     expect(await prodLeadCount("season-1")).toBeNull();
     expect(await prodLeadStats("season-1", new Date())).toBeNull();
+    expect(await prodLeadPage("season-1", new Date(), 200)).toBeNull();
+    expect(await prodLeadExportRows("season-1")).toBeNull();
   });
 
   it("DATABASE_URL과 같은 주소면 꺼진다", async () => {
