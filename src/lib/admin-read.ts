@@ -10,6 +10,7 @@ import {
 } from "@/generated/prisma/enums";
 import { CREDIT_CARD_BY_KIND, creditTargetLabel } from "@/lib/credits";
 import { prisma } from "@/lib/prisma";
+import { prodLeadPage, prodLeadStats } from "@/lib/prod-leads";
 import { devNow } from "@/lib/dev-clock";
 import { loadFirstRaceStart } from "@/lib/race-read";
 import { rollupHalt } from "@/lib/rollup";
@@ -107,6 +108,26 @@ async function countPendingJudgments(seasonId: string): Promise<number> {
       judgments: { none: {} },
     },
   });
+}
+
+/*
+  사전 신청 수 세 칸(누적·이번 주·수신거부) — 운영 DB가 닿으면 그쪽(KPI#1은
+  운영 행만 뜻이 있다), 아니면 자기 DB. 운영 배포는 PROD_DATABASE_URL이 없어 늘
+  뒤쪽이다(prod-leads.ts). 운영자 헤더(header-read.ts의 countLeads)와 같은
+  규칙이라 헤더와 KPI 카드가 서로 다른 수를 보여 주지 않는다.
+*/
+async function countLeadStats(
+  season: { id: string; slug: string },
+  weekAgo: Date,
+): Promise<AdminSummary["leads"]> {
+  const prod = await prodLeadStats(season.slug, weekAgo);
+  if (prod) return prod;
+  const [total, week, unsubscribed] = await Promise.all([
+    prisma.lead.count({ where: { seasonId: season.id } }),
+    prisma.lead.count({ where: { seasonId: season.id, createdAt: { gte: weekAgo } } }),
+    prisma.lead.count({ where: { seasonId: season.id, status: LeadStatus.unsubscribed } }),
+  ]);
+  return { total, week, unsubscribed };
 }
 
 /**
@@ -387,8 +408,6 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
     byStatus,
     pendingJudgments,
     leads,
-    leadsWeek,
-    unsubscribed,
     openAbuseFlags,
     deployedEntries,
     deployedWeek,
@@ -415,11 +434,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
         관계인 줄 알고 `stage: { isGate: true }`로 쓰면 타입에서 걸린다.
       */
       countPendingJudgments(season.id),
-      prisma.lead.count({ where: { seasonId: season.id } }),
-      prisma.lead.count({ where: { seasonId: season.id, createdAt: { gte: weekAgo } } }),
-      prisma.lead.count({
-        where: { seasonId: season.id, status: LeadStatus.unsubscribed },
-      }),
+      countLeadStats(season, weekAgo),
       prisma.abuseFlag.count({
         where: { entry: { seasonId: season.id }, status: "flagged" },
       }),
@@ -488,7 +503,7 @@ export async function loadAdminSummary(seasonId: string | null): Promise<AdminSu
       disqualified: count(EntryStatus.disqualified),
     },
     pendingJudgments,
-    leads: { total: leads, unsubscribed, week: leadsWeek },
+    leads,
     deployed: { total: deployedEntries, week: deployedWeek },
     visitors: {
       total: visitorAgg._sum.validVisitors ?? 0,
@@ -698,15 +713,21 @@ export type AdminLeadRow = {
  *
  * 수신거부한 사람도 목록에서 지우지 않는다. 지우면 같은 주소로 다시 발송할 수
  * 있게 되어 수신거부의 뜻이 사라진다. 화면은 마케팅 칸을 「-」로 적는다.
+ *
+ * 카드·표 모두 운영 DB가 닿으면 그쪽(prod-leads.ts — 헤더·대시보드와 같은 규칙),
+ * 아니면 자기 DB. 시즌은 두 DB의 id가 달라 slug로 맞춘다.
  */
 export async function loadAdminLeads(
-  seasonId: string,
+  season: { id: string; slug: string },
   today: Date,
   take: number = 200,
 ): Promise<{ rows: AdminLeadRow[]; total: number; todayCount: number; optIn: number }> {
   /* 「오늘」은 KST 달력일이다 */
   const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(today);
   const dayStart = new Date(`${ymd}T00:00:00+09:00`);
+  const prod = await prodLeadPage(season.slug, dayStart, take);
+  if (prod) return prod;
+  const seasonId = season.id;
   const [rows, total, todayCount, optIn] = await Promise.all([
     prisma.lead.findMany({
       where: { seasonId },
