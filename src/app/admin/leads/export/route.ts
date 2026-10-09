@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { canAccess, getSessionUser, loadAccessContext, loadViewerState } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
+import { prodLeadExportRows } from "@/lib/prod-leads";
 
 /*
   사전신청 리드 CSV — 시안 리드 화면의 「CSV 내보내기」.
@@ -11,6 +12,9 @@ import { prisma } from "@/lib/prisma";
     ② 내려받을 때마다 감사 로그 한 줄(`lead.export`, 몇 건을 누가)
     ③ 수신거부·마케팅 동의 칸을 같이 싣는다 — 발송 대상은 이 칸이 정한다
        (운영규칙 제24조 ②). 목록에 있다는 사실만으로 광고를 보내면 안 된다.
+
+  행은 리드 화면의 표와 같은 곳에서 읽는다 — 운영 DB가 닿으면 그쪽, 아니면 자기
+  DB(prod-leads.ts). 감사 로그는 어느 쪽이든 자기 DB에 남긴다.
 
   셀이 `=`·`+`·`-`·`@`로 시작하면 스프레드시트가 수식으로 읽는다(CSV 인젝션) —
   작은따옴표를 앞에 붙인다.
@@ -37,20 +41,22 @@ export async function GET() {
   const viewer = await loadViewerState();
   if (!viewer.season) notFound();
 
-  const rows = await prisma.lead.findMany({
-    where: { seasonId: viewer.season.id },
-    orderBy: { createdAt: "asc" },
-    select: {
-      email: true,
-      marketingOptIn: true,
-      unsubscribedAt: true,
-      utmSource: true,
-      utmMedium: true,
-      utmCampaign: true,
-      sourceChannel: true,
-      createdAt: true,
-    },
-  });
+  const rows =
+    (await prodLeadExportRows(viewer.season.slug)) ??
+    (await prisma.lead.findMany({
+      where: { seasonId: viewer.season.id },
+      orderBy: { createdAt: "asc" },
+      select: {
+        email: true,
+        marketingOptIn: true,
+        unsubscribedAt: true,
+        utmSource: true,
+        utmMedium: true,
+        utmCampaign: true,
+        sourceChannel: true,
+        createdAt: true,
+      },
+    }));
 
   await prisma.auditLog.create({
     data: {

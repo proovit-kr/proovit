@@ -10,7 +10,7 @@ import {
 } from "@/generated/prisma/enums";
 import { CREDIT_CARD_BY_KIND, creditTargetLabel } from "@/lib/credits";
 import { prisma } from "@/lib/prisma";
-import { prodLeadStats } from "@/lib/prod-leads";
+import { prodLeadPage, prodLeadStats } from "@/lib/prod-leads";
 import { devNow } from "@/lib/dev-clock";
 import { loadFirstRaceStart } from "@/lib/race-read";
 import { rollupHalt } from "@/lib/rollup";
@@ -713,15 +713,21 @@ export type AdminLeadRow = {
  *
  * 수신거부한 사람도 목록에서 지우지 않는다. 지우면 같은 주소로 다시 발송할 수
  * 있게 되어 수신거부의 뜻이 사라진다. 화면은 마케팅 칸을 「-」로 적는다.
+ *
+ * 카드·표 모두 운영 DB가 닿으면 그쪽(prod-leads.ts — 헤더·대시보드와 같은 규칙),
+ * 아니면 자기 DB. 시즌은 두 DB의 id가 달라 slug로 맞춘다.
  */
 export async function loadAdminLeads(
-  seasonId: string,
+  season: { id: string; slug: string },
   today: Date,
   take: number = 200,
 ): Promise<{ rows: AdminLeadRow[]; total: number; todayCount: number; optIn: number }> {
   /* 「오늘」은 KST 달력일이다 */
   const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(today);
   const dayStart = new Date(`${ymd}T00:00:00+09:00`);
+  const prod = await prodLeadPage(season.slug, dayStart, take);
+  if (prod) return prod;
+  const seasonId = season.id;
   const [rows, total, todayCount, optIn] = await Promise.all([
     prisma.lead.findMany({
       where: { seasonId },
