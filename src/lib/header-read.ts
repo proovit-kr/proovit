@@ -29,6 +29,7 @@ import {
   type StageInfo,
 } from "@/lib/header-state";
 import { prisma } from "@/lib/prisma";
+import { prodLeadCount } from "@/lib/prod-leads";
 import { devNow } from "@/lib/dev-clock";
 import { getCurrentSeason, publicHeaderSeason } from "@/lib/season";
 import { participantStages } from "@/lib/submission";
@@ -242,7 +243,7 @@ export async function loadAdminHeader(viewer: ViewerState): Promise<AdminHeaderM
   const [seasons, email] = await Promise.all([
     prisma.season.findMany({
       orderBy: { createdAt: "desc" },
-      select: { id: true, title: true, phase: true, startsAt: true, endsAt: true, createdAt: true },
+      select: { id: true, slug: true, title: true, phase: true, startsAt: true, endsAt: true, createdAt: true },
     }),
     prisma.user.findUnique({ where: { id: user.id }, select: { email: true } }),
   ]);
@@ -266,7 +267,7 @@ export async function loadAdminHeader(viewer: ViewerState): Promise<AdminHeaderM
     leads, entries, onboardingIncomplete, stagePending, reviewsPending, reviewsSlaUnder12h,
     metricsPending, abuseFlags, appealsPending, nextSeasonLeads, recruitSchedule,
   ] = await Promise.all([
-    prisma.lead.count({ where: { seasonId: season.id } }),
+    countLeads(season),
     prisma.entry.count({ where: { seasonId: season.id } }),
     /* 신청은 했는데 온보딩(측정 연동 검증)을 못 마친 팀 */
     prisma.entry.count({
@@ -326,7 +327,7 @@ export async function loadAdminHeader(viewer: ViewerState): Promise<AdminHeaderM
     prisma.abuseFlag.count({ where: { entry: { seasonId: season.id }, status: AbuseStatus.flagged } }),
     prisma.appeal.count({ where: { entry: { seasonId: season.id }, respondedAt: null } }),
     nextSeasonRow
-      ? prisma.lead.count({ where: { seasonId: nextSeasonRow.id } })
+      ? countLeads(nextSeasonRow)
       : Promise.resolve(null),
     /* 참가 신청 마감 = 레이스로 넘어가는 예정 시각 */
     prisma.seasonSchedule.findFirst({
@@ -374,6 +375,14 @@ export async function loadAdminHeader(viewer: ViewerState): Promise<AdminHeaderM
     nextSeason: nextSeasonRow ? { title: nextSeasonRow.title, startsAt: nextSeasonRow.startsAt } : null,
     email: email?.email ?? "",
   });
+}
+
+/*
+  사전 신청 수 — 운영 DB가 닿으면 그쪽(KPI#1은 운영 행만 뜻이 있다), 아니면
+  자기 DB. 운영 배포는 PROD_DATABASE_URL이 없어 늘 뒤쪽이다(prod-leads.ts).
+*/
+async function countLeads(season: { id: string; slug: string }): Promise<number> {
+  return (await prodLeadCount(season.slug)) ?? prisma.lead.count({ where: { seasonId: season.id } });
 }
 
 const EMPTY_QUEUES = {
