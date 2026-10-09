@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Button } from "@/components/Button";
@@ -11,7 +11,7 @@ import ConsentFields, {
   type ConsentState,
 } from "@/components/ConsentFields";
 import { Toast, useToast } from "@/components/Toast";
-import { ACCOUNT_AGE_NOTICE_LINES, SIGNUP_CONSENTS } from "@/content/consent";
+import { SIGNUP_CONSENTS } from "@/content/consent";
 
 import styles from "./ConsentDialog.module.css";
 
@@ -146,15 +146,6 @@ export function ConsentDialog({
               />
             ) : null,
           )}
-
-          <p className={styles.why}>
-            {ACCOUNT_AGE_NOTICE_LINES.map((line, i) => (
-              <Fragment key={i}>
-                {i > 0 ? <br /> : null}
-                <Clauses text={line} />
-              </Fragment>
-            ))}
-          </p>
 
           <div className={styles.ft}>
             <SubmitButton ready={ready} />
