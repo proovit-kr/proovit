@@ -16,7 +16,6 @@ import { isOnboardingComplete, loadViewerState, type ViewerState } from "@/lib/a
 import { gateOf } from "@/lib/access-policy";
 import { landingVisitors } from "@/lib/ga4";
 import {
-  conversionRate,
   initialOf,
   nextSeasonLabel,
   resolveAdminHeader,
@@ -338,18 +337,19 @@ export async function loadAdminHeader(viewer: ViewerState): Promise<AdminHeaderM
   ]);
 
   /*
-    전환율(A1)의 분모 — 랜딩 방문자. 모집 전에만 헤더에 나오므로 그때만 GA4를
-    부른다. 기간은 사전 신청이 열린 때부터(season_schedules의 pre_apply 행,
-    없으면 시즌 생성일). 자격이 없거나 실패하면 null이고 조각을 비운다.
+    A1의 방문자·전환율 — 랜딩 순 방문자(GA4). 모집 전에만 헤더에 나오므로 그때만
+    GA4를 부른다. 기간은 사전 신청이 열린 때부터(season_schedules의 pre_apply 행,
+    없으면 시즌 생성일). 자격이 없거나 실패하면 null이고 두 조각을 비운다.
+    전환율은 판정(resolveAdminHeader)이 리드 ÷ 방문자로 낸다.
   */
-  let leadsConversion: number | null = null;
+  let visitors: number | null = null;
   if (season.phase === SeasonPhase.pre_apply) {
     const opened = await prisma.seasonSchedule.findFirst({
       where: { seasonId: season.id, phase: SeasonPhase.pre_apply },
       orderBy: { startsAt: "asc" },
       select: { startsAt: true },
     });
-    leadsConversion = conversionRate(leads, await landingVisitors(opened?.startsAt ?? season.createdAt));
+    visitors = await landingVisitors(opened?.startsAt ?? season.createdAt);
   }
 
   return resolveAdminHeader({
@@ -361,7 +361,7 @@ export async function loadAdminHeader(viewer: ViewerState): Promise<AdminHeaderM
     recruitDeadline: recruitSchedule?.startsAt ?? season.startsAt,
     queues: {
       leads,
-      leadsConversion,
+      landingVisitors: visitors,
       entries,
       onboardingIncomplete,
       stagePending,
@@ -386,7 +386,7 @@ async function countLeads(season: { id: string; slug: string }): Promise<number>
 }
 
 const EMPTY_QUEUES = {
-  leads: 0, leadsConversion: null, entries: 0, onboardingIncomplete: 0, stagePending: 0,
+  leads: 0, landingVisitors: null, entries: 0, onboardingIncomplete: 0, stagePending: 0,
   reviewsPending: 0, reviewsSlaUnder12h: 0, metricsPending: 0, abuseFlags: 0, appealsPending: 0,
   nextSeasonLeads: null,
 };

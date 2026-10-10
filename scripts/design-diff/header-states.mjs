@@ -306,6 +306,10 @@ const IGNORE_TEXT = [/^×$/, /^시즌 아카이브$/];
 const only = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 let total = 0;
 
+/*
+  ⚠️ A1의 글자 둘과 필 폭은 의도한 차이로 남겨 둔다(빨간 줄로 보이게 두고 IGNORE에 넣지 않는다).
+    A1 대기열  「방문자 3,262」 조각은 시안에 없다 — 전환율의 분모를 따로 보인다(2026-10-10 수연 지시)
+*/
 for (const [id, specFrame] of VARIANTS) {
   if (only && !only.has(id)) continue;
   const kind = id[0];

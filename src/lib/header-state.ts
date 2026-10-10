@@ -28,6 +28,8 @@ import {
   StageKey,
 } from "@/generated/prisma/enums";
 
+import { formatNumber } from "@/utils/format";
+
 // ═════════════════════════════════════════════════════════════
 // 시각 표기. 전부 KST다 — 마감은 한국 시각으로 공지된다.
 // ═════════════════════════════════════════════════════════════
@@ -945,8 +947,11 @@ export type AdminHeaderInput = {
   recruitDeadline: Date | null;
   queues: {
     leads: number;
-    /** 랜딩 전환율(%). 방문 수가 없으면 null — 숫자를 지어내지 않는다 */
-    leadsConversion: number | null;
+    /**
+     * 랜딩 순 방문자(GA4, 사전 신청이 열린 때부터). 모르면 null — 방문자·전환율
+     * 조각을 둘 다 비운다. 숫자를 지어내지 않는다
+     */
+    landingVisitors: number | null;
     entries: number;
     onboardingIncomplete: number;
     /** 지금 스테이지의 대기 건수 */
@@ -1012,8 +1017,15 @@ export function resolveAdminHeader(input: AdminHeaderInput): AdminHeaderModel {
   switch (kind) {
     case "pre": {
       const segs: Seg[] = [{ text: "사전 신청 리드 " }, n(queues.leads), { text: "명" }];
-      if (queues.leadsConversion !== null) {
-        segs.push({ text: "전환율", faint: true }, { text: `${queues.leadsConversion}%`, num: true });
+      /*
+        시안 A1은 리드 수와 전환율뿐이고 방문자는 전환율의 분모로만 숨어 있다.
+        분모를 따로 보인다 — 전환율만으로는 모수가 열인지 천인지 모른다
+        (2026-10-10 수연 지시). 방문자가 0이면 전환율은 못 내고 방문자만 적는다.
+      */
+      if (queues.landingVisitors !== null) {
+        segs.push({ text: "방문자", faint: true }, { text: formatNumber(queues.landingVisitors), num: true });
+        const rate = conversionRate(queues.leads, queues.landingVisitors);
+        if (rate !== null) segs.push({ text: "전환율", faint: true }, { text: `${rate}%`, num: true });
       }
       return {
         variant: "A1", seasons, email: input.email,
