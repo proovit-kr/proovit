@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId } from "react";
+import { Fragment, useId, useState, type ReactNode } from "react";
 
 import { PREREGISTER_CONSENTS, type ConsentItem } from "@/content/consent";
 import styles from "./ConsentFields.module.css";
@@ -16,13 +16,17 @@ import styles from "./ConsentFields.module.css";
  *   - 선택 미동의로도 접수가 되어야 한다 (D5)
  *   - 보유·이용 기간은 본문과 시각적으로 구분한다 (D3)
  *
- * 고지 4요소는 이 자리에 펼치지 않고 개인정보처리방침으로 보낸다. 시안의
- * 「보기」가 두 곳 모두 `<a class="see" href="#privacy">`이고, 운영규칙서
- * 게시 전 확인 3번이 「별도 연결화면 또는 팝업」을 명시로 허용한다.
+ * 「보기」는 항목마다 다르다.
+ *   - `disclosure` 항목(사전 신청 폼의 개인정보·광고성 정보) — 그 자리에서 본문을
+ *     펼친다. 요약 표를 먼저 보여주고 개인정보처리방침 링크는 그 안에 둔다
+ *     (2026-10-10 윤서 요청). 이 폼은 이메일을 적는 자리라 떠나면 입력이 날아간다.
+ *   - `policyHref` 항목(가입 모달) — 시안대로 개인정보처리방침으로 이동한다
+ *     (`<a class="see" href="#privacy">`). 운영규칙서 게시 전 확인 3번이 「별도
+ *     연결화면 또는 팝업」을 명시로 허용한다.
  *
- * ⚠️ 그래서 **개인정보처리방침이 고지의 정본**이다. 거기서 항목(제2조)·
- * 목적(제3조)·기간(제9조)·거부권(제13조) 중 하나라도 빠지면 이 화면의
- * 동의가 요건을 잃는다.
+ * ⚠️ 두 경우 모두 **개인정보처리방침이 고지의 정본**이다. 펼치는 표는 방침의
+ * 항목(제2조)·목적(제3조)·기간(제9조)·거부권(제13조)을 요약한 것이라 한쪽만
+ * 고치면 두 고지가 어긋난다.
  */
 
 /*
@@ -49,6 +53,29 @@ export function isConsentComplete(
 
 /** 체크박스 DOM id. 안내를 띄운 뒤 그 항목으로 포커스를 옮길 때 쓴다. */
 const rowId = (key: ConsentItem["key"]) => `consent-${key}`;
+
+/**
+ * 문장 안의 `[글자](경로)`를 링크로 바꾼다. 동의 본문의 "자세한 내용은
+ * [개인정보처리방침](/privacy)에서 확인할 수 있어요"가 쓴다. 링크를 문장에서
+ * 떼어 따로 두면 문안 파일에 문장 한 개가 세 토막으로 쪼개져 정본과 대조할 수
+ * 없게 된다.
+ */
+function withLinks(text: string): ReactNode {
+  const parts = text.split(/\[([^\]]+)\]\(([^)]+)\)/g);
+  if (parts.length === 1) return text;
+  const out: ReactNode[] = [];
+  for (let i = 0; i < parts.length; i += 3) {
+    if (parts[i]) out.push(parts[i]);
+    if (i + 2 < parts.length) {
+      out.push(
+        <Link key={i} href={parts[i + 2]} className={styles.link}>
+          {parts[i + 1]}
+        </Link>,
+      );
+    }
+  }
+  return out;
+}
 
 /**
  * 아직 체크되지 않은 첫 필수 항목으로 포커스를 옮긴다.
@@ -82,69 +109,142 @@ function ConsentRow({
   onChange: (next: boolean) => void;
 }) {
   const id = `${idPrefix}${rowId(item.key)}`;
+  const detailId = `${id}-detail`;
+  const [open, setOpen] = useState(false);
+  /* 펼칠 본문이 있는 항목에만 펼침 「보기」를 단다 */
+  const hasDetail = Boolean(
+    item.disclosure && (item.body || item.facts || item.notes),
+  );
 
   // "[필수] 개인정보 …" 에서 앞머리 태그만 떼어내 다르게 칠한다
   const match = /^\[(필수|선택)\]\s*(.*)$/.exec(item.label);
   const tag = match ? `[${match[1]}]` : null;
   const rest = match ? match[2] : item.label;
 
+  /*
+    펼친 본문은 행을 감싸지 않고 **행의 형제**로 둔다. 참가 신청 대조
+    (`scripts/design-diff/apply.mjs`)가 `.row:nth-of-type(n)`으로 행을 집는데,
+    래퍼로 감싸면 모든 행이 제 래퍼의 첫째가 되어 n=2부터는 아무것도 못 집는다.
+    닫혀 있을 때는 DOM이 예전과 같다.
+  */
   return (
-    <div className={styles.row}>
-      <input
-        id={id}
-        type="checkbox"
-        className={styles.checkbox}
-        checked={checked}
-        disabled={disabled}
-        /*
-          `required`를 쓰지 않는다. 브라우저 기본 검증이 걸리면 우리 onSubmit이
-          아예 안 불려서, 어느 항목이 왜 막혔는지 직접 안내할 기회가 사라진다.
-          미동의 접수는 제출 핸들러와 서버(`/api/v1/leads`)가 각각 막는다.
-        */
-        aria-invalid={invalid || undefined}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <label
-        htmlFor={id}
-        className={`${styles.label} ${invalid ? styles.labelInvalid : ""}`}
-      >
-        {/*
-          ⚠️ 공백을 태그 **밖**에 둔다. 안에 넣으면 11px 태그 크기로 그려져
-          뒤 글자가 1px쯤 당겨진다. 시안은 `<span class="req">[필수]</span> 개인…`
-          처럼 태그와 본문 사이에 공백 노드가 있다.
-        */}
-        {tag ? (
-          <>
-            <span
-              className={
-                item.required ? styles.tagRequired : styles.tagOptional
-              }
-            >
-              {tag}
-            </span>{" "}
-          </>
-        ) : null}
-        {rest}
-        {/*
-          시안은 「보기」를 라벨 글자 바로 뒤에 공백 하나 두고 붙인다. 형제로
-          빼면 `.row`의 flex gap이 끼어서 간격이 벌어진다 — 그래서 라벨
-          **안**에 둔다. 대신 라벨 안의 클릭이 체크박스 토글로 새므로 전파를
-          끊는다. 링크라 preventDefault는 못 쓴다(이동 자체가 막힌다).
-        */}
-        {item.policyHref ? (
-          <>
-            {" "}
-            <Link
-              href={item.policyHref}
-              className={styles.see}
-              onClick={(e) => e.stopPropagation()}
-            >
-              보기
-            </Link>
-          </>
-        ) : null}
-      </label>
-    </div>
+    <Fragment>
+      <div className={styles.row}>
+        <input
+          id={id}
+          type="checkbox"
+          className={styles.checkbox}
+          checked={checked}
+          disabled={disabled}
+          /*
+            `required`를 쓰지 않는다. 브라우저 기본 검증이 걸리면 우리 onSubmit이
+            아예 안 불려서, 어느 항목이 왜 막혔는지 직접 안내할 기회가 사라진다.
+            미동의 접수는 제출 핸들러와 서버(`/api/v1/leads`)가 각각 막는다.
+          */
+          aria-invalid={invalid || undefined}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <label
+          htmlFor={id}
+          className={`${styles.label} ${invalid ? styles.labelInvalid : ""}`}
+        >
+          {/*
+            ⚠️ 공백을 태그 **밖**에 둔다. 안에 넣으면 11px 태그 크기로 그려져
+            뒤 글자가 1px쯤 당겨진다. 시안은 `<span class="req">[필수]</span> 개인…`
+            처럼 태그와 본문 사이에 공백 노드가 있다.
+          */}
+          {tag ? (
+            <>
+              <span
+                className={
+                  item.required ? styles.tagRequired : styles.tagOptional
+                }
+              >
+                {tag}
+              </span>{" "}
+            </>
+          ) : null}
+          {rest}
+          {/*
+            시안은 「보기」를 라벨 글자 바로 뒤에 공백 하나 두고 붙인다. 형제로
+            빼면 `.row`의 flex gap이 끼어서 간격이 벌어진다 — 그래서 라벨
+            **안**에 둔다. 대신 라벨 안의 클릭이 체크박스 토글로 새므로 전파를
+            끊는다. 링크라 preventDefault는 못 쓴다(이동 자체가 막힌다).
+          */}
+          {/*
+            펼침일 때는 `<button>`이다. 라벨 안의 버튼은 그 자체가 대화형 요소라
+            라벨의 활성화(체크박스 토글)가 일어나지 않는데, 브라우저마다 다를
+            여지가 있어 preventDefault로 한 번 더 막는다.
+          */}
+          {hasDetail ? (
+            <>
+              {" "}
+              <button
+                type="button"
+                className={styles.see}
+                aria-expanded={open}
+                aria-controls={detailId}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setOpen((v) => !v);
+                }}
+              >
+                {open ? "접기" : "보기"}
+              </button>
+            </>
+          ) : item.policyHref ? (
+            <>
+              {" "}
+              <Link
+                href={item.policyHref}
+                className={styles.see}
+                onClick={(e) => e.stopPropagation()}
+              >
+                보기
+              </Link>
+            </>
+          ) : null}
+          {/*
+            라벨 아래 한 줄. 라벨 **안**에 두어 줄이 저절로 라벨 글자에 맞춰 서고,
+            누르면 체크박스가 토글된다 — 항목 오른쪽 여백을 누른 것과 같은 동작이다
+            (QA 답변 2026-10-02 "의도된 동작").
+
+            앞의 공백은 스크린리더 몫이다 — 없으면 체크박스 이름이 "이상입니다PROOVIT은"
+            처럼 붙어 읽힌다. 블록 요소 앞이라 화면에는 안 보인다.
+          */}
+          {item.hint ? (
+            <>
+              {" "}
+              <span className={styles.hint}>{item.hint}</span>
+            </>
+          ) : null}
+        </label>
+      </div>
+
+      {hasDetail && open ? (
+        <div id={detailId} className={styles.detail}>
+          {item.body ? <p>{item.body}</p> : null}
+
+          {item.facts ? (
+            <dl className={styles.facts}>
+              {item.facts.map((fact) => (
+                <Fragment key={fact.label}>
+                  <dt>{fact.label}</dt>
+                  {/* D3 — 보유·이용 기간은 법이 지정한 "중요한 내용"이라 굵게 구분한다 */}
+                  <dd className={fact.important ? styles.important : undefined}>
+                    {fact.value}
+                  </dd>
+                </Fragment>
+              ))}
+            </dl>
+          ) : null}
+
+          {item.notes?.map((note) => (
+            <p key={note}>{withLinks(note)}</p>
+          ))}
+        </div>
+      ) : null}
+    </Fragment>
   );
 }
 
@@ -250,15 +350,6 @@ export default function ConsentFields({
           {missingMessage}
         </p>
       ) : null}
-
-      {/*
-        ⚠️ 문안 A의 마지막 문장("자세한 내용은 [개인정보처리방침]에서 확인할 수
-        있어요")이 전제하는 링크가 빠져 있다. `/privacy`가 시안 v2.1 화면
-        레지스트리에 없어 라우트를 지웠기 때문이다.
-
-        동의 자체는 고지 4요소(목적·항목·기간·거부권)를 이 화면에서 전부
-        보여주므로 링크 없이도 유효하다. 시안에 방침 화면이 추가되면 되살린다.
-      */}
     </div>
   );
 }

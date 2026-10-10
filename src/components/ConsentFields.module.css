@@ -8,8 +8,10 @@
                           margin-top 3px → **calc(.85em - 8.5px)**
     .consents .all        **신설** — 「모두 선택」 줄
 
-  ⚠️ 「보기」는 시안대로 **이동**이다(`a.see` → 개인정보처리방침). 한때 그
-  자리에서 본문을 펼쳤으나 시안에 없는 것이었고, 고지 4요소는 방침이 정본이다.
+  ⚠️ 「보기」는 화면마다 다르다. 가입 모달은 시안대로 **이동**(`a.see` →
+  개인정보처리방침)이고, 사전 신청 폼은 그 자리에서 **펼친다**(`button.see` →
+  `.detail`). 펼침 패널은 시안에 없다 — 2026-10-10 윤서 요청으로 되살렸다
+  (ConsentFields.tsx 머리 주석). 시각 값은 시안 `.consents`에 맞추고 동작만 다르다.
 */
 .root {
   /*
@@ -138,8 +140,90 @@
   /* ver3가 `a.see`로 클래스를 주면서 점선 밑줄이 생겼다 — 누를 수 있음을 말한다 */
   border-bottom: 1px dashed var(--line-strong);
   cursor: pointer;
+  /*
+    펼침일 때는 `<button>`이다. globals가 border·background·color를 이미 벗기지만
+    패딩과 줄높이는 남아 글자가 흐름에서 살짝 떠 보인다. `<a>`와 같은 상자로
+    맞춘다. display는 버튼이라 inline-block으로 블록화되는데(랜딩 프로브가
+    그래서 display를 안 재다) 폭·위치는 같다.
+  */
+  padding: 0;
+  margin: 0;
+  line-height: inherit;
+  text-align: start;
+  vertical-align: baseline;
 }
 /* ver3: hover가 --text가 아니라 라임이다 */
 .see:hover {
+  color: var(--accent);
+}
+
+/*
+  라벨 아래 한 줄(만 14세 "PROOVIT은 만 14세 이상만 신청할 수 있어요"). 라벨 안에
+  있어 글자 시작선이 저절로 맞고, 블록으로 내려 한 줄을 따로 차지한다.
+  동의 문장이 아니라 안내라 한 단계 작고 연하다.
+*/
+.hint {
+  display: block;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--faint);
+  margin-top: 2px;
+}
+
+/*
+  펼친 본문. 체크박스 폭(17) + gap(10)만큼 들여써 라벨 글자와 세로선을 맞춘다.
+  부모 `.root`가 flex column이라 행과의 간격은 그 gap(9px)이 준다.
+*/
+.detail {
+  margin: 0 0 var(--s-1) calc(17px + 10px);
+  padding-left: var(--s-3);
+  border-left: 1px solid var(--c-line-2);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  color: var(--c-text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.detail p {
+  margin: 0;
+}
+
+/*
+  요약 표. 정본의 표는 가로 3열(개인정보)·세로 4행(광고성 정보)으로 모양이 다른데,
+  폼이 480px 카드 안이라 가로 3열은 폰에서 안 들어간다. 둘 다 「머리글: 값」
+  두 열로 세운다. 머리글 열은 가장 긴 머리글(보유·이용 기간)에 맞춰 저절로 잡힌다.
+*/
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s-1) var(--s-3);
+  margin: 0;
+}
+.facts dt {
+  color: var(--c-text-faint);
+  white-space: nowrap;
+}
+.facts dd {
+  margin: 0;
+  color: var(--c-text-muted);
+}
+
+/*
+  보유·이용 기간은 법이 "중요한 내용"으로 지정해 본문과 시각적으로 구분할 것을
+  요구한다(D3 — 개인정보 보호법 제22조 제2항, 시행령 제17조 제3항).
+*/
+.important {
+  color: var(--c-text-strong);
+  font-weight: 600;
+}
+
+/* 본문 안의 링크(개인정보처리방침). 글자 색은 본문과 같고 밑줄로만 구분한다 */
+.link {
+  color: var(--c-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link:hover {
   color: var(--accent);
 }
