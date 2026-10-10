@@ -498,7 +498,7 @@ describe("참가자 헤더 — 실제 창(유동 게이트)", () => {
 
 // ── 운영자 헤더 ──────────────────────────────────────────────
 const QUEUES: AdminHeaderInput["queues"] = {
-  leads: 137, leadsConversion: null, entries: 24, onboardingIncomplete: 3, stagePending: 8,
+  leads: 137, landingVisitors: null, entries: 24, onboardingIncomplete: 3, stagePending: 8,
   reviewsPending: 18, reviewsSlaUnder12h: 3, metricsPending: 20, abuseFlags: 2, appealsPending: 1, nextSeasonLeads: null,
 };
 
@@ -522,13 +522,17 @@ function adm(over: Partial<AdminHeaderInput> & { phase?: SeasonPhase; now?: Date
 const flat = (segs: { text: string }[]) => segs.map((s) => s.text.trim()).join(" ");
 
 describe("운영자 헤더 — A1~A7", () => {
-  it("A1 모집 전 — 리드 수. 전환율은 값이 있을 때만", () => {
+  it("A1 모집 전 — 리드 수. 방문자·전환율은 GA4 값이 있을 때만", () => {
     const m = adm({ phase: SeasonPhase.pre_apply });
     expect(m.variant).toBe("A1");
     expect(m.badge).toEqual({ tone: "blue", label: "모집 전" });
     expect(flat(m.queues[0].segs)).toBe("사전 신청 리드 137 명");
-    const m2 = adm({ phase: SeasonPhase.pre_apply, queues: { ...QUEUES, leadsConversion: 4.2 } });
-    expect(flat(m2.queues[0].segs)).toBe("사전 신청 리드 137 명 전환율 4.2%");
+    /* 방문자는 천 단위로 끊고(시안 KPI 「1,024」), 전환율은 리드 ÷ 방문자 */
+    const m2 = adm({ phase: SeasonPhase.pre_apply, queues: { ...QUEUES, landingVisitors: 3262 } });
+    expect(flat(m2.queues[0].segs)).toBe("사전 신청 리드 137 명 방문자 3,262 전환율 4.2%");
+    /* 방문자 0 — 전환율은 못 내지만 방문자 0은 사실이라 적는다 */
+    const m3 = adm({ phase: SeasonPhase.pre_apply, queues: { ...QUEUES, landingVisitors: 0 } });
+    expect(flat(m3.queues[0].segs)).toBe("사전 신청 리드 137 명 방문자 0");
   });
 
   it("A2 모집 중 — 신청 팀 수와 목표, 온보딩 미완료는 오렌지로 우측", () => {

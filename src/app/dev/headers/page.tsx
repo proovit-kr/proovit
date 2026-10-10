@@ -115,7 +115,7 @@ const ADMIN_BASE: AdminHeaderInput = {
   stages: STAGES.map((s) => (s.key === StageKey.s3 ? { ...s, name: "빌드와 배포" } : s)),
   recruitDeadline: KST("2026-09-27T23:59:00"),
   queues: {
-    leads: 137, leadsConversion: 4.2, entries: 24, onboardingIncomplete: 3, stagePending: 8,
+    leads: 137, landingVisitors: 3262, entries: 24, onboardingIncomplete: 3, stagePending: 8,
     reviewsPending: 18, reviewsSlaUnder12h: 3, metricsPending: 20, abuseFlags: 2, appealsPending: 1,
     nextSeasonLeads: null,
   },

@@ -148,9 +148,11 @@ describe("참가 동의", () => {
 
   it("evidence 문안에 고지 4요소가 있다", () => {
     const evidence = APPLY_CONSENTS.find((c) => c.key === "evidence");
-    expect(evidence?.table?.[0]?.item).toBeTruthy(); // 항목
-    expect(evidence?.table?.[0]?.purpose).toBeTruthy(); // 목적
-    expect(evidence?.table?.[0]?.period).toBeTruthy(); // 기간
+    const labels = evidence?.facts?.map((f) => f.label) ?? [];
+    expect(labels).toContain("수집 항목");
+    expect(labels).toContain("수집·이용 목적");
+    expect(labels).toContain("보유·이용 기간");
+    expect(evidence?.facts?.every((f) => f.value.length > 0)).toBe(true);
     // 거부권
     expect(evidence?.notes?.some((n) => n.includes("거부할 권리"))).toBe(true);
   });
