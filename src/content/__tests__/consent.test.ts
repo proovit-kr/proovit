@@ -66,15 +66,16 @@ describe("사전 신청 동의", () => {
   });
 
   /*
-    ⚠️ 문안이 바뀌면 버전을 올린다(consent.ts 머리 주석). 10-10에 사전 신청의
-    마케팅 문안만 바뀌었고 가입 모달은 그대로라, 둘의 버전이 **갈라져야** 한다.
-    같은 값으로 돌아가면 모달 쪽이 보지도 않은 문안의 버전을 기록하게 된다.
+    ⚠️ 문안이 바뀌면 버전을 올린다(consent.ts 머리 주석). 10-10에 사전 신청과
+    가입 모달의 마케팅 라벨을 「광고성 정보」로 통일했다(윤서 결정). 두 라벨이
+    같으므로 버전도 같아야 한다 — 한쪽만 고치면 다른 쪽이 보지도 않은 문안의
+    버전을 기록하게 된다. 라벨이 다시 갈리면 그때 버전도 떼어 둔다.
   */
-  it("마케팅 문안 버전은 사전 신청과 가입 모달이 갈라져 있다", () => {
+  it("마케팅 라벨과 문안 버전은 사전 신청과 가입 모달이 같다", () => {
     expect(MARKETING_CONSENT_VERSION).toBe("v1.1");
-    expect(ACCOUNT_MARKETING_CONSENT_VERSION).toBe("v1.0");
+    expect(ACCOUNT_MARKETING_CONSENT_VERSION).toBe(MARKETING_CONSENT_VERSION);
     expect(SIGNUP_CONSENTS.find((c) => c.key === "marketing")?.label).toBe(
-      "[선택] 마케팅 정보 수신 동의 (이메일)",
+      item("marketing")?.label,
     );
   });
 
