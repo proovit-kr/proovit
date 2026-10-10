@@ -148,8 +148,9 @@ export const PREREGISTER_CONSENTS: ConsentItem[] = [
     /*
       게시용 최종본 3절 라벨. 「마케팅 정보」가 아니라 **「광고성 정보」**다 —
       정보통신망법 제50조가 쓰는 말이고, 윤서가 2026-10-10에 이쪽으로 정했다.
-      시안 ver4(1550행)와 가입 모달(SIGNUP_CONSENTS)은 아직 「마케팅 정보」라
-      랜딩 글자 대조에서 이 줄이 빨갛게 남는다. 시안이 아니라 정본을 따른 것이다.
+      가입 모달(SIGNUP_CONSENTS)도 같은 날 「광고성 정보」로 통일했다. 시안 ver4
+      (1550·1739행)는 아직 「마케팅 정보」라 랜딩·인증 글자 대조에서 이 줄이
+      빨갛게 남는다. 시안이 아니라 정본을 따른 것이다.
     */
     label: "[선택] 광고성 정보 수신 동의 (이메일)",
     disclosure: true,
@@ -208,13 +209,14 @@ export const ACCOUNT_AGE_NOTICE =
   "만 14세 이상 이용 조건 확인을 위해 확인 여부·시각·방식을 회원 탈퇴 시까지 보관해요. 생년월일은 수집하지 않으며 본인인증을 대신하지 않아요. 확인하지 않으면 가입할 수 없어요.";
 
 /**
- * 계정 단위 마케팅 수신 동의 문안의 버전.
+ * 계정 단위 마케팅 수신 동의 문안의 버전. 사전 신청 폼과 라벨이 같아 값을 맞춘다.
  *
- * v1.1까지는 사전 신청 폼과 같은 값을 썼는데, 2026-10-10에 사전 신청 쪽만
- * 「광고성 정보 수신 동의」로 바뀌어 갈라졌다(MARKETING_CONSENT_VERSION 주석).
- * 가입 모달의 라벨은 그대로라 v1.0에 둔다. 모달 문안도 맞추면 그때 올린다.
+ * 2026-10-10에 사전 신청 쪽이 먼저 「광고성 정보」로 바뀌면서 한때 v1.0에 떼어
+ * 두었는데(#106), 같은 날 윤서가 "광고성 정보로 통일"을 정해 모달도 따라갔다.
+ * 선택 항목이라 재동의 검사(account-consent.ts REQUIRED)에는 안 들어간다 —
+ * 버전은 새 동의 행에 어느 문안을 보고 동의했는지 남기는 값이다.
  */
-export const ACCOUNT_MARKETING_CONSENT_VERSION = "v1.0";
+export const ACCOUNT_MARKETING_CONSENT_VERSION = MARKETING_CONSENT_VERSION;
 
 export const SIGNUP_CONSENTS: ConsentItem[] = [
   {
@@ -256,7 +258,12 @@ export const SIGNUP_CONSENTS: ConsentItem[] = [
     */
     key: "marketing",
     required: false,
-    label: "[선택] 마케팅 정보 수신 동의 (이메일)",
+    /*
+      시안 ver4 1739행은 「마케팅 정보」인데 사전 신청 폼과 맞춰 「광고성 정보」로
+      통일했다(2026-10-10 윤서 결정, QA 「시즌 소식 받기 섹션」 스레드). 인증 화면
+      글자 대조에서 이 줄이 빨갛게 남는다 — 시안이 아니라 정본을 따른 것이다.
+    */
+    label: "[선택] 광고성 정보 수신 동의 (이메일)",
   },
 ];
 
