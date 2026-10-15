@@ -33,6 +33,8 @@ import { makeUnsubscribeToken } from "@/lib/unsubscribe-token";
 
   literal(true)이므로 false·누락 모두 400이 된다.
 */
+const SERVICE_CLOSED = true;
+
 const bodySchema = z.object({
   email: z.email({ message: "이메일 형식이 올바르지 않습니다." }).max(254),
   privacyConsent: z.literal(true, {
@@ -56,6 +58,14 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  /*
+    2026-10-15 팀 결정: 서비스 종료. 사전 신청을 더 받지 않는다(Landing.tsx SERVICE_CLOSED).
+    화면의 폼은 사라졌지만 주소로 직접 부르는 길까지 닫아야 리드가 쌓이지 않는다.
+  */
+  if (SERVICE_CLOSED) {
+    return apiFail("NO_OPEN_SEASON", "사전 신청 접수가 종료되었습니다.");
+  }
+
   const clientIp = getClientIp(request);
 
   // 가장 먼저 본다. 본문 파싱도 DB 조회도 하기 전에 끊는 것이 가장 싸다.
