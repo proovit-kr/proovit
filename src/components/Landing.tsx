@@ -118,6 +118,13 @@ export interface LandingProps {
 
 const NUM = new Intl.NumberFormat("ko-KR");
 
+/*
+  2026-10-15 팀 결정: PROOVIT은 시즌 1을 열지 않고 종료한다. 사이트는 포트폴리오로
+  남기되 사전 신청은 더 받지 않는다. 폼 대신 종료 안내를 보이고, 서버(/api/v1/leads)도
+  409(NO_OPEN_SEASON)로 닫혀 있다. 폼 코드는 지우지 않고 남긴다.
+*/
+const SERVICE_CLOSED = true;
+
 const cx = (...v: (string | undefined | false)[]) =>
   v.filter(Boolean).join(" ");
 
@@ -589,6 +596,16 @@ export function Landing({
                   {lastMinute ? ` 마감은 ${fmtMDHM(lastMinute)}예요.` : null}
                 </p>
               </Reveal>
+            ) : SERVICE_CLOSED ? (
+            <Reveal index={3} step={70}>
+              {/* 폼 자리에 종료 안내를 둔다. 폼 코드는 포트폴리오 참고용으로 남긴다. */}
+              <div className={styles.form}>
+                <div className={styles.formHead}>서비스 종료 안내</div>
+                <p className={styles.hint}>
+                  <Clauses text="PROOVIT은 시즌 1을 열지 못하고 2026년 10월에 준비를 마쳤어요. 이 사이트는 포트폴리오로 남겨 둔 것이라 사전 신청은 받지 않아요." />
+                </p>
+              </div>
+            </Reveal>
             ) : (
             <Reveal index={3} step={70}>
               <form className={styles.form} onSubmit={onPreRegister} noValidate>
@@ -970,6 +987,14 @@ export function Landing({
                 href="/apply"
               >
                 참가 신청
+              </LinkButton>
+            ) : SERVICE_CLOSED ? (
+              <LinkButton
+                className={styles.btnPrimary}
+                style={{ padding: "14px 30px", fontSize: 15 }}
+                href="https://github.com/proovit-kr/proovit"
+              >
+                코드 보기
               </LinkButton>
             ) : (
               <Button
