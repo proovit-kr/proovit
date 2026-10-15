@@ -602,7 +602,7 @@ export function Landing({
               <div className={styles.form}>
                 <div className={styles.formHead}>서비스 종료 안내</div>
                 <p className={styles.hint}>
-                  <Clauses text="PROOVIT은 시즌 1을 열지 못하고 2026년 10월에 준비를 마쳤어요. 이 사이트는 포트폴리오로 남겨 둔 것이라 사전 신청은 받지 않아요." />
+                  <Clauses text="PROOVIT은 2026년 10월, 시즌 1을 시작하기 전에 준비를 마무리했어요. 이 사이트는 포트폴리오로 남겨 둔 것이라 사전 신청은 받지 않아요." />
                 </p>
               </div>
             </Reveal>
