@@ -55,3 +55,7 @@ next-env.d.ts
 
 # 증빙 파일의 로컬 저장소 (R2 키가 없을 때 개발 서버가 쓴다)
 .data/
+
+# Vercel CLI env pull 결과물. 값이 가려져 있어도 커밋하지 않는다.
+*.env
+prodcheck.env
